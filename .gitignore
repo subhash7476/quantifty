@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment
+.env
+.env.*
+*.env
+
+# IDE
+.vscode/
+.idea/
+
+# Logs / runtime
+logs/
+*.log
+*.pid
+
+# Data / DB
+data/
+*.db
+# FTMO runtime / large raw data
+ftmo/.calendar_cache.json
+ftmo/US30.cash_M5.csv
+ftmo/XAGUSD_M5.csv
+ftmo/US100_M5.csv
+
+# Windows reserved / junk
+nul
+# Secrets
+config/credentials.py
+# AI / tooling
+.claude/
+*.png
+config/credentials.json
