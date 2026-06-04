@@ -1,0 +1,1347 @@
+{% extends "base.html" %}
+
+{% block title %}Database Explorer - opencode{% endblock %}
+
+{% block breadcrumb %}System / Database{% endblock %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white tracking-tight">Database Management</h1>
+            <p class="text-slate-400 mt-1">Inspect schema, fetch market data, and browse records.</p>
+        </div>
+        <div class="flex space-x-3">
+            <button onclick="loadTables()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl border border-slate-700 transition-colors flex items-center">
+                <i class="fas fa-sync-alt mr-2"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="flex border-b border-slate-800 space-x-8">
+        <button onclick="switchTab('explorer')" id="tab-explorer-btn" class="pb-4 text-sm font-semibold border-b-2 border-blue-500 text-white transition-all">
+            <i class="fas fa-search-nodes mr-2"></i>Schema Explorer
+        </button>
+        <button onclick="switchTab('fetcher')" id="tab-fetcher-btn" class="pb-4 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition-all">
+            <i class="fas fa-cloud-download-alt mr-2"></i>Data Fetcher
+        </button>
+        <button onclick="switchTab('viewer')" id="tab-viewer-btn" class="pb-4 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition-all">
+            <i class="fas fa-table mr-2"></i>Data Viewer
+        </button>
+        <button onclick="switchTab('historical')" id="tab-historical-btn" class="pb-4 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition-all">
+            <i class="fas fa-history mr-2"></i>Historical Data
+        </button>
+    </div>
+
+    <!-- Tab Contents -->
+    <div id="tab-explorer" class="tab-content space-y-8">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
+            <!-- Sidebar: Tables List -->
+            <div class="glass rounded-2xl overflow-hidden flex flex-col h-[600px]">
+                <div class="p-4 border-b border-slate-700 bg-slate-800/30">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center">
+                        <i class="fas fa-table mr-2"></i> Tables
+                    </h3>
+                </div>
+                <div id="table-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+                    <div class="p-4 text-center text-slate-500 animate-pulse">Loading schema...</div>
+                </div>
+            </div>
+
+            <!-- Main Content: Table Preview -->
+            <div class="lg:col-span-3 space-y-6">
+                <div class="glass rounded-2xl p-6 min-h-[400px] flex flex-col">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-4">
+                            <div class="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-500">
+                                <i class="fas fa-database text-xl"></i>
+                            </div>
+                            <div>
+                                <h2 class="text-xl font-bold text-white" id="selected-table-name">Select a table</h2>
+                                <p class="text-xs text-slate-400 uppercase tracking-tighter" id="table-stats">0 Rows • 0 KB</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex-1 border border-slate-700/50 rounded-xl overflow-hidden bg-slate-900/50">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-800/80 text-slate-400 uppercase text-[10px] font-bold tracking-widest">
+                                <tr>
+                                    <th class="px-6 py-3">Column Name</th>
+                                    <th class="px-6 py-3">Data Type</th>
+                                    <th class="px-6 py-3">Nullable</th>
+                                    <th class="px-6 py-3">Default</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-preview-body" class="divide-y divide-slate-800 text-slate-300">
+                                <tr>
+                                    <td colspan="4" class="px-6 py-20 text-center text-slate-500 italic">
+                                        Click a table on the left to view its schema.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Database Info Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="glass p-5 rounded-2xl flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-emerald-500/10 rounded-lg flex items-center justify-center text-emerald-500">
+                            <i class="fas fa-hdd"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">Storage Mode</p>
+                            <p class="text-sm font-mono text-slate-300">Isolated (data/)</p>
+                        </div>
+                    </div>
+                    <div class="glass p-5 rounded-2xl flex items-center space-x-4">
+                        <div class="w-10 h-10 bg-amber-500/10 rounded-lg flex items-center justify-center text-amber-500">
+                            <i class="fas fa-microchip"></i>
+                        </div>
+                        <div>
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">Architectures</p>
+                            <p class="text-sm text-slate-300">SQLite WAL + DuckDB</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-fetcher" class="tab-content hidden space-y-6">
+        <!-- Fetcher Navigation Bar -->
+        <div class="flex items-center space-x-1 border-b border-slate-800 pb-4">
+            <button onclick="switchFetcherSubTab('watchlist')" id="fetcher-watchlist-btn" class="px-4 py-2 text-sm font-medium border-b-2 border-purple-500 text-white transition-colors">
+                <i class="fas fa-list-ul mr-2"></i> Watchlist
+            </button>
+            <button onclick="switchFetcherSubTab('scheduler')" id="fetcher-scheduler-btn" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition-colors">
+                <i class="fas fa-calendar-alt mr-2"></i> Scheduler
+            </button>
+            <button onclick="switchFetcherSubTab('jobs')" id="fetcher-jobs-btn" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition-colors">
+                <i class="fas fa-tasks mr-2"></i> Download Jobs
+            </button>
+            <button onclick="switchFetcherSubTab('export')" id="fetcher-export-btn" class="px-4 py-2 text-sm font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300 transition-colors">
+                <i class="fas fa-file-export mr-2"></i> Export/Import
+            </button>
+        </div>
+
+        <!-- Watchlist Content (Primary View) -->
+        <div id="fetcher-subtab-watchlist" class="fetcher-subtab space-y-6">
+            <!-- Search & Add Bar -->
+            <div class="glass rounded-xl p-4 flex flex-col md:flex-row items-center gap-4 relative z-[100]">
+                <div class="flex-1 relative w-full">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-500"></i>
+                    <input type="text" id="symbolSearchInput" placeholder="Search symbol to add..." class="w-full bg-slate-800/50 border border-slate-700 rounded-lg py-2 pl-10 pr-4 text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    <div id="symbolSearchSuggestions" class="absolute z-[110] w-full bg-slate-800 border border-slate-700 rounded-lg mt-1 hidden shadow-2xl max-h-60 overflow-y-auto"></div>
+                </div>
+                <div class="flex items-center space-x-2 w-full md:w-auto">
+                    <select id="exchangeSelector" onchange="handleExchangeChange(this.value)" class="bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white text-sm focus:outline-none">
+                        <option value="NSE">NSE</option>
+                        <option value="BSE">BSE</option>
+                        <option value="NFO">NFO</option>
+                        <option value="MCX">MCX</option>
+                        <option value="NSE_INDEX">NSE_INDEX</option>
+                        <option value="FO_STOCKS">FO_STOCKS TABLE</option>
+                        <option value="NIFTY_50">NIFTY 50 (CSV)</option>
+                    </select>
+                    <button onclick="addSelectedSymbol()" class="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg transition-colors whitespace-nowrap">
+                        <i class="fas fa-plus mr-2"></i> Add
+                    </button>
+                    <button onclick="toggleBulkAdd()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-list mr-2"></i> Bulk
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- Left: Download Settings -->
+                <div class="lg:col-span-5 space-y-6">
+                    <div class="glass rounded-2xl p-6 h-full">
+                        <div class="flex items-center space-x-3 mb-6">
+                            <i class="fas fa-cog text-purple-500"></i>
+                            <h3 class="font-bold text-white">Download Settings</h3>
+                        </div>
+
+                        <div class="space-y-6">
+                            <!-- Quick Range -->
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Quick Date Range</label>
+                                <div class="flex flex-wrap gap-2">
+                                    <button onclick="setQuickRange('1M')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300 hover:text-purple-400 transition-all">1M</button>
+                                    <button onclick="setQuickRange('3M')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300 hover:text-purple-400 transition-all">3M</button>
+                                    <button onclick="setQuickRange('6M')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300 hover:text-purple-400 transition-all">6M</button>
+                                    <button onclick="setQuickRange('1Y')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300 hover:text-purple-400 transition-all">1Y</button>
+                                    <button onclick="setQuickRange('2Y')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300 hover:text-purple-400 transition-all">2Y</button>
+                                    <button onclick="setQuickRange('5Y')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300 hover:text-purple-400 transition-all">5Y</button>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-400 mb-2">From</label>
+                                    <input type="date" id="fetchFromDate" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white text-sm">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-400 mb-2">To</label>
+                                    <input type="date" id="fetchToDate" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white text-sm">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 mb-2">Interval</label>
+                                <select id="fetchInterval" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white text-sm">
+                                    <option value="1m">1 Minute</option>
+                                    <option value="5m">5 Minutes</option>
+                                    <option value="15m">15 Minutes</option>
+                                    <option value="30m">30 Minutes</option>
+                                    <option value="1h">1 Hour</option>
+                                    <option value="1d">Daily</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-400 mb-2">Parallel Workers</label>
+                                <select id="fetchWorkers" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white text-sm">
+                                    <option value="1">1 (Sequential)</option>
+                                    <option value="3">3 (Fast)</option>
+                                    <option value="5" selected>5 (Balanced)</option>
+                                    <option value="10">10 (Aggressive)</option>
+                                </select>
+                            </div>
+
+                            <div class="flex items-center justify-between p-3 bg-slate-800/30 rounded-xl border border-slate-700/50">
+                                <div>
+                                    <p class="text-sm font-medium text-white">Incremental Download</p>
+                                    <p class="text-[10px] text-slate-500">Only download new data after last timestamp</p>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="fetchIncremental" class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                                </label>
+                            </div>
+
+                            <button onclick="startBulkDownload()" id="bulkDownloadBtn" class="w-full bg-purple-600 hover:bg-purple-500 text-white py-3 rounded-xl transition-all shadow-lg shadow-purple-500/20 flex items-center justify-center font-bold">
+                                <i class="fas fa-cloud-download-alt mr-2"></i> Download All (<span id="selectedCount">0</span>)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Symbols List -->
+                <div class="lg:col-span-7 space-y-6">
+                    <div class="glass rounded-2xl overflow-hidden flex flex-col h-full">
+                        <div class="p-6 flex items-center justify-between border-b border-slate-800">
+                            <div class="flex items-center space-x-3">
+                                <i class="fas fa-list text-purple-500"></i>
+                                <h3 class="font-bold text-white">Symbols (<span id="watchlistCount">0</span>)</h3>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button onclick="selectAllWatchlist(true)" class="text-[10px] uppercase font-bold text-slate-400 hover:text-white transition-colors">Select All</button>
+                                <span class="text-slate-700">|</span>
+                                <button onclick="selectAllWatchlist(false)" class="text-[10px] uppercase font-bold text-slate-400 hover:text-white transition-colors">Clear</button>
+                            </div>
+                        </div>
+
+                        <div class="flex-1 overflow-y-auto max-h-[500px]">
+                            <table class="w-full text-left text-xs">
+                                <thead class="bg-slate-800/50 text-slate-500 uppercase font-bold sticky top-0 z-10">
+                                    <tr>
+                                        <th class="px-6 py-3 w-10"></th>
+                                        <th class="px-6 py-3">Symbol</th>
+                                        <th class="px-6 py-3">Exchange</th>
+                                        <th class="px-6 py-3 text-right">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fetcher-watchlist-body" class="divide-y divide-slate-800 text-slate-300">
+                                    <!-- Watchlist items will be injected here -->
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-20 text-center text-slate-500 italic">
+                                            Search and add symbols to build your download watchlist.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Placeholder for other subtabs -->
+        <div id="fetcher-subtab-scheduler" class="fetcher-subtab hidden glass rounded-2xl p-20 text-center text-slate-500 italic">
+            Scheduler functionality coming soon...
+        </div>
+        <div id="fetcher-subtab-jobs" class="fetcher-subtab hidden glass rounded-2xl p-20 text-center text-slate-500 italic">
+            Recent download jobs tracking coming soon...
+        </div>
+        <div id="fetcher-subtab-export" class="fetcher-subtab hidden glass rounded-2xl p-20 text-center text-slate-500 italic">
+            Export/Import functionality coming soon...
+        </div>
+    </div>
+
+    <div id="tab-viewer" class="tab-content hidden space-y-6">
+        <div class="glass rounded-2xl p-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-500">
+                        <i class="fas fa-table-list text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Universal Data Browser</h2>
+                        <p class="text-xs text-slate-400 uppercase tracking-tighter" id="viewer-record-count">Select a table to browse data</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-3">
+                    <select id="viewer-table-select" onchange="initializeViewer()" class="bg-slate-800 border border-slate-700 rounded-lg py-2 px-4 text-white text-sm focus:ring-2 focus:ring-emerald-500">
+                        <option value="">Choose Table...</option>
+                    </select>
+                    <button onclick="exportViewerData()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+                        <i class="fas fa-download mr-2"></i>Export
+                    </button>
+                </div>
+            </div>
+
+            <!-- Dynamic Table Container -->
+            <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900/30">
+                <table id="universal-table" class="w-full text-left text-xs">
+                    <thead id="universal-thead" class="bg-slate-800/80 text-slate-400 uppercase font-bold sticky top-0 z-10">
+                        <!-- Dynamic headers and filters will be injected here -->
+                    </thead>
+                    <tbody id="universal-tbody" class="divide-y divide-slate-800 text-slate-300">
+                        <tr>
+                            <td class="px-6 py-20 text-center text-slate-500 italic">
+                                Please select a table from the dropdown above.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div id="viewer-pagination" class="hidden mt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="text-slate-400 text-sm" id="viewer-pagination-info">Showing 0-0 of 0</div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="changeViewerPage(-1)" id="viewer-prev" class="bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="flex items-center bg-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300">
+                        Page <span id="viewer-current-page" class="mx-1 text-white font-bold">1</span> of <span id="viewer-total-pages" class="mx-1 text-white font-bold">1</span>
+                    </div>
+                    <button onclick="changeViewerPage(1)" id="viewer-next" class="bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tab-historical" class="tab-content hidden space-y-6">
+        <div class="glass rounded-2xl p-6">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-500">
+                        <i class="fas fa-history text-xl"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-xl font-bold text-white">Historical Data Browser</h2>
+                        <p class="text-xs text-slate-400 uppercase tracking-tighter">Browse historical 1-minute candle data</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters Section -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Date</label>
+                    <select id="historical-date-select" onchange="loadHistoricalSymbols()" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-purple-500">
+                        <option value="">Select Date...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Symbol</label>
+                    <select id="historical-symbol-select" onchange="loadHistoricalData()" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-purple-500">
+                        <option value="">Select Symbol...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Records Per Page</label>
+                    <select id="historical-page-size" onchange="changeHistoricalPageSize()" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white focus:ring-2 focus:ring-purple-500">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="200">200</option>
+                        <option value="500">500</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Data Table -->
+            <div class="overflow-x-auto border border-slate-800 rounded-xl bg-slate-900/30">
+                <table id="historical-table" class="w-full text-left text-xs">
+                    <thead id="historical-thead" class="bg-slate-800/80 text-slate-400 uppercase font-bold sticky top-0 z-10">
+                        <!-- Headers will be dynamically populated -->
+                    </thead>
+                    <tbody id="historical-tbody" class="divide-y divide-slate-800 text-slate-300">
+                        <tr>
+                            <td class="px-6 py-20 text-center text-slate-500 italic" colspan="6">
+                                Select a date and symbol to view historical data.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div id="historical-pagination" class="hidden mt-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                <div class="text-slate-400 text-sm" id="historical-pagination-info">Showing 0-0 of 0</div>
+                <div class="flex items-center space-x-2">
+                    <button onclick="changeHistoricalPage(-1)" id="historical-prev" class="bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="flex items-center bg-slate-800 rounded-lg px-3 py-2 text-sm text-slate-300">
+                        Page <span id="historical-current-page" class="mx-1 text-white font-bold">1</span> of <span id="historical-total-pages" class="mx-1 text-white font-bold">1</span>
+                    </div>
+                    <button onclick="changeHistoricalPage(1)" id="historical-next" class="bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-white px-4 py-2 rounded-lg transition-colors">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Tab Management
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+        document.querySelectorAll('[id^="tab-"][id$="-btn"]').forEach(btn => {
+            btn.classList.remove('border-blue-500', 'text-white');
+            btn.classList.add('border-transparent', 'text-slate-500');
+        });
+        const activeBtn = document.getElementById(`tab-${tabId}-btn`);
+        activeBtn.classList.add('border-blue-500', 'text-white');
+        activeBtn.classList.remove('border-transparent', 'text-slate-500');
+        
+        // Special handling for historical tab
+        if (tabId === 'historical') {
+            // Load dates if not already loaded
+            if (document.getElementById('historical-date-select').options.length <= 1) {
+                loadHistoricalDates();
+            }
+        }
+    }
+
+    // Universal Viewer State
+    let viewerState = {
+        tableName: '',
+        metadata: [],
+        filters: {},
+        page: 1,
+        pageSize: 50,
+        total: 0,
+        lastData: []
+    };
+
+    // Initialize the viewer when a table is selected
+    async function initializeViewer() {
+        const select = document.getElementById('viewer-table-select');
+        viewerState.tableName = select.value;
+        if (!viewerState.tableName) {
+            document.getElementById('universal-tbody').innerHTML = '<tr><td class="px-6 py-20 text-center text-slate-500 italic">Please select a table from the dropdown above.</td></tr>';
+            document.getElementById('viewer-pagination').classList.add('hidden');
+            return;
+        }
+
+        viewerState.filters = {};
+        viewerState.page = 1;
+
+        try {
+            const res = await fetch(`/database/api/table-metadata/${viewerState.tableName}`);
+            const data = await res.json();
+            if (data.success) {
+                viewerState.metadata = data.metadata;
+                renderViewerHeaders();
+                loadViewerData();
+            }
+        } catch (e) { console.error("Metadata fetch error:", e); }
+    }
+
+    // Render Table Headers with Filter Inputs (Reference Mockup Style)
+    function renderViewerHeaders() {
+        const thead = document.getElementById('universal-thead');
+        
+        // Header Row
+        let headerRow = '<tr>';
+        viewerState.metadata.forEach(col => {
+            headerRow += `<th class="px-6 py-4 border-b border-slate-700 text-slate-200 whitespace-nowrap min-w-[150px]">${col.name}</th>`;
+        });
+        headerRow += '</tr>';
+
+        // Integrated Filter Row
+        let filterRow = '<tr class="bg-slate-800/40">';
+        viewerState.metadata.forEach(col => {
+            filterRow += `<td class="px-3 py-2 border-b border-slate-800">`;
+            
+            if (col.filter_type === 'range') {
+                filterRow += `
+                    <div class="flex flex-col space-y-1">
+                        <input type="number" placeholder="Min" class="viewer-filter bg-slate-900/50 border border-slate-700 rounded px-2 py-1 text-[10px] w-full" 
+                               onchange="updateFilter('${col.name}', 'min', this.value)">
+                        <input type="number" placeholder="Max" class="viewer-filter bg-slate-900/50 border border-slate-700 rounded px-2 py-1 text-[10px] w-full" 
+                               onchange="updateFilter('${col.name}', 'max', this.value)">
+                    </div>`;
+            } else if (col.filter_type === 'select') {
+                filterRow += `
+                    <select class="viewer-filter w-full bg-slate-900/50 border border-slate-700 rounded px-2 py-1 text-[10px]" 
+                            onchange="updateFilter('${col.name}', 'value', this.value)">
+                        <option value="">All</option>
+                        ${col.options.map(opt => `<option value="${opt}">${opt}</option>`).join('')}
+                    </select>`;
+            } else if (col.filter_type === 'date') {
+                filterRow += `
+                    <input type="date" class="viewer-filter w-full bg-slate-900/50 border border-slate-700 rounded px-2 py-1 text-[10px]" 
+                           onchange="updateFilter('${col.name}', 'value', this.value)">`;
+            } else {
+                filterRow += `
+                    <input type="text" placeholder="Search..." class="viewer-filter w-full bg-slate-900/50 border border-slate-700 rounded px-2 py-1 text-[10px]" 
+                           oninput="debounceUpdateFilter('${col.name}', 'value', this.value)">`;
+            }
+            
+            filterRow += `</td>`;
+        });
+        filterRow += '</tr>';
+
+        thead.innerHTML = headerRow + filterRow;
+    }
+
+    let filterDebounce;
+    function debounceUpdateFilter(col, type, val) {
+        clearTimeout(filterDebounce);
+        filterDebounce = setTimeout(() => updateFilter(col, type, val), 500);
+    }
+
+    function updateFilter(col, type, val) {
+        if (type === 'min' || type === 'max') {
+            if (!viewerState.filters[col]) viewerState.filters[col] = {};
+            viewerState.filters[col][type] = val === '' ? null : parseFloat(val);
+        } else {
+            viewerState.filters[col] = val;
+        }
+        viewerState.page = 1;
+        loadViewerData();
+    }
+
+    async function loadViewerData() {
+        const tbody = document.getElementById('universal-tbody');
+        tbody.innerHTML = `<tr><td colspan="${viewerState.metadata.length}" class="px-6 py-20 text-center"><i class="fas fa-circle-notch fa-spin mr-2"></i> Loading data...</td></tr>`;
+
+        try {
+            const res = await fetch(`/database/api/query/${viewerState.tableName}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    filters: viewerState.filters,
+                    page: viewerState.page,
+                    page_size: viewerState.pageSize
+                })
+            });
+            const result = await res.json();
+            
+            if (result.success) {
+                viewerState.total = result.total;
+                viewerState.lastData = result.data;
+                renderViewerData(result.data);
+                updateViewerPagination();
+            }
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="${viewerState.metadata.length}" class="px-6 py-20 text-center text-rose-500">Error loading data.</td></tr>`;
+        }
+    }
+
+    function renderViewerData(data) {
+        const tbody = document.getElementById('universal-tbody');
+        if (data.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="${viewerState.metadata.length}" class="px-6 py-20 text-center text-slate-500">No records found.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = data.map(row => `
+            <tr class="hover:bg-slate-800/50 transition-colors">
+                ${viewerState.metadata.map(col => {
+                    let val = row[col.name];
+                    
+                    // Priority Display: If this is an identifier column (symbol or key),
+                    // show the Trading Symbol prominently if available.
+                    const isIdentifier = ['symbol', 'instrument_key'].includes(col.name.toLowerCase());
+                    if (isIdentifier && row['trading_symbol']) {
+                        return `
+                            <td class="px-6 py-3">
+                                <div class="font-bold text-emerald-400">${row['trading_symbol']}</div>
+                                <div class="text-[10px] text-slate-500 font-mono">${val}</div>
+                            </td>`;
+                    }
+
+                    if (val === null) return `<td class="px-6 py-3 text-slate-600 italic">null</td>`;
+                    
+                    // Date formatting
+                    if (col.type.includes('TIMESTAMP') || col.type.includes('DATE')) {
+                        // Ensure the browser treats the database timestamp as UTC
+                        // DuckDB returns 'YYYY-MM-DD HH:MM:SS'. We convert to ISO 'YYYY-MM-DDTHH:MM:SSZ'
+                        const utcVal = val.replace(' ', 'T') + 'Z';
+                        const date = new Date(utcVal);
+                        
+                        if (isNaN(date.getTime())) return `<td class="px-6 py-3 text-slate-500 font-mono text-[11px]">${val}</td>`;
+
+                        const formatted = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + 
+                                        ' ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+                        return `<td class="px-6 py-3 whitespace-nowrap text-slate-300 font-mono text-[11px]">${formatted}</td>`;
+                    }
+
+                    if (typeof val === 'number') {
+                        const colorClass = val > 0 ? 'text-emerald-400' : (val < 0 ? 'text-rose-400' : '');
+                        return `<td class="px-6 py-3 font-mono ${colorClass}">${val.toLocaleString(undefined, {maximumFractionDigits: 4})}</td>`;
+                    }
+                    return `<td class="px-6 py-3 truncate max-w-[250px]" title="${val}">${val}</td>`;
+                }).join('')}
+            </tr>
+        `).join('');
+    }
+
+    function updateViewerPagination() {
+        const totalPages = Math.ceil(viewerState.total / viewerState.pageSize) || 1;
+        document.getElementById('viewer-pagination').classList.remove('hidden');
+        document.getElementById('viewer-current-page').textContent = viewerState.page;
+        document.getElementById('viewer-total-pages').textContent = totalPages;
+        document.getElementById('viewer-prev').disabled = viewerState.page <= 1;
+        document.getElementById('viewer-next').disabled = viewerState.page >= totalPages;
+        
+        const start = (viewerState.page - 1) * viewerState.pageSize + 1;
+        const end = Math.min(viewerState.page * viewerState.pageSize, viewerState.total);
+        document.getElementById('viewer-pagination-info').textContent = `Showing ${start}-${end} of ${viewerState.total.toLocaleString()} records`;
+        document.getElementById('viewer-record-count').textContent = `${viewerState.total.toLocaleString()} Records Found`;
+    }
+
+    function changeViewerPage(delta) {
+        viewerState.page += delta;
+        loadViewerData();
+    }
+
+    function exportViewerData() {
+        if (!viewerState.lastData.length) return alert("No data to export");
+        const headers = viewerState.metadata.map(m => m.name);
+        let csv = headers.join(',') + '\n';
+        viewerState.lastData.forEach(row => {
+            csv += headers.map(h => {
+                let v = row[h];
+                return typeof v === 'string' && v.includes(',') ? `"${v}"` : v;
+            }).join(',') + '\n';
+        });
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${viewerState.tableName}_export.csv`;
+        a.click();
+    }
+
+    async function loadTables() {
+        const res = await fetch('/database/api/tables');
+        const data = await res.json();
+        const list = document.getElementById('table-list');
+        const select = document.getElementById('viewer-table-select');
+
+        list.innerHTML = data.tables.map(t => `
+            <button onclick="previewTable('${t}')" class="w-full text-left px-4 py-3 rounded-xl hover:bg-slate-700/50 transition-colors group flex items-center">
+                <i class="fas fa-table mr-3 text-slate-500 group-hover:text-blue-400"></i>
+                <span class="text-sm font-medium text-slate-300 group-hover:text-white">${t}</span>
+            </button>
+        `).join('');
+
+        const currentVal = select.value;
+        select.innerHTML = '<option value="">Choose Table...</option>' + 
+            data.tables.map(t => `<option value="${t}" ${t === currentVal ? 'selected' : ''}>${t}</option>`).join('');
+    }
+
+    async function previewTable(tableName) {
+        document.getElementById('selected-table-name').textContent = tableName;
+        const body = document.getElementById('table-preview-body');
+        body.innerHTML = `<tr><td colspan="4" class="px-6 py-20 text-center text-slate-400 italic">Fetching schema...</td></tr>`;
+
+        try {
+            const res = await fetch(`/database/api/table-metadata/${tableName}`);
+            const data = await res.json();
+            if (data.success) {
+                body.innerHTML = data.metadata.map(col => `
+                    <tr>
+                        <td class="px-6 py-4 font-mono text-blue-400">${col.name}</td>
+                        <td class="px-6 py-4">${col.type}</td>
+                        <td class="px-6 py-4">YES</td>
+                        <td class="px-6 py-4">-</td>
+                    </tr>
+                `).join('');
+                document.getElementById('table-stats').textContent = `${data.metadata.length} Columns Detected`;
+            }
+        } catch (e) { body.innerHTML = 'Error loading schema'; }
+    }
+
+    // --- NEW FETCHER LOGIC (Historify Inspired) ---
+    let fetcherWatchlist = [];
+    let selectedForDownload = new Set();
+    let universeSymbols = [];
+
+    function switchFetcherSubTab(tabId) {
+        document.querySelectorAll('.fetcher-subtab').forEach(el => el.classList.add('hidden'));
+        document.getElementById(`fetcher-subtab-${tabId}`).classList.remove('hidden');
+
+        document.querySelectorAll('[id^="fetcher-"][id$="-btn"]').forEach(btn => {
+            btn.classList.remove('border-purple-500', 'text-white');
+            btn.classList.add('border-transparent', 'text-slate-500');
+        });
+        const activeBtn = document.getElementById(`fetcher-${tabId}-btn`);
+        activeBtn.classList.add('border-purple-500', 'text-white');
+        activeBtn.classList.remove('border-transparent', 'text-slate-500');
+    }
+
+    async function handleExchangeChange(value) {
+        if (value === 'FO_STOCKS') {
+            if (!confirm("Add all symbols from FO Master table to watchlist?")) {
+                document.getElementById('exchangeSelector').value = 'NSE';
+                return;
+            }
+            
+            try {
+                const res = await fetch(`/database/api/query/fo_stocks`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ page_size: 1000 })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    let addedCount = 0;
+                    data.data.forEach(s => {
+                        if (!fetcherWatchlist.find(i => i.key === s.instrument_key)) {
+                            fetcherWatchlist.push({ 
+                                key: s.instrument_key, 
+                                symbol: s.trading_symbol, 
+                                exchange: s.instrument_key.split('|')[0], 
+                                added: new Date().toLocaleDateString() 
+                            });
+                            selectedForDownload.add(s.instrument_key);
+                            addedCount++;
+                        }
+                    });
+                    updateWatchlistUI();
+                    alert(`Added ${addedCount} new symbols to watchlist.`);
+                }
+            } catch(e) {
+                alert("Error fetching FO stocks");
+            }
+            document.getElementById('exchangeSelector').value = 'NSE';
+        } else if (value === 'NIFTY_50') {
+            if (!confirm("Add all NIFTY 50 constituents from CSV to watchlist?")) {
+                document.getElementById('exchangeSelector').value = 'NSE';
+                return;
+            }
+            
+            try {
+                const res = await fetch(`/database/api/nifty50-symbols`);
+                const data = await res.json();
+                if (data.success) {
+                    let addedCount = 0;
+                    data.data.forEach(s => {
+                        if (!fetcherWatchlist.find(i => i.key === s.instrument_key)) {
+                            fetcherWatchlist.push({ 
+                                key: s.instrument_key, 
+                                symbol: s.trading_symbol, 
+                                exchange: s.instrument_key.split('|')[0], 
+                                added: new Date().toLocaleDateString() 
+                            });
+                            selectedForDownload.add(s.instrument_key);
+                            addedCount++;
+                        }
+                    });
+                    updateWatchlistUI();
+                    alert(`Added ${addedCount} NIFTY 50 symbols to watchlist.`);
+                } else {
+                    alert("Error: " + data.message);
+                }
+            } catch(e) {
+                alert("Error fetching NIFTY 50 symbols");
+            }
+            document.getElementById('exchangeSelector').value = 'NSE';
+        }
+    }
+
+    async function loadUniverseForSearch() {
+        try {
+            // Fetch FO Stocks
+            const resFo = await fetch(`/database/api/query/fo_stocks`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ page_size: 1000 })
+            });
+            const dataFo = await resFo.json();
+            
+            // Fetch Indices
+            const resIdx = await fetch(`/database/api/query/instrument_meta`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    filters: { instrument_key: 'INDEX' },
+                    page_size: 1000 
+                })
+            });
+            const dataIdx = await resIdx.json();
+
+            universeSymbols = [];
+            if (dataFo.success) universeSymbols.push(...dataFo.data);
+            if (dataIdx.success) universeSymbols.push(...dataIdx.data);
+            
+        } catch(e) {}
+    }
+
+    const symbolSearchInput = document.getElementById('symbolSearchInput');
+    const suggestionsBox = document.getElementById('symbolSearchSuggestions');
+
+    symbolSearchInput?.addEventListener('input', debounce(function() {
+        const term = this.value.trim().toUpperCase();
+        if (term.length < 1) {
+            suggestionsBox.classList.add('hidden');
+            return;
+        }
+
+        const exchange = document.getElementById('exchangeSelector').value;
+        
+        const filtered = universeSymbols.filter(s => {
+            const sym = (s.trading_symbol || s.symbol || "").toUpperCase();
+            const key = (s.instrument_key || "").toUpperCase();
+            
+            // Match term against either symbol or key
+            const matchesTerm = sym.includes(term) || key.includes(term);
+            
+            // Match exchange
+            let matchesExchange = false;
+            if (exchange === 'FO_STOCKS') {
+                matchesExchange = true; 
+            } else if (exchange === 'NSE_INDEX') {
+                matchesExchange = key.startsWith('NSE_INDEX');
+            } else {
+                matchesExchange = key.startsWith(exchange);
+            }
+            
+            return matchesTerm && matchesExchange;
+        }).slice(0, 30); 
+
+        if (filtered.length > 0) {
+            suggestionsBox.innerHTML = filtered.map(s => {
+                const sym = s.trading_symbol || s.symbol || "Unknown";
+                const key = s.instrument_key || s.symbol;
+                const itemExchange = key.split('|')[0];
+                
+                return `
+                    <div class="p-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-b-0 flex justify-between items-center"
+                         onclick="addToWatchlist('${key}', '${sym}', '${itemExchange}')">
+                        <div>
+                            <div class="font-bold text-white text-sm">${sym}</div>
+                            <div class="text-[10px] text-slate-500">${key}</div>
+                        </div>
+                        <div class="text-[10px] bg-slate-900 px-2 py-1 rounded text-slate-400 font-bold">${itemExchange}</div>
+                    </div>
+                `;
+            }).join('');
+            suggestionsBox.classList.remove('hidden');
+        } else {
+            suggestionsBox.classList.add('hidden');
+        }
+    }, 200));
+
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!symbolSearchInput?.contains(e.target) && !suggestionsBox?.contains(e.target)) {
+            suggestionsBox?.classList.add('hidden');
+        }
+    });
+
+    function addToWatchlist(key, symbol, exchange) {
+        if (fetcherWatchlist.find(i => i.key === key)) {
+            alert("Symbol already in watchlist");
+            return;
+        }
+        fetcherWatchlist.push({ key, symbol, exchange, added: new Date().toLocaleDateString() });
+        selectedForDownload.add(key);
+        updateWatchlistUI();
+        suggestionsBox.classList.add('hidden');
+        symbolSearchInput.value = '';
+    }
+
+    function removeFromWatchlist(key) {
+        fetcherWatchlist = fetcherWatchlist.filter(i => i.key !== key);
+        selectedForDownload.delete(key);
+        updateWatchlistUI();
+    }
+
+    function updateWatchlistUI() {
+        const tbody = document.getElementById('fetcher-watchlist-body');
+        document.getElementById('watchlistCount').textContent = fetcherWatchlist.length;
+        document.getElementById('selectedCount').textContent = selectedForDownload.size;
+
+        if (fetcherWatchlist.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-20 text-center text-slate-500 italic">Search and add symbols to build your download watchlist.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = fetcherWatchlist.map(item => `
+            <tr class="hover:bg-slate-800/30 transition-colors group">
+                <td class="px-6 py-4">
+                    <input type="checkbox" ${selectedForDownload.has(item.key) ? 'checked' : ''} 
+                           onchange="toggleSymbolSelection('${item.key}')"
+                           class="rounded border-slate-700 bg-slate-900 text-purple-600 focus:ring-purple-500 h-4 w-4">
+                </td>
+                <td class="px-6 py-4">
+                    <div class="font-bold text-white text-sm">${item.symbol}</div>
+                    <div class="text-[10px] text-slate-500 font-mono">${item.key}</div>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="text-[10px] bg-slate-800 px-2 py-1 rounded text-slate-400 font-bold uppercase">${item.exchange}</span>
+                </td>
+                <td class="px-6 py-4 text-right">
+                    <div class="flex justify-end space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="viewChart('${item.key}')" class="p-2 text-slate-400 hover:text-emerald-400 transition-colors" title="View Chart">
+                            <i class="fas fa-chart-bar"></i>
+                        </button>
+                        <button onclick="removeFromWatchlist('${item.key}')" class="p-2 text-slate-400 hover:text-rose-500 transition-colors" title="Remove">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    function toggleSymbolSelection(key) {
+        if (selectedForDownload.has(key)) selectedForDownload.delete(key);
+        else selectedForDownload.add(key);
+        document.getElementById('selectedCount').textContent = selectedForDownload.size;
+    }
+
+    function selectAllWatchlist(bool) {
+        if (bool) {
+            fetcherWatchlist.forEach(i => selectedForDownload.add(i.key));
+        } else {
+            selectedForDownload.clear();
+        }
+        updateWatchlistUI();
+    }
+
+    function setQuickRange(range) {
+        const to = new Date();
+        const from = new Date();
+        
+        switch(range) {
+            case '1M': from.setMonth(to.getMonth() - 1); break;
+            case '3M': from.setMonth(to.getMonth() - 3); break;
+            case '6M': from.setMonth(to.getMonth() - 6); break;
+            case '1Y': from.setFullYear(to.getFullYear() - 1); break;
+            case '2Y': from.setFullYear(to.getFullYear() - 2); break;
+            case '5Y': from.setFullYear(to.getFullYear() - 5); break;
+        }
+
+        document.getElementById('fetchFromDate').value = from.toISOString().split('T')[0];
+        document.getElementById('fetchToDate').value = to.toISOString().split('T')[0];
+    }
+
+    async function startBulkDownload() {
+        if (selectedForDownload.size === 0) {
+            alert("Please select at least one symbol to download.");
+            return;
+        }
+
+        const btn = document.getElementById('bulkDownloadBtn');
+        const from = document.getElementById('fetchFromDate').value;
+        const to = document.getElementById('fetchToDate').value;
+        const intervalFull = document.getElementById('fetchInterval').value;
+        const workers = parseInt(document.getElementById('fetchWorkers').value);
+        const incremental = document.getElementById('fetchIncremental').checked;
+
+        if (!from || !to) {
+            alert("Please select date range.");
+            return;
+        }
+
+        const intervalNum = parseInt(intervalFull);
+        const unitMap = { 'm': 'minutes', 'h': 'hours', 'd': 'days' };
+        const unitChar = intervalFull.slice(-1);
+        const unit = unitMap[unitChar] || 'minutes';
+
+        btn.disabled = true;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = `<i class="fas fa-circle-notch fa-spin mr-2"></i> Initializing...`;
+
+        try {
+            const keys = Array.from(selectedForDownload);
+            const payload = {
+                instrument_key: keys.join(','), 
+                unit: unit,
+                interval: intervalNum,
+                from_date: from,
+                to_date: to,
+                workers: workers,
+                incremental: incremental
+            };
+
+            const res = await fetch('/database/api/request-historical-fetch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            alert(data.message || "Fetch job started");
+        } catch (e) {
+            alert("Error initiating fetch");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
+        }
+    }
+
+    function toggleBulkAdd() {
+        const input = prompt("Enter symbols separated by comma or space (e.g. RELIANCE, TCS, INFY):");
+        if (!input) return;
+        
+        const symbols = input.split(/[,\s]+/).map(s => s.trim().toUpperCase()).filter(s => s.length > 0);
+        const exchange = document.getElementById('exchangeSelector').value;
+        
+        let count = 0;
+        symbols.forEach(sym => {
+            const found = universeSymbols.find(s => s.trading_symbol === sym && s.instrument_key.startsWith(exchange));
+            if (found) {
+                if (!fetcherWatchlist.find(i => i.key === found.instrument_key)) {
+                    fetcherWatchlist.push({ 
+                        key: found.instrument_key, 
+                        symbol: found.trading_symbol, 
+                        exchange: exchange, 
+                        added: new Date().toLocaleDateString() 
+                    });
+                    selectedForDownload.add(found.instrument_key);
+                    count++;
+                }
+            }
+        });
+        
+        if (count > 0) {
+            updateWatchlistUI();
+            alert(`Added ${count} symbols to watchlist.`);
+        } else {
+            alert("No matching symbols found in the universe.");
+        }
+    }
+
+    function addSelectedSymbol() {
+        const input = document.getElementById('symbolSearchInput');
+        const term = input.value.trim().toUpperCase();
+        if (!term) return;
+
+        const exchange = document.getElementById('exchangeSelector').value;
+        const found = universeSymbols.find(s => s.trading_symbol === term && s.instrument_key.startsWith(exchange));
+        
+        if (found) {
+            addToWatchlist(found.instrument_key, found.trading_symbol, exchange);
+        } else {
+            alert("Symbol not found in selected exchange universe.");
+        }
+    }
+
+    function viewChart(key) {
+        window.location.href = `/charts?symbol=${key}`;
+    }
+    // --- END NEW FETCHER LOGIC ---
+
+    async function loadUniverseSymbols() {
+        await loadUniverseForSearch();
+    }
+
+    async function fixTimestamps() {
+        if (!confirm("This will shift all timestamps before 10:00 UTC by -5:30 to fix storage errors. Proceed?")) return;
+        
+        try {
+            const res = await fetch('/database/api/fix-timestamps');
+            const data = await res.json();
+            alert(data.message);
+            if (viewerState.tableName) loadViewerData();
+        } catch (e) { alert("Error fixing timestamps"); }
+    }
+
+    function debounce(func, wait) {
+        let timeout;
+        return function(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func.apply(this, args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
+
+    // Historical Data Functions
+    let historicalState = {
+        date: '',
+        symbol: '',
+        page: 1,
+        pageSize: 100,  // Changed default to 100
+        total: 0,
+        lastData: [],
+        metadata: [],  // Store metadata for rendering
+        instrumentMap: {}  // Cache for instrument key to name mapping
+    };
+
+    async function loadHistoricalDates() {
+        try {
+            const res = await fetch('/database/api/historical-dates');
+            const data = await res.json();
+            if (data.success) {
+                const select = document.getElementById('historical-date-select');
+                select.innerHTML = '<option value="">Select Date...</option>';
+                
+                data.dates.forEach(date => {
+                    const option = document.createElement('option');
+                    option.value = date;
+                    option.textContent = date;
+                    select.appendChild(option);
+                });
+            }
+        } catch (e) {
+            console.error("Error loading historical dates:", e);
+        }
+    }
+
+    async function loadHistoricalSymbols() {
+        const dateSelect = document.getElementById('historical-date-select');
+        historicalState.date = dateSelect.value;
+        
+        if (!historicalState.date) {
+            document.getElementById('historical-symbol-select').innerHTML = '<option value="">Select Symbol...</option>';
+            return;
+        }
+
+        try {
+            const res = await fetch(`/database/api/historical-symbols/${historicalState.date}`);
+            const data = await res.json();
+            if (data.success) {
+                const select = document.getElementById('historical-symbol-select');
+                select.innerHTML = '<option value="">Select Symbol...</option>';
+                
+                data.symbols.forEach(symbol => {
+                    const option = document.createElement('option');
+                    option.value = symbol;
+                    option.textContent = symbol;
+                    select.appendChild(option);
+                });
+            }
+        } catch (e) {
+            console.error("Error loading historical symbols:", e);
+        }
+    }
+
+    async function loadHistoricalData() {
+        const symbolSelect = document.getElementById('historical-symbol-select');
+        historicalState.symbol = symbolSelect.value;
+        // Remove time filters - they're no longer used
+        historicalState.page = 1;
+
+        if (!historicalState.date || !historicalState.symbol) {
+            document.getElementById('historical-tbody').innerHTML = '<tr><td class="px-6 py-20 text-center text-slate-500 italic" colspan="6">Select a date and symbol to view historical data.</td></tr>';
+            document.getElementById('historical-pagination').classList.add('hidden');
+            return;
+        }
+
+        try {
+            const res = await fetch('/database/api/historical-data', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: historicalState.date,
+                    symbol: historicalState.symbol,
+                    page: historicalState.page,
+                    page_size: historicalState.pageSize
+                })
+            });
+            const result = await res.json();
+
+            if (result.success) {
+                historicalState.total = result.total;
+                historicalState.lastData = result.data;
+                
+                // Generate metadata for the first load
+                if (historicalState.metadata.length === 0 && result.data.length > 0) {
+                    historicalState.metadata = Object.keys(result.data[0]).map(key => ({
+                        name: key,
+                        type: typeof result.data[0][key],
+                        filter_type: 'text'
+                    }));
+                }
+                
+                // Fetch instrument name mapping if not cached
+                await loadInstrumentNames(result.data);
+                
+                renderHistoricalData(result.data);
+                updateHistoricalPagination();
+            } else {
+                throw new Error(result.message || "Unknown error");
+            }
+        } catch (e) {
+            console.error("Error loading historical data:", e);
+            document.getElementById('historical-tbody').innerHTML = `<tr><td class="px-6 py-20 text-center text-rose-500" colspan="6">Error loading data: ${e.message}</td></tr>`;
+        }
+    }
+
+    // Function to load instrument names and cache them
+    async function loadInstrumentNames(data) {
+        if (!data || data.length === 0) return;
+        
+        // Get unique instrument keys from the data
+        const uniqueKeys = [...new Set(data.map(row => row.symbol))];
+        const keysToFetch = uniqueKeys.filter(key => !(key in historicalState.instrumentMap));
+        
+        if (keysToFetch.length === 0) return; // All instruments already cached
+        
+        try {
+            // Query the fo_stocks table to get the trading symbol for each instrument key
+            // We'll query each key individually to be compatible with the filter system
+            for (const key of keysToFetch) {
+                const res = await fetch('/database/api/query/fo_stocks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filters: { instrument_key: key },
+                        page: 1,
+                        page_size: 1
+                    })
+                });
+                
+                if (res.ok) {
+                    const result = await res.json();
+                    if (result.success && result.data.length > 0) {
+                        // Cache the trading symbol for this instrument key
+                        historicalState.instrumentMap[key] = result.data[0].trading_symbol || result.data[0].name || key;
+                    } else {
+                        // If not found, use the key itself
+                        historicalState.instrumentMap[key] = key;
+                    }
+                } else {
+                    // If there's an error, use the key itself
+                    historicalState.instrumentMap[key] = key;
+                }
+            }
+        } catch (e) {
+            console.error("Error fetching instrument names:", e);
+            // Fallback: map keys to themselves
+            keysToFetch.forEach(key => {
+                historicalState.instrumentMap[key] = key;
+            });
+        }
+    }
+
+    function renderHistoricalData(data) {
+        const tbody = document.getElementById('historical-tbody');
+        const thead = document.getElementById('historical-thead');
+        
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td class="px-6 py-20 text-center text-slate-500">No records found.</td></tr>';
+            return;
+        }
+
+        // Define the columns we want to show in order
+        const columns = [
+            { name: 'symbol', label: 'Symbol' },
+            { name: 'open', label: 'Open' },
+            { name: 'high', label: 'High' },
+            { name: 'low', label: 'Low' },
+            { name: 'close', label: 'Close' },
+            { name: 'volume', label: 'Volume' },
+            { name: 'timestamp', label: 'Timestamp' }
+        ];
+
+        // Create headers
+        thead.innerHTML = '<tr>' + columns.map(col => 
+            `<th class="px-6 py-4 border-b border-slate-700 text-slate-200 whitespace-nowrap">${col.label}</th>`
+        ).join('') + '</tr>';
+
+        // Create a function to generate cell content
+        function generateCellContent(row, colName) {
+            let val = row[colName];
+            if (val === undefined || val === null) return '<td class="px-6 py-3 text-slate-600 italic">null</td>';
+
+            // Special handling for symbol column - show name instead of key
+            if (colName === 'symbol') {
+                const displayName = historicalState.instrumentMap[val] || val;
+                return '<td class="px-6 py-3 font-bold text-emerald-400">' + displayName + '<br><span class="text-[10px] text-slate-500 font-mono">' + val + '</span></td>';
+            }
+
+            // Date formatting
+            if (colName === 'timestamp') {
+                let dateStr = val;
+                if (typeof val === 'string' && val.includes('T')) {
+                    dateStr = val.replace('T', ' ').split('.')[0];
+                }
+                return '<td class="px-6 py-3 whitespace-nowrap text-slate-300 font-mono text-[11px]">' + dateStr + '</td>';
+            }
+
+            if (typeof val === 'number') {
+                const colorClass = (colName === 'close' || colName === 'open') ? (val > row.open ? 'text-emerald-400' : 'text-rose-400') : '';
+                // Use Emerald for High, Rose for Low if you want, but for now let's stick to consistent numbering
+                let finalColorClass = '';
+                if (colName === 'high') finalColorClass = 'text-emerald-400';
+                if (colName === 'low') finalColorClass = 'text-rose-400';
+                if (colName === 'open' || colName === 'close' || colName === 'volume') finalColorClass = 'text-slate-300';
+
+                return '<td class="px-6 py-3 font-mono ' + finalColorClass + '">' + val.toLocaleString(undefined, {maximumFractionDigits: 4}) + '</td>';
+            }
+            return '<td class="px-6 py-3 truncate max-w-[250px]" title="' + val + '">' + val + '</td>';
+        }
+
+        // Build the table rows
+        tbody.innerHTML = data.map(row => {
+            const cellsHtml = columns.map(col => generateCellContent(row, col.name)).join('');
+            return `<tr class="hover:bg-slate-800/50 transition-colors border-b border-slate-800/50 last:border-0">${cellsHtml}</tr>`;
+        }).join('');
+    }
+
+    function updateHistoricalPagination() {
+        const totalPages = Math.ceil(historicalState.total / historicalState.pageSize) || 1;
+        document.getElementById('historical-pagination').classList.remove('hidden');
+        document.getElementById('historical-current-page').textContent = historicalState.page;
+        document.getElementById('historical-total-pages').textContent = totalPages;
+        document.getElementById('historical-prev').disabled = historicalState.page <= 1;
+        document.getElementById('historical-next').disabled = historicalState.page >= totalPages;
+
+        const start = (historicalState.page - 1) * historicalState.pageSize + 1;
+        const end = Math.min(historicalState.page * historicalState.pageSize, historicalState.total);
+        document.getElementById('historical-pagination-info').textContent = `Showing ${start}-${end} of ${historicalState.total.toLocaleString()} records`;
+    }
+
+    function changeHistoricalPage(delta) {
+        historicalState.page += delta;
+        loadHistoricalData();
+    }
+    
+    function changeHistoricalPageSize() {
+        historicalState.pageSize = parseInt(document.getElementById('historical-page-size').value);
+        historicalState.page = 1; // Reset to first page when page size changes
+        loadHistoricalData();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadTables();
+        loadHistoricalDates(); 
+        loadUniverseForSearch();
+        setQuickRange('1M');
+    });
+</script>
+{% endblock %}
