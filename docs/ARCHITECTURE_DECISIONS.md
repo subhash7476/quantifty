@@ -116,3 +116,40 @@ It is tempting to prioritize signal quality (indicators, models, predictions). B
 - Investment goes to execution/ledger/risk/reconciliation/observability first; indicators and models are out of scope (reinforces ADR-002).
 - Risk-before-trading (Principle 4: size, risk, stop, margin, clearance) is enforced in `ExecutionHandler` regardless of signal conviction.
 - "Margin-aware execution" depth (SPAN) and the F&O product model are prioritized execution work, ahead of any predictive capability.
+
+---
+
+## ADR-006 — Deterministic Loop Driver Is The Sole Runtime Orchestrator
+
+**Status:** Accepted (2026-06-04)
+
+### Context
+ADR-003 mandates a **single execution path** and deterministic event processing, but it does not name *what* owns that path at runtime. The platform now has all the components a trade touches — `SignalSource` (the strategy-agnostic seam), `LoopDriver` (specified in `docs/DRIVER_SPECIFICATION.md`), `ExecutionHandler`, and the ledger — but `ExecutionHandler.process_signal(...)` is a public method any caller could invoke. Without a binding rule, a strategy, a dashboard action, a one-off script, a broker-adapter callback, or a utility could submit trading intent **directly** to `ExecutionHandler`, bypassing the driver. That is precisely the "multiple execution paths" pathology that destabilised the monolith (ADR-002 Context, ADR-003 Context): trades that skip the loop are nondeterministic, unobservable (no heartbeat/telemetry/journal wiring), and unprotected (no staleness gate, no startup reconciliation gate). The single execution path needs a single, named owner.
+
+### Decision
+All trading activity inside `F:\Nifty` must enter the platform through one path only:
+
+`SignalSource → LoopDriver → ExecutionHandler → Ledger`
+
+No strategy, dashboard, broker adapter, script, or utility may bypass the `LoopDriver` and submit trading intent directly to `ExecutionHandler`. The `LoopDriver` is the **sole runtime orchestrator**: it is the only component that calls `ExecutionHandler.process_signal(...)` in a running process. Any new way to introduce trading intent must be expressed as a `SignalSource` implementation driven by the `LoopDriver` — never as a new caller of the handler.
+
+**Future contributors must not create alternative runtime orchestration paths.** A second loop, a "fast path", a direct script-to-handler call, or a dashboard write-through is a constitutional violation, reviewable on the same footing as a `Platform → Strategy` import (ADR-002).
+
+This decision is grounded in four principles:
+- **Deterministic Processing (Principle 3, ADR-003):** one orchestrator ⇒ one ordering ⇒ live == replay; multiple callers reintroduce nondeterminism.
+- **Single Execution Path (Principle 3):** the driver *is* that path; naming a sole owner makes the principle checkable, not aspirational.
+- **Platform / Strategy Separation (Principle 5, ADR-002):** strategies inject intent only through the abstract `SignalSource` seam; they never hold or call the handler.
+- **Execution Before Alpha (Principle 2, ADR-005):** every trade is forced through the handler's risk/idempotency/kill-switch gates because there is no path that skips them.
+
+### Alternatives Considered
+- **Allow direct `process_signal` calls from "trusted" scripts** — rejected: trust is not a control. Multiple entry points are multiple execution paths; each bypasses the observability and safety wiring the driver guarantees, and reproducibility is lost the moment a second caller exists (violates ADR-003).
+- **Multiple specialised orchestrators (one per book — futures, options)** — rejected: divergent loops produce divergent ordering, recovery, and observability, and break single position truth. One neutral driver hosts all books behind the seam (DRIVER_SPECIFICATION.md §5.3).
+- **A push model where sources call into the handler when they choose** — rejected for the same reason DRIVER_SPECIFICATION.md §5.2 rejects it: push destroys deterministic ordering and the single-thread guarantee.
+- **Convention only, no ADR** — rejected: convention without a binding, reviewable rule erodes (the lesson of ADR-002). This ADR makes "bypassing the driver" an explicit violation.
+
+### Consequences
+- `ExecutionHandler.process_signal(...)` has **exactly one runtime caller**: the `LoopDriver`. (Unit tests and mock-broker flows may call it directly — that is test scope, already present in `handler.py`, and is not a runtime path.)
+- Every new runtime entry point (a new strategy, a discretionary console, a replay tool) must implement `SignalSource` and be driven by the `LoopDriver` — not wired to the handler.
+- Heartbeat, telemetry, the runtime event journal, staleness protection, and the startup reconciliation gate are **guaranteed for all trades**, because the one path that wires them is the only path that exists.
+- Code review gains a checkable invariant: any new call site of `ExecutionHandler.process_signal` outside the `LoopDriver` (and tests) is a violation to be rejected, analogous to the `Platform → Strategy` import scan (ADR-002).
+- The dashboard/facades remain read-only (ADR-001); this ADR closes the remaining write-path loophole by forbidding a UI action from reaching the handler directly.
