@@ -25,10 +25,11 @@
 - **`RuntimeEventJournal` implemented.** `core/runtime/event_journal.py` — append-only `logs/runtime_events.jsonl` (JSONL), 14 event types + 6-field schema, tz-aware IST timestamps, non-fatal writes, write-only (never position truth); 25 unit tests. *(docs/DRIVER_SPECIFICATION.md §15)*
 - **LoopDriver Phase A — lifecycle state machine.** `core/runtime/driver.py` — `RuntimeState` (6 states) + `LoopDriver` §3.2 transition verbs + `InvalidStateTransition`; strategy-agnostic (ast guard); 28 unit tests. *(docs/DRIVER_SPECIFICATION.md §3; docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md Phase A)*
 - **LoopDriver Phase B — journal emission.** Lifecycle transitions emit STARTUP/RUNNING/PAUSED/RESUMED/STOPPING/STOPPED to the (optional) journal, edge-triggered; 13 unit tests. *(docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md Phase B)*
+- **LoopDriver Phase C — loop skeleton + clock advancement + market data.** `core/runtime/driver.py` `run()`: pull bars per symbol (fixed order) from `MarketDataProvider`, `clock.set_time(bar.timestamp)` before per-bar work, count bars, honor `max_bars`, replay-exhaustion vs live-poll, cooperative stop. The runnable-but-inert loop — no signals/execution yet; 11 unit tests + shared `tests/runtime/_doubles.py`. Full runtime suite: 114 passing. *(docs/DRIVER_SPECIFICATION.md §§4,6,7; docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md Phase C)*
 
 ## In Progress
 
-- **LoopDriver Phase C — loop skeleton + clock advancement + market data.** `core/runtime/driver.py` `run()`: pull bars per symbol (fixed order) from `MarketDataProvider`, `clock.set_time(bar.timestamp)` before per-bar work, count bars, honor `max_bars`, replay-exhaustion vs live-poll, cooperative stop. The runnable-but-inert loop — no signals/execution yet. *(docs/DRIVER_SPECIFICATION.md §§4,6,7; docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md Phase C)*
+- **LoopDriver Phase D — SignalSource integration.** `core/runtime/driver.py`: optional injected `SignalSource`; `on_start` before the loop, `on_bar(bar)` once per bar (after `clock.set_time`, before the bar count, §7.2), `on_stop` on shutdown; collect the returned `List[SignalEvent]` in list order (never re-ranked) and count via `signals_pulled`. **Signals are pulled but not routed** — execution (Phase E) is deliberately deferred until Phase D is green. Source stays optional so the Phase C inert loop is unchanged when absent. *(docs/DRIVER_SPECIFICATION.md §§5,7.2; docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md Phase D)*
 
 ## Planned
 
