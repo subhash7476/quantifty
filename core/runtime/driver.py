@@ -1,19 +1,25 @@
 """
 LoopDriver — the deterministic runtime orchestrator
 ----------------------------------------------------
-Phases A–B (this file's current scope): the **lifecycle state machine** (§3)
-plus **journal emission on transitions** (§15). It models the six runtime
-states and the legal transitions between them, rejects illegal transitions, and
-records each lifecycle transition to the RuntimeEventJournal. It does NOT yet
-pull market data, advance the clock, pull signals, route to the
-ExecutionHandler, drive the RuntimeWatchdog, publish telemetry, or run
-recovery/reconciliation — those arrive in later phases
-(docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md).
+Phases A–C (this file's current scope):
+- A: the lifecycle state machine (§3) — six states + legal §3.2 transitions.
+- B: journal emission on transitions (§15).
+- C: the **tick loop** — pull bars from a MarketDataProvider, advance the Clock
+  from each bar's timestamp, and count, until exhaustion / max_bars / stop()
+  (§4 event flow, §6 clock, §7 market data).
+
+It does NOT yet pull signals, route to the ExecutionHandler, drive the
+RuntimeWatchdog, publish telemetry, or run recovery/reconciliation — those
+arrive in later phases (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The Phase C
+loop is deliberately **inert**: it advances time and counts bars but takes no
+trading action.
 
 Governing law:
 - ADR-003 (Deterministic Processing) / ADR-006 (sole runtime orchestrator):
-  the LoopDriver is the single, neutral orchestrator. This file holds no
-  strategy, signal, or alpha logic and imports no strategy code (ADR-002).
+  single thread, single loop, single fixed ordering. Time is data-driven — the
+  clock is advanced from each bar's timestamp BEFORE any per-bar work, so live
+  and replay traverse identical code. This file holds no strategy/signal/alpha
+  logic and imports no strategy code (ADR-002).
 - §3.2 transitions (verbatim edges):
     construct()            -> STARTUP
     STARTUP   -> RECOVERY  (begin the recovery sub-phase)
@@ -28,21 +34,15 @@ Governing law:
     STOPPING  -> STOPPED   (loop drained)                 [finalize_stop]
 
 A kill-switch trip is deliberately **not** a state: per §3.2 the loop keeps
-running (kill-switched-but-running) so heartbeat/telemetry continue. It will be
-handled in the execution/watchdog phases, not modeled here.
-
-Journal emission (§15, Phase B): each successful lifecycle transition emits one
-event (STARTUP on construction, RUNNING, PAUSED, RESUMED, STOPPING, STOPPED).
-Emission happens only after _transition() succeeds, so an illegal transition
-(which raises) records nothing — edge-triggered, once per occurrence (§15.4).
-The journal is optional: when absent, emission is a no-op (headless/unit use).
-RECOVERY-phase events (RECOVERY_STARTED/COMPLETED, RECONCILIATION_*) are added
-with the recovery gate in a later phase, not here.
+running (kill-switched-but-running). It is handled in the execution/watchdog
+phases, not modeled here.
 """
 
 from enum import Enum
 from typing import AbstractSet, Optional
 
+from core.clock import Clock
+from core.database.providers.base import MarketDataProvider
 from core.runtime.config import DriverConfig
 from core.runtime.event_journal import EventType, RuntimeEventJournal
 
@@ -74,19 +74,29 @@ class InvalidStateTransition(RuntimeError):
 
 class LoopDriver:
     """
-    Single-threaded runtime orchestrator (Phases A–B: lifecycle + journal).
+    Single-threaded runtime orchestrator (Phases A–C: lifecycle + journal + loop).
 
     Construction places the driver in STARTUP and records the STARTUP event.
-    From there the lifecycle verbs drive the §3.2 state machine; each verb
-    enforces its legal source states, then records its event. No verb performs
-    IO beyond the (optional) journal in this phase.
+    run() drives the deterministic tick loop until exhaustion, max_bars, or
+    stop(); the lifecycle verbs enforce the §3.2 state machine. The loop is
+    inert in this phase — it advances the clock and counts bars but takes no
+    trading action.
+
+    Collaborators are injected; clock and provider are required only by run()
+    (a lifecycle-only driver may be constructed without them). The journal is
+    optional everywhere (no-op when absent).
     """
 
     def __init__(self, config: DriverConfig,
+                 clock: Optional[Clock] = None,
+                 provider: Optional[MarketDataProvider] = None,
                  journal: Optional[RuntimeEventJournal] = None):
         self._config = config
+        self._clock = clock
+        self._provider = provider
         self._journal = journal
         self._state = RuntimeState.STARTUP
+        self._bars_processed = 0
         # The process has entered STARTUP (§3.1); record it (§15.4).
         self._emit(
             EventType.STARTUP,
@@ -103,6 +113,13 @@ class LoopDriver:
     def config(self) -> DriverConfig:
         """The driver's immutable runtime configuration."""
         return self._config
+
+    @property
+    def bars_processed(self) -> int:
+        """Count of bars consumed by the loop so far."""
+        return self._bars_processed
+
+    # -- Transition + journal plumbing -------------------------------------- #
 
     def _transition(self, target: RuntimeState,
                     allowed_from: AbstractSet[RuntimeState]) -> None:
@@ -187,3 +204,78 @@ class LoopDriver:
         """STOPPING -> STOPPED: shutdown complete; terminal state (§3.1)."""
         self._transition(RuntimeState.STOPPED, {RuntimeState.STOPPING})
         self._emit(EventType.STOPPED, "driver stopped")
+
+    # -- Phase C: the deterministic tick loop ------------------------------- #
+
+    def run(self) -> None:
+        """
+        Drive the deterministic loop until data exhaustion, the max_bars guard,
+        or a stop() request, then shut down cleanly to STOPPED.
+
+        Per tick (§4.1): for each configured symbol in fixed order, pull the
+        next bar and — if one arrives — advance the clock to its timestamp
+        BEFORE any per-bar work (§6, ADR-003), then count it. When no symbol
+        yields a bar, the loop either ends (replay exhausted) or waits one
+        poll_interval (live). Phase C takes no trading action on the bar.
+
+        Requires an injected clock and market-data provider; raises otherwise.
+        The finally block guarantees a clean STOPPING -> STOPPED shutdown on
+        every exit path (normal end, stop(), or an unexpected error).
+        """
+        if self._clock is None or self._provider is None:
+            raise RuntimeError(
+                "LoopDriver.run() requires an injected clock and market-data provider"
+            )
+
+        if self._state in (RuntimeState.STARTUP, RuntimeState.RECOVERY):
+            self.start()
+
+        try:
+            while self._state in (RuntimeState.RUNNING, RuntimeState.PAUSED):
+                if self._at_max_bars():
+                    break
+                advanced = self._tick()
+                if not advanced:
+                    if self._is_exhausted():
+                        break
+                    # Live: no new bar yet — wait one poll interval (§7.3).
+                    self._clock.sleep(self._config.poll_interval_s)
+        finally:
+            if self._state in (RuntimeState.RUNNING, RuntimeState.PAUSED):
+                self.stop()
+            if self._state is RuntimeState.STOPPING:
+                self.finalize_stop()
+
+    def _tick(self) -> bool:
+        """
+        Pull one bar per configured symbol (fixed order); advance the clock and
+        count each bar that arrives. Returns True if any symbol yielded a bar.
+        Phase C stops here — no signal pull, routing, watchdog, or telemetry.
+        """
+        advanced = False
+        for symbol in self._config.symbols:
+            if self._at_max_bars():
+                break
+            bar = self._provider.get_next_bar(symbol)
+            if bar is None:
+                continue
+            # Advance time from the bar BEFORE any per-bar work (§6, ADR-003).
+            self._clock.set_time(bar.timestamp)
+            self._bars_processed += 1
+            advanced = True
+        return advanced
+
+    def _at_max_bars(self) -> bool:
+        """True once the configured max_bars guard is reached (§13)."""
+        return (self._config.max_bars is not None
+                and self._bars_processed >= self._config.max_bars)
+
+    def _is_exhausted(self) -> bool:
+        """
+        True when no configured symbol has more data. In replay this ends the
+        run; in live the provider keeps reporting availability, so this stays
+        False and the loop polls instead (§7.3/§7.4).
+        """
+        return not any(
+            self._provider.is_data_available(s) for s in self._config.symbols
+        )
