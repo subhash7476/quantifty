@@ -1,12 +1,13 @@
 """
 LoopDriver — the deterministic runtime orchestrator
 ----------------------------------------------------
-Phase A (this file's current scope): the **lifecycle state machine only**
-(DRIVER_SPECIFICATION.md §3). It models the six runtime states and the legal
-transitions between them, and rejects illegal transitions. It does NOT yet pull
-market data, advance the clock, pull signals, route to the ExecutionHandler,
-drive the RuntimeWatchdog, publish telemetry, run recovery/reconciliation, or
-emit journal events — those arrive in later phases
+Phases A–B (this file's current scope): the **lifecycle state machine** (§3)
+plus **journal emission on transitions** (§15). It models the six runtime
+states and the legal transitions between them, rejects illegal transitions, and
+records each lifecycle transition to the RuntimeEventJournal. It does NOT yet
+pull market data, advance the clock, pull signals, route to the
+ExecutionHandler, drive the RuntimeWatchdog, publish telemetry, or run
+recovery/reconciliation — those arrive in later phases
 (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md).
 
 Governing law:
@@ -29,12 +30,21 @@ Governing law:
 A kill-switch trip is deliberately **not** a state: per §3.2 the loop keeps
 running (kill-switched-but-running) so heartbeat/telemetry continue. It will be
 handled in the execution/watchdog phases, not modeled here.
+
+Journal emission (§15, Phase B): each successful lifecycle transition emits one
+event (STARTUP on construction, RUNNING, PAUSED, RESUMED, STOPPING, STOPPED).
+Emission happens only after _transition() succeeds, so an illegal transition
+(which raises) records nothing — edge-triggered, once per occurrence (§15.4).
+The journal is optional: when absent, emission is a no-op (headless/unit use).
+RECOVERY-phase events (RECOVERY_STARTED/COMPLETED, RECONCILIATION_*) are added
+with the recovery gate in a later phase, not here.
 """
 
 from enum import Enum
-from typing import AbstractSet
+from typing import AbstractSet, Optional
 
 from core.runtime.config import DriverConfig
+from core.runtime.event_journal import EventType, RuntimeEventJournal
 
 
 class RuntimeState(Enum):
@@ -64,16 +74,25 @@ class InvalidStateTransition(RuntimeError):
 
 class LoopDriver:
     """
-    Single-threaded runtime orchestrator (Phase A: lifecycle only).
+    Single-threaded runtime orchestrator (Phases A–B: lifecycle + journal).
 
-    Construction places the driver in STARTUP. From there the lifecycle verbs
-    drive the §3.2 state machine; each verb enforces its legal source states and
-    raises InvalidStateTransition otherwise. No verb performs IO in this phase.
+    Construction places the driver in STARTUP and records the STARTUP event.
+    From there the lifecycle verbs drive the §3.2 state machine; each verb
+    enforces its legal source states, then records its event. No verb performs
+    IO beyond the (optional) journal in this phase.
     """
 
-    def __init__(self, config: DriverConfig):
+    def __init__(self, config: DriverConfig,
+                 journal: Optional[RuntimeEventJournal] = None):
         self._config = config
+        self._journal = journal
         self._state = RuntimeState.STARTUP
+        # The process has entered STARTUP (§3.1); record it (§15.4).
+        self._emit(
+            EventType.STARTUP,
+            "LoopDriver constructed; entering STARTUP",
+            {"mode": config.mode.value, "symbols": list(config.symbols)},
+        )
 
     @property
     def state(self) -> RuntimeState:
@@ -96,30 +115,48 @@ class LoopDriver:
             raise InvalidStateTransition(self._state, target)
         self._state = target
 
+    def _emit(self, event_type: EventType, message: str,
+              metadata: Optional[dict] = None) -> None:
+        """
+        Record a lifecycle event to the journal if one is attached (§15).
+        No-op when no journal is injected. Called only after a successful
+        transition, so illegal transitions (which raise in _transition) emit
+        nothing — edge-triggered, once per occurrence (§15.4).
+        """
+        if self._journal is not None:
+            self._journal.record(event_type, message, metadata=metadata)
+
     # -- Lifecycle verbs (each edge in §3.2) -------------------------------- #
 
     def enter_recovery(self) -> None:
-        """STARTUP -> RECOVERY: begin the recovery sub-phase of startup (§3.1)."""
+        """
+        STARTUP -> RECOVERY: begin the recovery sub-phase of startup (§3.1).
+        Recovery-phase journal events are added with the recovery gate in a
+        later phase; this phase records nothing here.
+        """
         self._transition(RuntimeState.RECOVERY, {RuntimeState.STARTUP})
 
     def start(self) -> None:
         """
         STARTUP|RECOVERY -> RUNNING: startup validation passed (§3.2). In later
-        phases this is gated by recovery + reconciliation (§11); in Phase A it is
-        the bare transition.
+        phases this is gated by recovery + reconciliation (§11); in this phase it
+        is the bare transition plus the RUNNING event.
         """
         self._transition(
             RuntimeState.RUNNING,
             {RuntimeState.STARTUP, RuntimeState.RECOVERY},
         )
+        self._emit(EventType.RUNNING, "driver running")
 
     def pause(self) -> None:
         """RUNNING -> PAUSED: suspend signal routing without going blind (§3.1)."""
         self._transition(RuntimeState.PAUSED, {RuntimeState.RUNNING})
+        self._emit(EventType.PAUSED, "driver paused")
 
     def resume(self) -> None:
         """PAUSED -> RUNNING: resume routing."""
         self._transition(RuntimeState.RUNNING, {RuntimeState.PAUSED})
+        self._emit(EventType.RESUMED, "driver resumed")
 
     def stop(self) -> None:
         """
@@ -131,18 +168,22 @@ class LoopDriver:
             RuntimeState.STOPPING,
             {RuntimeState.RUNNING, RuntimeState.PAUSED},
         )
+        self._emit(EventType.STOPPING, "driver stopping")
 
     def abort_startup(self) -> None:
         """
         STARTUP|RECOVERY -> STOPPED: refuse to start (§3.2, §11.4). The driver
         never trades on an unvalidated/inconsistent ledger; in later phases this
-        is the failed-startup-gate path.
+        is the failed-startup-gate path (which will add the RECONCILIATION_FAIL
+        context before this STOPPED event).
         """
         self._transition(
             RuntimeState.STOPPED,
             {RuntimeState.STARTUP, RuntimeState.RECOVERY},
         )
+        self._emit(EventType.STOPPED, "driver refused to start")
 
     def finalize_stop(self) -> None:
         """STOPPING -> STOPPED: shutdown complete; terminal state (§3.1)."""
         self._transition(RuntimeState.STOPPED, {RuntimeState.STOPPING})
+        self._emit(EventType.STOPPED, "driver stopped")
