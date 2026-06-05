@@ -1,18 +1,22 @@
 """
 LoopDriver — the deterministic runtime orchestrator
 ----------------------------------------------------
-Phases A–C (this file's current scope):
+Phases A–D (this file's current scope):
 - A: the lifecycle state machine (§3) — six states + legal §3.2 transitions.
 - B: journal emission on transitions (§15).
 - C: the **tick loop** — pull bars from a MarketDataProvider, advance the Clock
   from each bar's timestamp, and count, until exhaustion / max_bars / stop()
   (§4 event flow, §6 clock, §7 market data).
+- D: the **SignalSource pull** — call source.on_bar(bar) once per bar (after the
+  clock advance, §7.2) and collect the returned signals in list order; run the
+  source's on_start/on_stop lifecycle hooks (§5.2). Signals are counted, **not
+  routed** — execution arrives in Phase E.
 
-It does NOT yet pull signals, route to the ExecutionHandler, drive the
+It does NOT yet route signals to the ExecutionHandler, drive the
 RuntimeWatchdog, publish telemetry, or run recovery/reconciliation — those
-arrive in later phases (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The Phase C
-loop is deliberately **inert**: it advances time and counts bars but takes no
-trading action.
+arrive in later phases (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop is
+still deliberately **inert**: it advances time, pulls signals, and counts, but
+takes no trading action.
 
 Governing law:
 - ADR-003 (Deterministic Processing) / ADR-006 (sole runtime orchestrator):
@@ -45,6 +49,7 @@ from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
 from core.runtime.config import DriverConfig
 from core.runtime.event_journal import EventType, RuntimeEventJournal
+from core.runtime.signal_source import SignalSource
 
 
 class RuntimeState(Enum):
@@ -90,13 +95,16 @@ class LoopDriver:
     def __init__(self, config: DriverConfig,
                  clock: Optional[Clock] = None,
                  provider: Optional[MarketDataProvider] = None,
-                 journal: Optional[RuntimeEventJournal] = None):
+                 journal: Optional[RuntimeEventJournal] = None,
+                 source: Optional[SignalSource] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
         self._journal = journal
+        self._source = source
         self._state = RuntimeState.STARTUP
         self._bars_processed = 0
+        self._signals_pulled = 0
         # The process has entered STARTUP (§3.1); record it (§15.4).
         self._emit(
             EventType.STARTUP,
@@ -118,6 +126,11 @@ class LoopDriver:
     def bars_processed(self) -> int:
         """Count of bars consumed by the loop so far."""
         return self._bars_processed
+
+    @property
+    def signals_pulled(self) -> int:
+        """Count of signals collected from the source so far (Phase D)."""
+        return self._signals_pulled
 
     # -- Transition + journal plumbing -------------------------------------- #
 
@@ -230,6 +243,12 @@ class LoopDriver:
         if self._state in (RuntimeState.STARTUP, RuntimeState.RECOVERY):
             self.start()
 
+        # Source warmup before the loop pulls any bar (§5.2). No context is
+        # injected — the driver hands the source nothing that exposes the
+        # ledger/broker/handler (§5.4).
+        if self._source is not None:
+            self._source.on_start()
+
         try:
             while self._state in (RuntimeState.RUNNING, RuntimeState.PAUSED):
                 if self._at_max_bars():
@@ -245,12 +264,16 @@ class LoopDriver:
                 self.stop()
             if self._state is RuntimeState.STOPPING:
                 self.finalize_stop()
+            # Source teardown once, on every exit path (§5.2 on_stop).
+            if self._source is not None:
+                self._source.on_stop()
 
     def _tick(self) -> bool:
         """
-        Pull one bar per configured symbol (fixed order); advance the clock and
-        count each bar that arrives. Returns True if any symbol yielded a bar.
-        Phase C stops here — no signal pull, routing, watchdog, or telemetry.
+        Pull one bar per configured symbol (fixed order); advance the clock,
+        pull signals, and count each bar that arrives. Returns True if any symbol
+        yielded a bar. Phase D pulls signals but does not route them — no
+        execution, watchdog, or telemetry yet.
         """
         advanced = False
         for symbol in self._config.symbols:
@@ -261,9 +284,21 @@ class LoopDriver:
                 continue
             # Advance time from the bar BEFORE any per-bar work (§6, ADR-003).
             self._clock.set_time(bar.timestamp)
+            # Pull signals after the clock advance, in list order (§5.2, §7.2).
+            if self._source is not None:
+                self._dispatch_signals(self._source.on_bar(bar), bar)
             self._bars_processed += 1
             advanced = True
         return advanced
+
+    def _dispatch_signals(self, signals, bar) -> None:
+        """
+        Handle the signals pulled for one bar. Phase D only **counts** them
+        (signals are pulled but not routed); the list is taken verbatim — its
+        order IS the routing order and must not be re-ranked (§5.2). Phase E
+        fills this seam in with ExecutionHandler routing (§8).
+        """
+        self._signals_pulled += len(signals)
 
     def _at_max_bars(self) -> bool:
         """True once the configured max_bars guard is reached (§13)."""

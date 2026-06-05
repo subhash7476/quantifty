@@ -16,7 +16,8 @@ import pytz
 
 from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
-from core.events import OHLCVBar
+from core.events import OHLCVBar, SignalEvent, SignalType
+from core.runtime.signal_source import SignalSource
 
 _UTC = pytz.UTC
 _T0 = datetime(2026, 6, 5, 9, 15, 0, tzinfo=_UTC)
@@ -100,3 +101,47 @@ class FakeMarketDataProvider(MarketDataProvider):
 
     def get_progress(self, symbol: str):
         return (self._idx[symbol], len(self._scripts[symbol]))
+
+
+def make_signal(symbol: str = "A", signal_type: SignalType = SignalType.BUY,
+                ts: Optional[datetime] = None) -> SignalEvent:
+    return SignalEvent(strategy_id="test", symbol=symbol, timestamp=ts or _T0,
+                       signal_type=signal_type, confidence=1.0)
+
+
+class FakeSignalSource(SignalSource):
+    """
+    Scripts the signals returned per on_bar call and records the full lifecycle
+    so the driver's seam wiring can be asserted:
+
+    - bars_seen: every bar passed to on_bar, in call order.
+    - started / start_context / bars_at_start: how often on_start fired, the
+      context it received, and how many bars had been seen when it ran (0 proves
+      on_start runs before the loop pulls any bar).
+    - stopped: how often on_stop fired.
+
+    on_bar returns the i-th scripted signal list for the i-th call; once the
+    script is exhausted it returns [] (the normal do-nothing bar). Lists are
+    returned verbatim (no copy-reorder) so order/identity assertions hold.
+    """
+
+    def __init__(self, signals_per_bar: Optional[List[List[SignalEvent]]] = None):
+        self._script = list(signals_per_bar or [])
+        self.bars_seen: List[OHLCVBar] = []
+        self.started = 0
+        self.start_context = "UNSET"
+        self.bars_at_start: Optional[int] = None
+        self.stopped = 0
+
+    def on_start(self, context=None) -> None:
+        self.started += 1
+        self.start_context = context
+        self.bars_at_start = len(self.bars_seen)
+
+    def on_bar(self, bar: OHLCVBar) -> List[SignalEvent]:
+        i = len(self.bars_seen)
+        self.bars_seen.append(bar)
+        return self._script[i] if i < len(self._script) else []
+
+    def on_stop(self) -> None:
+        self.stopped += 1
