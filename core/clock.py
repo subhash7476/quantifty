@@ -20,6 +20,19 @@ class Clock(ABC):
         """Simulates or performs an actual sleep."""
         pass
 
+    def set_time(self, dt: datetime) -> None:
+        """
+        Set the clock's current time. No-op by default.
+
+        The deterministic loop driver calls this uniformly on every tick with
+        the current bar's timestamp (DRIVER_SPECIFICATION.md §6), without
+        branching on clock type. Replay clocks override this to advance
+        deterministic time; wall-clock clocks (e.g. RealTimeClock) inherit this
+        no-op and safely ignore external time ownership — live time is
+        authoritative and owned by the wall clock, not the data feed.
+        """
+        pass
+
 
 class RealTimeClock(Clock):
     """
