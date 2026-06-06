@@ -203,20 +203,29 @@ class FakeReconciliation:
 
 class FakeExecutionHandler:
     """
-    Duck-typed ExecutionHandler stand-in for the startup gate (NOT a subclass —
-    the real handler builds a broker, trackers, and persistence). It carries:
+    Duck-typed ExecutionHandler stand-in for the startup gate + execution routing
+    (NOT a subclass — the real handler builds a broker, trackers, and
+    persistence). It carries:
 
     - reconciliation: a FakeReconciliation with scriptable alerts;
     - _replay_state(): a spy that records calls so a test can assert the driver
-      NEVER re-restores state (ADR-001 — recovery happened at construction).
-
-    It deliberately exposes NO process_signal — the startup gate must never route
-    (ADR-006); a stray call would raise rather than silently pass.
+      NEVER re-restores state (ADR-001 — recovery happened at construction);
+    - process_signal(signal, current_price): the canonical execution entry point
+      (Phase G routing target, §8.1). A recording spy: it appends each
+      (signal, current_price) pair to `routed` in call order so a test can assert
+      WHAT was routed, in WHICH order, at WHICH price (always bar.close). It is
+      otherwise inert — it submits no order, touches no ledger, and returns None,
+      keeping the slice narrow (the driver routes; it does not execute).
     """
 
     def __init__(self, reconcile_alerts: Optional[List] = None):
         self.reconciliation = FakeReconciliation(reconcile_alerts)
         self.replay_state_calls = 0
+        self.routed: List = []
 
     def _replay_state(self) -> None:
         self.replay_state_calls += 1
+
+    def process_signal(self, signal, current_price):
+        self.routed.append((signal, current_price))
+        return None

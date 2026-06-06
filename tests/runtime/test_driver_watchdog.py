@@ -174,13 +174,16 @@ def test_no_watchdog_runs_normally_live():
 
 
 # --------------------------------------------------------------------------- #
-# (ADR-006) the driver routes nothing: no process_signal call
+# (ADR-006) the driver is the SOLE execution router (Phase G)
 # --------------------------------------------------------------------------- #
-def test_driver_does_not_route_to_execution():
-    # The driver legitimately references ExecutionHandler from the startup gate
-    # (Phase F: recovery + reconciliation are handler responsibilities). The real
-    # ADR-006 invariant is that it never ROUTES — i.e. never calls process_signal.
-    # That call arrives only with execution routing (Phase G).
+def test_driver_routes_through_process_signal():
+    # Phase G supersedes the Phase E/F "routes nothing" invariant: the driver now
+    # calls process_signal — and that is the ONE legitimate runtime trade path
+    # (ADR-006: the LoopDriver is the sole runtime orchestrator). The routing-era
+    # ADR-006 guards — no SignalSource->handler coupling, RUNNING-gated routing,
+    # routing only through the driver — live in test_driver_execution_routing.py.
+    # Here we assert only that the call site now exists in the driver (the watchdog
+    # drive path itself, asserted above, remains unchanged and routes nothing).
     src_path = Path(__file__).resolve().parents[2] / "core" / "runtime" / "driver.py"
     tree = ast.parse(src_path.read_text(encoding="utf-8"))
 
@@ -188,4 +191,4 @@ def test_driver_does_not_route_to_execution():
         isinstance(n, ast.Attribute) and n.attr == "process_signal"
         for n in ast.walk(tree)
     )
-    assert not calls_process_signal
+    assert calls_process_signal

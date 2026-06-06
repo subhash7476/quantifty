@@ -1,7 +1,7 @@
 """
 LoopDriver — the deterministic runtime orchestrator
 ----------------------------------------------------
-Phases A–F (this file's current scope):
+Phases A–G (this file's current scope):
 - A: the lifecycle state machine (§3) — six states + legal §3.2 transitions.
 - B: journal emission on transitions (§15).
 - C: the **tick loop** — pull bars from a MarketDataProvider, advance the Clock
@@ -23,12 +23,20 @@ Phases A–F (this file's current scope):
   ledger against broker truth → RECONCILIATION_PASS, or refuse to start
   (RECONCILIATION_FAIL → STOPPED) on divergence. LIVE mode requires a handler;
   the no-handler path is replay/inert/test only (PHASE_F_STARTUP_GATE_PLAN §3.1).
+- G: the **execution routing** (§8, ADR-005/006) — each pulled SignalEvent is
+  forwarded, in list order, to the canonical ExecutionHandler entry point
+  process_signal(signal, current_price=bar.close). Routing is gated on handler
+  presence and the RUNNING state (PAUSED suspends it, §3.1). The driver is the
+  sole runtime caller of process_signal; it routes only — sizing/risk/orders/
+  fills stay the handler's (ADR-005). Per-signal exception isolation (§8.4,
+  BROKER_ERROR) and telemetry are deliberately NOT in this slice.
 
-It does NOT yet route signals to the ExecutionHandler or publish telemetry —
-those arrive in later phases (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop
-is now **safety-aware but execution-free**: it validates the ledger at startup,
-advances time, pulls signals, counts, and guards against stale data, but takes no
-trading action — it never calls process_signal (ADR-006).
+It does NOT publish telemetry or isolate per-signal execution failures — those
+arrive in later increments (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop now
+closes the data → signal → execution path: it validates the ledger at startup,
+advances time, pulls signals, **routes them to the handler**, and guards against
+stale data. It still owns no execution behavior of its own — it only forwards to
+process_signal, the single trade path (ADR-006).
 
 Governing law:
 - ADR-003 (Deterministic Processing) / ADR-006 (sole runtime orchestrator):
@@ -397,12 +405,32 @@ class LoopDriver:
 
     def _dispatch_signals(self, signals, bar) -> None:
         """
-        Handle the signals pulled for one bar. This phase only **counts** them
-        (signals are pulled but not routed); the list is taken verbatim — its
-        order IS the routing order and must not be re-ranked (§5.2). The
-        execution phase fills this seam in with ExecutionHandler routing (§8).
+        Route the signals pulled for one bar to the ExecutionHandler (Phase G,
+        §8.1). The list is taken verbatim — its order IS the routing order and is
+        never re-ranked (§5.2); each signal is forwarded to the canonical entry
+        point `process_signal(signal, current_price=bar.close)` in that order.
+        `current_price` is **always** `bar.close` — deterministic, no driver-side
+        pricing (§8.1), so live and replay traverse the identical routing path.
+
+        `signals_pulled` counts every collected signal **unconditionally** (the
+        Phase D contract). Routing, by contrast, is gated twice:
+        - **handler presence** — the no-handler path (replay/inert/test) has no
+          ExecutionHandler to route to; it collects/counts only;
+        - **RUNNING state** — PAUSED suspends routing without going blind (§3.1):
+          bars are still pulled and signals still collected, but no new
+          `process_signal` call is issued.
+
+        ADR-006: the driver is the **sole** runtime caller of `process_signal`.
+        The seam (§5.4) holds no handler handle, so a SignalSource can never route
+        directly — all trading intent flows through here and nowhere else. This
+        slice routes only; sizing/risk/orders/fills remain the handler's (ADR-005),
+        and per-signal exception isolation (§8.4, BROKER_ERROR) is a later increment.
         """
         self._signals_pulled += len(signals)
+        if self._execution is None or self._state is not RuntimeState.RUNNING:
+            return
+        for signal in signals:
+            self._execution.process_signal(signal, bar.close)
 
     def _drive_watchdog(self) -> None:
         """
