@@ -1,7 +1,7 @@
 """
 LoopDriver — the deterministic runtime orchestrator
 ----------------------------------------------------
-Phases A–G (this file's current scope):
+Phases A–H (this file's current scope):
 - A: the lifecycle state machine (§3) — six states + legal §3.2 transitions.
 - B: journal emission on transitions (§15).
 - C: the **tick loop** — pull bars from a MarketDataProvider, advance the Clock
@@ -31,12 +31,21 @@ Phases A–G (this file's current scope):
   fills stay the handler's (ADR-005). Per-signal exception isolation (§8.4,
   BROKER_ERROR) and telemetry are deliberately NOT in this slice.
 
-It does NOT publish telemetry or isolate per-signal execution failures — those
-arrive in later increments (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop now
-closes the data → signal → execution path: it validates the ledger at startup,
-advances time, pulls signals, **routes them to the handler**, and guards against
-stale data. It still owns no execution behavior of its own — it only forwards to
-process_signal, the single trade path (ADR-006).
+- H: **runtime telemetry** (Phase H) — an injected, inert-by-default TelemetrySink
+  (core/runtime/metrics.py) is fed in-scope runtime counters (lifecycle, runtime,
+  watchdog, execution) at each observable event via _meter(). Telemetry is
+  **observation only**: it never affects an execution/signal/reconciliation/
+  recovery decision, is never a source of truth, and a faulty sink can never stop
+  the loop (every increment is best-effort, swallowed-and-logged). This is NOT the
+  §10 ZMQ TelemetryPublisher wire transport — that remains future work.
+
+It does NOT publish §10 ZMQ telemetry over the wire or isolate per-signal
+execution failures — those arrive in later increments
+(docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop now closes the data → signal →
+execution path: it validates the ledger at startup, advances time, pulls signals,
+**routes them to the handler**, guards against stale data, and **counts what it
+does** for observability. It still owns no execution behavior of its own — it only
+forwards to process_signal, the single trade path (ADR-006).
 
 Governing law:
 - ADR-003 (Deterministic Processing) / ADR-006 (sole runtime orchestrator):
@@ -70,8 +79,10 @@ from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
 from core.execution.handler import ExecutionHandler
 from core.execution.watchdog import RuntimeWatchdog
+from core.logging import setup_logger
 from core.runtime.config import DriverConfig
 from core.runtime.event_journal import EventType, RuntimeEventJournal
+from core.runtime.metrics import NullTelemetrySink, RuntimeMetric, TelemetrySink
 from core.runtime.signal_source import SignalSource
 
 
@@ -122,7 +133,8 @@ class LoopDriver:
                  source: Optional[SignalSource] = None,
                  watchdog: Optional[RuntimeWatchdog] = None,
                  execution: Optional[ExecutionHandler] = None,
-                 broker_positions: Optional[Callable[[], List[Dict[str, Any]]]] = None):
+                 broker_positions: Optional[Callable[[], List[Dict[str, Any]]]] = None,
+                 telemetry: Optional[TelemetrySink] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
@@ -134,18 +146,26 @@ class LoopDriver:
         # The real live fetch is deferred (PROJECT_STATE Planned #6); when absent
         # reconciliation is vacuously clear (no broker book to compare).
         self._broker_positions = broker_positions
+        # Runtime telemetry (Phase H) — observation only, never a source of truth
+        # and never in the trade decision path. Defaults to the inert no-op sink
+        # so the loop runs identically with or without telemetry wired. Increments
+        # are best-effort (_meter swallows sink failures): telemetry must never
+        # stop trading.
+        self._telemetry = telemetry if telemetry is not None else NullTelemetrySink()
+        self._logger = setup_logger("loop_driver")
         self._state = RuntimeState.STARTUP
         self._bars_processed = 0
         self._signals_pulled = 0
         # Last observed watchdog health, for edge-triggered staleness journaling
         # (§9 / §15.4). Presumed healthy until the watchdog reports otherwise.
         self._data_was_healthy = True
-        # The process has entered STARTUP (§3.1); record it (§15.4).
+        # The process has entered STARTUP (§3.1); record it (§15.4) and count it.
         self._emit(
             EventType.STARTUP,
             "LoopDriver constructed; entering STARTUP",
             {"mode": config.mode.value, "symbols": list(config.symbols)},
         )
+        self._meter(RuntimeMetric.STARTUP_COUNT)
 
     @property
     def state(self) -> RuntimeState:
@@ -190,6 +210,20 @@ class LoopDriver:
         """
         if self._journal is not None:
             self._journal.record(event_type, message, metadata=metadata)
+
+    def _meter(self, metric: RuntimeMetric, count: int = 1) -> None:
+        """
+        Bump a runtime telemetry counter (Phase H), best-effort. Telemetry is
+        observational only — it never affects an execution/signal/reconciliation/
+        recovery decision and is never a source of truth. A faulty sink must not
+        stop trading (Constitution §6 forbids silent failure, so the swallowed
+        error is logged, not lost), so every increment is wrapped here and the
+        loop is never broken by a telemetry fault.
+        """
+        try:
+            self._telemetry.increment(metric, count)
+        except Exception as exc:  # best-effort: telemetry never breaks the loop
+            self._logger.error("Telemetry increment failed for %s: %s", metric, exc)
 
     # -- Lifecycle verbs (each edge in §3.2) -------------------------------- #
 
@@ -252,6 +286,9 @@ class LoopDriver:
         """STOPPING -> STOPPED: shutdown complete; terminal state (§3.1)."""
         self._transition(RuntimeState.STOPPED, {RuntimeState.STOPPING})
         self._emit(EventType.STOPPED, "driver stopped")
+        # A clean stop (STOPPING -> STOPPED). A refuse-to-start (abort_startup)
+        # is a distinct lifecycle outcome and is NOT counted here.
+        self._meter(RuntimeMetric.STOP_COUNT)
 
     # -- Phase F: startup gate / recovery ----------------------------------- #
 
@@ -272,6 +309,7 @@ class LoopDriver:
         # the driver reuses it and NEVER re-restores (ADR-001 — a second restore
         # path would create a second source of position truth).
         self._emit(EventType.RECOVERY_COMPLETED, "ledger restored from persistence")
+        self._meter(RuntimeMetric.RECOVERY_COUNT)
 
         if not self._reconcile_ledger():
             return False
@@ -292,6 +330,9 @@ class LoopDriver:
         #6), so live reconciliation is structurally present but vacuous for now;
         it gains teeth when that source lands with execution routing.
         """
+        # One reconciliation cycle occurred (counted whether it runs the engine,
+        # is vacuously clear, passes, or fails — a cycle happened either way).
+        self._meter(RuntimeMetric.RECONCILIATION_COUNT)
         if (self._config.require_reconciliation_on_start
                 and self._broker_positions is not None):
             alerts = self._execution.reconciliation.reconcile(self._broker_positions())
@@ -384,6 +425,9 @@ class LoopDriver:
         yielded a bar. Phase D pulls signals but does not route them — no
         execution, watchdog, or telemetry yet.
         """
+        # One loop iteration = one _tick() invocation (the unit of the per-tick
+        # pipeline, §4.1), counted before the symbol sweep (Phase H telemetry).
+        self._meter(RuntimeMetric.LOOP_ITERATIONS)
         advanced = False
         for symbol in self._config.symbols:
             if self._at_max_bars():
@@ -400,6 +444,7 @@ class LoopDriver:
             if self._config.is_live and self._watchdog is not None:
                 self._watchdog.record_bar()
             self._bars_processed += 1
+            self._meter(RuntimeMetric.BARS_PROCESSED)
             advanced = True
         return advanced
 
@@ -427,10 +472,15 @@ class LoopDriver:
         and per-signal exception isolation (§8.4, BROKER_ERROR) is a later increment.
         """
         self._signals_pulled += len(signals)
+        # Every collected signal is "received" (counted unconditionally, like
+        # signals_pulled) — distinct from "routed", which is gated below.
+        self._meter(RuntimeMetric.SIGNALS_RECEIVED, len(signals))
         if self._execution is None or self._state is not RuntimeState.RUNNING:
             return
         for signal in signals:
+            self._meter(RuntimeMetric.SIGNALS_ROUTED)
             self._execution.process_signal(signal, bar.close)
+            self._meter(RuntimeMetric.EXECUTION_CALLS)
 
     def _drive_watchdog(self) -> None:
         """
@@ -450,12 +500,19 @@ class LoopDriver:
             return
         self._watchdog.check_data_staleness()
         self._watchdog.write_heartbeat(self._bars_processed)
+        # Count each driver heartbeat-drive call (the real watchdog self-throttles
+        # the actual disk write — this is the driver's observable cadence, not a
+        # disk-write count).
+        self._meter(RuntimeMetric.HEARTBEATS_EMITTED)
         healthy = self._watchdog.data_healthy
         if self._data_was_healthy and not healthy:
             self._emit(EventType.WATCHDOG_STALE_DATA,
                        "data feed stale; watchdog tripped kill switch")
             self._emit(EventType.KILL_SWITCH_ACTIVATED,
                        "kill switch activated by stale-data watchdog")
+            # Edge-triggered (once per incident), mirroring the journal events.
+            self._meter(RuntimeMetric.STALE_DATA_EVENTS)
+            self._meter(RuntimeMetric.KILL_SWITCH_EVENTS)
         self._data_was_healthy = healthy
 
     def _at_max_bars(self) -> bool:
