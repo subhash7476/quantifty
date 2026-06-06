@@ -40,10 +40,13 @@ Phases A–H + H-ZMQ (this file's current scope):
 - H (ZMQ): **external telemetry publishing** (§10) — an optional injected
   RuntimeTelemetryPublisher (core/runtime/telemetry_publisher.py) is driven once
   per tick via _drive_telemetry(), throttled to telemetry_interval_s by the
-  deterministic clock (§10.2). It *consumes* the metric snapshot (the Observability
-  Layer stays the sole source — no duplicate counters) and forwards it over the ZMQ
-  wire transport. Gated on publisher presence (NOT live-only). Best-effort: a
-  publish/transport failure is swallowed-and-logged, never stopping the loop (§10.6).
+  deterministic clock (§10.2). On each cadence it publishes two things over the ZMQ
+  wire transport: the metric snapshot (§10.3 — *consuming* the Observability Layer,
+  the sole counter source) and a node **health projection** (§10.5, _build_health):
+  state / data_healthy / market_open / uptime / last_tick — a read-only projection
+  of state the driver owns or reads publicly (no private execution internals).
+  Gated on publisher presence (NOT live-only). Best-effort: a publish/transport
+  failure is swallowed-and-logged, never stopping the loop (§10.6).
 
 Per-signal execution-failure isolation (§8.4, BROKER_ERROR) still arrives in a
 later increment (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop now closes the
@@ -78,12 +81,14 @@ running (kill-switched-but-running). It is handled in the execution/watchdog
 phases, not modeled here.
 """
 
+import time
 from enum import Enum
 from typing import AbstractSet, Any, Callable, Dict, List, Optional
 
 from core.alerts.alerter import alerter
 from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
+from core.database.utils.market_hours import MarketHours
 from core.execution.handler import ExecutionHandler
 from core.execution.watchdog import RuntimeWatchdog
 from core.logging import setup_logger
@@ -170,6 +175,10 @@ class LoopDriver:
         self._publisher = publisher
         # Last telemetry-publish time, by the deterministic clock (§10.2 throttle).
         self._last_publish_at = None
+        # Wall-clock process-start mark for the health uptime field (§10.5). Uptime
+        # is an operational concern, so it uses wall-clock — separate from the
+        # data-driven trade Clock (§6.5) and never on the decision path.
+        self._start_monotonic = time.monotonic()
         self._logger = setup_logger("loop_driver")
         self._state = RuntimeState.STARTUP
         self._bars_processed = 0
@@ -531,9 +540,39 @@ class LoopDriver:
             return
         try:
             self._publisher.publish()
+            # Health projection (§10.5) on the same cadence — observation only.
+            self._publisher.publish_health(self._build_health())
         except Exception as exc:  # best-effort: telemetry never breaks the loop
             self._logger.error("Telemetry publish drive failed: %s", exc)
         self._last_publish_at = now
+
+    def _build_health(self) -> Dict[str, Any]:
+        """
+        Build the node health/liveness projection published over telemetry
+        (§10.5) — the "observable without broker login" surface (Constitution §6),
+        complementary to the on-disk heartbeat.json (§9.4).
+
+        It is a **read-only projection** of state the driver already owns or reads
+        publicly — it introduces no new source of truth (ADR-001) and reaches into
+        NO private execution internals (no `_kill_switched`/`_trades_today`):
+        - `state`     — the driver's own RuntimeState (covers loop/startup/recovery);
+        - `data_healthy` — the watchdog's PUBLIC `data_healthy` flag (True when no
+          watchdog is wired, i.e. nothing is monitoring staleness);
+        - `market_open` — `MarketHours.is_market_open(clock.now())`, keyed to the
+          trade clock so it is deterministic in replay and wall-clock-correct live;
+        - `last_tick`  — the trade clock's current time (data-driven, §6);
+        - `uptime_s`   — wall-clock process uptime (operational, §6.5);
+        - `node`       — the configured telemetry node name.
+        """
+        now = self._clock.now() if self._clock is not None else None
+        return {
+            "node": self._config.telemetry_node,
+            "state": self._state.value,
+            "data_healthy": self._watchdog.data_healthy if self._watchdog is not None else True,
+            "market_open": MarketHours.is_market_open(now),
+            "uptime_s": round(time.monotonic() - self._start_monotonic, 6),
+            "last_tick": now.isoformat() if now is not None else None,
+        }
 
     def _drive_watchdog(self) -> None:
         """

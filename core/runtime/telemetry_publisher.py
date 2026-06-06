@@ -46,6 +46,8 @@ class TelemetryTransport(Protocol):
 
     def publish_metrics(self, data: Dict[str, Any]) -> None: ...
 
+    def publish_health(self, data: Dict[str, Any]) -> None: ...
+
     def close(self) -> None: ...
 
 
@@ -82,6 +84,20 @@ class RuntimeTelemetryPublisher:
             return True
         except Exception as exc:  # best-effort: publishing must never stop trading
             self._logger.error("Runtime telemetry publish failed: %s", exc)
+            return False
+
+    def publish_health(self, data: Dict[str, Any]) -> bool:
+        """
+        Publish a node health/liveness projection (§10.5) over the same transport.
+        The caller (the LoopDriver, which owns runtime state) builds the payload;
+        this bridge only forwards it. Best-effort: never raises; returns True on a
+        clean send and False when a failure was swallowed.
+        """
+        try:
+            self._transport.publish_health(data)
+            return True
+        except Exception as exc:  # best-effort: publishing must never stop trading
+            self._logger.error("Runtime telemetry health publish failed: %s", exc)
             return False
 
     def close(self) -> None:

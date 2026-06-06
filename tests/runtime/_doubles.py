@@ -245,6 +245,7 @@ class FakeTelemetryTransport:
 
     def __init__(self, fail: bool = False, fail_on_close: bool = False):
         self.published: List[Dict] = []
+        self.published_health: List[Dict] = []
         self.closed = 0
         self._fail = fail
         self._fail_on_close = fail_on_close
@@ -253,6 +254,11 @@ class FakeTelemetryTransport:
         if self._fail:
             raise RuntimeError("ZMQ transport down")
         self.published.append(data)
+
+    def publish_health(self, data: Dict) -> None:
+        if self._fail:
+            raise RuntimeError("ZMQ transport down")
+        self.published_health.append(data)
 
     def close(self) -> None:
         if self._fail_on_close:
