@@ -145,3 +145,40 @@ class FakeSignalSource(SignalSource):
 
     def on_stop(self) -> None:
         self.stopped += 1
+
+
+class FakeWatchdog:
+    """
+    Duck-typed RuntimeWatchdog stand-in (NOT a subclass — the real watchdog
+    requires an ExecutionHandler in its constructor, which the driver tests must
+    never build). Records the driver's calls so the wiring can be asserted, and
+    lets a test script a staleness trip without wall-clock / market-hours games.
+
+    record_bar()            — counted; a fresh bar clears staleness (recovery).
+    check_data_staleness()  — counted; on the stale_after-th call it flips
+                              data_healthy False, simulating a >5-min feed gap
+                              that trips the kill switch (the real watchdog's
+                              activate_kill_switch side effect lives on its own
+                              ExecutionHandler, not here).
+    write_heartbeat(bars)   — records each bars_processed value it was given.
+    data_healthy            — the public health flag the driver edge-detects.
+    """
+
+    def __init__(self, stale_after: Optional[int] = None):
+        self.record_bar_calls = 0
+        self.staleness_checks = 0
+        self.heartbeats: List[int] = []
+        self._stale_after = stale_after
+        self.data_healthy = True
+
+    def record_bar(self) -> None:
+        self.record_bar_calls += 1
+        self.data_healthy = True
+
+    def check_data_staleness(self) -> None:
+        self.staleness_checks += 1
+        if self._stale_after is not None and self.staleness_checks == self._stale_after:
+            self.data_healthy = False
+
+    def write_heartbeat(self, bars_processed: int = 0) -> None:
+        self.heartbeats.append(bars_processed)

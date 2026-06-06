@@ -10,13 +10,19 @@ Phases A–D (this file's current scope):
 - D: the **SignalSource pull** — call source.on_bar(bar) once per bar (after the
   clock advance, §7.2) and collect the returned signals in list order; run the
   source's on_start/on_stop lifecycle hooks (§5.2). Signals are counted, **not
-  routed** — execution arrives in Phase E.
+  routed** — execution arrives in the execution phase.
+- W: the **RuntimeWatchdog drive** (§9, ADR-004) — record_bar() per processed
+  bar, check_data_staleness() + write_heartbeat(bars) once per tick after the
+  symbol sweep, all **live-mode only** (§9.5). A stale-feed trip is recorded
+  edge-triggered as WATCHDOG_STALE_DATA + KILL_SWITCH_ACTIVATED. The watchdog
+  owns its kill-switch action against its own ExecutionHandler; the driver only
+  drives it and observes its public health flag.
 
-It does NOT yet route signals to the ExecutionHandler, drive the
-RuntimeWatchdog, publish telemetry, or run recovery/reconciliation — those
-arrive in later phases (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop is
-still deliberately **inert**: it advances time, pulls signals, and counts, but
-takes no trading action.
+It does NOT yet route signals to the ExecutionHandler, publish telemetry, or run
+recovery/reconciliation — those arrive in later phases
+(docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop is now **safety-aware but
+execution-free**: it advances time, pulls signals, counts, and guards against
+stale data, but takes no trading action.
 
 Governing law:
 - ADR-003 (Deterministic Processing) / ADR-006 (sole runtime orchestrator):
@@ -47,6 +53,7 @@ from typing import AbstractSet, Optional
 
 from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
+from core.execution.watchdog import RuntimeWatchdog
 from core.runtime.config import DriverConfig
 from core.runtime.event_journal import EventType, RuntimeEventJournal
 from core.runtime.signal_source import SignalSource
@@ -96,15 +103,20 @@ class LoopDriver:
                  clock: Optional[Clock] = None,
                  provider: Optional[MarketDataProvider] = None,
                  journal: Optional[RuntimeEventJournal] = None,
-                 source: Optional[SignalSource] = None):
+                 source: Optional[SignalSource] = None,
+                 watchdog: Optional[RuntimeWatchdog] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
         self._journal = journal
         self._source = source
+        self._watchdog = watchdog
         self._state = RuntimeState.STARTUP
         self._bars_processed = 0
         self._signals_pulled = 0
+        # Last observed watchdog health, for edge-triggered staleness journaling
+        # (§9 / §15.4). Presumed healthy until the watchdog reports otherwise.
+        self._data_was_healthy = True
         # The process has entered STARTUP (§3.1); record it (§15.4).
         self._emit(
             EventType.STARTUP,
@@ -254,6 +266,10 @@ class LoopDriver:
                 if self._at_max_bars():
                     break
                 advanced = self._tick()
+                # Once per tick after the symbol sweep (§9.3/§9.4, §4.1 step 7):
+                # staleness check + heartbeat, even on a no-bar tick (that is
+                # exactly when a frozen feed must be caught). Live only.
+                self._drive_watchdog()
                 if not advanced:
                     if self._is_exhausted():
                         break
@@ -287,18 +303,47 @@ class LoopDriver:
             # Pull signals after the clock advance, in list order (§5.2, §7.2).
             if self._source is not None:
                 self._dispatch_signals(self._source.on_bar(bar), bar)
+            # Stamp the bar arrival for staleness (§9.2), live only (§9.5).
+            if self._config.is_live and self._watchdog is not None:
+                self._watchdog.record_bar()
             self._bars_processed += 1
             advanced = True
         return advanced
 
     def _dispatch_signals(self, signals, bar) -> None:
         """
-        Handle the signals pulled for one bar. Phase D only **counts** them
+        Handle the signals pulled for one bar. This phase only **counts** them
         (signals are pulled but not routed); the list is taken verbatim — its
-        order IS the routing order and must not be re-ranked (§5.2). Phase E
-        fills this seam in with ExecutionHandler routing (§8).
+        order IS the routing order and must not be re-ranked (§5.2). The
+        execution phase fills this seam in with ExecutionHandler routing (§8).
         """
         self._signals_pulled += len(signals)
+
+    def _drive_watchdog(self) -> None:
+        """
+        Drive the passive RuntimeWatchdog once per tick after the symbol sweep
+        (§9.3/§9.4): staleness check, then heartbeat (self-throttled in the
+        watchdog). **Live mode only** (§9.5) — in replay the wall-clock watchdog
+        would false-trip, so the driver never touches it.
+
+        A stale-feed trip is recorded edge-triggered (§15.4): on the
+        data_healthy True->False edge — the only kill-switch cause in this phase,
+        and one the watchdog activates synchronously as it flips health — the
+        driver journals WATCHDOG_STALE_DATA + KILL_SWITCH_ACTIVATED exactly once.
+        Recovery re-arms the edge. The driver reads only the watchdog's public
+        health flag; the kill-switch action and its handler stay the watchdog's.
+        """
+        if not self._config.is_live or self._watchdog is None:
+            return
+        self._watchdog.check_data_staleness()
+        self._watchdog.write_heartbeat(self._bars_processed)
+        healthy = self._watchdog.data_healthy
+        if self._data_was_healthy and not healthy:
+            self._emit(EventType.WATCHDOG_STALE_DATA,
+                       "data feed stale; watchdog tripped kill switch")
+            self._emit(EventType.KILL_SWITCH_ACTIVATED,
+                       "kill switch activated by stale-data watchdog")
+        self._data_was_healthy = healthy
 
     def _at_max_bars(self) -> bool:
         """True once the configured max_bars guard is reached (§13)."""
