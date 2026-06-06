@@ -6,6 +6,8 @@
 
 > No code in this document. It defines phases, their surfaces, tests, risks, and order.
 
+> **⚠️ Phase-label note (read before cross-referencing).** This document keeps its **original A–H labels** below (A,B,C lifecycle/journal/loop; D signal pull; **E ExecutionHandler; F RuntimeWatchdog; G Telemetry; H Recovery/startup gate**). The actual build sequence chosen in `docs/PROJECT_STATE.md` / `docs/SESSION_BOOTSTRAP.md` **relabels the later phases** to a safety-first order: **E = RuntimeWatchdog (this doc's F), F = Startup Gate/Recovery (this doc's H), G = Execution Routing (this doc's E), H = Telemetry (this doc's G)**. So "Phase E" in the state docs = watchdog, but "Phase E" here = execution. Each PROJECT_STATE bullet names the mapping in its trailing reference; trust the state docs for *what's done*, this doc for *per-phase design detail*.
+
 ---
 
 ## 0. Prerequisites (all already merged)

@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-05 — LoopDriver Watchdog Integration (Phase E)
+Wired `RuntimeWatchdog` into the `LoopDriver` (`core/runtime/driver.py`; watchdog reused unchanged): per-bar `record_bar()`, per-tick `check_data_staleness()` + `write_heartbeat(bars_processed)` after the symbol sweep, **all live-mode gated** (replay drives none). Heartbeat generation and staleness monitoring are now operationally driven. A stale-feed trip is recorded to the runtime journal edge-triggered as `WATCHDOG_STALE_DATA` + `KILL_SWITCH_ACTIVATED` (observed via the watchdog's public `data_healthy` flag). The loop remains execution-free — no `ExecutionHandler` routing, no `process_signal` (ADR-006). Added `FakeWatchdog` + 11 watchdog tests; runtime suite increased to **135 passing**. Runtime chain: `Bar → Clock → SignalSource → RuntimeWatchdog → RuntimeEventJournal`.
+*Ref: docs/DRIVER_SPECIFICATION.md §9; ADR-004; docs/PROJECT_STATE.md.*
+
+## 2026-06-05 — Deterministic LoopDriver build (Phases A–D) + runtime primitives
+Built the `core/runtime/` package and the deterministic loop scaffold. Primitives: `SignalSource` (strategy-agnostic pull seam), `DriverConfig` (+ `Mode`), `RuntimeEventJournal` (append-only `logs/runtime_events.jsonl`), `Clock.set_time`. `LoopDriver` phases: A (six-state lifecycle + §3.2 transitions), B (journal emission on transitions, edge-triggered), C (tick loop + clock advancement + market-data pull, replay-exhaustion vs live-poll, `max_bars`, cooperative stop), D (SignalSource pull — signals collected in list order but **not routed**). Strategy-agnostic (`ast` forbidden-import guard); single-threaded deterministic decision path (ADR-003). Execution-free throughout.
+*Ref: docs/DRIVER_SPECIFICATION.md; docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md; ADR-002/003/006; docs/PROJECT_STATE.md.*
+
 ## 2026-06-04 — Repository knowledge system established
 Created the permanent knowledge base under `docs/`: `docs/SESSION_BOOTSTRAP.md`, `docs/PROJECT_STATE.md`, `docs/ARCHITECTURE_DECISIONS.md` (ADR-001…ADR-005), and this changelog.
 

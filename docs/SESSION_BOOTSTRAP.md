@@ -21,7 +21,15 @@ The platform assumes no specific entry methodology for either book.
 
 - **Clean platform core.** Every surviving module is platform infrastructure (or thin strategy-residue / dead-code). **Verified: zero Platform→Strategy imports**; no strategy / research / ML / backtest / scanner code.
 - **Present and working:** Market Data, Instrument Master, Execution (`ExecutionHandler` OMS/EMS core), Ledger (trackers + persistence), Risk (limits, greeks, portfolio greeks, kill switch), Reconciliation, Options Infrastructure (selector, greeks, chain, structural analytics), Observability (ZMQ telemetry + bridge + alerting + logging), Operations Dashboard (Flask, 5 infra blueprints), and a deterministic-runtime **watchdog** (heartbeat + staleness).
-- **Runtime reality:** the Flask app + options dashboard boot and render; there is **no live trading loop yet**, so the watchdog and trade-telemetry are **present but not driven**.
+- **Runtime reality:** the deterministic **LoopDriver now exists** (`core/runtime/driver.py`, Phases A–E) and drives the runtime chain `Bar → Clock → SignalSource → RuntimeWatchdog → RuntimeEventJournal`. The watchdog is now **driven** (live-gated). The loop is **execution-free**: signals are pulled and counted but **not routed** — no `ExecutionHandler` wiring yet. Trade-telemetry transport exists but is **not yet driven** by the loop.
+
+## Current Runtime Status
+
+- **Runtime chain (live today):** `Bar → Clock → SignalSource → RuntimeWatchdog → RuntimeEventJournal`. **Execution routing is intentionally absent** — `Signal → ExecutionHandler` does not exist yet.
+- **LoopDriver phases complete:** A (lifecycle state machine), B (journal on transitions), C (tick loop + clock advancement + market data), D (SignalSource pull — collected, not routed), E (RuntimeWatchdog: `record_bar` per bar, staleness + heartbeat per tick, all live-gated; `WATCHDOG_STALE_DATA` + `KILL_SWITCH_ACTIVATED` edge-triggered).
+- **Runtime primitives complete:** `SignalSource`, `DriverConfig`, `RuntimeEventJournal`, `Clock.set_time`.
+- **Tests:** `tests/runtime/` — **135 / 135 passing**, incl. the `ast` forbidden-import guard (ADR-002) and a no-`ExecutionHandler`/no-`process_signal` guard (ADR-006).
+- **Next runtime pillar:** LoopDriver Phase F — Startup Gate / Recovery (the §11 startup-validation gate), then Phase G — Execution Routing, then Phase H — Telemetry.
 
 ## Architecture Principles (from `docs/PLATFORM_CONSTITUTION.md`)
 
@@ -33,8 +41,8 @@ The platform assumes no specific entry methodology for either book.
 
 ## Current Gaps (what the constitution requires but isn't done)
 
-1. **Deterministic loop driver — ABSENT.** Highest-priority gap. No orchestrator runs the data→signal→execution loop. This is *why* the watchdog and trade-telemetry are inert.
-2. **Watchdog wiring — UNMET.** `core/execution/watchdog.py` exists and is tested, but nothing calls it → Principle 5 / §6 unmet operationally.
+1. **Deterministic loop driver — PARTIAL.** The `LoopDriver` exists and runs through Phase E (lifecycle, journal, tick loop, signal pull, watchdog). **Remaining:** Phase F (startup gate / recovery), Phase G (execution routing — the data→signal→**execution** path is still open), Phase H (telemetry). Until G lands, no signal becomes an order.
+2. **Watchdog wiring — MET.** `RuntimeWatchdog` is now driven by the `LoopDriver` (live-gated `record_bar` / `check_data_staleness` / `write_heartbeat`); Principle 5 / §6 satisfied operationally for the staleness + heartbeat path.
 3. **Margin depth (§8).** `MarginTracker` is a flat 20% rate, not SPAN — insufficient for real option-selling margin.
 4. **Broker product model (§9).** `upstox_adapter.place_order` hardcodes `product:"I"` (intraday) — no NRML/carry for futures or overnight option selling.
 5. **Broker-side reconciliation depth (§3).** Internal reconciliation exists; ledger-vs-live-broker reconciliation needs work.
@@ -43,10 +51,10 @@ The platform assumes no specific entry methodology for either book.
 
 ## Active Priorities
 
-1. **Extract the deterministic loop scaffold** from `core/runner.py` (strategy body excluded) and **wire the watchdog + telemetry** to it — closes gaps 1 + 2 and satisfies Principles 3/5 + §6.
+1. **Finish the LoopDriver** (the scaffold + watchdog are done): **Phase F — Startup Gate / Recovery** (the §11 ledger-validation gate, reusing `ExecutionHandler._replay_state` + `reconciliation.reconcile`), then **Phase G — Execution Routing** (`process_signal`, ADR-006 single path), then **Phase H — Telemetry**. Safety gates (E watchdog, F startup) land **before** execution (G) by design.
 2. **Refactor soft strategy residue** (decouple `CaptureEngine` inputs; relocate `save_signal`; prune strategy DDL).
 3. **Remove dead `core/data/*` twins.**
-4. **Deepen execution for derivatives**: F&O product/segment model + a real margin engine (sequence after the loop exists).
+4. **Deepen execution for derivatives**: F&O product/segment model + a real margin engine (sequence after execution routing exists).
 
 ## Forbidden Directions (from `docs/PLATFORM_CONSTITUTION.md` §4–§5)
 
@@ -72,5 +80,5 @@ When uncertain whether something belongs: **keep platform code smaller**; strate
 ## Current Next Steps
 
 1. Read `docs/PLATFORM_CONSTITUTION.md` + `docs/PROJECT_STATE.md`.
-2. Pick up **Active Priority #1**: extract the deterministic loop scaffold per `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md` (heartbeat + staleness are already extracted; the loop driver is the remaining piece) and wire `RuntimeWatchdog`.
+2. Pick up **Active Priority #1**: implement **LoopDriver Phase F — Startup Gate / Recovery** per `docs/DRIVER_SPECIFICATION.md` §11 and `docs/PHASE_F_STARTUP_GATE_PLAN.md` (TDD, runtime suite green-on-merge). Execution routing (Phase G) stays deferred until F is green.
 3. Keep every change inside the constitution: platform-only, no strategy, no research, `Strategy → Platform` only.

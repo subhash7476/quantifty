@@ -153,3 +153,23 @@ This decision is grounded in four principles:
 - Heartbeat, telemetry, the runtime event journal, staleness protection, and the startup reconciliation gate are **guaranteed for all trades**, because the one path that wires them is the only path that exists.
 - Code review gains a checkable invariant: any new call site of `ExecutionHandler.process_signal` outside the `LoopDriver` (and tests) is a violation to be rejected, analogous to the `Platform → Strategy` import scan (ADR-002).
 - The dashboard/facades remain read-only (ADR-001); this ADR closes the remaining write-path loophole by forbidding a UI action from reaching the handler directly.
+
+---
+
+# Implementation Notes (non-ADR)
+
+These are durable engineering notes that record a *decision in flight* — not new ADRs, and not amendments to the accepted ADRs above (which remain append-only). They exist so a known, deliberate interim implementation is not later rediscovered as a bug.
+
+## IN-001 — Kill-switch event ownership consolidation (relates to ADR-004, ADR-006)
+
+**Status:** Open — interim implementation in place; consolidation due with LoopDriver Phase G (Execution Routing).
+
+**Context.** The `KILL_SWITCH_ACTIVATED` runtime-journal event records that trading was halted. The kill switch itself is owned by `ExecutionHandler` (`_kill_switched`, set by `activate_kill_switch`). It can be tripped by several causes — stale data (the `RuntimeWatchdog`, ADR-004), and, once execution routing lands, drawdown / broker failure / daily-trade-limit inside the handler.
+
+**Current source (interim, watchdog phase / Phase E).** While the loop is execution-free, the *only* kill-switch cause the driver can observe is the watchdog's staleness trip. The `LoopDriver` therefore emits `KILL_SWITCH_ACTIVATED` from a **data-health proxy**: the `watchdog.data_healthy` True→False edge (the watchdog flips health and calls `activate_kill_switch` synchronously). This keeps the driver free of any `ExecutionHandler` reference (preserving ADR-006 for the watchdog phase) and is edge-triggered (no per-tick duplication).
+
+**Future source (target, Phase G).** When execution routing introduces other kill-switch causes, emission must move to a **single source of truth**: one observation of the handler's kill-switch edge (`_kill_switched`, the private-attr coupling acknowledged in DRIVER_SPECIFICATION.md §10.7). The data-health **proxy emission for the kill-switch line must then be removed** from the watchdog path, so a single stale-data trip is not journaled as `KILL_SWITCH_ACTIVATED` twice (once by the proxy, once by the handler-edge observer). `WATCHDOG_STALE_DATA` continues to be emitted from the watchdog path — only the kill-switch line consolidates.
+
+**Goal.** Exactly one `KILL_SWITCH_ACTIVATED` per kill-switch activation, sourced from the handler's kill-switch edge, regardless of cause.
+
+*Ref: docs/DRIVER_SPECIFICATION.md §9, §10.7; docs/PROJECT_STATE.md (Planned #1 implementation note); ADR-004, ADR-006.*
