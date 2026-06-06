@@ -22,8 +22,8 @@ from core.runtime.config import DriverConfig, Mode
 from core.runtime.driver import LoopDriver, RuntimeState
 from core.runtime.event_journal import RuntimeEventJournal
 
-from _doubles import (FakeClock, FakeMarketDataProvider, FakeWatchdog,
-                      bar_series, make_bar)
+from _doubles import (FakeClock, FakeExecutionHandler, FakeMarketDataProvider,
+                      FakeWatchdog, bar_series, make_bar)
 
 
 def _live_cfg(symbols=("A",), max_bars=None, poll=0.25):
@@ -56,7 +56,7 @@ def test_record_bar_called_once_per_processed_bar():
     wd = FakeWatchdog()
     d = LoopDriver(_live_cfg(max_bars=3), clock=FakeClock(),
                    provider=FakeMarketDataProvider({"A": bar_series("A", 5)}, live=True),
-                   watchdog=wd)
+                   watchdog=wd, execution=FakeExecutionHandler())
     d.run()
     assert d.bars_processed == 3
     assert wd.record_bar_calls == 3
@@ -66,7 +66,7 @@ def test_staleness_check_driven_each_tick():
     wd = FakeWatchdog()
     d = LoopDriver(_live_cfg(max_bars=3), clock=FakeClock(),
                    provider=FakeMarketDataProvider({"A": bar_series("A", 5)}, live=True),
-                   watchdog=wd)
+                   watchdog=wd, execution=FakeExecutionHandler())
     d.run()
     assert wd.staleness_checks == 3            # one per tick (after each sweep)
 
@@ -75,7 +75,7 @@ def test_heartbeat_driven_each_tick_with_bar_counter():
     wd = FakeWatchdog()
     d = LoopDriver(_live_cfg(max_bars=3), clock=FakeClock(),
                    provider=FakeMarketDataProvider({"A": bar_series("A", 5)}, live=True),
-                   watchdog=wd)
+                   watchdog=wd, execution=FakeExecutionHandler())
     d.run()
     assert wd.heartbeats == [1, 2, 3]          # write_heartbeat(bars_processed) per tick
 
@@ -91,7 +91,7 @@ def _run_stale_scenario(tmp_path, stale_after, none_bars, stop_after_sleeps):
     script = [make_bar("A")] + [None] * none_bars
     d = LoopDriver(_live_cfg(), clock=clock,
                    provider=FakeMarketDataProvider({"A": script}, live=True),
-                   journal=journal, watchdog=wd)
+                   journal=journal, watchdog=wd, execution=FakeExecutionHandler())
     box.append(d)
     d.run()
     events = [json.loads(l)["event_type"]
@@ -166,29 +166,24 @@ def test_replay_mode_emits_no_watchdog_journal_events(tmp_path):
 # --------------------------------------------------------------------------- #
 def test_no_watchdog_runs_normally_live():
     d = LoopDriver(_live_cfg(max_bars=2), clock=FakeClock(),
-                   provider=FakeMarketDataProvider({"A": bar_series("A", 4)}, live=True))
+                   provider=FakeMarketDataProvider({"A": bar_series("A", 4)}, live=True),
+                   execution=FakeExecutionHandler())
     d.run()
     assert d.bars_processed == 2
     assert d.state is RuntimeState.STOPPED
 
 
 # --------------------------------------------------------------------------- #
-# (8)+(9) no ExecutionHandler dependency / no process_signal call (ADR-006)
+# (ADR-006) the driver routes nothing: no process_signal call
 # --------------------------------------------------------------------------- #
-def test_driver_has_no_executionhandler_dependency():
+def test_driver_does_not_route_to_execution():
+    # The driver legitimately references ExecutionHandler from the startup gate
+    # (Phase F: recovery + reconciliation are handler responsibilities). The real
+    # ADR-006 invariant is that it never ROUTES — i.e. never calls process_signal.
+    # That call arrives only with execution routing (Phase G).
     src_path = Path(__file__).resolve().parents[2] / "core" / "runtime" / "driver.py"
-    text = src_path.read_text(encoding="utf-8")
-    tree = ast.parse(text)
+    tree = ast.parse(src_path.read_text(encoding="utf-8"))
 
-    imported_names: set = set()
-    for node in ast.walk(tree):
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            for alias in node.names:
-                imported_names.add(alias.name)
-    # The driver may depend on the watchdog, but never on the handler directly.
-    assert "ExecutionHandler" not in imported_names
-
-    # ADR-006: the driver is not (yet) a caller of process_signal.
     calls_process_signal = any(
         isinstance(n, ast.Attribute) and n.attr == "process_signal"
         for n in ast.walk(tree)

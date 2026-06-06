@@ -182,3 +182,41 @@ class FakeWatchdog:
 
     def write_heartbeat(self, bars_processed: int = 0) -> None:
         self.heartbeats.append(bars_processed)
+
+
+class FakeReconciliation:
+    """
+    Duck-typed ReconciliationEngine stand-in. reconcile() returns the scripted
+    alert list regardless of the broker positions it is handed (an empty list
+    means consistent; a non-empty list is a startup-gate failure), and records
+    each call's argument so the gate's call/no-call behavior is assertable.
+    """
+
+    def __init__(self, alerts: Optional[List] = None):
+        self._alerts = list(alerts or [])
+        self.reconcile_calls: List = []
+
+    def reconcile(self, broker_positions) -> List:
+        self.reconcile_calls.append(broker_positions)
+        return list(self._alerts)
+
+
+class FakeExecutionHandler:
+    """
+    Duck-typed ExecutionHandler stand-in for the startup gate (NOT a subclass —
+    the real handler builds a broker, trackers, and persistence). It carries:
+
+    - reconciliation: a FakeReconciliation with scriptable alerts;
+    - _replay_state(): a spy that records calls so a test can assert the driver
+      NEVER re-restores state (ADR-001 — recovery happened at construction).
+
+    It deliberately exposes NO process_signal — the startup gate must never route
+    (ADR-006); a stray call would raise rather than silently pass.
+    """
+
+    def __init__(self, reconcile_alerts: Optional[List] = None):
+        self.reconciliation = FakeReconciliation(reconcile_alerts)
+        self.replay_state_calls = 0
+
+    def _replay_state(self) -> None:
+        self.replay_state_calls += 1

@@ -1,7 +1,7 @@
 """
 LoopDriver — the deterministic runtime orchestrator
 ----------------------------------------------------
-Phases A–D (this file's current scope):
+Phases A–F (this file's current scope):
 - A: the lifecycle state machine (§3) — six states + legal §3.2 transitions.
 - B: journal emission on transitions (§15).
 - C: the **tick loop** — pull bars from a MarketDataProvider, advance the Clock
@@ -17,12 +17,18 @@ Phases A–D (this file's current scope):
   edge-triggered as WATCHDOG_STALE_DATA + KILL_SWITCH_ACTIVATED. The watchdog
   owns its kill-switch action against its own ExecutionHandler; the driver only
   drives it and observes its public health flag.
+- F: the **startup gate / recovery** (§11, ADR-001) — when an ExecutionHandler is
+  injected, validate before RUNNING: confirm recovery (reuse _replay_state, never
+  re-restore) → RECOVERY_STARTED/RECOVERY_COMPLETED; reconcile the restored
+  ledger against broker truth → RECONCILIATION_PASS, or refuse to start
+  (RECONCILIATION_FAIL → STOPPED) on divergence. LIVE mode requires a handler;
+  the no-handler path is replay/inert/test only (PHASE_F_STARTUP_GATE_PLAN §3.1).
 
-It does NOT yet route signals to the ExecutionHandler, publish telemetry, or run
-recovery/reconciliation — those arrive in later phases
-(docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop is now **safety-aware but
-execution-free**: it advances time, pulls signals, counts, and guards against
-stale data, but takes no trading action.
+It does NOT yet route signals to the ExecutionHandler or publish telemetry —
+those arrive in later phases (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop
+is now **safety-aware but execution-free**: it validates the ledger at startup,
+advances time, pulls signals, counts, and guards against stale data, but takes no
+trading action — it never calls process_signal (ADR-006).
 
 Governing law:
 - ADR-003 (Deterministic Processing) / ADR-006 (sole runtime orchestrator):
@@ -49,10 +55,12 @@ phases, not modeled here.
 """
 
 from enum import Enum
-from typing import AbstractSet, Optional
+from typing import AbstractSet, Any, Callable, Dict, List, Optional
 
+from core.alerts.alerter import alerter
 from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
+from core.execution.handler import ExecutionHandler
 from core.execution.watchdog import RuntimeWatchdog
 from core.runtime.config import DriverConfig
 from core.runtime.event_journal import EventType, RuntimeEventJournal
@@ -104,13 +112,20 @@ class LoopDriver:
                  provider: Optional[MarketDataProvider] = None,
                  journal: Optional[RuntimeEventJournal] = None,
                  source: Optional[SignalSource] = None,
-                 watchdog: Optional[RuntimeWatchdog] = None):
+                 watchdog: Optional[RuntimeWatchdog] = None,
+                 execution: Optional[ExecutionHandler] = None,
+                 broker_positions: Optional[Callable[[], List[Dict[str, Any]]]] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
         self._journal = journal
         self._source = source
         self._watchdog = watchdog
+        self._execution = execution
+        # Optional broker-book source for the startup reconciliation gate (§11.3).
+        # The real live fetch is deferred (PROJECT_STATE Planned #6); when absent
+        # reconciliation is vacuously clear (no broker book to compare).
+        self._broker_positions = broker_positions
         self._state = RuntimeState.STARTUP
         self._bars_processed = 0
         self._signals_pulled = 0
@@ -230,6 +245,62 @@ class LoopDriver:
         self._transition(RuntimeState.STOPPED, {RuntimeState.STOPPING})
         self._emit(EventType.STOPPED, "driver stopped")
 
+    # -- Phase F: startup gate / recovery ----------------------------------- #
+
+    def _run_startup_gate(self) -> bool:
+        """
+        The §11 startup-validation gate, run only when an ExecutionHandler is
+        injected. Confirms recovery (reuse — never re-restore, ADR-001) and
+        reconciliation against broker truth before STARTUP -> RUNNING.
+
+        Returns True if the gate passed (driver is now RUNNING) or False if it
+        refused (driver is now STOPPED and the loop must not run). Refuse-to-start
+        is the safe default: trading on an unvalidated ledger is prohibited
+        (§11.4; ADR-001; Constitution §7).
+        """
+        self.enter_recovery()
+        self._emit(EventType.RECOVERY_STARTED, "startup recovery begun")
+        # Recovery already ran at handler construction (load_db_state=True);
+        # the driver reuses it and NEVER re-restores (ADR-001 — a second restore
+        # path would create a second source of position truth).
+        self._emit(EventType.RECOVERY_COMPLETED, "ledger restored from persistence")
+
+        if not self._reconcile_ledger():
+            return False
+
+        self.start()
+        return True
+
+    def _reconcile_ledger(self) -> bool:
+        """
+        Reconcile the restored ledger against broker truth (§11.3). Driven only
+        when a broker-positions source is handed in and reconciliation is
+        required; otherwise vacuously clear — no broker book to compare (paper/
+        replay) or an explicit operator override. A non-empty alert list refuses
+        to start. Returns True if consistent (or vacuous), False if it refused.
+
+        The driver consumes the engine's verdict and NEVER overwrites the ledger
+        (ADR-001). In LIVE the broker-positions source is not yet wired (Planned
+        #6), so live reconciliation is structurally present but vacuous for now;
+        it gains teeth when that source lands with execution routing.
+        """
+        if (self._config.require_reconciliation_on_start
+                and self._broker_positions is not None):
+            alerts = self._execution.reconciliation.reconcile(self._broker_positions())
+            if alerts:
+                self._emit(
+                    EventType.RECONCILIATION_FAIL,
+                    f"ledger inconsistent with broker: {len(alerts)} alert(s)",
+                )
+                alerter.critical(
+                    f"LoopDriver refused to start: reconciliation found "
+                    f"{len(alerts)} divergence(s)"
+                )
+                self.abort_startup()
+                return False
+        self._emit(EventType.RECONCILIATION_PASS, "ledger consistent with broker")
+        return True
+
     # -- Phase C: the deterministic tick loop ------------------------------- #
 
     def run(self) -> None:
@@ -252,8 +323,22 @@ class LoopDriver:
                 "LoopDriver.run() requires an injected clock and market-data provider"
             )
 
+        # LIVE requires an ExecutionHandler — the ledger/recovery/reconciliation
+        # authority a real run cannot do without (§11). The no-handler path is
+        # for replay/inert/test only; a live run without it is a wiring error,
+        # caught here before any state change (PHASE_F_STARTUP_GATE_PLAN §3.1).
+        if self._config.is_live and self._execution is None:
+            raise RuntimeError("LIVE mode requires an injected ExecutionHandler")
+
         if self._state in (RuntimeState.STARTUP, RuntimeState.RECOVERY):
-            self.start()
+            if self._execution is not None:
+                # Startup-validation gate (§11): recovery + reconciliation must
+                # pass before RUNNING. A refusal leaves the driver STOPPED and
+                # the loop never runs.
+                if not self._run_startup_gate():
+                    return
+            else:
+                self.start()
 
         # Source warmup before the loop pulls any bar (§5.2). No context is
         # injected — the driver hands the source nothing that exposes the
