@@ -76,10 +76,9 @@ Ordering is deliberate: recovery is confirmed **before** reconciliation (you rec
 
 - Entry point: `handler.reconciliation.reconcile(broker_positions: List[Dict]) -> List[ReconciliationAlert]` (`reconciliation.py:24`).
 - **Empty list ⇒ consistent ⇒ `RECONCILIATION_PASS`.** **Non-empty ⇒ divergence ⇒ `RECONCILIATION_FAIL` ⇒ refuse to start.**
-- `broker_positions` source by mode:
-  - **Live:** supplied from the live broker adapter's reported positions.
-  - **Paper / Replay:** the broker has no independent book → the check is **vacuously clear** (treat as empty/consistent). This keeps paper/replay development unblocked.
-- `config.require_reconciliation_on_start` (default `True`) gates strictness; `False` is a deliberate operator override only.
+- **Reconciliation branches by source presence, not by mode.** `reconcile()` is driven **only** when both hold: `config.require_reconciliation_on_start` is set **and** a `broker_positions` source (the optional `broker_positions` callable) was injected. When either is absent the check is **vacuously clear** — `RECONCILIATION_PASS` emitted, `reconcile()` never called:
+  - **No source injected:** nothing to compare against → vacuous PASS. This covers **paper / replay** (the broker has no independent book) **and LIVE today**, because the real live broker-book fetch is not yet wired (Planned #6). LIVE reconciliation is therefore structurally present but vacuous for now — it gains teeth when that source lands with execution routing.
+  - **`require_reconciliation_on_start=False`:** a deliberate operator override that skips reconciliation even when a source is present (default `True`).
 - The driver **consumes the engine's verdict and never overwrites the ledger** (ADR-001). Pulling/normalizing the live broker book in depth is deferred (Planned #6); Phase F consumes whatever `broker_positions` it is handed.
 
 ---
@@ -144,6 +143,7 @@ DI evolution note: the handler enters the driver here (for the gate) but is **no
 - **Telemetry (Phase H)** — no metrics/positions/health publishing here.
 - **Kill-switch event consolidation** — the `KILL_SWITCH_ACTIVATED` single-source-of-truth migration is a Phase G concern (see `ARCHITECTURE_DECISIONS.md` IN-001); Phase F does not touch the watchdog's emission.
 - **Broker-side reconciliation depth** — pulling/normalizing the live broker book (`PROJECT_STATE.md` Planned #6); Phase F consumes whatever `broker_positions` it is handed.
+  - **Deferred ownership of `broker_positions()` failure (Planned #6).** The injected `broker_positions` callable may **raise** (broker auth/handshake/transport failure). The startup gate runs **before** `run()`'s `try/finally` (driver.py — the gate at the top of `run()` precedes the loop's `try:`), so **today a raise propagates out of `run()` uncaught**, leaving the driver in `RECOVERY` with no `STOPPED` transition and no journal record. This is acceptable only because LIVE has no real book source wired yet (the callable is test-supplied). **Planned #6 owns converting this into a proper refusal path**: a `broker_positions()` exception must become a **startup refusal → journal event → `STOPPED`** (the same refuse-to-start contract as `RECONCILIATION_FAIL`), not an unhandled propagation. Documented here as deferred work; **not implemented in Phase F.**
 - **Runtime (mid-loop) reconciliation** — only the *startup* gate is in scope.
 - **Auto-clearing the kill switch / auto-recovery of trading** — operator-only (§9.6), unchanged.
 - **SPAN margin / F&O product model** — execution-depth items, out of LoopDriver scope.
