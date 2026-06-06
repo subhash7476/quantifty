@@ -162,7 +162,7 @@ These are durable engineering notes that record a *decision in flight* — not n
 
 ## IN-001 — Kill-switch event ownership consolidation (relates to ADR-004, ADR-006)
 
-**Status:** Open — interim implementation in place; consolidation due with LoopDriver Phase G (Execution Routing).
+**Status:** Open — routing sub-slice landed (LoopDriver Phase G, 2026-06-06); the data-health proxy remains the **sole** `KILL_SWITCH_ACTIVATED` emission source, so handler-caused kill-switch trips — now reachable because the driver calls `process_signal` — are currently **un-journaled** (a missed emission, not a double-emit). The consolidation increment is still due to close Phase G.
 
 **Context.** The `KILL_SWITCH_ACTIVATED` runtime-journal event records that trading was halted. The kill switch itself is owned by `ExecutionHandler` (`_kill_switched`, set by `activate_kill_switch`). It can be tripped by several causes — stale data (the `RuntimeWatchdog`, ADR-004), and, once execution routing lands, drawdown / broker failure / daily-trade-limit inside the handler.
 
