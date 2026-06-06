@@ -7,6 +7,8 @@
 > No code in this document. It defines phases, their surfaces, tests, risks, and order.
 
 > **⚠️ Phase-label note (read before cross-referencing).** This document keeps its **original A–H labels** below (A,B,C lifecycle/journal/loop; D signal pull; **E ExecutionHandler; F RuntimeWatchdog; G Telemetry; H Recovery/startup gate**). The actual build sequence chosen in `docs/PROJECT_STATE.md` / `docs/SESSION_BOOTSTRAP.md` **relabels the later phases** to a safety-first order: **E = RuntimeWatchdog (this doc's F), F = Startup Gate/Recovery (this doc's H), G = Execution Routing (this doc's E), H = Telemetry (this doc's G)**. So "Phase E" in the state docs = watchdog, but "Phase E" here = execution. Each PROJECT_STATE bullet names the mapping in its trailing reference; trust the state docs for *what's done*, this doc for *per-phase design detail*.
+>
+> **⚠️ "Phase H — Telemetry" naming (read before recording new work).** In **both** this doc (G — Telemetry integration) and the state docs (Phase H — Telemetry), "Telemetry" means the **§10 ZMQ `TelemetryPublisher` wire transport** — the per-interval metrics/positions/health snapshot published over the wire. That phase is **still planned**. A separate, smaller piece of work — an **internal in-process metric-counter layer** (`core/runtime/metrics.py`: `RuntimeMetric` / `TelemetrySink` / `Null`/`InMemoryTelemetrySink`, driven by the `LoopDriver`) — has **already landed** and was recorded as the standalone **"Runtime Observability Layer"** milestone (CHANGELOG 2026-06-06; PROJECT_STATE Completed), **deliberately not labeled "Phase H"** to avoid the collision. The counter layer is a **foundation** the §10 publisher can read from and publish; it does **not** satisfy Phase H — Telemetry.
 
 ---
 
