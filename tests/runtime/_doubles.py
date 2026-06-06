@@ -229,3 +229,32 @@ class FakeExecutionHandler:
     def process_signal(self, signal, current_price):
         self.routed.append((signal, current_price))
         return None
+
+
+class FakeTelemetryTransport:
+    """
+    Duck-typed stand-in for the ZMQ wire transport (core/messaging/telemetry.py
+    TelemetryPublisher) — NO real socket, so unit tests carry no network
+    dependency. Records every published payload and close() call so the bridge
+    wiring is assertable; with fail=True it raises to prove publishing is
+    best-effort (a transport fault must never stop trading).
+
+    publish_metrics(data) — records the payload, or raises if fail.
+    close()               — counts closes, or raises if fail.
+    """
+
+    def __init__(self, fail: bool = False, fail_on_close: bool = False):
+        self.published: List[Dict] = []
+        self.closed = 0
+        self._fail = fail
+        self._fail_on_close = fail_on_close
+
+    def publish_metrics(self, data: Dict) -> None:
+        if self._fail:
+            raise RuntimeError("ZMQ transport down")
+        self.published.append(data)
+
+    def close(self) -> None:
+        if self._fail_on_close:
+            raise RuntimeError("transport close failed")
+        self.closed += 1

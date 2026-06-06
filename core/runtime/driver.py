@@ -1,7 +1,7 @@
 """
 LoopDriver — the deterministic runtime orchestrator
 ----------------------------------------------------
-Phases A–H (this file's current scope):
+Phases A–H + H-ZMQ (this file's current scope):
 - A: the lifecycle state machine (§3) — six states + legal §3.2 transitions.
 - B: journal emission on transitions (§15).
 - C: the **tick loop** — pull bars from a MarketDataProvider, advance the Clock
@@ -36,16 +36,23 @@ Phases A–H (this file's current scope):
   watchdog, execution) at each observable event via _meter(). Telemetry is
   **observation only**: it never affects an execution/signal/reconciliation/
   recovery decision, is never a source of truth, and a faulty sink can never stop
-  the loop (every increment is best-effort, swallowed-and-logged). This is NOT the
-  §10 ZMQ TelemetryPublisher wire transport — that remains future work.
+  the loop (every increment is best-effort, swallowed-and-logged).
+- H (ZMQ): **external telemetry publishing** (§10) — an optional injected
+  RuntimeTelemetryPublisher (core/runtime/telemetry_publisher.py) is driven once
+  per tick via _drive_telemetry(), throttled to telemetry_interval_s by the
+  deterministic clock (§10.2). It *consumes* the metric snapshot (the Observability
+  Layer stays the sole source — no duplicate counters) and forwards it over the ZMQ
+  wire transport. Gated on publisher presence (NOT live-only). Best-effort: a
+  publish/transport failure is swallowed-and-logged, never stopping the loop (§10.6).
 
-It does NOT publish §10 ZMQ telemetry over the wire or isolate per-signal
-execution failures — those arrive in later increments
-(docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop now closes the data → signal →
-execution path: it validates the ledger at startup, advances time, pulls signals,
-**routes them to the handler**, guards against stale data, and **counts what it
-does** for observability. It still owns no execution behavior of its own — it only
-forwards to process_signal, the single trade path (ADR-006).
+Per-signal execution-failure isolation (§8.4, BROKER_ERROR) still arrives in a
+later increment (docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md). The loop now closes the
+data → signal → execution path: it validates the ledger at startup, advances time,
+pulls signals, **routes them to the handler**, guards against stale data, **counts
+what it does**, and **publishes that count externally** (when a publisher is wired)
+for observability. It still owns no execution behavior of its own — it only forwards
+to process_signal, the single trade path (ADR-006); publishing is downstream of
+truth and never feeds back into it (ADR-001).
 
 Governing law:
 - ADR-003 (Deterministic Processing) / ADR-006 (sole runtime orchestrator):
@@ -84,6 +91,7 @@ from core.runtime.config import DriverConfig
 from core.runtime.event_journal import EventType, RuntimeEventJournal
 from core.runtime.metrics import NullTelemetrySink, RuntimeMetric, TelemetrySink
 from core.runtime.signal_source import SignalSource
+from core.runtime.telemetry_publisher import RuntimeTelemetryPublisher
 
 
 class RuntimeState(Enum):
@@ -134,7 +142,8 @@ class LoopDriver:
                  watchdog: Optional[RuntimeWatchdog] = None,
                  execution: Optional[ExecutionHandler] = None,
                  broker_positions: Optional[Callable[[], List[Dict[str, Any]]]] = None,
-                 telemetry: Optional[TelemetrySink] = None):
+                 telemetry: Optional[TelemetrySink] = None,
+                 publisher: Optional[RuntimeTelemetryPublisher] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
@@ -152,6 +161,15 @@ class LoopDriver:
         # are best-effort (_meter swallows sink failures): telemetry must never
         # stop trading.
         self._telemetry = telemetry if telemetry is not None else NullTelemetrySink()
+        # External telemetry publishing bridge (Phase H, §10) — optional and
+        # best-effort. It is a *consumer* of the metric snapshot (it must be wired
+        # to the SAME telemetry sink above); the driver only calls publish() on
+        # cadence and close() on shutdown — no other coupling. Absent = no
+        # publishing, loop unchanged. NOT live-gated: §10 telemetry is not
+        # live-only (unlike the watchdog, §9.5).
+        self._publisher = publisher
+        # Last telemetry-publish time, by the deterministic clock (§10.2 throttle).
+        self._last_publish_at = None
         self._logger = setup_logger("loop_driver")
         self._state = RuntimeState.STARTUP
         self._bars_processed = 0
@@ -400,6 +418,9 @@ class LoopDriver:
                 if self._at_max_bars():
                     break
                 advanced = self._tick()
+                # §4.1 step 6: publish telemetry (throttled, best-effort) after
+                # the symbol sweep, before the watchdog (step 7).
+                self._drive_telemetry()
                 # Once per tick after the symbol sweep (§9.3/§9.4, §4.1 step 7):
                 # staleness check + heartbeat, even on a no-bar tick (that is
                 # exactly when a frozen feed must be caught). Live only.
@@ -417,6 +438,12 @@ class LoopDriver:
             # Source teardown once, on every exit path (§5.2 on_stop).
             if self._source is not None:
                 self._source.on_stop()
+            # Close the telemetry transport on shutdown (best-effort, §14.7).
+            if self._publisher is not None:
+                try:
+                    self._publisher.close()
+                except Exception as exc:  # publishing must never break shutdown
+                    self._logger.error("Telemetry publisher close failed: %s", exc)
 
     def _tick(self) -> bool:
         """
@@ -481,6 +508,32 @@ class LoopDriver:
             self._meter(RuntimeMetric.SIGNALS_ROUTED)
             self._execution.process_signal(signal, bar.close)
             self._meter(RuntimeMetric.EXECUTION_CALLS)
+
+    def _drive_telemetry(self) -> None:
+        """
+        Publish the runtime metric snapshot externally once per cadence interval
+        (§10.2), best-effort. Gated only on **publisher presence** — §10 telemetry
+        is NOT live-only (unlike the watchdog, §9.5), so it runs in replay too.
+
+        The throttle uses the injected deterministic clock (never wall-clock), so
+        live and replay stay reproducible (ADR-003): the driver publishes at most
+        once per `telemetry_interval_s` of clock time. Publishing is observation
+        only and best-effort — the bridge swallows transport errors, and this call
+        is additionally wrapped so even a faulty publisher cannot stop the loop
+        (§10.6; publisher failures must never stop trading).
+        """
+        if self._publisher is None:
+            return
+        now = self._clock.now()
+        if (self._last_publish_at is not None and now is not None
+                and (now - self._last_publish_at).total_seconds()
+                < self._config.telemetry_interval_s):
+            return
+        try:
+            self._publisher.publish()
+        except Exception as exc:  # best-effort: telemetry never breaks the loop
+            self._logger.error("Telemetry publish drive failed: %s", exc)
+        self._last_publish_at = now
 
     def _drive_watchdog(self) -> None:
         """
