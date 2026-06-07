@@ -21,15 +21,21 @@ The platform assumes no specific entry methodology for either book.
 
 - **Clean platform core.** Every surviving module is platform infrastructure (or thin strategy-residue / dead-code). **Verified: zero Platform→Strategy imports**; no strategy / research / ML / backtest / scanner code.
 - **Present and working:** Market Data, Instrument Master, Execution (`ExecutionHandler` OMS/EMS core), Ledger (trackers + persistence), Risk (limits, greeks, portfolio greeks, kill switch), Reconciliation, Options Infrastructure (selector, greeks, chain, structural analytics), Observability (ZMQ telemetry + bridge + alerting + logging), Operations Dashboard (Flask, 5 infra blueprints), and a deterministic-runtime **watchdog** (heartbeat + staleness).
-- **Runtime reality:** the deterministic **LoopDriver now exists** (`core/runtime/driver.py`, Phases A–G) and drives the runtime chain `Bar → Clock → SignalSource → LoopDriver → ExecutionHandler → RuntimeWatchdog → RuntimeEventJournal`. The watchdog is **driven** (live-gated), the **startup gate** (F) validates recovery + reconciliation before RUNNING, and **execution routing** (G routing sub-slice) forwards each pulled signal to `ExecutionHandler.process_signal(signal, bar.close)`. The loop is **no longer execution-free** — it routes. An internal **Runtime Observability Layer** (`core/runtime/metrics.py` — in-process metric counters, inert-by-default, injected) instruments the loop without changing it, and the `LoopDriver` now **publishes runtime metrics (H.1) and node health/liveness (H.2) over the ZMQ wire** via `RuntimeTelemetryPublisher` (clock-throttled, best-effort, observation only). The one remaining §10 telemetry item is **position publishing (H.3)**.
+- **Runtime reality:** the deterministic **LoopDriver now exists** (`core/runtime/driver.py`, Phases A–G) and drives the runtime chain `Bar → Clock → SignalSource → LoopDriver → ExecutionHandler → RuntimeWatchdog → RuntimeEventJournal`. The watchdog is **driven** (live-gated), the **startup gate** (F) validates recovery + reconciliation before RUNNING, and **execution routing** (G routing sub-slice) forwards each pulled signal to `ExecutionHandler.process_signal(signal, bar.close)`. The loop is **no longer execution-free** — it routes. An internal **Runtime Observability Layer** (`core/runtime/metrics.py` — in-process metric counters, inert-by-default, injected) instruments the loop without changing it, and the `LoopDriver` now **publishes runtime metrics (H.1), node health/liveness (H.2), and positions (H.3) over the ZMQ wire** via `RuntimeTelemetryPublisher` (clock-throttled, best-effort, observation only) — **§10 telemetry is complete** (`telemetry.{metrics,health,positions}.{node}`). Separately, a read-only **`PortfolioView`** (`core/execution/portfolio_view.py`) projects a unified portfolio snapshot (positions / cash / realized+unrealized PnL / MTM equity / exposure / margin) from the existing trackers — a projection, **not** a source of truth (ADR-001), and not yet wired into the runtime.
 
 ## Current Runtime Status
 
+- **Milestone ledger:**
+  - Runtime Spine — **COMPLETE**
+  - PortfolioView — **COMPLETE**
+  - Metrics Publishing (H.1) — **COMPLETE**
+  - Health Publishing (H.2) — **COMPLETE**
+  - Position Publishing (H.3) — **COMPLETE**
 - **Runtime chain (live today):** `Bar → Clock → SignalSource → LoopDriver → ExecutionHandler → RuntimeWatchdog → RuntimeEventJournal`. **Execution routing is present** (Phase G routing sub-slice) — each pulled `SignalEvent` is routed to `ExecutionHandler.process_signal(signal, current_price=bar.close)` in list order, gated on handler presence + RUNNING state (PAUSED suspends, §3.1).
 - **LoopDriver phases complete:** A (lifecycle state machine), B (journal on transitions), C (tick loop + clock advancement + market data), D (SignalSource pull — collected), E (RuntimeWatchdog: `record_bar` per bar, staleness + heartbeat per tick, all live-gated; `WATCHDOG_STALE_DATA` + `KILL_SWITCH_ACTIVATED` edge-triggered), F (startup gate: recovery reuse + reconciliation before RUNNING, LIVE requires a handler, refuse-to-start on divergence), G — **routing sub-slice** (route each pulled signal to `process_signal`; deferred to close G: §8.4 `BROKER_ERROR` isolation + IN-001 kill-switch consolidation).
 - **Runtime primitives complete:** `SignalSource`, `DriverConfig`, `RuntimeEventJournal`, `Clock.set_time`.
-- **Tests:** `tests/runtime/` — **201 / 201 passing**, incl. the `ast` forbidden-import guard (ADR-002), the seam no-execution-coupling guard, the routing-era ADR-006 guard (the driver is the sole `process_signal` caller), the Runtime Observability Layer suite (`test_telemetry_sink.py` + `test_driver_telemetry.py`), and the ZMQ publishing suites (`test_telemetry_publisher.py` + `test_driver_telemetry_publish.py` — metrics H.1 + health H.2).
-- **Next runtime pillar:** LoopDriver telemetry **Phase H.3 — Position Publishing (§10.4)** — the last §10 gap (H.1 metrics + H.2 health are done) — plus Phase G's remaining increments (§8.4 `BROKER_ERROR` isolation + IN-001 `KILL_SWITCH_ACTIVATED` single-source consolidation).
+- **Tests:** `tests/runtime/` — **212 / 212 passing**, incl. the `ast` forbidden-import guard (ADR-002), the seam no-execution-coupling guard, the routing-era ADR-006 guard (the driver is the sole `process_signal` caller), the Runtime Observability Layer suite (`test_telemetry_sink.py` + `test_driver_telemetry.py`), and the ZMQ publishing suites (`test_telemetry_publisher.py` + `test_driver_telemetry_publish.py` + `test_driver_position_publish.py` — metrics H.1 + health H.2 + positions H.3). Full repo suite **234 passing** (incl. `tests/execution/test_portfolio_view.py`, the read-only `PortfolioView`).
+- **Next runtime pillar:** **Phase G's remaining increments** — §8.4 `BROKER_ERROR` per-signal isolation + the IN-001 `KILL_SWITCH_ACTIVATED` single-source consolidation. LoopDriver telemetry is **complete** (H.1 metrics + H.2 health + H.3 positions — §10 closed).
 
 ## Architecture Principles (from `docs/PLATFORM_CONSTITUTION.md`)
 
@@ -41,7 +47,7 @@ The platform assumes no specific entry methodology for either book.
 
 ## Current Gaps (what the constitution requires but isn't done)
 
-1. **Deterministic loop driver — PARTIAL.** The `LoopDriver` exists and runs through Phase E (lifecycle, journal, tick loop, signal pull, watchdog). **Remaining:** Phase F (startup gate / recovery), Phase G (execution routing — the data→signal→**execution** path is still open), Phase H (telemetry). Until G lands, no signal becomes an order.
+1. **Deterministic loop driver — NEARLY COMPLETE.** The `LoopDriver` runs the full chain — lifecycle, journal, tick loop, signal pull, watchdog (E), startup gate (F), **execution routing** (G routing sub-slice), and **all §10 telemetry** (H.1 metrics / H.2 health / H.3 positions). Signals become orders through the single path (ADR-006). **Remaining:** the two Phase G increments — §8.4 `BROKER_ERROR` per-signal isolation and the IN-001 `KILL_SWITCH_ACTIVATED` single-source migration.
 2. **Watchdog wiring — MET.** `RuntimeWatchdog` is now driven by the `LoopDriver` (live-gated `record_bar` / `check_data_staleness` / `write_heartbeat`); Principle 5 / §6 satisfied operationally for the staleness + heartbeat path.
 3. **Margin depth (§8).** `MarginTracker` is a flat 20% rate, not SPAN — insufficient for real option-selling margin.
 4. **Broker product model (§9).** `upstox_adapter.place_order` hardcodes `product:"I"` (intraday) — no NRML/carry for futures or overnight option selling.
@@ -51,7 +57,7 @@ The platform assumes no specific entry methodology for either book.
 
 ## Active Priorities
 
-1. **Finish the LoopDriver** (the scaffold + watchdog are done): **Phase F — Startup Gate / Recovery** (the §11 ledger-validation gate, reusing `ExecutionHandler._replay_state` + `reconciliation.reconcile`), then **Phase G — Execution Routing** (`process_signal`, ADR-006 single path), then **Phase H — Telemetry**. Safety gates (E watchdog, F startup) land **before** execution (G) by design.
+1. **Close the LoopDriver** — lifecycle, journal, loop, signal pull, watchdog (E), startup gate (F), execution-routing sub-slice (G), and §10 telemetry (H.1/H.2/H.3) are all done. The two remaining **Phase G increments**: §8.4 `BROKER_ERROR` per-signal isolation, and the IN-001 `KILL_SWITCH_ACTIVATED` single-source migration (§10.7 — observe `handler._kill_switched`, retire the watchdog data-health proxy).
 2. **Refactor soft strategy residue** (decouple `CaptureEngine` inputs; relocate `save_signal`; prune strategy DDL).
 3. **Remove dead `core/data/*` twins.**
 4. **Deepen execution for derivatives**: F&O product/segment model + a real margin engine (sequence after execution routing exists).
@@ -80,5 +86,5 @@ When uncertain whether something belongs: **keep platform code smaller**; strate
 ## Current Next Steps
 
 1. Read `docs/PLATFORM_CONSTITUTION.md` + `docs/PROJECT_STATE.md`.
-2. Pick up **Active Priority #1**: implement **LoopDriver Phase F — Startup Gate / Recovery** per `docs/DRIVER_SPECIFICATION.md` §11 and `docs/PHASE_F_STARTUP_GATE_PLAN.md` (TDD, runtime suite green-on-merge). Execution routing (Phase G) stays deferred until F is green.
+2. Pick up **Active Priority #1**: close **LoopDriver Phase G** — per-signal exception isolation (§8.4 `BROKER_ERROR`) and the IN-001 `KILL_SWITCH_ACTIVATED` single-source migration (§10.7) — per `docs/DRIVER_SPECIFICATION.md` (TDD, suite green-on-merge). Watchdog (E), startup gate (F), routing (G sub-slice), and §10 telemetry (H.1/H.2/H.3) are already done.
 3. Keep every change inside the constitution: platform-only, no strategy, no research, `Strategy → Platform` only.
