@@ -504,8 +504,13 @@ class LoopDriver:
         ADR-006: the driver is the **sole** runtime caller of `process_signal`.
         The seam (§5.4) holds no handler handle, so a SignalSource can never route
         directly — all trading intent flows through here and nowhere else. This
-        slice routes only; sizing/risk/orders/fills remain the handler's (ADR-005),
-        and per-signal exception isolation (§8.4, BROKER_ERROR) is a later increment.
+        routes only; sizing/risk/orders/fills remain the handler's (ADR-005).
+
+        Per-signal exception isolation (§8.4): `process_signal` may raise on a hard
+        rule violation or a broker fault. Each call is wrapped so **one signal's
+        failure does not kill the loop** — the failure is logged, journaled
+        (`BROKER_ERROR`), surfaced to telemetry, and routing continues to the next
+        signal/bar. The exception is never swallowed silently (Constitution §6).
         """
         self._signals_pulled += len(signals)
         # Every collected signal is "received" (counted unconditionally, like
@@ -515,8 +520,43 @@ class LoopDriver:
             return
         for signal in signals:
             self._meter(RuntimeMetric.SIGNALS_ROUTED)
-            self._execution.process_signal(signal, bar.close)
+            try:
+                self._execution.process_signal(signal, bar.close)
+            except Exception as exc:  # §8.4: a single signal must not kill the loop
+                self._handle_signal_error(signal, exc)
+                continue
             self._meter(RuntimeMetric.EXECUTION_CALLS)
+
+    def _handle_signal_error(self, signal, exc: Exception) -> None:
+        """
+        §8.4 response to a raised `process_signal`: log at error, journal a
+        `BROKER_ERROR` (WARNING; durable, §15.4) with `error`/`signal_id`, and
+        surface an edge-triggered telemetry log line (§10). Never re-raises — the
+        loop survives. The exception is logged, not swallowed (Constitution §6).
+        """
+        signal_id = self._signal_identifier(signal)
+        self._logger.error("process_signal failed for signal %s: %s", signal_id, exc)
+        self._emit(EventType.BROKER_ERROR, f"process_signal raised: {exc}",
+                   metadata={"error": str(exc), "signal_id": signal_id})
+        self._publish_log("ERROR", f"BROKER_ERROR signal={signal_id}: {exc}")
+
+    @staticmethod
+    def _signal_identifier(signal) -> str:
+        """A stable ops identifier for a signal: its explicit `signal_id` if the
+        source supplied one, else a composed `strategy_id:symbol:timestamp`. The
+        driver does not reimplement the handler's internal id derivation."""
+        return (signal.metadata.get("signal_id")
+                or f"{signal.strategy_id}:{signal.symbol}:{signal.timestamp.isoformat()}")
+
+    def _publish_log(self, level: str, message: str) -> None:
+        """Best-effort edge-triggered telemetry log line (§10). Gated on publisher
+        presence and wrapped so a faulty publisher can never stop the loop."""
+        if self._publisher is None:
+            return
+        try:
+            self._publisher.publish_log(level, message)
+        except Exception as exc:  # best-effort: telemetry never breaks the loop
+            self._logger.error("Telemetry log publish failed: %s", exc)
 
     def _drive_telemetry(self) -> None:
         """

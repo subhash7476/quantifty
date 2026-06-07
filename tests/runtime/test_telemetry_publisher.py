@@ -167,16 +167,42 @@ def test_publish_positions_is_independent_of_metrics_and_health():
 
 
 # --------------------------------------------------------------------------- #
+# (log) the bridge forwards an edge-triggered log line to the transport (§8.4/§10)
+# --------------------------------------------------------------------------- #
+def test_publish_log_forwards_level_and_message_to_transport():
+    transport = FakeTelemetryTransport()
+    pub = RuntimeTelemetryPublisher(transport, InMemoryTelemetrySink())
+    assert pub.publish_log("ERROR", "BROKER_ERROR strat:A:t0: boom") is True
+    assert transport.published_logs == [("ERROR", "BROKER_ERROR strat:A:t0: boom")]
+
+
+def test_publish_log_swallows_transport_failure_and_returns_false():
+    transport = FakeTelemetryTransport(fail=True)
+    pub = RuntimeTelemetryPublisher(transport, InMemoryTelemetrySink())
+    assert pub.publish_log("ERROR", "boom") is False         # no exception escapes
+
+
+def test_publish_log_is_independent_of_other_publish_paths():
+    transport = FakeTelemetryTransport()
+    pub = RuntimeTelemetryPublisher(transport, _sink_with(BARS_PROCESSED=1))
+    pub.publish()
+    pub.publish_log("ERROR", "boom")
+    assert transport.published == [{"bars_processed": 1}]
+    assert transport.published_logs == [("ERROR", "boom")]
+
+
+# --------------------------------------------------------------------------- #
 # (contract) the real ZMQ TelemetryPublisher satisfies the transport seam
 # --------------------------------------------------------------------------- #
 def test_messaging_telemetry_publisher_satisfies_transport_contract():
     # The bridge calls publish_metrics / publish_health / publish_positions /
-    # close(); prove the real wire transport exposes all four (structural DI
-    # contract), without opening a socket.
+    # publish_log / close(); prove the real wire transport exposes all five
+    # (structural DI contract), without opening a socket.
     from core.messaging.telemetry import TelemetryPublisher
     assert callable(getattr(TelemetryPublisher, "publish_metrics", None))
     assert callable(getattr(TelemetryPublisher, "publish_health", None))
     assert callable(getattr(TelemetryPublisher, "publish_positions", None))
+    assert callable(getattr(TelemetryPublisher, "publish_log", None))
     assert callable(getattr(TelemetryPublisher, "close", None))
 
 

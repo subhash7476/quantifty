@@ -50,6 +50,8 @@ class TelemetryTransport(Protocol):
 
     def publish_positions(self, data: Dict[str, Any]) -> None: ...
 
+    def publish_log(self, level: str, message: str) -> None: ...
+
     def close(self) -> None: ...
 
 
@@ -114,6 +116,20 @@ class RuntimeTelemetryPublisher:
             return True
         except Exception as exc:  # best-effort: publishing must never stop trading
             self._logger.error("Runtime telemetry positions publish failed: %s", exc)
+            return False
+
+    def publish_log(self, level: str, message: str) -> bool:
+        """
+        Publish an edge-triggered log line (§10) over the same transport — used by
+        the driver to surface a `BROKER_ERROR` to telemetry (§8.4), distinct from
+        the throttled metrics/health/positions snapshots. Best-effort: never
+        raises; returns True on a clean send and False when a failure was swallowed.
+        """
+        try:
+            self._transport.publish_log(level, message)
+            return True
+        except Exception as exc:  # best-effort: publishing must never stop trading
+            self._logger.error("Runtime telemetry log publish failed: %s", exc)
             return False
 
     def close(self) -> None:

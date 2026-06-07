@@ -222,16 +222,26 @@ class FakeExecutionHandler:
       test populates it directly via `position_tracker._positions[...]`.
     """
 
-    def __init__(self, reconcile_alerts: Optional[List] = None):
+    def __init__(self, reconcile_alerts: Optional[List] = None,
+                 raise_on: Optional[str] = None):
         self.reconciliation = FakeReconciliation(reconcile_alerts)
         self.replay_state_calls = 0
         self.routed: List = []
         self.position_tracker = PositionTracker()
+        # process_signal raises for a signal whose symbol == raise_on (§8.4
+        # per-signal exception isolation testing); None = never raises.
+        self._raise_on = raise_on
+        # The handler's own kill-switch flag (IN-001 single-source observation).
+        # A test flips it to simulate a handler-caused trip (drawdown / broker /
+        # daily-limit); the real handler owns this attribute (§10.7).
+        self._kill_switched = False
 
     def _replay_state(self) -> None:
         self.replay_state_calls += 1
 
     def process_signal(self, signal, current_price):
+        if self._raise_on is not None and signal.symbol == self._raise_on:
+            raise RuntimeError(f"process_signal boom on {signal.symbol}")
         self.routed.append((signal, current_price))
         return None
 
@@ -246,6 +256,7 @@ class FakeTelemetryTransport:
 
     publish_metrics(data)   — records the payload, or raises if fail.
     publish_positions(data) — records the payload, or raises if fail.
+    publish_log(level, msg) — records the (level, message) pair, or raises if fail.
     close()                 — counts closes, or raises if fail.
     """
 
@@ -253,6 +264,7 @@ class FakeTelemetryTransport:
         self.published: List[Dict] = []
         self.published_health: List[Dict] = []
         self.published_positions: List[Dict] = []
+        self.published_logs: List[tuple] = []
         self.closed = 0
         self._fail = fail
         self._fail_on_close = fail_on_close
@@ -271,6 +283,11 @@ class FakeTelemetryTransport:
         if self._fail:
             raise RuntimeError("ZMQ transport down")
         self.published_positions.append(data)
+
+    def publish_log(self, level: str, message: str) -> None:
+        if self._fail:
+            raise RuntimeError("ZMQ transport down")
+        self.published_logs.append((level, message))
 
     def close(self) -> None:
         if self._fail_on_close:
