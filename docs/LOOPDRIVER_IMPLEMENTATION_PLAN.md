@@ -107,6 +107,8 @@ Each phase: Purpose · Files · Dependencies · Test strategy · Risks, then the
 
 ### Phase E — ExecutionHandler integration
 
+> **STATUS: COMPLETE (2026-06-07).** This doc's "Phase E — ExecutionHandler integration" = the state docs' **Phase G — Execution Routing**. The routing sub-slice landed first; the two closers are now done — **§8.4 per-signal `BROKER_ERROR` isolation** and the **IN-001 `KILL_SWITCH_ACTIVATED` single-source migration** (emission from the handler `_kill_switched` edge in `_check_kill_switch`; the watchdog data-health proxy is retired). The design below described the target faithfully. See `PROJECT_STATE.md` / `CHANGELOG_PLATFORM.md` (2026-06-07) and `ARCHITECTURE_DECISIONS.md` IN-001 (**Resolved**).
+
 - **Purpose:** route each pulled signal to `ExecutionHandler.process_signal(signal, bar.close)` in list order (§8). Isolate per-signal exceptions (one failure logs + emits `BROKER_ERROR`, loop survives, §8.4). Detect a kill-switch flip (`_kill_switched`) edge-triggered → `KILL_SWITCH_ACTIVATED` journal event; keep looping (§3.2). **No exit logic, no sizing/risk** (forbidden — handler owns them).
 - **Files affected:** `core/runtime/driver.py`; create `tests/runtime/test_driver_execution.py`; extend `_doubles.py` with `FakeExecutionHandler`.
 - **Dependencies:** Phases C–D; `ExecutionHandler` (merged).

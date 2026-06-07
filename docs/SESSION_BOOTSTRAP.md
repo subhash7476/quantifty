@@ -32,10 +32,10 @@ The platform assumes no specific entry methodology for either book.
   - Health Publishing (H.2) — **COMPLETE**
   - Position Publishing (H.3) — **COMPLETE**
 - **Runtime chain (live today):** `Bar → Clock → SignalSource → LoopDriver → ExecutionHandler → RuntimeWatchdog → RuntimeEventJournal`. **Execution routing is present** (Phase G routing sub-slice) — each pulled `SignalEvent` is routed to `ExecutionHandler.process_signal(signal, current_price=bar.close)` in list order, gated on handler presence + RUNNING state (PAUSED suspends, §3.1).
-- **LoopDriver phases complete:** A (lifecycle state machine), B (journal on transitions), C (tick loop + clock advancement + market data), D (SignalSource pull — collected), E (RuntimeWatchdog: `record_bar` per bar, staleness + heartbeat per tick, all live-gated; `WATCHDOG_STALE_DATA` + `KILL_SWITCH_ACTIVATED` edge-triggered), F (startup gate: recovery reuse + reconciliation before RUNNING, LIVE requires a handler, refuse-to-start on divergence), G — **routing sub-slice** (route each pulled signal to `process_signal`; deferred to close G: §8.4 `BROKER_ERROR` isolation + IN-001 kill-switch consolidation).
+- **LoopDriver phases complete (A–H — feature-complete):** A (lifecycle state machine), B (journal on transitions), C (tick loop + clock advancement + market data), D (SignalSource pull — collected), E (RuntimeWatchdog: `record_bar` per bar, staleness + heartbeat per tick, all live-gated; `WATCHDOG_STALE_DATA` edge-triggered), F (startup gate: recovery reuse + reconciliation before RUNNING, LIVE requires a handler, refuse-to-start on divergence), G (execution routing + §8.4 per-signal `BROKER_ERROR` isolation + IN-001 `KILL_SWITCH_ACTIVATED` single source — emitted from the handler `_kill_switched` edge, watchdog proxy retired), H (§10 telemetry: H.1 metrics / H.2 health / H.3 positions).
 - **Runtime primitives complete:** `SignalSource`, `DriverConfig`, `RuntimeEventJournal`, `Clock.set_time`.
 - **Tests:** `tests/runtime/` — **212 / 212 passing**, incl. the `ast` forbidden-import guard (ADR-002), the seam no-execution-coupling guard, the routing-era ADR-006 guard (the driver is the sole `process_signal` caller), the Runtime Observability Layer suite (`test_telemetry_sink.py` + `test_driver_telemetry.py`), and the ZMQ publishing suites (`test_telemetry_publisher.py` + `test_driver_telemetry_publish.py` + `test_driver_position_publish.py` — metrics H.1 + health H.2 + positions H.3). Full repo suite **234 passing** (incl. `tests/execution/test_portfolio_view.py`, the read-only `PortfolioView`).
-- **Next runtime pillar:** **Phase G's remaining increments** — §8.4 `BROKER_ERROR` per-signal isolation + the IN-001 `KILL_SWITCH_ACTIVATED` single-source consolidation. LoopDriver telemetry is **complete** (H.1 metrics + H.2 health + H.3 positions — §10 closed).
+- **Next runtime pillar:** the deterministic **LoopDriver is feature-complete** (A–H + the Phase G closers — §8.4 `BROKER_ERROR` isolation and the IN-001 kill-switch single source). No LoopDriver work remains. Next priorities move **off the driver** to execution depth for derivatives — the F&O product/segment model and a real SPAN margin engine, then broker-side reconciliation (`PROJECT_STATE.md` Planned #4–#6).
 
 ## Architecture Principles (from `docs/PLATFORM_CONSTITUTION.md`)
 
@@ -47,7 +47,7 @@ The platform assumes no specific entry methodology for either book.
 
 ## Current Gaps (what the constitution requires but isn't done)
 
-1. **Deterministic loop driver — NEARLY COMPLETE.** The `LoopDriver` runs the full chain — lifecycle, journal, tick loop, signal pull, watchdog (E), startup gate (F), **execution routing** (G routing sub-slice), and **all §10 telemetry** (H.1 metrics / H.2 health / H.3 positions). Signals become orders through the single path (ADR-006). **Remaining:** the two Phase G increments — §8.4 `BROKER_ERROR` per-signal isolation and the IN-001 `KILL_SWITCH_ACTIVATED` single-source migration.
+1. **Deterministic loop driver — MET (feature-complete).** The `LoopDriver` runs the full chain — lifecycle, journal, tick loop, signal pull, watchdog (E), startup gate (F), execution routing with §8.4 per-signal `BROKER_ERROR` isolation (G), the IN-001 `KILL_SWITCH_ACTIVATED` single-source migration, and all §10 telemetry (H.1/H.2/H.3). Signals become orders through the single path (ADR-006); **no LoopDriver work remains.**
 2. **Watchdog wiring — MET.** `RuntimeWatchdog` is now driven by the `LoopDriver` (live-gated `record_bar` / `check_data_staleness` / `write_heartbeat`); Principle 5 / §6 satisfied operationally for the staleness + heartbeat path.
 3. **Margin depth (§8).** `MarginTracker` is a flat 20% rate, not SPAN — insufficient for real option-selling margin.
 4. **Broker product model (§9).** `upstox_adapter.place_order` hardcodes `product:"I"` (intraday) — no NRML/carry for futures or overnight option selling.
@@ -57,7 +57,7 @@ The platform assumes no specific entry methodology for either book.
 
 ## Active Priorities
 
-1. **Close the LoopDriver** — lifecycle, journal, loop, signal pull, watchdog (E), startup gate (F), execution-routing sub-slice (G), and §10 telemetry (H.1/H.2/H.3) are all done. The two remaining **Phase G increments**: §8.4 `BROKER_ERROR` per-signal isolation, and the IN-001 `KILL_SWITCH_ACTIVATED` single-source migration (§10.7 — observe `handler._kill_switched`, retire the watchdog data-health proxy).
+1. **LoopDriver — COMPLETE.** The deterministic runtime is feature-complete (A–H + the Phase G closers: §8.4 `BROKER_ERROR` isolation and the IN-001 kill-switch single source). The next execution priority is **#4 below** — deepen execution for derivatives (F&O product/segment model + a real SPAN margin engine), which blocks live derivatives trading.
 2. **Refactor soft strategy residue** (decouple `CaptureEngine` inputs; relocate `save_signal`; prune strategy DDL).
 3. **Remove dead `core/data/*` twins.**
 4. **Deepen execution for derivatives**: F&O product/segment model + a real margin engine (sequence after execution routing exists).
@@ -86,5 +86,5 @@ When uncertain whether something belongs: **keep platform code smaller**; strate
 ## Current Next Steps
 
 1. Read `docs/PLATFORM_CONSTITUTION.md` + `docs/PROJECT_STATE.md`.
-2. Pick up **Active Priority #1**: close **LoopDriver Phase G** — per-signal exception isolation (§8.4 `BROKER_ERROR`) and the IN-001 `KILL_SWITCH_ACTIVATED` single-source migration (§10.7) — per `docs/DRIVER_SPECIFICATION.md` (TDD, suite green-on-merge). Watchdog (E), startup gate (F), routing (G sub-slice), and §10 telemetry (H.1/H.2/H.3) are already done.
+2. The **LoopDriver is feature-complete** (A–H + Phase G closers). Pick up the next execution-depth priority (Active Priority #4 / `PROJECT_STATE.md` Planned #4–#5): the F&O product/segment model and a real SPAN margin engine, which block live derivatives trading (TDD, suite green-on-merge).
 3. Keep every change inside the constitution: platform-only, no strategy, no research, `Strategy → Platform` only.
