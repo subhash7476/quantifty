@@ -48,6 +48,8 @@ class TelemetryTransport(Protocol):
 
     def publish_health(self, data: Dict[str, Any]) -> None: ...
 
+    def publish_positions(self, data: Dict[str, Any]) -> None: ...
+
     def close(self) -> None: ...
 
 
@@ -98,6 +100,20 @@ class RuntimeTelemetryPublisher:
             return True
         except Exception as exc:  # best-effort: publishing must never stop trading
             self._logger.error("Runtime telemetry health publish failed: %s", exc)
+            return False
+
+    def publish_positions(self, data: Dict[str, Any]) -> bool:
+        """
+        Publish a positions snapshot (§10.4) over the same transport. The caller
+        (the LoopDriver) builds the payload from a read-only position-tracker
+        snapshot; this bridge only forwards it. Best-effort: never raises; returns
+        True on a clean send and False when a failure was swallowed.
+        """
+        try:
+            self._transport.publish_positions(data)
+            return True
+        except Exception as exc:  # best-effort: publishing must never stop trading
+            self._logger.error("Runtime telemetry positions publish failed: %s", exc)
             return False
 
     def close(self) -> None:

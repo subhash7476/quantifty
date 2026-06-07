@@ -137,15 +137,46 @@ def test_publish_health_is_independent_of_metrics_publish():
 
 
 # --------------------------------------------------------------------------- #
+# (positions) the bridge forwards a positions payload to the transport (§10.4)
+# --------------------------------------------------------------------------- #
+def test_publish_positions_forwards_payload_to_transport():
+    transport = FakeTelemetryTransport()
+    pub = RuntimeTelemetryPublisher(transport, InMemoryTelemetrySink())
+    payload = {"RELIANCE": {"quantity": 10, "avg_price": 2500.0,
+                            "side": "LONG", "pnl_pct": 0.0}}
+    assert pub.publish_positions(payload) is True
+    assert transport.published_positions == [payload]
+
+
+def test_publish_positions_swallows_transport_failure_and_returns_false():
+    transport = FakeTelemetryTransport(fail=True)
+    pub = RuntimeTelemetryPublisher(transport, InMemoryTelemetrySink())
+    assert pub.publish_positions({"RELIANCE": {}}) is False   # no exception escapes
+
+
+def test_publish_positions_is_independent_of_metrics_and_health():
+    # Positions go to publish_positions; metrics/health to their own paths.
+    transport = FakeTelemetryTransport()
+    pub = RuntimeTelemetryPublisher(transport, _sink_with(BARS_PROCESSED=1))
+    pub.publish()
+    pub.publish_health({"state": "RUNNING"})
+    pub.publish_positions({"RELIANCE": {}})
+    assert transport.published == [{"bars_processed": 1}]
+    assert transport.published_health == [{"state": "RUNNING"}]
+    assert transport.published_positions == [{"RELIANCE": {}}]
+
+
+# --------------------------------------------------------------------------- #
 # (contract) the real ZMQ TelemetryPublisher satisfies the transport seam
 # --------------------------------------------------------------------------- #
 def test_messaging_telemetry_publisher_satisfies_transport_contract():
-    # The bridge calls publish_metrics(data) / publish_health(data) / close();
-    # prove the real wire transport exposes all three (structural DI contract),
-    # without opening a socket.
+    # The bridge calls publish_metrics / publish_health / publish_positions /
+    # close(); prove the real wire transport exposes all four (structural DI
+    # contract), without opening a socket.
     from core.messaging.telemetry import TelemetryPublisher
     assert callable(getattr(TelemetryPublisher, "publish_metrics", None))
     assert callable(getattr(TelemetryPublisher, "publish_health", None))
+    assert callable(getattr(TelemetryPublisher, "publish_positions", None))
     assert callable(getattr(TelemetryPublisher, "close", None))
 
 

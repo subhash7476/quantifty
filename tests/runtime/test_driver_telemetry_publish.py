@@ -49,6 +49,9 @@ class _RaisingPublisher:
     def publish_health(self, data):
         raise RuntimeError("health publish exploded")
 
+    def publish_positions(self, data):
+        raise RuntimeError("positions publish exploded")
+
     def close(self):
         return None
 

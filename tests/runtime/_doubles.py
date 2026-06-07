@@ -17,6 +17,7 @@ import pytz
 from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
 from core.events import OHLCVBar, SignalEvent, SignalType
+from core.execution.position_tracker import PositionTracker
 from core.runtime.signal_source import SignalSource
 
 _UTC = pytz.UTC
@@ -216,12 +217,16 @@ class FakeExecutionHandler:
       WHAT was routed, in WHICH order, at WHICH price (always bar.close). It is
       otherwise inert — it submits no order, touches no ledger, and returns None,
       keeping the slice narrow (the driver routes; it does not execute).
+    - position_tracker: a REAL PositionTracker (the ledger's position truth) so
+      Phase H.3 position publishing reads a real get_all_positions() snapshot; a
+      test populates it directly via `position_tracker._positions[...]`.
     """
 
     def __init__(self, reconcile_alerts: Optional[List] = None):
         self.reconciliation = FakeReconciliation(reconcile_alerts)
         self.replay_state_calls = 0
         self.routed: List = []
+        self.position_tracker = PositionTracker()
 
     def _replay_state(self) -> None:
         self.replay_state_calls += 1
@@ -239,13 +244,15 @@ class FakeTelemetryTransport:
     wiring is assertable; with fail=True it raises to prove publishing is
     best-effort (a transport fault must never stop trading).
 
-    publish_metrics(data) — records the payload, or raises if fail.
-    close()               — counts closes, or raises if fail.
+    publish_metrics(data)   — records the payload, or raises if fail.
+    publish_positions(data) — records the payload, or raises if fail.
+    close()                 — counts closes, or raises if fail.
     """
 
     def __init__(self, fail: bool = False, fail_on_close: bool = False):
         self.published: List[Dict] = []
         self.published_health: List[Dict] = []
+        self.published_positions: List[Dict] = []
         self.closed = 0
         self._fail = fail
         self._fail_on_close = fail_on_close
@@ -259,6 +266,11 @@ class FakeTelemetryTransport:
         if self._fail:
             raise RuntimeError("ZMQ transport down")
         self.published_health.append(data)
+
+    def publish_positions(self, data: Dict) -> None:
+        if self._fail:
+            raise RuntimeError("ZMQ transport down")
+        self.published_positions.append(data)
 
     def close(self) -> None:
         if self._fail_on_close:

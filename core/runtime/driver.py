@@ -542,6 +542,8 @@ class LoopDriver:
             self._publisher.publish()
             # Health projection (§10.5) on the same cadence — observation only.
             self._publisher.publish_health(self._build_health())
+            # Positions projection (§10.4) on the same cadence — observation only.
+            self._publisher.publish_positions(self._build_positions())
         except Exception as exc:  # best-effort: telemetry never breaks the loop
             self._logger.error("Telemetry publish drive failed: %s", exc)
         self._last_publish_at = now
@@ -572,6 +574,28 @@ class LoopDriver:
             "market_open": MarketHours.is_market_open(now),
             "uptime_s": round(time.monotonic() - self._start_monotonic, 6),
             "last_tick": now.isoformat() if now is not None else None,
+        }
+
+    def _build_positions(self) -> Dict[str, Any]:
+        """
+        Build the positions snapshot published over telemetry (§10.4).
+
+        A **read-only projection** of ledger truth — the handler's
+        `position_tracker.get_all_positions()` (ADR-001) — keyed by symbol. It
+        computes NO PnL: per-position `pnl_pct` is a documented placeholder
+        (`0.0`) until live mark-to-market is wired (§10.4), never faked. With no
+        ExecutionHandler injected (replay/inert/test) the book is empty `{}`.
+        """
+        if self._execution is None:
+            return {}
+        return {
+            symbol: {
+                "quantity": pos.quantity,
+                "avg_price": pos.avg_price,
+                "side": pos.side.value,
+                "pnl_pct": 0.0,  # placeholder until live MTM (§10.4 known gap)
+            }
+            for symbol, pos in self._execution.position_tracker.get_all_positions().items()
         }
 
     def _drive_watchdog(self) -> None:
