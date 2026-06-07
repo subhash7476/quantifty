@@ -30,7 +30,7 @@ class PortfolioGreeks:
         net_greeks = Greeks(0.0, 0.0, 0.0, 0.0, 0.0)
 
         positions = self.position_tracker.get_all_positions()
-        for position in positions:
+        for position in positions.values():
             greeks = self._calculate_position_greeks(
                 position, market_prices, volatilities, time_to_expiry_map, risk_free_rate
             )

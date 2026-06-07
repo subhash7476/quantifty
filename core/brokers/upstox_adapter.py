@@ -5,6 +5,7 @@ from typing import Dict, Optional, List
 from core.brokers.base import BrokerAdapter
 from core.events import OrderEvent, OrderStatus
 from core.execution.position_tracker import Position
+from core.execution.position_models import PositionSide
 from core.clock import Clock
 
 class UpstoxAdapter(BrokerAdapter):
@@ -131,12 +132,20 @@ class UpstoxAdapter(BrokerAdapter):
                     symbol = pos_data['trading_symbol']
                     qty = float(pos_data['quantity'])
                     avg_price = float(pos_data['average_price'])
-                    
+
+                    if qty > 0:
+                        side = PositionSide.LONG
+                    elif qty < 0:
+                        side = PositionSide.SHORT
+                    else:
+                        side = PositionSide.FLAT
+
                     positions[symbol] = Position(
                         symbol=symbol,
-                        quantity=qty,
-                        avg_entry_price=avg_price,
-                        last_update=self.clock.now()
+                        side=side,
+                        quantity=abs(qty),
+                        avg_price=avg_price,
+                        last_updated=self.clock.now()
                     )
             return positions
         except Exception:
