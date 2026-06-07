@@ -165,11 +165,15 @@ class FakeWatchdog:
     data_healthy            — the public health flag the driver edge-detects.
     """
 
-    def __init__(self, stale_after: Optional[int] = None):
+    def __init__(self, stale_after: Optional[int] = None, execution=None):
         self.record_bar_calls = 0
         self.staleness_checks = 0
         self.heartbeats: List[int] = []
         self._stale_after = stale_after
+        # The shared ExecutionHandler whose kill switch the watchdog trips when the
+        # feed goes stale (real watchdog: watchdog.py:82). When wired, a staleness
+        # trip flips handler._kill_switched — the single source the driver observes.
+        self._execution = execution
         self.data_healthy = True
 
     def record_bar(self) -> None:
@@ -180,6 +184,8 @@ class FakeWatchdog:
         self.staleness_checks += 1
         if self._stale_after is not None and self.staleness_checks == self._stale_after:
             self.data_healthy = False
+            if self._execution is not None:
+                self._execution.activate_kill_switch("data feed stale")
 
     def write_heartbeat(self, bars_processed: int = 0) -> None:
         self.heartbeats.append(bars_processed)
@@ -223,7 +229,7 @@ class FakeExecutionHandler:
     """
 
     def __init__(self, reconcile_alerts: Optional[List] = None,
-                 raise_on: Optional[str] = None):
+                 raise_on: Optional[str] = None, kill_switch_on: Optional[str] = None):
         self.reconciliation = FakeReconciliation(reconcile_alerts)
         self.replay_state_calls = 0
         self.routed: List = []
@@ -231,18 +237,30 @@ class FakeExecutionHandler:
         # process_signal raises for a signal whose symbol == raise_on (§8.4
         # per-signal exception isolation testing); None = never raises.
         self._raise_on = raise_on
+        # process_signal trips the handler's OWN kill switch after routing a
+        # signal whose symbol == kill_switch_on (simulating a drawdown /
+        # daily-limit / broker trip the handler decides on); None = never trips.
+        self._kill_switch_on = kill_switch_on
         # The handler's own kill-switch flag (IN-001 single-source observation).
-        # A test flips it to simulate a handler-caused trip (drawdown / broker /
-        # daily-limit); the real handler owns this attribute (§10.7).
+        # The real handler owns this attribute and flips it via
+        # activate_kill_switch (§10.7).
         self._kill_switched = False
 
     def _replay_state(self) -> None:
         self.replay_state_calls += 1
 
+    def activate_kill_switch(self, reason: str = "") -> None:
+        # Mirrors ExecutionHandler.activate_kill_switch (idempotent flip). The
+        # watchdog calls this when the feed goes stale; the handler also calls it
+        # itself on drawdown / limit / broker faults.
+        self._kill_switched = True
+
     def process_signal(self, signal, current_price):
         if self._raise_on is not None and signal.symbol == self._raise_on:
             raise RuntimeError(f"process_signal boom on {signal.symbol}")
         self.routed.append((signal, current_price))
+        if self._kill_switch_on is not None and signal.symbol == self._kill_switch_on:
+            self.activate_kill_switch(f"handler tripped on {signal.symbol}")
         return None
 
 

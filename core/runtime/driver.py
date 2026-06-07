@@ -186,6 +186,10 @@ class LoopDriver:
         # Last observed watchdog health, for edge-triggered staleness journaling
         # (§9 / §15.4). Presumed healthy until the watchdog reports otherwise.
         self._data_was_healthy = True
+        # Last observed handler kill-switch state, for edge-triggered
+        # KILL_SWITCH_ACTIVATED journaling from a single source (IN-001, §10.7) —
+        # any cause (stale data via the watchdog, drawdown, broker, daily-limit).
+        self._kill_switch_was_active = False
         # The process has entered STARTUP (§3.1); record it (§15.4) and count it.
         self._emit(
             EventType.STARTUP,
@@ -434,6 +438,10 @@ class LoopDriver:
                 # staleness check + heartbeat, even on a no-bar tick (that is
                 # exactly when a frozen feed must be caught). Live only.
                 self._drive_watchdog()
+                # IN-001: journal a kill-switch activation once, from the handler's
+                # own edge — after routing (this tick) and the watchdog drive, so
+                # every cause is caught (drawdown/broker/limit and stale-data).
+                self._check_kill_switch()
                 if not advanced:
                     if self._is_exhausted():
                         break
@@ -645,12 +653,13 @@ class LoopDriver:
         watchdog). **Live mode only** (§9.5) — in replay the wall-clock watchdog
         would false-trip, so the driver never touches it.
 
-        A stale-feed trip is recorded edge-triggered (§15.4): on the
-        data_healthy True->False edge — the only kill-switch cause in this phase,
-        and one the watchdog activates synchronously as it flips health — the
-        driver journals WATCHDOG_STALE_DATA + KILL_SWITCH_ACTIVATED exactly once.
-        Recovery re-arms the edge. The driver reads only the watchdog's public
-        health flag; the kill-switch action and its handler stay the watchdog's.
+        A stale-feed trip is recorded edge-triggered (§15.4) on the data_healthy
+        True->False edge: the driver journals WATCHDOG_STALE_DATA (the stale-data
+        *cause*). The watchdog activates the handler's kill switch synchronously as
+        it flips health; the resulting KILL_SWITCH_ACTIVATED is journaled by
+        `_check_kill_switch` from the handler's own kill-switch edge (IN-001) — a
+        single source for every cause, not a watchdog-specific proxy. Recovery
+        re-arms the edge. The driver reads only the watchdog's public health flag.
         """
         if not self._config.is_live or self._watchdog is None:
             return
@@ -664,12 +673,29 @@ class LoopDriver:
         if self._data_was_healthy and not healthy:
             self._emit(EventType.WATCHDOG_STALE_DATA,
                        "data feed stale; watchdog tripped kill switch")
-            self._emit(EventType.KILL_SWITCH_ACTIVATED,
-                       "kill switch activated by stale-data watchdog")
-            # Edge-triggered (once per incident), mirroring the journal events.
+            # Edge-triggered (once per incident). KILL_SWITCH_ACTIVATED is NOT
+            # emitted here — it is journaled once from the handler kill-switch edge
+            # (_check_kill_switch, IN-001), regardless of cause.
             self._meter(RuntimeMetric.STALE_DATA_EVENTS)
-            self._meter(RuntimeMetric.KILL_SWITCH_EVENTS)
         self._data_was_healthy = healthy
+
+    def _check_kill_switch(self) -> None:
+        """
+        IN-001: journal KILL_SWITCH_ACTIVATED from a SINGLE observation of the
+        handler's own kill-switch edge (`_kill_switched` False->True, §10.7) —
+        covering every cause exactly once (stale data via the watchdog, drawdown,
+        broker fault, daily-trade-limit). Edge-triggered: once per activation,
+        never per tick. NOT live-gated — a handler trip in replay/paper (e.g.
+        drawdown during routing) is journaled too. Read-only of the handler's flag;
+        the kill-switch action itself stays the handler's (ADR-001).
+        """
+        if self._execution is None:
+            return
+        active = self._execution._kill_switched
+        if active and not self._kill_switch_was_active:
+            self._emit(EventType.KILL_SWITCH_ACTIVATED, "handler kill switch activated")
+            self._meter(RuntimeMetric.KILL_SWITCH_EVENTS)
+        self._kill_switch_was_active = active
 
     def _at_max_bars(self) -> bool:
         """True once the configured max_bars guard is reached (§13)."""

@@ -165,12 +165,15 @@ class _StopAfterSleepsClock(FakeClock):
 
 def test_stale_data_and_kill_switch_events_counted_once():
     sink = InMemoryTelemetrySink()
-    wd = FakeWatchdog(stale_after=2)
+    # Watchdog + driver share one handler: a stale trip flips the handler kill
+    # switch, which the driver counts via the handler edge (IN-001).
+    handler = FakeExecutionHandler()
+    wd = FakeWatchdog(stale_after=2, execution=handler)
     box = []
     clock = _StopAfterSleepsClock(box, after=2)
     d = LoopDriver(_live_cfg(), clock=clock,
                    provider=FakeMarketDataProvider({"A": [make_bar("A"), None, None]}, live=True),
-                   watchdog=wd, execution=FakeExecutionHandler(), telemetry=sink)
+                   watchdog=wd, execution=handler, telemetry=sink)
     box.append(d)
     d.run()
     assert sink.get(M.STALE_DATA_EVENTS) == 1

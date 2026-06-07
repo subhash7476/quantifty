@@ -85,13 +85,17 @@ def test_heartbeat_driven_each_tick_with_bar_counter():
 # --------------------------------------------------------------------------- #
 def _run_stale_scenario(tmp_path, stale_after, none_bars, stop_after_sleeps):
     journal = RuntimeEventJournal(path=str(tmp_path / "runtime_events.jsonl"))
-    wd = FakeWatchdog(stale_after=stale_after)
+    # The watchdog and driver share ONE handler (as in production): when the feed
+    # goes stale the watchdog trips THAT handler's kill switch, and the driver
+    # journals KILL_SWITCH_ACTIVATED from the handler edge (IN-001).
+    handler = FakeExecutionHandler()
+    wd = FakeWatchdog(stale_after=stale_after, execution=handler)
     box = []
     clock = _StopAfterSleepsClock(box, after=stop_after_sleeps)
     script = [make_bar("A")] + [None] * none_bars
     d = LoopDriver(_live_cfg(), clock=clock,
                    provider=FakeMarketDataProvider({"A": script}, live=True),
-                   journal=journal, watchdog=wd, execution=FakeExecutionHandler())
+                   journal=journal, watchdog=wd, execution=handler)
     box.append(d)
     d.run()
     events = [json.loads(l)["event_type"]
