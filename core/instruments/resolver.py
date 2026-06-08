@@ -119,6 +119,21 @@ class InstrumentResolver:
         self._cache[key] = ci
         return ci
 
+    def latest_snapshot_date(self) -> Optional[date]:
+        """The most recent snapshot on disk (MAX(snapshot_date)), or None when the
+        master is absent/empty. The single freshness fact all consumers read
+        (MASTER_MATERIALIZATION_POLICY.md §3) — never re-derive MAX elsewhere."""
+        if not self._loaded:
+            return None
+        con = duckdb.connect(str(self._db_path), read_only=True)
+        try:
+            row = con.execute("SELECT MAX(snapshot_date) FROM instruments").fetchone()
+        except Exception:
+            return None
+        finally:
+            con.close()
+        return date.fromisoformat(row[0]) if row and row[0] else None
+
     # --- internals --------------------------------------------------------
 
     def _eff(self, as_of: Optional[date]) -> date:
