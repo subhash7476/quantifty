@@ -148,6 +148,13 @@ Replace three-way-divergent, broker-coupled, display-string identity with **one 
 - **Snapshot retention → DOCUMENT, do not solve (in 4C).** Daily full-master snapshots grow `instruments` (~100k rows/day) and `resolve_future`/`resolve_index` Python-filter after a coarse SQL pull. Acceptable at current scale; a retention policy / snapshot index is a follow-up, recorded in §7, **not** built in Phase 4C.
 - **Sole-identity gate (G1) is mandatory before 4C.7.** See Review Gate G1 in §2.
 
+### 6.2 Materialization decisions (locked 2026-06-08 — `docs/reports/MASTER_MATERIALIZATION_READINESS.md`)
+The readiness review found the architecture materialization-ready but the *data* not, and surfaced two items the 4C.5 wiring review missed (it grepped the `InstrumentMaster` class, not the DB file). Owner ratified:
+- **4C.6 proceeds now** — not gated by the master DB (greeks dispatch lands dormant; live effect only when canonical flows at 4C.7).
+- **Finding 2 — `options_provider` is a second, snapshot-blind reader of the master file → HARD BLOCKER for 4C.7.** `core/data/options_provider.py` reads `data/instruments/nse_fo_instruments.duckdb` by raw SQL with no `snapshot_date` filter (`get_weekly_expiry`/strikes/lot_size/expiry-list). Harmless at one snapshot; once daily snapshots accumulate, `get_lot_size … LIMIT 1` returns an arbitrary snapshot's lot. Must be made snapshot-aware (latest `snapshot_date`, or route via `InstrumentResolver`) **before** snapshots accumulate and before 4C.7.
+- **Finding 1 — historical `as_of` is forward-only → DOCUMENTED LIMITATION.** The ingest fetches only the current `complete.json.gz` (no dated endpoint), so the snapshot series accrues from first capture; pre-capture dates resolve to the earliest snapshot with a logged warning (e.g. a 2024 SEBI 50/75 backtest gets today's lot). Accepted, not solved, until a backfill source surfaces.
+- **4C.7 precondition (in addition to G1): materialized master + staleness policy.** The master must exist on disk and have a defined refresh cadence + staleness alert; the soft fallback (resolver returns None / selector legacy table / options calc-fallback) flips to **fail-fast** on the live F&O path. The Q7 source-contract test (sampled-payload schema check) is part of this data-governance slice.
+
 ---
 
 ## 7. Risk register
