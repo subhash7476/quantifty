@@ -68,6 +68,11 @@ class EventType(Enum):
     TELEMETRY_FAILURE = "TELEMETRY_FAILURE"
     STOPPING = "STOPPING"
     STOPPED = "STOPPED"
+    # MM.4 instrument-master readiness gate (MASTER_MATERIALIZATION_POLICY.md §5).
+    # UNAVAILABLE refuses live F&O start (BLOCK); STALE records a 1-day-stale
+    # start (WARN) — durably, since telemetry is lossy and this is audit-relevant.
+    INSTRUMENT_MASTER_UNAVAILABLE = "INSTRUMENT_MASTER_UNAVAILABLE"
+    INSTRUMENT_MASTER_STALE = "INSTRUMENT_MASTER_STALE"
 
 
 # Normative default severity per event type (section 15.4). BROKER_ERROR is
@@ -88,6 +93,8 @@ _DEFAULT_SEVERITY: Dict["EventType", "Severity"] = {
     EventType.TELEMETRY_FAILURE: Severity.WARNING,
     EventType.STOPPING: Severity.INFO,
     EventType.STOPPED: Severity.INFO,
+    EventType.INSTRUMENT_MASTER_UNAVAILABLE: Severity.CRITICAL,
+    EventType.INSTRUMENT_MASTER_STALE: Severity.WARNING,
 }
 
 

@@ -91,8 +91,10 @@ from core.database.providers.base import MarketDataProvider
 from core.database.utils.market_hours import MarketHours
 from core.execution.handler import ExecutionHandler
 from core.execution.watchdog import RuntimeWatchdog
+from core.instruments.master_readiness import ReadinessState, ReadinessVerdict
 from core.logging import setup_logger
 from core.runtime.config import DriverConfig
+from core.runtime.instrument_scope import has_derivatives
 from core.runtime.event_journal import EventType, RuntimeEventJournal
 from core.runtime.metrics import NullTelemetrySink, RuntimeMetric, TelemetrySink
 from core.runtime.signal_source import SignalSource
@@ -148,7 +150,8 @@ class LoopDriver:
                  execution: Optional[ExecutionHandler] = None,
                  broker_positions: Optional[Callable[[], List[Dict[str, Any]]]] = None,
                  telemetry: Optional[TelemetrySink] = None,
-                 publisher: Optional[RuntimeTelemetryPublisher] = None):
+                 publisher: Optional[RuntimeTelemetryPublisher] = None,
+                 master_readiness: Optional[Callable[[], ReadinessVerdict]] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
@@ -160,6 +163,12 @@ class LoopDriver:
         # The real live fetch is deferred (PROJECT_STATE Planned #6); when absent
         # reconciliation is vacuously clear (no broker book to compare).
         self._broker_positions = broker_positions
+        # MM.4 master-readiness checker — a zero-arg callable returning a
+        # ReadinessVerdict (the entry script builds it over the resolver, keeping
+        # the driver decoupled from the master). Evaluation only; the gate never
+        # resolves/refreshes a master (Decision 6). Absent = no check (vacuous,
+        # mirroring broker_positions); live F&O wiring is deferred.
+        self._master_readiness = master_readiness
         # Runtime telemetry (Phase H) — observation only, never a source of truth
         # and never in the trade decision path. Defaults to the inert no-op sink
         # so the loop runs identically with or without telemetry wired. Increments
@@ -342,10 +351,63 @@ class LoopDriver:
         self._emit(EventType.RECOVERY_COMPLETED, "ledger restored from persistence")
         self._meter(RuntimeMetric.RECOVERY_COUNT)
 
+        # MM.4: the instrument master must be trustworthy BEFORE reconciliation
+        # matches positions through canonical identity (§5 / Decision 2). A BLOCK
+        # refuses to start, like a reconciliation failure.
+        if not self._check_master_readiness():
+            return False
+
         if not self._reconcile_ledger():
             return False
 
         self.start()
+        return True
+
+    def _check_master_readiness(self) -> bool:
+        """
+        MM.4 instrument-master readiness gate (MASTER_MATERIALIZATION_POLICY.md
+        §4/§5). Enforced ONLY on the live derivative path — LIVE mode, a derivative
+        universe, and an injected checker; otherwise it is skipped (equity-only
+        LIVE, paper, and replay keep today's soft fallback — no behavior change).
+
+        Returns True to proceed (FRESH/WARN, or not applicable) or False if it
+        refused (BLOCK → STOPPED). The driver evaluates a handed-in verdict; it
+        never downloads/refreshes/repairs the master (Decision 6).
+        """
+        if not (self._config.is_live
+                and has_derivatives(self._config.symbols)
+                and self._master_readiness is not None):
+            return True
+
+        verdict = self._master_readiness()
+        meta = {
+            "reason": verdict.reason,
+            "latest_snapshot_date": verdict.latest.isoformat() if verdict.latest else None,
+            "expected": verdict.expected.isoformat() if verdict.expected else None,
+        }
+        if verdict.state is ReadinessState.BLOCK:
+            # Refuse to start — mirrors the RECONCILIATION_FAIL contract (§5).
+            self._emit(EventType.INSTRUMENT_MASTER_UNAVAILABLE,
+                       f"instrument master not ready ({verdict.reason})", metadata=meta)
+            alerter.critical(
+                f"LoopDriver refused to start: instrument master not ready "
+                f"({verdict.reason})"
+            )
+            self.abort_startup()
+            return False
+        if verdict.state is ReadinessState.WARN:
+            # Start, but record the degraded start durably (telemetry is lossy).
+            self._emit(EventType.INSTRUMENT_MASTER_STALE,
+                       "instrument master 1 trading day stale; starting with warning",
+                       metadata=meta)
+            alerter.warning(
+                f"LoopDriver starting on a 1-day-stale instrument master "
+                f"(latest={verdict.latest}, expected={verdict.expected})"
+            )
+            self._publish_log(
+                "WARNING",
+                f"INSTRUMENT_MASTER_STALE latest={verdict.latest} expected={verdict.expected}",
+            )
         return True
 
     def _reconcile_ledger(self) -> bool:

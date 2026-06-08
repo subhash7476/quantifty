@@ -134,6 +134,48 @@ class InstrumentResolver:
             con.close()
         return date.fromisoformat(row[0]) if row and row[0] else None
 
+    def segment_row_count(self, segment: str) -> int:
+        """Rows for `segment` in the latest snapshot — a coverage FACT (MM.4,
+        MASTER_MATERIALIZATION_POLICY.md §3). 0 when the master is absent/empty.
+        Facts only: the FRESH/WARN/BLOCK verdict is the readiness module's, never
+        the resolver's (MM.4_DESIGN_REVIEW.md §3-impl)."""
+        if not self._loaded:
+            return 0
+        con = duckdb.connect(str(self._db_path), read_only=True)
+        try:
+            row = con.execute(
+                "SELECT COUNT(*) FROM instruments WHERE exchange = ? AND "
+                "snapshot_date = (SELECT MAX(snapshot_date) FROM instruments)",
+                [segment],
+            ).fetchone()
+        except Exception:
+            return 0
+        finally:
+            con.close()
+        return int(row[0]) if row and row[0] else 0
+
+    def active_expiry_present(self, underlying: str, on_or_after: date) -> bool:
+        """True when the latest snapshot carries a FUT/CE/PE for `underlying` with
+        expiry >= `on_or_after` — the active contract set a live derivative order
+        needs (coverage FACT, MM.4). False when the master is absent/empty. Facts
+        only — no verdict."""
+        if not self._loaded:
+            return False
+        token = normalize_underlying(underlying)
+        con = duckdb.connect(str(self._db_path), read_only=True)
+        try:
+            rows = con.execute(
+                "SELECT name FROM instruments WHERE instrument_type IN "
+                "('FUT','CE','PE') AND expiry >= ? AND "
+                "snapshot_date = (SELECT MAX(snapshot_date) FROM instruments)",
+                [on_or_after.isoformat()],
+            ).fetchall()
+        except Exception:
+            return False
+        finally:
+            con.close()
+        return any(normalize_underlying(r[0]) == token for r in rows)
+
     # --- internals --------------------------------------------------------
 
     def _eff(self, as_of: Optional[date]) -> date:
