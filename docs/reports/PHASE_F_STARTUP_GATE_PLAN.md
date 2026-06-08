@@ -2,7 +2,7 @@
 
 **Status:** PLAN — no code. Focused implementation plan for **LoopDriver Phase F — Startup Gate / Recovery**.
 **Implements:** `docs/DRIVER_SPECIFICATION.md` §11 (Recovery Behavior + Startup Validation Gate), governed by `docs/ARCHITECTURE_DECISIONS.md` (ADR-001 Ledger Is Truth; ADR-006 Sole Orchestrator) and `docs/PLATFORM_CONSTITUTION.md` §7 (a position must never become untraceable).
-**Maps to:** `docs/LOOPDRIVER_IMPLEMENTATION_PLAN.md` "Phase H — Recovery & reconciliation startup gates" (this repo's working sequence relabels it **Phase F**, landing it before execution routing).
+**Maps to:** `docs/reports/LOOPDRIVER_IMPLEMENTATION_PLAN.md` "Phase H — Recovery & reconciliation startup gates" (this repo's working sequence relabels it **Phase F**, landing it before execution routing).
 
 > No code in this document. Phases ship green-on-merge via TDD (tests first), runtime suite green after each.
 

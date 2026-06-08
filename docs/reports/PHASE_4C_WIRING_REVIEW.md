@@ -3,7 +3,7 @@
 **Type:** Wiring review at the 4C.5 pause — **no code changes; survey only.**
 **Date:** 2026-06-08
 **Phase:** after 4C.1–4C.5 (build-seam adaptation), before 4C.6/4C.7.
-**Purpose:** the precursor to the formal **Review Gate G1** (`docs/PHASE_4C_IMPLEMENTATION_PLAN.md` §2). Answers three questions: who consumes `InstrumentResolver`, what is `InstrumentMaster`'s status, and which legacy identity paths remain.
+**Purpose:** the precursor to the formal **Review Gate G1** (`docs/reports/PHASE_4C_IMPLEMENTATION_PLAN.md` §2). Answers three questions: who consumes `InstrumentResolver`, what is `InstrumentMaster`'s status, and which legacy identity paths remain.
 **Basis:** direct grep of `core/**` (non-docs) for `InstrumentResolver`/`CanonicalInstrument`/`UpstoxMapping`, `InstrumentMaster`/`instrument_db`, and `InstrumentParser.parse`; suite at 300 passing.
 
 > Every claim is `file:line`-anchored. The headline is deliberately honest (see §4): **today the answer to Gate G1 is still "Yes — legacy construction remains."** A gate that reported green here would be the silent-failure pattern this work exists to remove.

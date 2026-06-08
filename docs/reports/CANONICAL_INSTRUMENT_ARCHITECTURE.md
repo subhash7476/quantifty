@@ -8,7 +8,7 @@
 **Builds on:** `docs/reports/FNO_PRODUCT_DISCOVERY.md` (the identity problem) · `docs/reports/PORTFOLIO_STATE_DISCOVERY.md` (the ledger/PortfolioView consumer).
 **Basis:** direct source read of `core/instruments/*`, `core/brokers/*`, `core/execution/{order_models,position_models,margin_tracker,reconciliation,order_factory,handler}.py`, `core/execution/options/selector.py`, `core/risk/greeks/greeks_calculator.py`, `scripts/fetch_instrument_master.py`; filesystem check of `data/instruments/`.
 
-> This document designs and recommends. It implements nothing. Every current-state claim carries a `file:line` anchor so it is checkable, not asserted. Deliverable 10 (the implementation scope) is the **separate** file `docs/PHASE_4C_IMPLEMENTATION_PLAN.md`.
+> This document designs and recommends. It implements nothing. Every current-state claim carries a `file:line` anchor so it is checkable, not asserted. Deliverable 10 (the implementation scope) is the **separate** file `docs/reports/PHASE_4C_IMPLEMENTATION_PLAN.md`.
 
 ---
 
