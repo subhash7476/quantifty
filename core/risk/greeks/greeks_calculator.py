@@ -1,10 +1,18 @@
 from typing import Optional
 from core.instruments.instrument_base import Instrument
-from core.instruments.option import Option
-from core.instruments.future import Future
-from core.instruments.equity import Equity
+from core.instruments.canonical import AssetClass
 from core.risk.greeks.greeks_model import Greeks
 from core.risk.greeks.black76_engine import Black76Engine
+
+
+def _asset_class(instrument) -> Optional[AssetClass]:
+    """Asset class of either a CanonicalInstrument (`.asset_class`) or a legacy
+    Instrument (normalised from `.type` — InstrumentType names align with AssetClass)."""
+    ac = getattr(instrument, "asset_class", None)
+    if ac is not None:
+        return ac
+    itype = getattr(instrument, "type", None)
+    return AssetClass[itype.name] if itype is not None else None
 
 
 class GreeksCalculator:
@@ -23,8 +31,10 @@ class GreeksCalculator:
         Compute Greeks for a given instrument and quantity.
         """
 
+        asset_class = _asset_class(instrument)
+
         # 1. Equity
-        if isinstance(instrument, Equity):
+        if asset_class == AssetClass.EQUITY:
             # Delta = 1 (per share), others 0
             return Greeks(
                 delta=quantity,
@@ -35,7 +45,7 @@ class GreeksCalculator:
             )
 
         # 2. Future
-        elif isinstance(instrument, Future):
+        elif asset_class == AssetClass.FUTURE:
             # Delta = 1 * multiplier (approx for futures close to expiry/spot)
             # Technically Delta of future wrt spot is e^(rT), but often treated as 1 for delta-one.
             # We will use quantity * multiplier.
@@ -49,7 +59,7 @@ class GreeksCalculator:
             )
 
         # 3. Option
-        elif isinstance(instrument, Option):
+        elif asset_class == AssetClass.OPTION:
             multiplier = getattr(instrument, 'multiplier', 1.0)
 
             # Calculate per-unit Greeks
