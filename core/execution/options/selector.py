@@ -3,6 +3,7 @@ from typing import Optional, Union
 from datetime import datetime
 
 from core.instruments.option import Option, OptionType
+from core.instruments.resolver import InstrumentResolver
 from core.events import SignalType
 
 
@@ -66,6 +67,11 @@ class OptionsContractSelector:
     from the NormalizedOrder returned by process_signal().
     """
 
+    def __init__(self, resolver: Optional[InstrumentResolver] = None):
+        # The master SSOT for lot_size. When absent (default / DB not present),
+        # select() falls back to the hardcoded INDEX_LOT_SIZES table.
+        self._resolver = resolver
+
     def select(
         self,
         underlying: str,
@@ -78,7 +84,8 @@ class OptionsContractSelector:
 
         expiry_days_min = policy.get("expiry_days_min", 2)
         step = policy.get("strike_step") or INDEX_STRIKE_STEPS.get(underlying, 50)
-        lot_size = policy.get("lot_size_override") or INDEX_LOT_SIZES.get(underlying, 50)
+        override = policy.get("lot_size_override")
+        lot_size = override or INDEX_LOT_SIZES.get(underlying, 50)
 
         from_date = timestamp.date() if isinstance(timestamp, datetime) else timestamp
         # Allow caller to pin to a specific expiry date (e.g., leg adjustments stay on same week)
@@ -94,6 +101,16 @@ class OptionsContractSelector:
             underlying.split("|")[-1].upper().replace(" ", ""),
         )
         symbol = self._build_symbol(short_name, expiry, strike, option_type)
+
+        # Source the real lot_size from the master SSOT; fall back to the
+        # hardcoded table when the master is absent (identical legacy behavior,
+        # ADR-003 determinism — the returned type never flips on DB presence).
+        if override is None:
+            resolver = self._resolver or InstrumentResolver()
+            ci = resolver.resolve_option(
+                underlying, expiry, float(strike), option_type, as_of=from_date)
+            if ci is not None:
+                lot_size = ci.lot_size
 
         return Option(
             symbol=symbol,
