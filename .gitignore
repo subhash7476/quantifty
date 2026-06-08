@@ -18,7 +18,9 @@ logs/
 *.pid
 
 # Data / DB
-data/
+# Anchored to repo root so only the top-level market-data store is ignored;
+# source dirs named `data` (core/data/, tests/data/) stay tracked.
+/data/
 *.db
 # FTMO runtime / large raw data
 ftmo/.calendar_cache.json
