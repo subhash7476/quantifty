@@ -7,7 +7,19 @@
 **Basis (ratified policy):** `MASTER_MATERIALIZATION_POLICY.md` §1 (source), §2 (cadence), §3 (freshness/coverage), §8 (failure modes). **Predecessors:** `MM.5_MATERIALIZATION_REPORT.md` (the materialized master + operational findings), MM.1–MM.4 (the freshness/coverage primitives + gate this consumes).
 **Constraints (locked):** prefer the policy-approved **OS scheduler**; **no** scheduler frameworks, daemons, or background services; extend the existing script, do **not** add a wrapper/abstraction (CLAUDE.md "no over-engineering", "prefer editing existing files"); reuse the **one** coverage implementation (policy §3 "compute one way").
 
-> **This plan is design only. Approval gate: do not implement until the owner ratifies §4 (validate-before-publish strategy) and the §9 open questions.**
+> **APPROVED FOR IMPLEMENTATION (2026-06-09).** The owner ratified the §9 open questions (below); implementation is authorized. The expiry-coverage clarification review closed **Outcome A — no F5** (the coverage rule is `expiry >= expected`, structure-agnostic; "weekly" was wording, never an encoded rule). 4C.7 remains blocked until **MM.7** (production checker wiring) and **Gate G1** are complete.
+
+## Ratifications (2026-06-09 — owner-approved)
+
+1. **Validate-before-publish = Option A** — **stage → validate → promote**; never publish a bad snapshot (§4 Option A). In-memory revalidation and publish-then-rollback are both rejected.
+2. **Generic underlyings parameter** — the coverage universe is a **parameter** (default `("NIFTY","BANKNIFTY")`), not hardcoded into the validation logic. *(resolves §9 Q2)*
+3. **Contract-shape guard** — the validate step also asserts the MM.5 cleanly-typed-derivative shape (derivative-segment rows ⊆ {CE,PE,FUT}, CE/PE present), catching a 0-OPTION-rows schema shift before publish. *(resolves §9 Q3)*
+4. **Transactional snapshot writes** — `write_snapshot`'s per-snapshot DELETE+INSERT is wrapped in one transaction (policy §8#3); a failed INSERT rolls back the DELETE, never leaving a date's snapshot empty. *(resolves §9 Q4)*
+5. **Docstring correction** — replace wording equivalent to "active **weekly** expiry" with "active expiry (≥ expected)" in `master_readiness.py` (the `assess()`/module docstring) so future maintainers do not accidentally encode a weekly-expiry requirement; and drop the misleading "after OAuth login" from `fetch_instrument_master.py` (policy §1).
+6. **No scheduler framework** — OS scheduler approach only (Task Scheduler / cron, as a documented artifact); no daemon/service/in-repo scheduler.
+7. **Refresh status surface (§9 Q5)** — **deferred** (exit code + the MM.4 startup gate are the backstop; no new store). **08:30 IST cutoff (§9 Q6)** — operational confirmation, non-blocking.
+
+**Post-MM.6 expected blocker board:** Gate G1 OPEN · Master DB CLOSED · **Refresh Job CLOSED** · Production Checker OPEN — leaving two substantive readiness tracks (G1, MM.7) before 4C.7 can be reconsidered.
 
 ---
 
@@ -169,4 +181,37 @@ Build fixture masters through the **real ingest pipeline** (`parse_instruments` 
 - **Historical backfill** (Finding 1) — accepted limitation; the live source has no dated endpoint.
 - **No scheduler framework / daemon / background service**; no SPAN / margin / broker-account-state work.
 
-> **Design only. None of §3–§8 is implemented. Approval of §4 + the §9 questions is the gate to building MM.6.**
+## 11. Scheduler artifact (delivered)
+
+The OS-scheduler invocation (documentation, not in-repo code — constraint #6). The
+entry point is `python scripts/fetch_instrument_master.py`, which runs
+`run_refresh()` and exits with the §6 code. **Correctness is box-clock-independent**
+— the script stamps `snapshot_date` in IST and self-skips non-trading days/holidays
+via `MarketHours` regardless of the host clock — so the schedule only governs *when*
+it fires; aim it at **~08:30 IST**.
+
+**Windows Task Scheduler** (the host is Windows; `/SC DAILY` is safe because the
+script self-skips non-trading days — the schedule need not encode the NSE calendar):
+```
+schtasks /Create /TN "InstrumentMasterRefresh" ^
+  /TR "\"C:\Path\To\python.exe\" \"F:\nifty\scripts\fetch_instrument_master.py\"" ^
+  /SC DAILY /ST 08:30 /RL LIMITED /F
+```
+(Set `/ST` to 08:30 in the host's local clock = 08:30 IST; if the box is not on IST,
+convert. A non-zero exit marks the run failed in Task Scheduler history.)
+
+**cron** (Linux equivalent; `TZ` IST or convert the minute/hour):
+```
+30 8 * * 1-5  cd /path/to/nifty && /usr/bin/python scripts/fetch_instrument_master.py >> logs/instrument_refresh.log 2>&1
+```
+
+> **Remaining operational step (not doable from the repo):** *installing* this task in
+> the target environment and confirming it fires. The refresh **mechanism** is built,
+> validated, and tested (365 green); marking blocker #3 CLOSED records the mechanism —
+> the scheduled task must still be installed where the platform runs.
+
+---
+
+> **Implemented (2026-06-09).** §3–§8 are built and tested (TDD, 365 green); the
+> ratifications (§Ratifications) are all incorporated. 4C.7 stays blocked until MM.7
+> (production checker wiring) and Gate G1.
