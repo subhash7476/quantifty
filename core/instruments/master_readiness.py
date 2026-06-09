@@ -14,7 +14,7 @@ creates readiness — this is evaluation only, never a refresh/repair (Decision 
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from enum import Enum
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 from core.database.utils.market_hours import MarketHours
 from core.instruments.master_freshness import expected_snapshot_date
@@ -83,3 +83,22 @@ def assess(resolver, underlyings: Iterable[str], now: Optional[datetime] = None,
     expiries_present = all(resolver.active_expiry_present(u, expected)
                            for u in underlyings)
     return evaluate(latest, expected, coverage_ok=segment_present and expiries_present)
+
+
+def build_master_readiness(underlyings: Iterable[str], *, db_path=None,
+                           as_of: Optional[date] = None
+                           ) -> Callable[[], ReadinessVerdict]:
+    """MM.7 production wiring: construct the resolver-backed master-readiness
+    checker the LoopDriver startup gate consumes — the real replacement for the
+    test-injected verdict lambda. Returns the zero-arg callable
+    `() -> assess(resolver, underlyings)`; the resolver is built once and reused
+    (read-only, cached), and `underlyings` are the traded underlyings whose
+    coverage is asserted. Evaluation only — the checker never downloads/refreshes/
+    repairs the master (Decision 6). The live invocation (an F&O entry script that
+    passes this into `LoopDriver(master_readiness=...)`) lands with the F&O runtime
+    slice; this is the construction it will call."""
+    from core.instruments.resolver import InstrumentResolver
+    resolver = (InstrumentResolver(db_path=db_path, as_of=as_of)
+                if db_path is not None else InstrumentResolver(as_of=as_of))
+    traded = tuple(underlyings)
+    return lambda: assess(resolver, traded)

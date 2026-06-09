@@ -209,3 +209,35 @@ def test_live_derivative_without_checker_is_vacuous_pass(tmp_path, alerts):
     assert d.state is RuntimeState.STOPPED and d.bars_processed == 2
     assert "RUNNING" in ev
     assert "INSTRUMENT_MASTER_UNAVAILABLE" not in ev
+
+
+# --------------------------------------------------------------------------- #
+# MM.7. Production wiring: the REAL resolver-backed factory (not a hand-written
+# verdict) drives the gate end-to-end — resolver → checker → startup gate.
+# --------------------------------------------------------------------------- #
+def test_live_derivative_real_factory_checker_starts_fresh(tmp_path, alerts):
+    from scripts.fetch_instrument_master import parse_instruments, write_snapshot
+    from core.instruments.master_readiness import build_master_readiness
+    from core.instruments.master_freshness import expected_snapshot_date
+    from core.database.utils.market_hours import MarketHours
+
+    today = expected_snapshot_date(MarketHours.get_ist_now()).isoformat()
+    master = tmp_path / "instruments.duckdb"
+    write_snapshot(parse_instruments([
+        {"segment": "NSE_FO", "instrument_key": "NSE_FO|53001", "tradingsymbol": "NIFTYFUT",
+         "name": "NIFTY", "expiry": "2027-12-31", "instrument_type": "FUT",
+         "lot_size": 75, "tick_size": 0.05},
+        {"segment": "NSE_FO", "instrument_key": "NSE_FO|54710", "tradingsymbol": "NIFTYCE",
+         "name": "NIFTY", "expiry": "2027-12-31", "strike_price": 22500.0,
+         "instrument_type": "CE", "lot_size": 75, "tick_size": 0.05},
+    ], today), db_path=master)
+
+    checker = build_master_readiness(["NIFTY"], db_path=master)
+    d, _ = _driver(_cfg([_DERIV]), checker, tmp_path)
+    d.run()
+    ev = _events(tmp_path)
+    assert d.state is RuntimeState.STOPPED and d.bars_processed == 2
+    assert "RUNNING" in ev
+    assert "INSTRUMENT_MASTER_UNAVAILABLE" not in ev
+    assert "INSTRUMENT_MASTER_STALE" not in ev
+    assert alerts.calls == []

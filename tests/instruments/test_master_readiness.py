@@ -18,7 +18,7 @@ from core.database.utils.market_hours import MarketHours
 from core.instruments.resolver import InstrumentResolver
 from core.instruments.master_freshness import expected_snapshot_date
 from core.instruments.master_readiness import (
-    ReadinessState, ReadinessVerdict, evaluate, assess,
+    ReadinessState, ReadinessVerdict, evaluate, assess, build_master_readiness,
 )
 
 # A fixed "now": Mon 2026-06-08 09:00 IST (trading day, past the 08:30 cutoff),
@@ -181,3 +181,36 @@ def test_assess_block_coverage_when_active_expiry_missing(tmp_path):
     v = assess(r, underlyings=["NIFTY"], now=_NOW)
     assert v.state is ReadinessState.BLOCK
     assert v.reason == "coverage"
+
+
+# --------------------------------------------------------------------------- #
+# build_master_readiness() — MM.7 production wiring (resolver-backed checker)
+# --------------------------------------------------------------------------- #
+def _today_iso():
+    # The snapshot date the gate expects right now, so a fresh fixture is FRESH
+    # without coupling the test to a hard-coded calendar date.
+    return expected_snapshot_date(MarketHours.get_ist_now()).isoformat()
+
+
+def test_build_master_readiness_produces_fresh_resolver_backed_checker(tmp_path):
+    db = _write(tmp_path, _derivative_rows("2027-12-31"), _today_iso())
+    check = build_master_readiness(["NIFTY"], db_path=db)
+    assert callable(check)
+    assert check().state is ReadinessState.FRESH  # real resolver, no hand-written verdict
+
+
+def test_build_master_readiness_blocks_when_master_absent(tmp_path):
+    check = build_master_readiness(["NIFTY"], db_path=tmp_path / "missing.duckdb")
+    v = check()
+    assert v.state is ReadinessState.BLOCK
+    assert v.reason == "absent"
+
+
+def test_build_master_readiness_uses_given_underlyings(tmp_path):
+    # A NIFTY-only master: a NIFTY checker is FRESH; a NIFTY+BANKNIFTY checker
+    # BLOCKs (BankNifty coverage missing) — proving the underlyings arg is honoured.
+    db = _write(tmp_path, _derivative_rows("2027-12-31"), _today_iso())
+    assert build_master_readiness(["NIFTY"], db_path=db)().state is ReadinessState.FRESH
+    blocked = build_master_readiness(["NIFTY", "BANKNIFTY"], db_path=db)()
+    assert blocked.state is ReadinessState.BLOCK
+    assert blocked.reason == "coverage"
