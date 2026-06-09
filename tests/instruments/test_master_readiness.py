@@ -111,6 +111,23 @@ def test_active_expiry_present_false_when_all_contracts_expired(tmp_path):
     assert r.active_expiry_present("NIFTY", _EXPECTED) is False
 
 
+def test_active_expiry_present_accepts_monthly_only_underlying(tmp_path):
+    # F5-review guarantee (Outcome A): coverage requires an active expiry
+    # (>= expected), NOT a *weekly* one. A monthly-only underlying — e.g. BankNifty,
+    # whose weeklies were discontinued — whose nearest expiry is weeks out must
+    # still pass. Locks against a future maintainer encoding a weekly requirement.
+    monthly = [
+        {"segment": "NSE_FO", "instrument_key": "NSE_FO|90", "tradingsymbol": "BANKNIFTYFUT",
+         "name": "BANKNIFTY", "expiry": "2026-06-30", "instrument_type": "FUT",
+         "lot_size": 30, "tick_size": 0.05},
+        {"segment": "NSE_FO", "instrument_key": "NSE_FO|91", "tradingsymbol": "BANKNIFTYCE",
+         "name": "BANKNIFTY", "expiry": "2026-06-30", "strike_price": 50000.0,
+         "instrument_type": "CE", "lot_size": 30, "tick_size": 0.05},
+    ]
+    r = InstrumentResolver(db_path=_write(tmp_path, monthly, "2026-06-08"))
+    assert r.active_expiry_present("BANKNIFTY", _EXPECTED) is True
+
+
 def test_coverage_facts_on_absent_master(tmp_path):
     r = InstrumentResolver(db_path=tmp_path / "missing.duckdb")
     assert r.segment_row_count("NSE_FO") == 0

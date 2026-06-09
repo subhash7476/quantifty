@@ -68,8 +68,9 @@ def assess(resolver, underlyings: Iterable[str], now: Optional[datetime] = None,
            derivative_segments: Iterable[str] = _DERIVATIVE_SEGMENTS) -> ReadinessVerdict:
     """Gather freshness + coverage facts from `resolver` and return the verdict.
 
-    Coverage = a derivative segment is present and non-empty AND the active weekly
-    expiry exists for every traded underlying (§4 minimum, Decision 1). Read-only;
+    Coverage = a derivative segment is present and non-empty AND an active expiry
+    (>= expected) exists for every traded underlying (§4 minimum, Decision 1) — any
+    cadence, not specifically weekly (BankNifty is monthly-only). Read-only;
     never refreshes the master.
     """
     now = now or MarketHours.get_ist_now()

@@ -6,7 +6,8 @@ Downloads the complete Upstox instruments JSON.GZ, filters for the segments the
 platform trades or references (NSE_FO, MCX_FO, NSE_EQ, NSE_INDEX), and stores in
 a local DuckDB for fast symbol lookup and as_of-aware resolution.
 
-Run once after OAuth login each morning:
+Run by the scheduled refresh job once per NSE trading day (08:30 IST). The CDN
+fetch needs no authentication, so the refresh is decoupled from the OAuth session:
     python scripts/fetch_instrument_master.py
 
 Source:
@@ -24,15 +25,23 @@ Output:
 import sys
 import gzip
 import json
+import shutil
 import logging
+import tempfile
 import requests
 import duckdb
 import pyarrow as pa
+from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
+from typing import Callable, Iterable, Optional
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
+
+from core.database.utils.market_hours import MarketHours
+from core.instruments.resolver import InstrumentResolver
+from core.instruments.master_readiness import assess, ReadinessState
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +50,16 @@ DB_PATH = ROOT / "data" / "instruments" / "nse_fo_instruments.duckdb"
 
 # Segments the platform trades (FO/EQ) or references as an underlying (INDEX).
 ACCEPTED_SEGMENTS = ("NSE_FO", "MCX_FO", "NSE_EQ", "NSE_INDEX")
+# Derivative segments whose cleanly-typed shape the contract-shape guard asserts.
+_DERIVATIVE_SEGMENTS = ("NSE_FO", "MCX_FO")
+# The traded underlyings whose active expiry the refresh validates before publish.
+DEFAULT_UNDERLYINGS = ("NIFTY", "BANKNIFTY")
+
+# run_refresh exit codes (the OS scheduler surfaces a non-zero run as failed).
+EXIT_OK = 0
+EXIT_DOWNLOAD_ERROR = 1
+EXIT_EMPTY = 2
+EXIT_COVERAGE = 3
 
 _COLUMNS = (
     "instrument_key", "tradingsymbol", "name", "expiry", "strike",
@@ -166,24 +185,137 @@ def write_snapshot(rows: list[dict], db_path: Path = DB_PATH) -> int:
     con = duckdb.connect(str(db_path))
     try:
         con.execute(_CREATE_TABLE)
-        for sd in snapshot_dates:
-            con.execute("DELETE FROM instruments WHERE snapshot_date = ?", [sd])
-        con.execute(f"INSERT INTO instruments SELECT {', '.join(_COLUMNS)} FROM arrow_data")
+        # Per-snapshot DELETE+INSERT in one transaction: a failed INSERT rolls back
+        # the DELETE, so a partial write never leaves a date's snapshot empty
+        # (MASTER_MATERIALIZATION_POLICY.md §8#3).
+        con.execute("BEGIN TRANSACTION")
+        try:
+            for sd in snapshot_dates:
+                con.execute("DELETE FROM instruments WHERE snapshot_date = ?", [sd])
+            con.execute(f"INSERT INTO instruments SELECT {', '.join(_COLUMNS)} FROM arrow_data")
+            con.execute("COMMIT")
+        except Exception:
+            con.execute("ROLLBACK")
+            raise
         con.execute(_CREATE_INDEX)
         return len(rows)
     finally:
         con.close()
 
 
-def refresh(db_path: Path = DB_PATH) -> int:
-    """Download master and append today's snapshot. Returns rows written."""
-    rows = download_and_parse()
+@dataclass(frozen=True)
+class RefreshResult:
+    """Outcome of a validate-before-publish attempt. `reason` is 'published' on
+    success, else why the snapshot was refused ('shape' | 'coverage' | 'absent' |
+    'stale')."""
+    published: bool
+    reason: str
+    rows_written: int
+    snapshot_date: str
+
+
+def ist_snapshot_date(now: Optional[datetime] = None) -> str:
+    """The snapshot_date to stamp, computed in IST — never machine-local.
+
+    The startup gate computes `expected_snapshot_date` in IST; stamping the
+    snapshot off the machine-local clock would diverge by a day near the date
+    boundary on an off-IST box and manufacture spurious staleness (MM.5
+    operational finding #1)."""
+    now = now or MarketHours.get_ist_now()
+    return MarketHours.to_ist(now).date().isoformat()
+
+
+def _contract_shape_ok(rows: list[dict]) -> bool:
+    """The derivative segments must be cleanly typed CE/PE/FUT with options present
+    — the upstream schema shift (0 OPTION rows) a date/coverage check alone misses
+    (MM.5 source-contract guard). Vacuously true when the run carries no
+    derivatives (the coverage step then BLOCKs an equity-only master)."""
+    deriv_types = {r["instrument_type"] for r in rows
+                   if r["exchange"] in _DERIVATIVE_SEGMENTS}
+    if not deriv_types:
+        return True
+    if deriv_types - {"CE", "PE", "FUT"}:
+        return False  # a stray type in a derivative segment — schema drift
+    return {"CE", "PE"} <= deriv_types  # options must be present
+
+
+def validate_and_publish(rows: list[dict], snapshot_date: str,
+                         db_path: Path = DB_PATH, *,
+                         underlyings: Iterable[str] = DEFAULT_UNDERLYINGS,
+                         now: Optional[datetime] = None) -> RefreshResult:
+    """Option A — stage → validate → promote. Write `rows` to a throwaway staging
+    DB, validate coverage through the same resolver path the startup gate uses
+    (`assess`), and only on success promote them to `db_path`. A bad download
+    never replaces the prior good snapshot (MM.6_REFRESH_JOB_PLAN.md §4)."""
+    now = now or MarketHours.get_ist_now()
+    db_path = Path(db_path)
+
+    if not _contract_shape_ok(rows):
+        logger.error("Contract-shape guard failed — refusing to publish snapshot %s",
+                     snapshot_date)
+        return RefreshResult(False, "shape", 0, snapshot_date)
+
+    staging_dir = Path(tempfile.mkdtemp(prefix="instr_master_stage_"))
+    try:
+        write_snapshot(rows, db_path=staging_dir / "staging.duckdb")
+        verdict = assess(InstrumentResolver(db_path=staging_dir / "staging.duckdb"),
+                         underlyings, now=now)
+        if verdict.state is ReadinessState.BLOCK:
+            logger.error("Coverage validation BLOCK(%s) for snapshot %s — refusing to "
+                         "publish; prior snapshot preserved", verdict.reason, snapshot_date)
+            return RefreshResult(False, verdict.reason or "coverage", 0, snapshot_date)
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
+
+    count = write_snapshot(rows, db_path=db_path)
+    logger.info("Instrument master snapshot %s published: %s rows in %s",
+                snapshot_date, f"{count:,}", db_path)
+    return RefreshResult(True, "published", count, snapshot_date)
+
+
+def refresh(db_path: Path = DB_PATH, *,
+            underlyings: Iterable[str] = DEFAULT_UNDERLYINGS,
+            now: Optional[datetime] = None) -> int:
+    """Download the master and publish today's snapshot if it validates. Returns
+    rows written (0 if the parse was empty or validation refused). The OAuth
+    backstop calls this with no args; the scheduled job uses `run_refresh`."""
+    snapshot_date = ist_snapshot_date(now)
+    rows = download_and_parse(snapshot_date)
     if not rows:
         logger.error("No rows parsed — aborting DB write")
         return 0
-    count = write_snapshot(rows, db_path)
-    logger.info(f"Instrument master snapshot written: {count:,} rows in {db_path}")
-    return count
+    return validate_and_publish(rows, snapshot_date, db_path,
+                                underlyings=underlyings, now=now).rows_written
+
+
+def run_refresh(db_path: Path = DB_PATH, *,
+                now: Optional[datetime] = None,
+                underlyings: Iterable[str] = DEFAULT_UNDERLYINGS,
+                download: Optional[Callable[[str], list[dict]]] = None) -> int:
+    """The scheduled-job entry point: trading-day guard → download → validate →
+    publish, returning an exit code (0 ok/skip; non-zero = failure the OS scheduler
+    surfaces). Every failure leaves the prior snapshot intact. `download` is
+    injectable for tests; production uses `download_and_parse`."""
+    now = now or MarketHours.get_ist_now()
+    if not MarketHours.is_trading_day(now):
+        logger.info("Non-trading day (%s) — skipping instrument-master refresh",
+                    ist_snapshot_date(now))
+        return EXIT_OK
+
+    snapshot_date = ist_snapshot_date(now)
+    download = download or download_and_parse
+    try:
+        rows = download(snapshot_date)
+    except Exception as exc:
+        logger.error("Instrument-master download failed: %s — prior snapshot preserved", exc)
+        return EXIT_DOWNLOAD_ERROR
+    if not rows:
+        logger.error("Empty parse — prior snapshot preserved")
+        return EXIT_EMPTY
+
+    result = validate_and_publish(rows, snapshot_date, db_path,
+                                  underlyings=underlyings, now=now)
+    return EXIT_OK if result.published else EXIT_COVERAGE
 
 
 def get_db_path() -> Path:
@@ -195,5 +327,5 @@ if __name__ == "__main__":
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s"
     )
-    n = refresh()
-    print(f"\nDone — {n:,} instruments stored at {DB_PATH}")
+    rc = run_refresh()
+    sys.exit(rc)
