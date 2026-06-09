@@ -173,3 +173,33 @@ These are durable engineering notes that record a *decision in flight* — not n
 **Goal.** Exactly one `KILL_SWITCH_ACTIVATED` per kill-switch activation, sourced from the handler's kill-switch edge, regardless of cause.
 
 *Ref: docs/DRIVER_SPECIFICATION.md §9, §10.7; docs/PROJECT_STATE.md (Planned #1 implementation note); ADR-004, ADR-006.*
+
+---
+
+## ADR-G1-W2 — Future Resolution Through Canonical Instrument
+
+**Status:** **Accepted** (2026-06-09) · Gate G1 Wave 2, Migration Target #1.
+
+### Context
+`InstrumentParser.parse` (`core/instruments/instrument_parser.py`) recognizes only an Option regex and an Equity fallback — it has **no Future branch**, despite `core/instruments/future.py` existing. The `ExecutionHandler.process_signal` non-option order-build branch (`handler.py:513`) called `parse` directly, so every futures-style symbol (e.g. `NIFTY26JUNFUT`) was constructed as an **`Equity`** and the order was mistyped `EQUITY` (**F-PARSE-1**, pinned by the Wave 2A characterization suite). The canonical instrument architecture (4C.1–4C.6) already owns the authoritative identity (`InstrumentResolver` → `CanonicalInstrument`), but the live order-build path did not consume it for futures.
+
+### Decision
+The `ExecutionHandler` order-build path now attempts **canonical future resolution before** legacy `InstrumentParser` parsing. A new `core/execution/futures.resolve_future(symbol, timestamp, resolver=None)` regex-detects a future symbol, resolves a `CanonicalInstrument` via `InstrumentResolver.resolve_future`, and **derives a legacy `Future` from it** (the `Future` is what flows into `NormalizedOrder`). Non-future symbols return `None` and fall through to the unchanged `parse` (equity/option behavior is identical).
+
+**`CanonicalInstrument` is the identity source but remains internal.** Only its economic facts (underlying, expiry, lot_size) are read to build the legacy `Future`; the canonical object **may not cross**:
+- broker boundaries
+- persistence boundaries
+- restore boundaries
+- reconciliation boundaries
+
+This is the load-bearing **G1 / 4C.7 boundary**: G1 makes canonical the *source* and keeps the broker payload byte-for-byte unchanged; the moment a payload reads `ci.instrument_key` / `ci.product`, that is 4C.7 (a behavior change) and stays blocked.
+
+**Determinism (ADR-003):** the FUTURE *type* is decided by the symbol shape, not by master presence — a master-absent resolve still derives a `Future` (from symbol-parsed fields), so the order type never flips on DB presence.
+
+### Consequences
+- A futures-style symbol now types **`FUTURE`** with `symbol`/`side`/`quantity`/`order_type` byte-identical (broker payload preserved). Equity/option paths unchanged.
+- **Scope is site #1 only** (`process_signal` non-option branch). `process_group_signal` (#2), the option-via-selector path (#4), the restore path, `InstrumentParser`, `UpstoxAdapter`, `PaperBroker`, reconciliation, and persistence schemas are untouched.
+- The `orders` table has no `instrument_type` column, so the type correction has **zero persistence footprint** — a value correction, not a format change.
+- **Gate G1 remains OPEN**: this closes one migration site; the remaining sites (restore, option, position) and the Section-6 closure proof remain.
+
+*Ref: docs/reports/G1_WAVE2_IMPLEMENTATION_REPORT.md; docs/reports/SOLE_IDENTITY_PATH_REVIEW.md; docs/reports/G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md; core/execution/futures.py; core/execution/handler.py; ADR-003, ADR-006.*

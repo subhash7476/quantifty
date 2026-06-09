@@ -110,6 +110,37 @@ Each wave is an independent commit; the characterization suite (Section 4) must 
 
 ---
 
+## Implementation Status (live)
+
+| Migration target | Status | Evidence |
+|---|---|---|
+| **Wave 1** — prove-dead audit (#5 `OrderFactory`, #10 `NormalizedOrder(symbol=)`), #3 carve-out | **COMPLETE** | `G1_WAVE1_REPORT.md` |
+| **Wave 2A** — broker-payload truth + characterization net (7/7 green) | **COMPLETE** | `G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md` |
+| **#1** — `handler.process_signal` non-option branch → Future Resolution | **COMPLETE** | see below |
+| **#2** — restore path | **NEXT ACTIVE TARGET** | not started |
+| **#4** — option path (selector → canonical-derived `Option`) | PLANNED (F4-gated) | not started |
+| #6/#7 — position construction | PLANNED | not started |
+
+**Target #1 — COMPLETE (2026-06-09).** Resolved **F-PARSE-1**. Implemented via:
+- `core/execution/futures.py` — `resolve_future(symbol, timestamp, resolver=None)` (regex-detect → `InstrumentResolver.resolve_future` → `CanonicalInstrument` → derive legacy `Future`; canonical internal-only).
+- `ExecutionHandler` integration — `handler.py:513` non-option `else` branch calls `resolve_future` first, falls through to the unchanged `InstrumentParser.parse` for non-futures.
+
+Characterization coverage:
+- `test_build_order_futures_currently_falls_back_to_equity` (characterization, assertion updated `EQUITY → FUTURE`; symbol/side/qty/type assertions preserved)
+- `test_non_future_symbols_return_none`
+- `test_master_present_resolves_canonical_lot_and_expiry`
+- `test_master_absent_still_derives_future`
+
+Broker payload / persistence / restore / reconciliation contracts **unchanged** (`G1_WAVE2_IMPLEMENTATION_REPORT.md` §7–10). Full suite **379 passing, 0 failing**.
+
+---
+
+## NEXT ACTIVE TARGET
+
+**#2 — Restore Path.** (G1 stays OPEN until the Section-6 closure proof holds.)
+
+---
+
 ## Status & next step
 
-**Verdict today: G1 OPEN ("Yes").** This is the plan, for review. **No order-path code has been written.** On approval, execution proceeds Wave 1 → Wave 5, characterization tests (Section 4) first, each wave independently revertible. 4C.7 stays blocked throughout (G1 is behavior-preserving; 4C.7 is the broker-payload change that follows G1 closure).
+**Verdict today: G1 OPEN ("Yes").** Wave 1 (prove-dead audit) and Wave 2 Migration Target #1 (Future Resolution) are **complete** (see Implementation Status above); the remaining sites still need migrating. Execution continues per the wave plan, characterization tests (Section 4) green before and after each wave, each wave independently revertible. 4C.7 stays blocked throughout (G1 is behavior-preserving; 4C.7 is the broker-payload change that follows G1 closure). **G1 is not closed.**
