@@ -510,7 +510,9 @@ class ExecutionHandler:
                     policy=signal.metadata.get("option_policy", {}),
                 )
             else:
-                instrument = InstrumentParser.parse(signal.symbol)
+                from core.execution.futures import resolve_future
+                future = resolve_future(signal.symbol, signal.timestamp)
+                instrument = future if future is not None else InstrumentParser.parse(signal.symbol)
 
             # Determine Side and Quantity
             if signal.signal_type == SignalType.EXIT:
