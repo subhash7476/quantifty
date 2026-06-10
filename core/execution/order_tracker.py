@@ -2,6 +2,7 @@ from typing import Dict, Optional, List, Any
 from datetime import datetime
 from core.execution.order_models import NormalizedOrder
 from core.execution.order_lifecycle import OrderStatus, FillEvent
+from core.instruments.instrument_base import Instrument
 from core.execution.persistence.order_repository import OrderRepository
 from core.execution.persistence.fill_repository import FillRepository
 
@@ -90,6 +91,24 @@ class OrderTracker:
     def get_order(self, order_id) -> Optional[OrderState]:
         key = self._resolve_existing_key(order_id)
         return self._orders.get(key) if key is not None else None
+
+    def order_states(self) -> List[OrderState]:
+        """All tracked order states (the order-side analogue of
+        PositionTracker.get_all_positions). Used by the G1 Wave 3 #8 post-gate
+        canonicalization to iterate restored orders."""
+        return list(self._orders.values())
+
+    def replace_instrument(self, order_id, instrument: Instrument) -> None:
+        """G1 Wave 3 (#8): swap a tracked order's instrument identity IN PLACE,
+        preserving correlation_id / signal_id / side / quantity / order_type and
+        the tracker key (H7/H8 — the NormalizedOrder is mutated, never
+        reconstructed, so idempotency and group membership stay intact). The new
+        instrument carries the same .symbol, so the order's symbol is unchanged.
+        No-op for an untracked id."""
+        key = self._resolve_existing_key(order_id)
+        if key is None:
+            return
+        object.__setattr__(self._orders[key].order, "instrument", instrument)
 
     def process_fill(self, fill: FillEvent, persist: bool = True) -> OrderState:
         state = self.get_order(fill.order_id)

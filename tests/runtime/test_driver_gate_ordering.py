@@ -251,3 +251,26 @@ def test_gate_skips_canonicalization_on_block(tmp_path, alerts):
     d, _ = _build(tmp_path, _BLOCK)
     d.run()
     assert d._execution.canonicalize_calls == 0   # refused start, never canonicalized
+
+
+# --------------------------------------------------------------------------- #
+# Wiring: the same gate-pass also invokes the handler's ORDER canonicalization
+# (G1 Wave 3 #8), on the SAME gate condition as the position pass — driven on
+# FRESH, skipped without a checker (vacuous) or on a BLOCK refusal.
+# --------------------------------------------------------------------------- #
+def test_gate_invokes_order_canonicalization_on_fresh(tmp_path, alerts):
+    d, _ = _build(tmp_path, _FRESH)
+    d.run()
+    assert d._execution.canonicalize_order_calls == 1
+
+
+def test_gate_skips_order_canonicalization_without_checker(tmp_path, alerts):
+    d, _ = _build(tmp_path, None)
+    d.run()
+    assert d._execution.canonicalize_order_calls == 0   # vacuous: master never verified
+
+
+def test_gate_skips_order_canonicalization_on_block(tmp_path, alerts):
+    d, _ = _build(tmp_path, _BLOCK)
+    d.run()
+    assert d._execution.canonicalize_order_calls == 0   # refused start, never canonicalized

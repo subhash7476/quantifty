@@ -429,20 +429,19 @@ class LoopDriver:
         (FRESH/WARN); a BLOCK aborts before it (no canonicalization on a refused
         start).
 
-        Currently canonicalizes restored POSITIONS (#7-as-restored): the handler
-        re-resolves each tracked derivative position's symbol through the master
-        and swaps `Position.instrument` in place (futures EQUITY->FUTURE, option
-        parser-lot->master-lot), preserving symbol/side/quantity/avg_price. The
-        ledger mutation is the handler's (ADR-001); the driver only triggers it in
-        the slot. Restored ORDER identity (#8) is the SEPARATE, independently-
-        revertible wave and is not done here (review §3); `CanonicalInstrument`
-        stays internal (the G1 / 4C.7 boundary).
+        Canonicalizes both halves of the restored ledger, each the handler's own
+        in-place `.instrument` swap (ADR-001; the driver only triggers them in the
+        slot): restored POSITIONS (#7-as-restored) and restored ORDERS (#8), both
+        futures EQUITY->FUTURE and option parser-lot->master-lot with the display
+        symbol preserved byte-for-byte (so reconciliation, run next, still matches
+        — H3). `CanonicalInstrument` stays internal (the G1 / 4C.7 boundary).
         """
         if not (self._config.is_live
                 and has_derivatives(self._config.symbols)
                 and self._master_readiness is not None):
             return
         self._execution.canonicalize_restored_positions()
+        self._execution.canonicalize_restored_orders()
 
     def _reconcile_ledger(self) -> bool:
         """
