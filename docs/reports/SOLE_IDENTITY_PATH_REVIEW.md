@@ -117,7 +117,7 @@ Each wave is an independent commit; the characterization suite (Section 4) must 
 | **Wave 1** — prove-dead audit (#5 `OrderFactory`, #10 `NormalizedOrder(symbol=)`), #3 carve-out | **COMPLETE** | `G1_WAVE1_REPORT.md` |
 | **Wave 2A** — broker-payload truth + characterization net (7/7 green) | **COMPLETE** | `G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md` |
 | **#1** — `handler.process_signal` non-option branch → Future Resolution | **COMPLETE** | see below |
-| **#2** — restore path | **IN PROGRESS** | Wave 3A (restore reality pinned) + Wave 3B (gate-ordering review, orders-vs-positions = SEPARATE) + Option-B canonicalization **slot introduced as a no-op** (`driver._canonicalize_restored_ledger`); #8/#7 in-place-swap bodies not started |
+| **#2** — restore path | **IN PROGRESS** | Wave 3A (restore reality pinned) + Wave 3B (gate-ordering review, orders-vs-positions = SEPARATE) + Option-B slot wired (`driver._canonicalize_restored_ledger`) + **restored POSITION canonicalization (#7-as-restored) COMPLETE** (`canonical_restore.canonicalize_symbol` + `PositionTracker.replace_instrument` + `ExecutionHandler.canonicalize_restored_positions`; futures EQUITY→FUTURE, option lot→master); **restored ORDER (#8) in-place swap NOT STARTED** |
 | **#4** — option path (selector → canonical-derived `Option`) | PLANNED (F4-gated) | not started |
 | #6/#7 — position construction | PLANNED | not started |
 

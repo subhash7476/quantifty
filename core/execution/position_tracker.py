@@ -166,3 +166,20 @@ class PositionTracker:
     def get_all_positions(self) -> Dict[str, Position]:
         """Get all current positions. Compatibility method for TradingRunner."""
         return self._positions.copy()
+
+    def replace_instrument(self, symbol: str, instrument: Instrument) -> None:
+        """G1 Wave 3 (#7-as-restored): swap a tracked position's instrument
+        identity, preserving side/quantity/avg_price/last_updated and the symbol
+        key (the new instrument carries the same .symbol). No-op for an untracked
+        symbol. Does not alter get_position's resolution (#7, H5) or the snapshot
+        table (#9, H6)."""
+        pos = self._positions.get(symbol)
+        if pos is None:
+            return
+        self._positions[symbol] = Position(
+            instrument=instrument,
+            side=pos.side,
+            quantity=pos.quantity,
+            avg_price=pos.avg_price,
+            last_updated=pos.last_updated,
+        )

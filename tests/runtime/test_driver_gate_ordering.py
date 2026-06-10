@@ -228,3 +228,26 @@ def test_canonicalize_hook_not_reached_on_block(tmp_path, alerts):
     d.run()
     assert d.state is RuntimeState.STOPPED and d.bars_processed == 0
     assert seq == ["READINESS"]                 # CANONICALIZE + RECONCILE unreached
+
+
+# --------------------------------------------------------------------------- #
+# Wiring: the gate-pass actually invokes the handler's position canonicalization
+# (G1 Wave 3 #7-as-restored), and the gate skips it whenever MM.4 would not
+# enforce — no checker injected (vacuous) or a BLOCK refusal.
+# --------------------------------------------------------------------------- #
+def test_gate_invokes_position_canonicalization_on_fresh(tmp_path, alerts):
+    d, _ = _build(tmp_path, _FRESH)
+    d.run()
+    assert d._execution.canonicalize_calls == 1
+
+
+def test_gate_skips_canonicalization_without_checker(tmp_path, alerts):
+    d, _ = _build(tmp_path, None)
+    d.run()
+    assert d._execution.canonicalize_calls == 0   # vacuous: master never verified
+
+
+def test_gate_skips_canonicalization_on_block(tmp_path, alerts):
+    d, _ = _build(tmp_path, _BLOCK)
+    d.run()
+    assert d._execution.canonicalize_calls == 0   # refused start, never canonicalized

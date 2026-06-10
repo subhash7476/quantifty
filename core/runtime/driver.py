@@ -418,29 +418,31 @@ class LoopDriver:
 
     def _canonicalize_restored_ledger(self) -> None:
         """
-        Option-B post-gate canonicalization pass (G1 Wave 3) — **currently a
-        documented NO-OP**; the insertion slot, not the body.
+        Option-B post-gate canonicalization pass (G1 Wave 3).
 
         Slotted strictly AFTER `_check_master_readiness()` proves the master is
         present and strictly BEFORE `_reconcile_ledger()` (G1_WAVE3B_GATE_ORDERING_
-        REVIEW.md §1). When implemented, it will re-resolve each live-F&O restored
-        ORDER identity (#8, order_repository.py:60) and tracked POSITION identity
-        (#7-as-restored, position_tracker.py:31) through `InstrumentResolver` and
-        swap `NormalizedOrder.instrument` / `Position.instrument` **in place** —
-        preserving symbol / correlation_id / signal_id / side / quantity / order_type
-        byte-for-byte (H7/H8) so the broker payload and reconciliation keying are
-        unchanged (H3). It will gate on the same condition as MM.4 (LIVE ∧
-        derivatives ∧ master-ready), staying a no-op for paper / replay / equity.
-
-        Restored orders and positions are migrated as SEPARATE, independently-
-        revertible steps (review §3); this method is the single slot both occupy.
-        Here at the restore site it must NOT touch `get_position`/#7 (H5) or wire
-        `position_repository.load_all`/#9 (H6). It runs only on a gate-pass
+        REVIEW.md §1). Enforced ONLY on the live derivative path, gated on the SAME
+        condition as MM.4 — LIVE ∧ derivatives ∧ an injected master-readiness
+        checker (so the master was actually verified, not vacuously passed) — so
+        paper / replay / equity-only-LIVE are a no-op. It runs only on a gate-pass
         (FRESH/WARN); a BLOCK aborts before it (no canonicalization on a refused
-        start). Evaluation/derivation only — `CanonicalInstrument` stays internal
-        (the G1 / 4C.7 boundary).
+        start).
+
+        Currently canonicalizes restored POSITIONS (#7-as-restored): the handler
+        re-resolves each tracked derivative position's symbol through the master
+        and swaps `Position.instrument` in place (futures EQUITY->FUTURE, option
+        parser-lot->master-lot), preserving symbol/side/quantity/avg_price. The
+        ledger mutation is the handler's (ADR-001); the driver only triggers it in
+        the slot. Restored ORDER identity (#8) is the SEPARATE, independently-
+        revertible wave and is not done here (review §3); `CanonicalInstrument`
+        stays internal (the G1 / 4C.7 boundary).
         """
-        return
+        if not (self._config.is_live
+                and has_derivatives(self._config.symbols)
+                and self._master_readiness is not None):
+            return
+        self._execution.canonicalize_restored_positions()
 
     def _reconcile_ledger(self) -> bool:
         """

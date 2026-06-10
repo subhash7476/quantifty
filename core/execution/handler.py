@@ -264,6 +264,28 @@ class ExecutionHandler:
             f"Replay complete. Loaded {len(orders)} orders, {len(fills)} fills, "
             f"{len(self._seen_signals)} seen signals, {self._trades_today} trades today.")
 
+    def canonicalize_restored_positions(self, resolver=None):
+        """G1 Wave 3 (#7-as-restored) Option-B post-gate canonicalization of
+        restored POSITION identity. Re-resolves each tracked derivative position's
+        symbol through the (gate-verified) instrument master and swaps
+        Position.instrument in place — futures EQUITY->FUTURE (H1), option
+        parser-lot->master-lot (H2) — preserving symbol/side/quantity/avg_price
+        (H3). Equity / unresolved symbols are left legacy (carve-out).
+
+        The ledger mutation is the handler's (ADR-001); the LoopDriver only
+        triggers this on the live-F&O gate-pass, AFTER master readiness and BEFORE
+        reconciliation. Restored ORDER identity (#8) is the separate wave and is
+        not touched here; get_position (#7 source, H5) and the positions snapshot
+        table (#9, H6) are left untouched."""
+        from core.execution.canonical_restore import canonicalize_symbol
+        from core.instruments.resolver import InstrumentResolver
+        resolver = resolver or InstrumentResolver()
+        as_of = self.clock.now()
+        for symbol in list(self.position_tracker.get_all_positions()):
+            legacy = canonicalize_symbol(symbol, as_of, resolver)
+            if legacy is not None:
+                self.position_tracker.replace_instrument(symbol, legacy)
+
     def _handle_broker_fill(self, fill: FillEvent):
         """
         Callback for broker fills.

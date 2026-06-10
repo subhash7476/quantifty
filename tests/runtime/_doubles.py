@@ -232,6 +232,7 @@ class FakeExecutionHandler:
                  raise_on: Optional[str] = None, kill_switch_on: Optional[str] = None):
         self.reconciliation = FakeReconciliation(reconcile_alerts)
         self.replay_state_calls = 0
+        self.canonicalize_calls = 0
         self.routed: List = []
         self.position_tracker = PositionTracker()
         # process_signal raises for a signal whose symbol == raise_on (§8.4
@@ -248,6 +249,13 @@ class FakeExecutionHandler:
 
     def _replay_state(self) -> None:
         self.replay_state_calls += 1
+
+    def canonicalize_restored_positions(self) -> None:
+        # Mirrors ExecutionHandler.canonicalize_restored_positions (G1 Wave 3
+        # #7-as-restored): the driver triggers it on the live-F&O gate-pass. A
+        # recording no-op here so the gate wiring is assertable without a real
+        # resolver/master.
+        self.canonicalize_calls += 1
 
     def activate_kill_switch(self, reason: str = "") -> None:
         # Mirrors ExecutionHandler.activate_kill_switch (idempotent flip). The
