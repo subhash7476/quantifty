@@ -117,9 +117,9 @@ Each wave is an independent commit; the characterization suite (Section 4) must 
 | **Wave 1** — prove-dead audit (#5 `OrderFactory`, #10 `NormalizedOrder(symbol=)`), #3 carve-out | **COMPLETE** | `G1_WAVE1_REPORT.md` |
 | **Wave 2A** — broker-payload truth + characterization net (7/7 green) | **COMPLETE** | `G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md` |
 | **#1** — `handler.process_signal` non-option branch → Future Resolution | **COMPLETE** | see below |
-| **#2** — restore path | **IN PROGRESS** | Wave 3A (restore reality pinned) + Wave 3B (gate-ordering review, orders-vs-positions = SEPARATE) + Option-B slot wired (`driver._canonicalize_restored_ledger`) + **restored POSITION canonicalization (#7-as-restored) COMPLETE** (`canonical_restore.canonicalize_symbol` + `PositionTracker.replace_instrument` + `ExecutionHandler.canonicalize_restored_positions`; futures EQUITY→FUTURE, option lot→master); **restored ORDER (#8) in-place swap NOT STARTED** |
+| **#2** — restore path | **COMPLETE** | Wave 3A (restore reality pinned) + Wave 3B (gate-ordering review, orders-vs-positions = SEPARATE) + Option-B slot wired (`driver._canonicalize_restored_ledger`) + **restored POSITION canonicalization (#7-as-restored) COMPLETE** (`canonical_restore.canonicalize_symbol` + `PositionTracker.replace_instrument` + `ExecutionHandler.canonicalize_restored_positions`) + **restored ORDER canonicalization (#8) COMPLETE** (`OrderTracker.replace_instrument`/`order_states` + `ExecutionHandler.canonicalize_restored_orders`; in-place `object.__setattr__` swap preserving correlation_id/signal_id/tracker-key — H7/H8). Both halves: futures EQUITY→FUTURE (H1), option parser-lot→master-lot (H2), symbol preserved (H3); restore-at-construction stays legacy (Option B) so Wave 3A characterization is green untouched. Full suite **409 passing**. |
 | **#4** — option path (selector → canonical-derived `Option`) | PLANNED (F4-gated) | not started |
-| #6/#7 — position construction | PLANNED | not started |
+| #6/#7 — position/order construction (FORWARD) | PLANNED | not started |
 
 **Target #1 — COMPLETE (2026-06-09).** Resolved **F-PARSE-1**. Implemented via:
 - `core/execution/futures.py` — `resolve_future(symbol, timestamp, resolver=None)` (regex-detect → `InstrumentResolver.resolve_future` → `CanonicalInstrument` → derive legacy `Future`; canonical internal-only).
@@ -137,10 +137,12 @@ Broker payload / persistence / restore / reconciliation contracts **unchanged** 
 
 ## NEXT ACTIVE TARGET
 
-**#2 — Restore Path.** (G1 stays OPEN until the Section-6 closure proof holds.)
+**#2 — Restore Path is COMPLETE** (both #7-as-restored positions and #8 orders canonicalize post-gate). The recommended next step is a **formal G1 closeout audit** (does any live F&O restore path still reach `InstrumentParser.parse`? do any post-gate derivative identities remain legacy? do all characterization suites pass? does the AST/grep evidence support closing the gate?) before authorizing **Wave 4 (#4 option path)**. The remaining migration sites are #4 (option, F4-gated) and #6/#7 (forward order/position construction); the Wave-5 AST/grep closure proof flips this document's verdict to "No". **G1 stays OPEN until the Section-6 closure proof holds.**
+
+**Wave-numbering reconciliation (per G1_WAVE3_RESTORE_REVIEW §0 / §6 step 7):** three numbering schemes coexist — Section-1 **site numbers** (restore = #8 order, #9 position), the §5 **wave table** (restore = "Wave 4"), and the Implementation-Status **Migration-Target** scheme (restore = "#2"). The work was executed under the **#2 / site-number** scheme; the §5 "Wave 4 = restore" label is the older planning name for the same work. No plan content changed — the §5 table is retained as historical, and the Migration-Target scheme above is authoritative for status.
 
 ---
 
 ## Status & next step
 
-**Verdict today: G1 OPEN ("Yes").** Wave 1 (prove-dead audit) and Wave 2 Migration Target #1 (Future Resolution) are **complete** (see Implementation Status above); the remaining sites still need migrating. Execution continues per the wave plan, characterization tests (Section 4) green before and after each wave, each wave independently revertible. 4C.7 stays blocked throughout (G1 is behavior-preserving; 4C.7 is the broker-payload change that follows G1 closure). **G1 is not closed.**
+**Verdict today: G1 OPEN ("Yes").** Wave 1 (prove-dead audit), Wave 2 Migration Target #1 (Future Resolution), and **Migration Target #2 (Restore Path — #7-as-restored positions + #8 orders)** are **complete** (see Implementation Status above); the remaining sites (#4 option, #6/#7 forward construction) still need migrating, and the Wave-5 AST/grep closure proof is not yet written. Execution continues per the wave plan, characterization tests (Section 4) green before and after each wave, each wave independently revertible. 4C.7 stays blocked throughout (G1 is behavior-preserving; 4C.7 is the broker-payload change that follows G1 closure). **G1 is not closed** — a formal closeout audit is the recommended next step.
