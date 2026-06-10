@@ -1,22 +1,25 @@
 """
 Gate G1 — Wave 3B driver-level gate-ordering characterization.
 
-Pins the CURRENT startup-gate call sequence so the Wave 3 Option-B post-gate
+Pins the startup-gate call sequence so the Wave 3 Option-B post-gate
 canonicalization pass has an executable insertion contract. This is the
 driver-level post-gate ordering test deliberately deferred in Wave 3A
 (G1_WAVE3A_CHARACTERIZATION_REPORT.md §7 gap 1) and named as the precondition
 for Wave 3 implementation (G1_WAVE3_RESTORE_REVIEW.md §4 gap 4 / §6 step 2).
-NO production code is changed; the hook does not exist yet — these tests
-characterize the SLOT it will occupy.
 
-The startup gate (driver.py:335-364 `_run_startup_gate`):
+`_canonicalize_restored_ledger()` now exists as a documented NO-OP at the mapped
+slot (G1_WAVE3B §6 step 3); the in-place-swap canonicalization body lands in the
+#8/#7 waves. These tests pin both the surrounding call order AND that the hook
+fires in the slot on a gate-pass and is unreached on a BLOCK.
+
+The startup gate (driver.py:335-369 `_run_startup_gate`):
 
     enter_recovery()                                          driver.py:346
     RECOVERY_STARTED / RECOVERY_COMPLETED  (reuse _replay_state, never re-run)
-    _check_master_readiness()   -> MM.4 gate                  driver.py:357
-        <------------------- OPTION-B HOOK INSERTION POINT
-    _reconcile_ledger()         -> reconciliation             driver.py:360
-    start()                     -> RUNNING                    driver.py:363
+    _check_master_readiness()        -> MM.4 gate             driver.py:357
+    _canonicalize_restored_ledger()  -> Option-B post-gate (NO-OP)  driver.py:360
+    _reconcile_ledger()              -> reconciliation        driver.py:363
+    start()                          -> RUNNING               driver.py:366
 
 Why a CALL-order spy and not just journal events: on the FRESH path
 `_check_master_readiness` emits NO journal event (only WARN/BLOCK do), so the
@@ -188,3 +191,40 @@ def test_no_checker_records_reconcile_only(tmp_path, alerts):
     ev = _events(tmp_path)
     assert "INSTRUMENT_MASTER_UNAVAILABLE" not in ev
     assert "RECONCILIATION_PASS" in ev
+
+
+# --------------------------------------------------------------------------- #
+# The Option-B no-op fires IN the slot on a gate-pass: strictly after readiness,
+# strictly before reconcile. Spying the production method itself proves the call
+# lands where the migration body will go — `["READINESS","CANONICALIZE","RECONCILE"]`.
+# --------------------------------------------------------------------------- #
+def test_canonicalize_hook_runs_in_the_slot_on_fresh(tmp_path, alerts):
+    d, seq = _build(tmp_path, _FRESH)
+    _real = d._canonicalize_restored_ledger
+
+    def _recording():
+        seq.append("CANONICALIZE")
+        return _real()
+
+    d._canonicalize_restored_ledger = _recording
+    d.run()
+    assert d.state is RuntimeState.STOPPED and d.bars_processed == 2
+    assert seq == ["READINESS", "CANONICALIZE", "RECONCILE"]
+
+
+# --------------------------------------------------------------------------- #
+# On BLOCK the gate aborts at readiness — the no-op (before reconcile) is never
+# reached, so canonicalization never runs on a refused start.
+# --------------------------------------------------------------------------- #
+def test_canonicalize_hook_not_reached_on_block(tmp_path, alerts):
+    d, seq = _build(tmp_path, _BLOCK)
+    _real = d._canonicalize_restored_ledger
+
+    def _recording():
+        seq.append("CANONICALIZE")
+        return _real()
+
+    d._canonicalize_restored_ledger = _recording
+    d.run()
+    assert d.state is RuntimeState.STOPPED and d.bars_processed == 0
+    assert seq == ["READINESS"]                 # CANONICALIZE + RECONCILE unreached

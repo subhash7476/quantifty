@@ -357,6 +357,12 @@ class LoopDriver:
         if not self._check_master_readiness():
             return False
 
+        # Option-B post-gate canonicalization (G1 Wave 3): re-resolve the restored
+        # ledger's identity through the now-verified master, AFTER readiness and
+        # BEFORE reconciliation. Currently a no-op (the in-place-swap body lands in
+        # the #8/#7 waves); the call site IS the contract.
+        self._canonicalize_restored_ledger()
+
         if not self._reconcile_ledger():
             return False
 
@@ -409,6 +415,32 @@ class LoopDriver:
                 f"INSTRUMENT_MASTER_STALE latest={verdict.latest} expected={verdict.expected}",
             )
         return True
+
+    def _canonicalize_restored_ledger(self) -> None:
+        """
+        Option-B post-gate canonicalization pass (G1 Wave 3) — **currently a
+        documented NO-OP**; the insertion slot, not the body.
+
+        Slotted strictly AFTER `_check_master_readiness()` proves the master is
+        present and strictly BEFORE `_reconcile_ledger()` (G1_WAVE3B_GATE_ORDERING_
+        REVIEW.md §1). When implemented, it will re-resolve each live-F&O restored
+        ORDER identity (#8, order_repository.py:60) and tracked POSITION identity
+        (#7-as-restored, position_tracker.py:31) through `InstrumentResolver` and
+        swap `NormalizedOrder.instrument` / `Position.instrument` **in place** —
+        preserving symbol / correlation_id / signal_id / side / quantity / order_type
+        byte-for-byte (H7/H8) so the broker payload and reconciliation keying are
+        unchanged (H3). It will gate on the same condition as MM.4 (LIVE ∧
+        derivatives ∧ master-ready), staying a no-op for paper / replay / equity.
+
+        Restored orders and positions are migrated as SEPARATE, independently-
+        revertible steps (review §3); this method is the single slot both occupy.
+        Here at the restore site it must NOT touch `get_position`/#7 (H5) or wire
+        `position_repository.load_all`/#9 (H6). It runs only on a gate-pass
+        (FRESH/WARN); a BLOCK aborts before it (no canonicalization on a refused
+        start). Evaluation/derivation only — `CanonicalInstrument` stays internal
+        (the G1 / 4C.7 boundary).
+        """
+        return
 
     def _reconcile_ledger(self) -> bool:
         """
