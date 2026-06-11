@@ -555,9 +555,17 @@ class ExecutionHandler:
                     policy=signal.metadata.get("option_policy", {}),
                 )
             else:
-                from core.execution.futures import resolve_future
-                future = resolve_future(signal.symbol, signal.timestamp)
-                instrument = future if future is not None else InstrumentParser.parse(signal.symbol)
+                # G1 Wave 4 #4 / O2 — derive the legacy identity for a derivative
+                # EXIT (or non-option entry) symbol from the canonical instrument
+                # master. canonicalize_symbol resolves a futures-shaped symbol to a
+                # Future (Wave 2 #1, unchanged) AND an option-shaped EXIT symbol to a
+                # master-lot Option (closing the O2 gap where parse hardcoded lot 1);
+                # the derived symbol stays byte-identical and the CanonicalInstrument
+                # stays internal (G1 / 4C.7). Equity / unresolved symbols fall back to
+                # InstrumentParser.parse exactly as before.
+                from core.execution.canonical_restore import canonicalize_symbol
+                derived = canonicalize_symbol(signal.symbol, signal.timestamp)
+                instrument = derived if derived is not None else InstrumentParser.parse(signal.symbol)
 
             # Determine Side and Quantity
             if signal.signal_type == SignalType.EXIT:

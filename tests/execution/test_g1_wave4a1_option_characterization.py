@@ -216,12 +216,15 @@ def test_m3_sell_signal_builds_put_option(tmp_path, monkeypatch):
 # M4 — option EXIT identity (the O2 leg)
 # --------------------------------------------------------------------------- #
 
-def test_m4_option_exit_uses_parser_lot_one_and_position_quantity(tmp_path, monkeypatch):
-    """O2 reality: an EXIT carrying the option SYMBOL takes the else branch ->
-    resolve_future (regex miss) -> InstrumentParser.parse -> Option(lot_size=1),
-    resolver-blind. The exit is still correctly sized because quantity comes from
-    current_position.quantity (lot-independent), so the lot-1 drift does not
-    mis-size the close today. This pins the behavior the O2 migration must preserve."""
+def test_m4_option_exit_derives_master_lot_and_position_quantity(tmp_path, monkeypatch):
+    """O2 migrated (G1 Wave 4 #4 / O2): an EXIT carrying the option SYMBOL takes the
+    else branch -> canonicalize_symbol -> master-derived Option(lot_size=65), no
+    longer the parser's resolver-blind lot 1. The intended change is the lot byte
+    only; every other byte is unchanged. Crucially the exit quantity stays
+    current_position.quantity (lot-independent), so the broker payload (symbol /
+    side / quantity / order_type) is unaffected by the lot derivation — the close
+    is sized off the open position, not the lot. ENTRY and EXIT now agree on the
+    master lot (the identity asymmetry O2 closed)."""
     store_path = tmp_path / "execution.db"
     handler, broker = _build_handler(tmp_path, monkeypatch, store_path, load_db_state=True)
 
@@ -233,7 +236,7 @@ def test_m4_option_exit_uses_parser_lot_one_and_position_quantity(tmp_path, monk
     assert entry.symbol == NIFTY_CALL_SYMBOL
     assert handler.position_tracker.net_quantity(NIFTY_CALL_SYMBOL) == 75.0
 
-    # EXIT carries the option symbol -> else branch -> parse.
+    # EXIT carries the option symbol -> else branch -> canonicalize_symbol (O2).
     exit_order = handler.process_signal(
         _signal(NIFTY_CALL_SYMBOL, 75, signal_type=SignalType.EXIT,
                 metadata=_option_meta()),
@@ -241,17 +244,22 @@ def test_m4_option_exit_uses_parser_lot_one_and_position_quantity(tmp_path, monk
     )
 
     assert exit_order is not None
-    assert exit_order.symbol == NIFTY_CALL_SYMBOL
+    assert exit_order.symbol == NIFTY_CALL_SYMBOL            # byte-identical, unchanged by O2
     assert exit_order.instrument_type == InstrumentType.OPTION
-    assert exit_order.instrument.lot_size == 1               # parse path, resolver-blind
+    assert exit_order.instrument.lot_size == NIFTY_MASTER_LOT  # O2: canonical-derived (was 1)
     assert exit_order.side == OrderSide.SELL                 # closing the LONG
-    assert exit_order.quantity == 75                         # position-sourced, not lot-sized
+    assert exit_order.quantity == 75                         # position-sourced, NOT lot-sized
     assert exit_order.order_type == OrderType.MARKET
 
-    # The ENTRY (selector) and EXIT (parser) lots differ — proof the two legs take
-    # different identity paths today (the gap O2 closes).
+    # Broker payload is unaffected by the lot derivation — quantity is the position
+    # quantity (lot-independent), proving the O2 lot change does not touch sizing.
+    assert broker.received[-1].quantity == 75
+    assert broker.received[-1].symbol == NIFTY_CALL_SYMBOL
+
+    # ENTRY (selector) and EXIT (canonical derivation) now agree on the master lot —
+    # the identity asymmetry O2 closed (was 65 vs 1).
     assert entry.instrument.lot_size == NIFTY_MASTER_LOT
-    assert exit_order.instrument.lot_size == 1
+    assert exit_order.instrument.lot_size == NIFTY_MASTER_LOT
 
 
 # --------------------------------------------------------------------------- #
