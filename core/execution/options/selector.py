@@ -85,7 +85,6 @@ class OptionsContractSelector:
         expiry_days_min = policy.get("expiry_days_min", 2)
         step = policy.get("strike_step") or INDEX_STRIKE_STEPS.get(underlying, 50)
         override = policy.get("lot_size_override")
-        lot_size = override or INDEX_LOT_SIZES.get(underlying, 50)
 
         from_date = timestamp.date() if isinstance(timestamp, datetime) else timestamp
         # Allow caller to pin to a specific expiry date (e.g., leg adjustments stay on same week)
@@ -102,23 +101,38 @@ class OptionsContractSelector:
         )
         symbol = self._build_symbol(short_name, expiry, strike, option_type)
 
-        # Source the real lot_size from the master SSOT; fall back to the
-        # hardcoded table when the master is absent (identical legacy behavior,
-        # ADR-003 determinism — the returned type never flips on DB presence).
+        # G1 Wave 4 #4 / O1 — DERIVE the legacy Option from the canonical instrument
+        # master instead of reading only its lot and discarding it. When the master
+        # carries the contract the CI is the identity SOURCE (its master lot is read);
+        # the symbol stays selector-computed (never ci.display_symbol) so the broker
+        # payload byte is preserved, and the CI stays internal — it never reaches
+        # NormalizedOrder, persistence, or the broker payload (the G1 / 4C.7 boundary).
+        # Mirrors core.execution.futures.resolve_future / canonical_restore._resolve_option.
         if override is None:
-            resolver = self._resolver or InstrumentResolver()
-            ci = resolver.resolve_option(
+            ci = (self._resolver or InstrumentResolver()).resolve_option(
                 underlying, expiry, float(strike), option_type, as_of=from_date)
             if ci is not None:
-                lot_size = ci.lot_size
+                return Option(
+                    symbol=symbol,
+                    underlying=underlying,
+                    expiry=expiry,
+                    strike=float(strike),
+                    option_type=option_type,
+                    lot_size=ci.lot_size,
+                    multiplier=1.0,
+                )
 
+        # Master absent / contract not carried / caller override — derive from the
+        # computed fields with the override (precedence preserved) or INDEX_LOT_SIZES
+        # fallback lot (ADR-003: the returned type never flips on DB presence,
+        # mirroring resolve_future's master-absent branch).
         return Option(
             symbol=symbol,
             underlying=underlying,
             expiry=expiry,
             strike=float(strike),
             option_type=option_type,
-            lot_size=lot_size,
+            lot_size=override or INDEX_LOT_SIZES.get(underlying, 50),
             multiplier=1.0,
         )
 
