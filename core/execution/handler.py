@@ -324,6 +324,21 @@ class ExecutionHandler:
             
             self.order_tracker.process_fill(fill)
             realized_pnl = self.position_tracker.update_from_fill(fill)
+            # G1 Wave 4B (#7) — canonicalize the live forward position's identity
+            # from the instrument master at the fill seam. LIVE-only by construction:
+            # restore replay calls update_from_fill directly (_replay_state), never
+            # _handle_broker_fill, so restored positions stay legacy at construction
+            # (Option B / ADR-003) and the post-gate canonicalize_restored_positions
+            # pass owns their upgrade. Reusing the restore primitive guarantees a
+            # forward-built position and its restored twin carry byte-identical
+            # canonical identity (no restart drift). The derived legacy Future/Option
+            # keeps the same .symbol (position key preserved); equity / unresolved ->
+            # None -> position left legacy (carve-out). CanonicalInstrument stays
+            # internal (G1 / 4C.7).
+            from core.execution.canonical_restore import canonicalize_symbol
+            derived = canonicalize_symbol(fill.symbol, fill.timestamp)
+            if derived is not None:
+                self.position_tracker.replace_instrument(fill.symbol, derived)
             self.pnl_tracker.update(fill, realized_pnl)
             
             # Use raw correlation ID for group tracker

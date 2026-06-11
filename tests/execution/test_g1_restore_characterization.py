@@ -166,24 +166,29 @@ def test_restore_future_order_reverts_to_equity(tmp_path, monkeypatch):
 
 
 def test_restore_future_position_rebuilt_as_equity(tmp_path, monkeypatch):
-    """Restored futures position identity is EQUITY-typed (site #7 via fill replay).
+    """Restored futures position identity is EQUITY-typed at construction (Option B).
 
-    Note (characterized honestly): the FORWARD position is ALSO Equity-typed —
-    position_tracker.get_position parses the symbol on both paths, so the H1
-    type asymmetry is at the ORDER level; position identity was never FUTURE.
+    Note (updated for Wave 4B #7): the FORWARD position is now canonical-derived
+    FUTURE (the live fill seam, handler.py:_handle_broker_fill). The RESTORED
+    position still rebuilds EQUITY at construction (restore replays via the
+    untouched update_from_fill — Option B / ADR-003); its FUTURE upgrade is the
+    separate post-gate canonicalize_restored_positions pass (not run here). So the
+    H1 asymmetry now lives between forward (FUTURE) and restore-at-construction
+    (EQUITY) until the post-gate pass runs — exactly the restart parity Wave 4B P5
+    pins once the pass is applied.
     """
     store_path = tmp_path / "execution.db"
     handler_a, _ = _build_handler(tmp_path, monkeypatch, store_path)
     handler_a.process_signal(_signal(FUTURES_SYMBOL, 50), current_price=23000.0)
 
-    # Forward position: already Equity-typed (site #7 parse, not the Wave 2 fix).
+    # Forward position: canonical-derived FUTURE at the fill seam (Wave 4B #7).
     fwd_pos = handler_a.position_tracker.get_all_positions()[FUTURES_SYMBOL]
-    assert fwd_pos.instrument.type == InstrumentType.EQUITY
+    assert fwd_pos.instrument.type == InstrumentType.FUTURE
 
     handler_b, _ = _build_handler(tmp_path, monkeypatch, store_path)
     pos = handler_b.position_tracker.get_all_positions()[FUTURES_SYMBOL]
     assert pos.symbol == FUTURES_SYMBOL
-    assert pos.instrument.type == InstrumentType.EQUITY   # current reality
+    assert pos.instrument.type == InstrumentType.EQUITY   # restore-at-construction stays legacy (Option B)
     assert handler_b.position_tracker.net_quantity(FUTURES_SYMBOL) == 50.0
 
 
@@ -224,12 +229,15 @@ def test_restore_option_order_lot_drifts_to_one(tmp_path, monkeypatch):
 
 
 def test_restore_option_position_lot_is_one(tmp_path, monkeypatch):
-    """Restored option position instrument carries lot_size=1 (site #7 parse).
+    """Restored option position instrument carries lot_size=1 at construction (Option B).
 
-    Note (characterized honestly): the FORWARD position instrument ALSO has
-    lot_size=1 — get_position parses the symbol on both paths; the selector's
-    lot-65 Option lives only on the order's instrument. The forward/restore lot
-    drift (H2) is at the ORDER level.
+    Note (updated for Wave 4B #7): the FORWARD position instrument now carries the
+    master lot (65) — canonical-derived at the live fill seam. The RESTORED position
+    still rebuilds lot 1 at construction (restore replays via the untouched
+    update_from_fill — Option B / ADR-003); its lot-65 upgrade is the separate
+    post-gate canonicalize_restored_positions pass (not run here). The forward/restore
+    lot drift now lives between forward (65) and restore-at-construction (1) until the
+    post-gate pass runs.
     """
     store_path = tmp_path / "execution.db"
     handler_a, _ = _build_handler(tmp_path, monkeypatch, store_path)
@@ -237,7 +245,7 @@ def test_restore_option_position_lot_is_one(tmp_path, monkeypatch):
     handler_a.process_signal(sig, current_price=OPTION_PRICE)
 
     fwd_pos = handler_a.position_tracker.get_all_positions()[EXPECTED_OPTION_SYMBOL]
-    assert fwd_pos.instrument.lot_size == 1   # parse-built even forward (site #7)
+    assert fwd_pos.instrument.lot_size == FORWARD_OPTION_LOT   # 65: canonical-derived (Wave 4B #7)
 
     handler_b, _ = _build_handler(tmp_path, monkeypatch, store_path)
     pos = handler_b.position_tracker.get_all_positions()[EXPECTED_OPTION_SYMBOL]
