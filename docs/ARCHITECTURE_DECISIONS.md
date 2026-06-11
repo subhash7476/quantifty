@@ -203,3 +203,33 @@ This is the load-bearing **G1 / 4C.7 boundary**: G1 makes canonical the *source*
 - **Gate G1 remains OPEN**: this closes one migration site; the remaining sites (restore, option, position) and the Section-6 closure proof remain.
 
 *Ref: docs/reports/G1_WAVE2_IMPLEMENTATION_REPORT.md; docs/reports/SOLE_IDENTITY_PATH_REVIEW.md; docs/reports/G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md; core/execution/futures.py; core/execution/handler.py; ADR-003, ADR-006.*
+
+---
+
+## ADR-MM7E-1 — The Production Composition Root Injects `SignalSource`, It Does Not Construct It
+
+**Status:** **Accepted** (2026-06-12) · Phase MM7E.1 composition-root scope challenge.
+
+### Context
+ADR-006 binds all trading intent to one path — `SignalSource → LoopDriver → ExecutionHandler → Ledger` — and names the `LoopDriver` the sole runtime orchestrator, but it does not say *who constructs the object graph* in production. The first production **composition root** — the F&O entry script that constructs a live `LoopDriver` (`scripts/fno_runner.py`, the Planned #4 live-enablement track) — does not yet exist; today `LoopDriver(...)` is constructed only under `tests/`. The MM7E review (`docs/reports/MM7E_ENTRY_SCRIPT_REVIEW.md`) maps the five objects that root must wire (`ExecutionHandler` `load_db_state=True` → `PaperBroker` → `RealTimeClock` → live `MarketDataProvider` → `build_master_readiness`) and identifies the one collaborator that carries judgment — the production `SignalSource` (W1) — as the sole gateway to alpha, the MM7C C4 chain-parity obligation, and F4 live-lot sizing. The open question (MM7E.1): **does the entry script construct a production `SignalSource` (Design A), or accept one by dependency injection (Design B)?**
+
+### Decision
+The production composition root **constructs the four mechanical collaborators** (`LoopDriver`, `ExecutionHandler`, `PaperBroker`, provider) and **accepts `SignalSource` via dependency injection** — a typed parameter with a not-None refusal before the driver is built. **MM7E does not own `SignalSource` construction.** It depends only on the C1–C6 *consumer protocol* (`core/runtime/signal_source.py`), never on any concrete strategy/source module. The first concrete source — minimal-deterministic or real-strategy — is deferred to a later slice that wires the terminal root.
+
+This is the production-shaped continuation of the seam ADR-006 already mandates and MM7D.1 already proved: `source` is an existing `LoopDriver.__init__` parameter, MM7D.1 *injected* a synthetic source rather than constructing one, and Design B promotes that exact injection from test-local to the runner's signature. **MM7E requires the seam for a source, not a production source.**
+
+The refusal contract is preserved at the composition root, not relocated into `run()`: the script asserts `source is not None` before constructing the driver (the T1 acceptance predicate), keeping `source` optional on the driver for the legitimate inert replay path while making "a live run needs a source" a hard refusal at the root.
+
+### Alternatives Considered
+- **Design A — root constructs a "minimal deterministic" production source** — rejected. Even a no-alpha source is new production code MM7E must author and own, with its own correctness burden and a standing temptation to grow toward the real strategy; it drags the slice's risk profile from "mechanical plumbing, fully netted by MM7C+MM7D.1" toward alpha + chain-parity + F4, collapsing two roadmap slices into one under-netted slice. It also couples MM7E by import to a concrete source module.
+- **Make `run()` raise when `source is None`** — rejected: that breaks the legitimate inert replay/Phase-C path. The refusal belongs at the composition root (the script), not inside the driver.
+- **Defer the entire entry script until a real strategy source exists** — rejected: the composition root is independently testable and independently valuable (it proves recovery → readiness → canonicalization → reconciliation → watchdog end-to-end at `ExecutionMode.PAPER` with no capital at risk). Injection lets the root land and run its full gate against a test-double/minimal source now.
+
+### Consequences
+- The entry script is **pure plumbing**: zero source-risk surface (no alpha, no MM7C C4 chain provider, no F4 enters MM7E), zero import edge to any strategy module, smallest production root (four constructed objects, not five).
+- **W1 ("no production `SignalSource` exists") leaves MM7E's critical path entirely** and becomes solely the later strategy slice's concern. MM7E's acceptance tests inject doubles (as the MM7A `_fno_live_contract` predicate already asserts only `source is not None`).
+- Honest boundary: Design B makes MM7E a **partial** composition root, not the terminal one — terminal source construction (and the single file that can run live unaided) relocates to the strategy slice. This is correct: the slice that owns alpha owns wiring the real source.
+- Consistent with **ADR-006** (intent enters only via the `SignalSource` seam driven by the `LoopDriver`), **ADR-002** (no `Platform → Strategy` coupling — the root names no concrete source), and **ADR-005** (execution-before-alpha — the de-risked execution root ships first, the alpha-bearing source later).
+- This sharpens the review body's §7-1/§8.1 mitigation from "ship a minimal source" to "inject the source"; it does not alter the runtime target (`Mode.LIVE`/`ExecutionMode.PAPER`, §3), the refusal contract (§4), the G1-protected activation sequence (§5), or the characterization net (§6).
+
+*Ref: docs/reports/MM7E_ENTRY_SCRIPT_REVIEW.md (§10 scope challenge; §0–§9 entry-script map); docs/reports/MM7C_SIGNALSOURCE_CHARACTERIZATION.md (C1–C6); docs/reports/MM7D1_SYNTHETIC_WIRING_PROOF.md; docs/PROJECT_STATE.md (Completed — Phase MM7E); docs/CHANGELOG_PLATFORM.md (2026-06-12); core/runtime/signal_source.py; core/runtime/driver.py; ADR-002, ADR-005, ADR-006.*
