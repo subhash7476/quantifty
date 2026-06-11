@@ -4,7 +4,7 @@
 **Date:** 2026-06-09
 **Phase:** Review Gate G1 (`PHASE_4C_IMPLEMENTATION_PLAN.md` §2) — the last identity-scope readiness track before 4C.7.
 **Question G1 answers:** *Can any live F&O execution path construct an instrument identity WITHOUT going through `InstrumentResolver` / `CanonicalInstrument`?*
-**Verdict today: YES — legacy construction remains (G1 OPEN).** This document is the plan that drives it to **"No"**; it is updated to conclude "No" only when Section 6's closure criteria are met and proven.
+**Verdict (2026-06-11): NO — `CanonicalInstrument` is the sole identity source on the live F&O path. GATE G1 CLOSED.** All Section-6 closure criteria are met and mechanically proven (`tests/g1/test_g1_closure_guard.py`, 19 tests) and confirmed by the final closeout audit (`G1_CLOSEOUT_REPORT.md`). *(Historical: this opened "Yes — legacy construction remains"; the document below is the plan that drove it to "No", retained as the migration record.)*
 **Scope (locked, mirrors the MM.4 gate):** "sole identity source" is asserted on the **live F&O path** — the only path where the MM.4 startup gate guarantees the master is present. Equity-only-LIVE and paper/replay are explicit **carve-outs**, not forced-canonical.
 **Basis (file:line, verified 2026-06-09):** `handler.py`, `order_factory.py`, `position_models.py`, `position_tracker.py`, `order_models.py`, `persistence/{order,position}_repository.py`, `options/selector.py`, `greeks/greeks_calculator.py`. Supersedes the pre-MM.5 enumeration in `PHASE_4C_WIRING_REVIEW.md` §3.
 
@@ -108,6 +108,8 @@ Each wave is an independent commit; the characterization suite (Section 4) must 
 
 **Until #1–#5 hold with the Section 4 suite green, G1 remains OPEN and this document's verdict stays "Yes — legacy construction remains."**
 
+> **CLOSURE (2026-06-11):** #1–#5 now all hold with the full suite green (441 passing). Criterion #5 is `tests/g1/test_g1_closure_guard.py` (19 AST + grep + characterization tests, commit `87f5b2f`); the final closeout audit (`G1_CLOSEOUT_REPORT.md`) independently confirmed the live call graph has a single canonical order funnel (`process_signal`, the only runtime caller of which is `LoopDriver._dispatch_signals`; the parse-using `process_group_signal`/#3 carve-outs have no live caller). **Gate G1 is CLOSED; this document's verdict is "No."**
+
 ---
 
 ## Implementation Status (live)
@@ -118,8 +120,10 @@ Each wave is an independent commit; the characterization suite (Section 4) must 
 | **Wave 2A** — broker-payload truth + characterization net (7/7 green) | **COMPLETE** | `G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md` |
 | **#1** — `handler.process_signal` non-option branch → Future Resolution | **COMPLETE** | see below |
 | **#2** — restore path | **COMPLETE** | Wave 3A (restore reality pinned) + Wave 3B (gate-ordering review, orders-vs-positions = SEPARATE) + Option-B slot wired (`driver._canonicalize_restored_ledger`) + **restored POSITION canonicalization (#7-as-restored) COMPLETE** (`canonical_restore.canonicalize_symbol` + `PositionTracker.replace_instrument` + `ExecutionHandler.canonicalize_restored_positions`) + **restored ORDER canonicalization (#8) COMPLETE** (`OrderTracker.replace_instrument`/`order_states` + `ExecutionHandler.canonicalize_restored_orders`; in-place `object.__setattr__` swap preserving correlation_id/signal_id/tracker-key — H7/H8). Both halves: futures EQUITY→FUTURE (H1), option parser-lot→master-lot (H2), symbol preserved (H3); restore-at-construction stays legacy (Option B) so Wave 3A characterization is green untouched. Full suite **409 passing**. |
-| **#4** — option path (selector → canonical-derived `Option`) | PLANNED (F4-gated) | not started |
-| #6/#7 — position/order construction (FORWARD) | PLANNED | not started |
+| **#4** — option path (selector → canonical-derived `Option`; O1 ENTRY + O2 EXIT) | **COMPLETE** | Wave 4 (`selector.py` O1 derives `Option` from CI; `handler.py:581-583` O2 EXIT via `canonicalize_symbol`). Behavior-preserving; F4-gated for going *live*, not for the refactor. |
+| **#7** — forward position construction | **COMPLETE** | Wave 4B (`handler._handle_broker_fill` canonicalizes the open position at the fill seam via `canonicalize_symbol`; restore twin matches post-gate). |
+| **#6** — `Position(symbol=)` ctor / **#5** `OrderFactory` / **#10** `NormalizedOrder(symbol=)` | **CLOSED (dead)** | Prove-dead — no production caller (guarded by `test_position_symbol_constructor_has_no_production_callers` + the Wave-5 parse/construction inventory). |
+| **Wave 5** — AST/grep/characterization closure guard (criterion #5) | **COMPLETE** | `tests/g1/test_g1_closure_guard.py` (19 tests). Flips the verdict to "No". *(G1_WAVE5_CLOSURE_GUARD_REPORT.md, G1_CLOSEOUT_REPORT.md)* |
 
 **Target #1 — COMPLETE (2026-06-09).** Resolved **F-PARSE-1**. Implemented via:
 - `core/execution/futures.py` — `resolve_future(symbol, timestamp, resolver=None)` (regex-detect → `InstrumentResolver.resolve_future` → `CanonicalInstrument` → derive legacy `Future`; canonical internal-only).
@@ -137,7 +141,7 @@ Broker payload / persistence / restore / reconciliation contracts **unchanged** 
 
 ## NEXT ACTIVE TARGET
 
-**#2 — Restore Path is COMPLETE** (both #7-as-restored positions and #8 orders canonicalize post-gate). The recommended next step is a **formal G1 closeout audit** (does any live F&O restore path still reach `InstrumentParser.parse`? do any post-gate derivative identities remain legacy? do all characterization suites pass? does the AST/grep evidence support closing the gate?) before authorizing **Wave 4 (#4 option path)**. The remaining migration sites are #4 (option, F4-gated) and #6/#7 (forward order/position construction); the Wave-5 AST/grep closure proof flips this document's verdict to "No". **G1 stays OPEN until the Section-6 closure proof holds.**
+**G1 is CLOSED — the identity-architecture program is complete.** All migration sites landed (#1 futures, #2 restore orders+positions, #4 option O1/O2, #7 forward position; #5/#6/#10 prove-dead carve-outs) and the Wave-5 closure guard + final closeout audit flipped the verdict to "No" (2026-06-11). The critical path now shifts **off identity** onto live-enablement: **MM.7 live wiring** (the F&O entry script that builds a live `LoopDriver` + injects `build_master_readiness` + wires `broker_positions` reconciliation), **F3** (tick-size paise scaling), **F4** (lot 65/30 exchange verification), and the **F&O product/segment model + SPAN margin** (Planned #4/#5) — none unblocked by G1 closure. 4C.7 (the broker-payload change) stays blocked. *(History below retained as the migration record.)*
 
 **Wave-numbering reconciliation (per G1_WAVE3_RESTORE_REVIEW §0 / §6 step 7):** three numbering schemes coexist — Section-1 **site numbers** (restore = #8 order, #9 position), the §5 **wave table** (restore = "Wave 4"), and the Implementation-Status **Migration-Target** scheme (restore = "#2"). The work was executed under the **#2 / site-number** scheme; the §5 "Wave 4 = restore" label is the older planning name for the same work. No plan content changed — the §5 table is retained as historical, and the Migration-Target scheme above is authoritative for status.
 
@@ -145,4 +149,4 @@ Broker payload / persistence / restore / reconciliation contracts **unchanged** 
 
 ## Status & next step
 
-**Verdict today: G1 OPEN ("Yes").** Wave 1 (prove-dead audit), Wave 2 Migration Target #1 (Future Resolution), and **Migration Target #2 (Restore Path — #7-as-restored positions + #8 orders)** are **complete** (see Implementation Status above); the remaining sites (#4 option, #6/#7 forward construction) still need migrating, and the Wave-5 AST/grep closure proof is not yet written. Execution continues per the wave plan, characterization tests (Section 4) green before and after each wave, each wave independently revertible. 4C.7 stays blocked throughout (G1 is behavior-preserving; 4C.7 is the broker-payload change that follows G1 closure). **G1 is not closed** — a formal closeout audit is the recommended next step.
+**Verdict (2026-06-11): G1 CLOSED ("No").** Wave 1 (prove-dead), Wave 2 #1 (Future Resolution), Migration Target #2 (Restore Path — #7-as-restored positions + #8 orders), Wave 4 #4 (option O1/O2), Wave 4B #7 (forward position at the fill seam), and Wave 5 (the AST/grep/characterization closure guard) are **all complete**; the formal closeout audit (`G1_CLOSEOUT_REPORT.md`) confirmed every Section-6 criterion and the single canonical live order funnel. Each wave was independently revertible with the Section-4 characterization net green before and after. 4C.7 stays blocked (G1 is behavior-preserving; 4C.7 is the broker-payload change that follows). **G1 is closed; the next program is live-enablement (MM.7 wiring, F3, F4, F&O product/margin).**
