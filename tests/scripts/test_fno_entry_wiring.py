@@ -1,22 +1,19 @@
 """
-MM.7A — T1: F&O entry-script wiring acceptance + current-absence characterization.
+MM.7A — T1: F&O entry-script wiring acceptance (CONVERTED from tripwire to
+acceptance by MM7E).
 
 The MM.7 wiring review (MM7_LIVE_WIRING_REVIEW.md §0/§6 W1) found that NO
-production module constructs a live `LoopDriver` — it is built only in tests, and
-there is no production `SignalSource` to inject. This file does two things:
+production module constructed a live `LoopDriver`. MM7E landed
+`scripts/fno_runner.py` — the composition root (Design B / ADR-MM7E-1) — so the
+original absence tripwires are now CONSCIOUSLY FLIPPED to their acceptance form:
 
-1. Documents the current absence (the G1 closeout audit's call-graph finding:
-   "no live LoopDriver is constructed outside tests/"). The absence test is a
-   tripwire — it goes RED the moment an F&O entry script lands in scripts/, at
-   which point the contract predicate below becomes that script's real acceptance
-   check.
-2. Pins the acceptance contract the future entry script MUST satisfy as an
-   executable predicate (`_fno_live_contract`): Mode.LIVE, has_derivatives,
-   execution present, master_readiness present, source present — demonstrated
-   GREEN against a correctly-wired driver built from the shared test doubles, and
-   shown to REJECT each missing piece.
-
-No entry script, no SignalSource, no production code is created here.
+1. The entry script now EXISTS and IS the runner entry point (was: assert it does
+   not exist).
+2. The acceptance contract (`_fno_live_contract`: Mode.LIVE, has_derivatives,
+   execution present, master_readiness present, source present) is now asserted
+   against the driver the PRODUCTION root actually builds (was: asserted only
+   against a doubles-wired driver). The doubles-based predicate + rejection cases
+   are retained as the executable spec of each clause.
 """
 
 import sys
@@ -84,25 +81,32 @@ def alerts(monkeypatch):
 
 
 # --------------------------------------------------------------------------- #
-# CURRENT ABSENCE: no production module under scripts/ constructs a live
-# LoopDriver. Tripwire — flips when the F&O entry script lands.
+# CONVERTED ACCEPTANCE (MM7E): the F&O entry script now EXISTS and IS the runner
+# entry point — the two absence tripwires are consciously flipped, and the
+# predicate is asserted against the driver the PRODUCTION root actually builds.
 # --------------------------------------------------------------------------- #
-def test_no_scripts_module_constructs_a_loopdriver():
-    offenders = [
-        p.relative_to(_REPO_ROOT).as_posix()
-        for p in (_REPO_ROOT / "scripts").glob("*.py")
-        if "LoopDriver(" in p.read_text(encoding="utf-8")
-    ]
-    assert offenders == [], (
-        f"F&O entry script may now exist ({offenders}) — convert "
-        "_fno_live_contract into its real acceptance assertion (MM.7A T1)."
-    )
+def test_fno_entry_script_now_exists_and_builds_a_loopdriver():
+    runner = _REPO_ROOT / "scripts" / "fno_runner.py"
+    assert runner.exists()
+    assert "LoopDriver(" in runner.read_text(encoding="utf-8")
 
 
-def test_no_runner_script_exists_yet():
-    # The MM.7 review's W1: there is no scripts/*runner*/trade-loop entry point.
+def test_fno_runner_is_the_runner_entry_point():
     runners = sorted(p.name for p in (_REPO_ROOT / "scripts").glob("*runner*.py"))
-    assert runners == []
+    assert "fno_runner.py" in runners
+
+
+def test_production_root_built_driver_satisfies_full_contract(alerts, tmp_path, monkeypatch):
+    # The predicate converted from a doubles-only spec into the PRODUCTION root's
+    # real acceptance: the driver scripts.fno_runner.build_runner builds for a live
+    # F&O universe satisfies every contract clause (Mode.LIVE, has_derivatives,
+    # execution, master_readiness, source).
+    from _runner_harness import DERIV, NoopSource, build, make_master
+    master = make_master(tmp_path)
+    d = build(tmp_path, monkeypatch, source=NoopSource(), symbols=(DERIV,),
+              underlyings=["NIFTY"], master_db_path=master)
+    contract = _fno_live_contract(d)
+    assert all(contract.values()), contract
 
 
 # --------------------------------------------------------------------------- #

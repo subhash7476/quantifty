@@ -354,12 +354,14 @@ def test_determinism_two_runs_identical_artifacts(tmp_path, alerts, monkeypatch)
 
 
 # --------------------------------------------------------------------------- #
-# 8. The proof is test-local — it does not masquerade as a production entry
-#    script, so the MM7A T1 tripwire stays green (MM7D §0).
+# 8. The proof is test-local — it lives under tests/ and defines its own
+#    synthetic source rather than importing the production entry script.
+#    (The "no scripts/ LoopDriver" tripwire was MM7A T1's; MM7E consciously
+#    flipped it — scripts/fno_runner.py now exists — so this proof no longer
+#    asserts that absence; it only asserts its own test-locality.)
 # --------------------------------------------------------------------------- #
 def test_proof_harness_is_test_local_not_an_entry_script():
-    assert "tests" in Path(__file__).resolve().parts  # this proof lives under tests/
-    repo_root = Path(__file__).resolve().parents[2]
-    offenders = [p.name for p in (repo_root / "scripts").glob("*.py")
-                 if "LoopDriver(" in p.read_text(encoding="utf-8")]
-    assert offenders == []   # no scripts/ module constructs a LoopDriver (MM7A T1)
+    here = Path(__file__).resolve()
+    assert "tests" in here.parts and "scripts" not in here.parts
+    # The proof's source is defined in THIS module, not imported from scripts/.
+    assert SyntheticBuyExitSource.__module__ == __name__
