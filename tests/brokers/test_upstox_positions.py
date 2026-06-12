@@ -80,3 +80,97 @@ def test_get_positions_returns_empty_on_exception():
     adapter._make_request = _boom
 
     assert adapter.get_positions() == {}
+
+
+# --------------------------------------------------------------------------- #
+# MM7J.2 — instrument_token preservation (Route R1, MM7J.1 verified the live
+# net-positions payload carries instrument_token = NSE_FO|<token>, byte-identical
+# to the ledger key). get_positions() must retain it on the returned position so
+# downstream reconciliation can key on it — WITHOUT changing the dict key, any
+# existing Position field, or any other observable behavior.
+# --------------------------------------------------------------------------- #
+
+def test_get_positions_preserves_instrument_token():
+    """A derivative net-positions line carrying instrument_token surfaces it on
+    the returned broker position (NSE_FO|<token>, the ledger namespace)."""
+    adapter = _adapter({
+        "status": "success",
+        "data": [
+            {"instrument_token": "NSE_FO|79381",
+             "trading_symbol": "NIFTY26JAN2623500CE", "quantity": "75",
+             "average_price": "120.5"},
+        ],
+    })
+
+    positions = adapter.get_positions()
+
+    # dict KEY is unchanged — still the trading_symbol (no re-key this slice)
+    assert "NIFTY26JAN2623500CE" in positions
+    pos = positions["NIFTY26JAN2623500CE"]
+    # the token rides on the position, in the ledger namespace
+    assert pos.instrument_token == "NSE_FO|79381"
+
+
+def test_get_positions_with_token_leaves_existing_fields_unchanged():
+    """Preserving instrument_token does not perturb side / quantity / avg_price /
+    symbol, and the position is still a Position (base.py contract holds)."""
+    adapter = _adapter({
+        "status": "success",
+        "data": [
+            {"instrument_token": "NSE_FO|79381",
+             "trading_symbol": "NIFTY26JAN2623500CE", "quantity": "-50",
+             "average_price": "88.0"},
+        ],
+    })
+
+    pos = adapter.get_positions()["NIFTY26JAN2623500CE"]
+
+    assert isinstance(pos, Position)
+    assert pos.symbol == "NIFTY26JAN2623500CE"
+    assert pos.side == PositionSide.SHORT
+    assert pos.quantity == 50.0
+    assert pos.avg_price == 88.0
+
+
+def test_get_positions_token_absent_is_none_no_behavior_change():
+    """A line WITHOUT instrument_token (today's equity payload shape) behaves
+    exactly as before — keyed on trading_symbol, valid Position — and the token
+    attribute is simply None. Proves no runtime behavior change on the legacy path."""
+    adapter = _adapter({
+        "status": "success",
+        "data": [
+            {"trading_symbol": "RELIANCE", "quantity": "10",
+             "average_price": "2500.5"},
+        ],
+    })
+
+    positions = adapter.get_positions()
+
+    assert "RELIANCE" in positions
+    pos = positions["RELIANCE"]
+    assert isinstance(pos, Position)
+    assert pos.quantity == 10.0
+    assert pos.avg_price == 2500.5
+    assert pos.side == PositionSide.LONG
+    assert pos.instrument_token is None
+
+
+def test_get_positions_with_token_still_shapes_for_reconcile():
+    """The token-bearing position still passes cleanly through the production
+    shape adapter (to_reconcile_positions reads .side/.quantity) — proving the DTO
+    stays a drop-in for the existing reconcile path."""
+    from core.execution.broker_positions_adapter import to_reconcile_positions
+
+    adapter = _adapter({
+        "status": "success",
+        "data": [
+            {"instrument_token": "NSE_FO|79381",
+             "trading_symbol": "NIFTY26JAN2623500CE", "quantity": "75",
+             "average_price": "120.5"},
+        ],
+    })
+
+    out = to_reconcile_positions(adapter.get_positions())
+
+    assert out == [{"symbol": "NIFTY26JAN2623500CE", "quantity": 75.0,
+                    "side": "LONG"}]

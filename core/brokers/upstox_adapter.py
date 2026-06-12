@@ -3,6 +3,7 @@ import logging
 import requests
 from typing import Dict, Optional, List
 from core.brokers.base import BrokerAdapter
+from core.brokers.broker_position import BrokerPosition
 from core.events import OrderEvent, OrderStatus
 from core.execution.position_tracker import Position
 from core.execution.position_models import PositionSide
@@ -140,12 +141,13 @@ class UpstoxAdapter(BrokerAdapter):
                     else:
                         side = PositionSide.FLAT
 
-                    positions[symbol] = Position(
+                    positions[symbol] = BrokerPosition(
                         symbol=symbol,
                         side=side,
                         quantity=abs(qty),
                         avg_price=avg_price,
-                        last_updated=self.clock.now()
+                        last_updated=self.clock.now(),
+                        instrument_token=pos_data.get('instrument_token')
                     )
             return positions
         except Exception:
