@@ -24,6 +24,7 @@ import pytest
 
 from core.brokers.upstox_adapter import UpstoxAdapter
 from core.clock import ReplayClock
+from core.execution.broker_positions_adapter import to_reconcile_positions
 from core.execution.position_models import Position, PositionSide
 from core.execution.position_tracker import PositionTracker
 from core.execution.reconciliation import ReconciliationEngine
@@ -42,12 +43,10 @@ def _payload(rows):
 
 
 def _bridge(adapter):
-    """The contract the Planned-#6 adapter must implement: Dict[str, Position] →
-    List[Dict] with a STRING side. Test glue, not a production adapter."""
-    return [
-        {"symbol": sym, "quantity": pos.quantity, "side": pos.side.value}
-        for sym, pos in adapter.get_positions().items()
-    ]
+    """MM7H #6b.1: the production shape adapter now owns this transform. Repointed
+    from local glue to `to_reconcile_positions` so this net exercises the real
+    function end-to-end through the UpstoxAdapter shape."""
+    return to_reconcile_positions(adapter.get_positions())
 
 
 # --------------------------------------------------------------------------- #

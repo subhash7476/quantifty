@@ -35,6 +35,7 @@ from datetime import datetime
 
 from core.brokers.upstox_adapter import UpstoxAdapter
 from core.clock import ReplayClock
+from core.execution.broker_positions_adapter import to_reconcile_positions
 from core.execution.position_models import Position, PositionSide
 from core.execution.position_tracker import PositionTracker
 from core.execution.reconciliation import ReconciliationEngine
@@ -54,15 +55,11 @@ def _adapter(rows):
 
 
 def _bridge(adapter):
-    """The MM7F documented shape transform (the future `to_reconcile_positions`):
-    Dict[str, Position] -> List[Dict] with a STRING side. The broker dict's KEY
-    (`trading_symbol`) becomes the reconcile `symbol` — so the bridge carries the
-    broker namespace through UNCHANGED. Key-mapping is NOT part of the shape
-    bridge (that is the open #6b / 4C.8 question this file motivates)."""
-    return [
-        {"symbol": sym, "quantity": pos.quantity, "side": pos.side.value}
-        for sym, pos in adapter.get_positions().items()
-    ]
+    """MM7H #6b.1: the production shape transform `to_reconcile_positions`. The
+    broker dict's KEY (`trading_symbol`) becomes the reconcile `symbol` — the shape
+    adapter carries the broker namespace through UNCHANGED. Key-mapping is NOT part
+    of the shape bridge (that is the open #6b.2 / 4C.8 question this file motivates)."""
+    return to_reconcile_positions(adapter.get_positions())
 
 
 # --------------------------------------------------------------------------- #

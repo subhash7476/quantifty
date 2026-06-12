@@ -17,6 +17,7 @@ from datetime import datetime
 
 from core.brokers.upstox_adapter import UpstoxAdapter
 from core.clock import ReplayClock
+from core.execution.broker_positions_adapter import to_reconcile_positions
 from core.execution.position_tracker import PositionTracker
 from core.execution.position_models import Position, PositionSide
 from core.execution.reconciliation import ReconciliationEngine
@@ -24,11 +25,10 @@ from core.instruments.equity import Equity
 
 
 def _broker_positions_as_dicts(adapter):
-    """Map the adapter's Dict[str, Position] to reconcile()'s dict contract."""
-    return [
-        {"symbol": sym, "quantity": pos.quantity, "side": pos.side.value}
-        for sym, pos in adapter.get_positions().items()
-    ]
+    """MM7H #6b.1: repointed to the production `to_reconcile_positions` (the shape
+    transform now has a single home — adapter's Dict[str, Position] -> reconcile()'s
+    List[Dict])."""
+    return to_reconcile_positions(adapter.get_positions())
 
 
 def _adapter(payload):
