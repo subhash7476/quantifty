@@ -233,3 +233,31 @@ The refusal contract is preserved at the composition root, not relocated into `r
 - This sharpens the review body's §7-1/§8.1 mitigation from "ship a minimal source" to "inject the source"; it does not alter the runtime target (`Mode.LIVE`/`ExecutionMode.PAPER`, §3), the refusal contract (§4), the G1-protected activation sequence (§5), or the characterization net (§6).
 
 *Ref: docs/reports/MM7E_ENTRY_SCRIPT_REVIEW.md (§10 scope challenge; §0–§9 entry-script map); docs/reports/MM7C_SIGNALSOURCE_CHARACTERIZATION.md (C1–C6); docs/reports/MM7D1_SYNTHETIC_WIRING_PROOF.md; docs/PROJECT_STATE.md (Completed — Phase MM7E); docs/CHANGELOG_PLATFORM.md (2026-06-12); core/runtime/signal_source.py; core/runtime/driver.py; ADR-002, ADR-005, ADR-006.*
+
+---
+
+## ADR-MM7F-1 — A Faulting Broker-Positions Source Is A Startup Refusal
+
+**Status:** **Accepted** (2026-06-12) · Phase MM7F #6a (hazard W3 resolution).
+
+### Context
+The startup gate (Phase F, guaranteed by ADR-006) reconciles the restored ledger against broker truth before the driver reaches RUNNING. The broker book is supplied by an injected `broker_positions: Callable[[], List[Dict]]`, and that callable can fault — broker auth/transport failure (`upstox_adapter.py:60-62` raises `RuntimeError` on HTTP 401/403). Hazard **W3** (`MM7_LIVE_WIRING_REVIEW.md` §3.2): `self._broker_positions()` is invoked inside `_reconcile_ledger`, which runs **before** `run()`'s `try/finally` (`driver.py:524`), so a raise propagated **uncaught out of `run()`**, stranding the driver in `RECOVERY` with no `STOPPED`, no journal record, and no alert. That is the most dangerous failure mode for a trading runtime: a process that looks alive but silently never started — indistinguishable from health. MM7F §F4 established that W3 is a **driver-gate property, independent of the (#6b) broker-positions shape adapter** — it can and should be fixed on its own.
+
+### Decision
+**A broker-positions source that raises is a refuse-to-start — never a fallback, retry, or swallow.** `_reconcile_ledger` wraps the single broker-book read in `try/except` and routes any exception into the **existing reconciliation refusal contract**: `RECONCILIATION_FAIL` (durable journal) → `alerter.critical` → `abort_startup()` → `STOPPED`; the gate returns `False`, so the deterministic loop never runs (`bars_processed == 0`). An **unverifiable** broker book is thereby treated exactly like an **inconsistent** one (a real position divergence) and a master-readiness **BLOCK** — the same `RECONCILIATION_FAIL`/`abort_startup` shape. `except Exception` (not a bare `except`) is used so `KeyboardInterrupt`/`SystemExit` still propagate.
+
+**The refusal lives inside the gate** — not in `run()`'s `try/finally`, and not in the composition root (`scripts/fno_runner.py`). There is one owner for the contract: consistent with ADR-MM7E-1, the entry script must **not** wrap the callable in its own `try/except`.
+
+### Alternatives Considered
+- **Catch in `run()`'s `try/finally`** — rejected: that block covers only the loop *after* the gate; it would produce an `ERROR` finalize rather than the `STOPPED` refuse-to-start lifecycle, and it would separate the broker-source failure from its `RECONCILIATION_FAIL` sibling.
+- **Swallow / treat as an empty book (fall back to a vacuous reconcile)** — rejected: starting live while unable to read the broker book is precisely the unvalidated-ledger trade that ADR-001/ADR-004 prohibit. Fallback is never appropriate for a trading runtime: **refuse > warn > fallback**.
+- **Retry inside the gate** — rejected (YAGNI for #6a): startup is not the place to mask a persistent auth/transport fault. A transient-retry policy, if ever wanted, belongs to the broker adapter (#6b), not the gate.
+- **Wrap the callable in the composition root** — rejected: it would duplicate the contract and hide it from the driver's own gate; the refusal is the gate's responsibility (MM7 §3.2).
+
+### Consequences
+- A live F&O run **cannot silently start blind** to the broker book; the failure is loud (critical alert) and durable (`RECONCILIATION_FAIL` + `STOPPED` journaled).
+- The MM7A **T3** characterization net flipped from defect-pin to refusal-pin (`tests/runtime/test_driver_broker_positions_failure.py`) — behavior is now pinned: no escape, `STOPPED`, `RECONCILIATION_FAIL` + `STOPPED` journaled, critical alert, `bars_processed == 0`.
+- **Scope: gate hardening only** — no adapter, no reconciliation-logic change, no broker change, `ExecutionMode.LIVE` untouched. The `broker_positions` **shape adapter** (W2) and the broker-`trading_symbol`↔internal-key mapping that give LIVE reconciliation *teeth* remain **#6b** (behind F4). At `ExecutionMode.PAPER` `broker_positions=None`, so this path does not execute (PaperBroker's book is permanently empty — MM7F §F2).
+- Consistent with **ADR-001** (reconciliation detects and refuses divergence; a broker fault never passes silently and never overwrites the ledger), **ADR-004** (no trading on data you cannot trust — extends "stale" to "unreadable"), **ADR-006** (the single gate that guarantees reconciliation now guarantees it even when the broker source faults), and **ADR-MM7E-1** (the refusal stays in the gate, not the composition root).
+
+*Ref: docs/reports/MM7F_6A_W3_GATE_HARDENING_REPORT.md; docs/reports/MM7F_BROKER_POSITIONS_ADAPTER_REVIEW.md (§F4); docs/reports/MM7_LIVE_WIRING_REVIEW.md §3.2 (W3); core/runtime/driver.py (`_reconcile_ledger`); tests/runtime/test_driver_broker_positions_failure.py; docs/PROJECT_STATE.md (Planned #6a — DONE); docs/CHANGELOG_PLATFORM.md (2026-06-12); commit d3a4390; ADR-001, ADR-004, ADR-006, ADR-MM7E-1.*
