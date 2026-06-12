@@ -461,7 +461,25 @@ class LoopDriver:
         self._meter(RuntimeMetric.RECONCILIATION_COUNT)
         if (self._config.require_reconciliation_on_start
                 and self._broker_positions is not None):
-            alerts = self._execution.reconciliation.reconcile(self._broker_positions())
+            # #6a (W3): the broker-positions source can fault (auth/transport).
+            # An uncaught raise here used to escape run() and strand the driver
+            # in RECOVERY with no durable record. Convert it into the same
+            # refuse-to-start contract as a real divergence — never start a live
+            # run unable to read the broker book.
+            try:
+                broker_book = self._broker_positions()
+            except Exception as exc:
+                self._emit(
+                    EventType.RECONCILIATION_FAIL,
+                    f"broker-positions source failed: {exc}",
+                )
+                alerter.critical(
+                    f"LoopDriver refused to start: broker-positions source "
+                    f"raised ({exc})"
+                )
+                self.abort_startup()
+                return False
+            alerts = self._execution.reconciliation.reconcile(broker_book)
             if alerts:
                 self._emit(
                     EventType.RECONCILIATION_FAIL,
