@@ -15,7 +15,14 @@ with a stub returning canned positions payloads. No network.
 
 from datetime import datetime
 
-from core.brokers.upstox_adapter import UpstoxAdapter
+import pytest
+
+from core.brokers.upstox_adapter import (
+    UpstoxAdapter,
+    BrokerAuthError,
+    BrokerUnavailableError,
+    BrokerContractError,
+)
 from core.execution.position_models import Position, PositionSide
 from core.clock import ReplayClock
 
@@ -64,20 +71,28 @@ def test_get_positions_normalizes_short_to_abs_quantity():
     assert pos.avg_price == 3500.0
 
 
-def test_get_positions_returns_empty_on_non_success():
+def test_get_positions_raises_contract_error_on_non_success():
     adapter = _adapter({"status": "error", "data": []})
 
-    assert adapter.get_positions() == {}
+    with pytest.raises(BrokerContractError):
+        adapter.get_positions()
 
 
-def test_get_positions_returns_empty_on_exception():
+def test_get_positions_raises_broker_unavailable_on_transport_error():
     adapter = UpstoxAdapter("key", "secret", "token",
                             ReplayClock(datetime(2026, 1, 1, 9, 15)))
 
     def _boom(*args, **kwargs):
-        raise RuntimeError("broker transport down")
+        raise BrokerUnavailableError("broker transport down")
 
     adapter._make_request = _boom
+
+    with pytest.raises(BrokerUnavailableError):
+        adapter.get_positions()
+
+
+def test_get_positions_returns_empty_dict_when_account_is_flat():
+    adapter = _adapter({"status": "success", "data": []})
 
     assert adapter.get_positions() == {}
 
