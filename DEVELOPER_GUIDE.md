@@ -1,6 +1,6 @@
-# PixityAI Trading Platform - Developer Guide
+# Algorithmic Trading Platform - Developer Guide
 
-**Project:** PixityAI Algorithmic Trading Bot  
+**Project:** Algorithmic Trading Platform  
 **Exchange:** NSE/NFO (Indian Equity & Derivatives)  
 **Broker:** Upstox V2  
 **Last Updated:** 2026-02-24
@@ -9,7 +9,7 @@
 
 ## 1. Project Overview
 
-PixityAI is a production-grade, deterministic algorithmic trading platform built with Python, DuckDB, and Upstox V2. The system treats live trading as "backtesting with real money," ensuring that every decision is auditable, explainable, and reproducible.
+This is a production-grade, deterministic algorithmic trading platform built with Python, DuckDB, and Upstox V2. The system treats live trading as "backtesting with real money," ensuring that every decision is auditable, explainable, and reproducible.
 
 ### Core Design Principles
 
@@ -266,13 +266,9 @@ python scripts/run_combo_backtest.py # v6 + v7 blended
 ### Run Live/Paper Trading
 
 ```bash
-python scripts/unified_live_runner.py ^
-  --mode paper ^
-  --symbols NSE_EQ|INE155A01022 ^
-  --strategies pixityAI_meta ^
-  --max-capital 100000 ^
-  --max-position-size 1000
+python scripts/fno_runner.py --mode paper
 ```
+> Note: The unified live runner and strategy selection flags referenced here belonged to the pre-salvage platform and no longer exist. See `scripts/fno_runner.py` for the current entry point.
 
 ### Run Web Dashboard
 
@@ -431,4 +427,4 @@ python scripts/generate_day_features.py --start 2023-01-02 --end 2026-02-13
 
 ---
 
-*This document should provide everything needed to continue work on the PixityAI trading platform. For questions, refer to the detailed docs in `docs/`.*
+*This document should provide everything needed to continue work on this trading platform. For questions, refer to the detailed docs in `docs/`.*

@@ -2,12 +2,14 @@
 
 ## Sources
 
-- `docs/NIFTYSHIELD_IMPLEMENTATION.md`
-- `docs/MCX_GOLD_OPTIONS_COMMODITY_INTEGRATION_REPORT.md`
-- `docs/COMMODITY_TRADING_IMPLEMENTATION_SUMMARY.md`
-- `docs/COMMODITY_TRADING_SYSTEM_PLAN.md`
-- `docs/STRATEGY_RESEARCH_LOG.md`
-- `docs/OPTIONS_ANALYSIS_DASHBOARD_PLAN.md`
+> These lessons were extracted from the pre-salvage codebase (prior to 2026-06-04). Source documents were not ported; references below are historical only.
+
+- `docs/NIFTYSHIELD_IMPLEMENTATION.md` *(historical — not present in current repo)*
+- `docs/MCX_GOLD_OPTIONS_COMMODITY_INTEGRATION_REPORT.md` *(historical)*
+- `docs/COMMODITY_TRADING_IMPLEMENTATION_SUMMARY.md` *(historical)*
+- `docs/COMMODITY_TRADING_SYSTEM_PLAN.md` *(historical)*
+- `docs/STRATEGY_RESEARCH_LOG.md` *(historical)*
+- `docs/OPTIONS_ANALYSIS_DASHBOARD_PLAN.md` *(historical — not present in current repo)*
 
 ## Core conclusions
 

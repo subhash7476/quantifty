@@ -89,8 +89,8 @@ class MarketIngestorDaemon:
             data = json.load(f)
             symbols = data.get("symbols", [])
 
-            # Always include core index symbols used by intraday strategies
-            # (NiftyShield, V9 PM, day-type engines), even if config misses them.
+            # Always include core index symbols required by intraday analytics
+            # and strategy consumers, even if config misses them.
             merged = list(dict.fromkeys(symbols + REQUIRED_INDEX_SYMBOLS))
             if len(merged) != len(symbols):
                 logger.warning(

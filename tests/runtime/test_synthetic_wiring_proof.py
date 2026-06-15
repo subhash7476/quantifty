@@ -11,7 +11,7 @@ equity symbol, driving the full spine
 
 through a *real* ExecutionHandler (PAPER) + PaperBroker + ExecutionStore against
 an isolated tmp execution.db. NO strategy, NO alpha, NO OHLCV feed, NO option
-chain, NO indicators, NO NiftyShield.
+chain, NO indicators, NO strategy-specific logic.
 
 This is "Tier A" (equity). It exercises every box above. Canonicalization is the
 deliberate equity carve-out (driver.py:439-444; canonical_restore.canonicalize_

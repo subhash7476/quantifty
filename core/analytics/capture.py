@@ -166,7 +166,7 @@ class TLPLogger:
     """
     Unified trade outcome logger for TLP V1.
 
-    Works across all strategies — NiftyShield, StockDaytype, V9, PixityAI.
+    Works across all strategy consumers.
     Each strategy calls .record() once at trade close.
 
     Stored in tlp_trade_log (trading.db).

@@ -29,32 +29,24 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 
 | Path | Purpose |
 |------|---------|
-| `core/strategies/` | Strategy implementations (emit signals only) |
 | `core/execution/` | Risk, sizing, broker interaction |
-| `core/backtest/runner.py` | `BacktestRunner` with `_run_pixityAI_batch()` |
-| `core/strategies/pixityAI_batch_events.py` | Vectorized event generation |
-| `core/strategies/precomputed_signals.py` | Feed pre-computed events to backtest engine |
-| `core/filters/` | Signal quality filters (Kalman, pipeline) |
-| `core/strategies/regime/` | HMM regime observer/classifier/executor |
-| `core/models/pixityAI_config.json` | PixityAI strategy config |
-| `core/models/nifty_shield_config.json` | NiftyShield strategy config |
-| `core/strategies/nifty_shield_strategy.py` | NiftyShield — self-contained weekly options seller |
-| `scripts/nifty_shield_runner.py` | NiftyShield live daemon (30s poll) |
-| `scripts/nifty_shield_backtest.py` | NiftyShield walk-forward backtest |
-| `flask_app/blueprints/niftyshield.py` | NiftyShield Flask blueprint (`/nifty-shield/`) |
-| `core/data/options_provider.py` | Upstox V3 option chain fetcher + DuckDB cache |
+| `core/brokers/` | Broker adapters — Upstox and PaperBroker |
+| `core/brokers/mapping/` | Canonical ↔ Upstox instrument mapping |
+| `core/instruments/` | Canonical instrument model, resolver, and master DB |
+| `core/runtime/` | LoopDriver, telemetry, signal source contracts |
 | `core/analytics/options_analytics.py` | Options structural engine (PCR, GEX, OI, Max Pain) |
+| `core/data/options_provider.py` | Upstox V3 option chain fetcher + DuckDB cache |
 | `core/messaging/options_publisher.py` | SSE publisher for real-time option chain updates |
 | `app_facade/options_facade.py` | Options facade — bridge between Flask UI and core |
 | `flask_app/blueprints/options.py` | Options dashboard Flask blueprint (`/options/`) |
 | `flask_app/templates/options/index.html` | Options dashboard UI template |
-| `tests/analytics/test_options.py` | Options engine unit + integration tests (17 tests) |
 | `flask_app/` | Thin Flask UI — display only, no computation |
-| `scripts/` | CLI entry points for backtests, scans, training |
-| `data/market_data/nse/candles/1m/` | 1-min DuckDB candle files by date |
-| `docs/` | Strategy research logs and implementation summaries |
-| `docs/NIFTYSHIELD_IMPLEMENTATION.md` | Full NiftyShield design + API reference |
-| `docs/OPTIONS_ANALYSIS_DASHBOARD_PLAN.md` | Options dashboard design + implementation plan |
+| `scripts/fno_runner.py` | F&O live runner (Upstox, PAPER and LIVE modes) |
+| `scripts/` | CLI entry points — data ingestion, instrument master, runners |
+| `tests/` | Unit and integration tests by domain |
+| `docs/` | Architecture docs, reports, and implementation notes |
+| `docs/DRIVER_SPECIFICATION.md` | LoopDriver spec and behavior contracts |
+| `docs/PLATFORM_CONSTITUTION.md` | Architectural principles and invariants |
 
 ---
 
@@ -98,30 +90,13 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 
 ---
 
-## NiftyShield Strategy — Current Config
+## Production Strategy Status
 
-- **Type**: Regime-adaptive weekly options premium selling (structure chosen at entry per DayType + VIX)
-- **Structures**: `short_straddle` (Choppy+VIX≤14) | `iron_fly` (Choppy+VIX 14–16) | `short_strangle` (Choppy+VIX>16) | `bull_put_spread` (BullTrend) | `bear_call_spread` (BearTrend)
-- **Entry**: 13:00pm (same bar as 13pm checkpoint, `entry_after_minutes=0`)
-- **Sizing**: Choppy=2 lots, Trend=1 lot, VIX>16→–1 lot (except strangle), VIX>20→skip
-- **Wing offsets**: iron_fly ±100pts | directional spreads ±150pts | strangle OTM ±50pts
-- **Exit**: profit_target 50% of net premium | stop_loss 2× | time_exit 15:15 | delta_adjustment >0.55 (short legs only)
-- **P&L**: `(short_pnl + wing_pnl) × lot_size × lots − costs`
-- **IV model**: VIX daily close ÷ 100 (flat); Black-76 synthetic pricing
-- **DB tables**: `ns_paper_signals`, `ns_paper_trades` in trading.db (`structure` column per trade)
-- **Dashboard**: `/nifty-shield/` (state, open position, Greeks, trade history)
-- **Backtest**: `python scripts/nifty_shield_backtest.py --walkforward`
-- **Full doc**: `docs/NIFTYSHIELD_IMPLEMENTATION.md`
-
----
-
-## PixityAI Strategy — Current Config
-
-- **Timeframe**: 15m (better than 1h — more trades, better edge)
-- **Meta-model**: DISABLED (`skip_meta_model=True`) — anti-predictive on equities
-- **Signal quality filter**: DISABLED — regime-dependent, catastrophic in hostile periods
-- **R:R**: SL = 1×ATR, TP = 2×ATR, time stop = 12 bars
-- **Profitable symbols** (Phase 6 scan): VEDL, BDL, KALYANKJIL, PNBHOUSING
+- No production strategy currently exists in this repository.
+- The strategy layer (`core/strategies/`) is intentionally unimplemented — greenfield.
+- Future strategy work must be designed fresh against the current infrastructure.
+- Architectural decisions must not assume any specific future strategy.
+- Historical strategy designs (NiftyShield, PixityAI) existed in a prior codebase and were not ported during the SALVAGE migration (2026-06-04).
 
 ---
 
