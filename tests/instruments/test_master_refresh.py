@@ -32,16 +32,16 @@ def _complete_raw(expiry=_FUTURE_EXPIRY, underlying="NIFTY"):
     return [
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|1", "tradingsymbol": "NIFTYFUT",
          "name": underlying, "expiry": expiry, "instrument_type": "FUT",
-         "lot_size": 75, "tick_size": 0.05},
+         "lot_size": 75, "tick_size": 5},
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|2", "tradingsymbol": "NIFTYCE",
          "name": underlying, "expiry": expiry, "strike_price": 22500.0,
-         "instrument_type": "CE", "lot_size": 75, "tick_size": 0.05},
+         "instrument_type": "CE", "lot_size": 75, "tick_size": 5},
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|3", "tradingsymbol": "NIFTYPE",
          "name": underlying, "expiry": expiry, "strike_price": 22500.0,
-         "instrument_type": "PE", "lot_size": 75, "tick_size": 0.05},
+         "instrument_type": "PE", "lot_size": 75, "tick_size": 5},
         {"segment": "NSE_EQ", "instrument_key": "NSE_EQ|INE002A01018",
          "tradingsymbol": "RELIANCE", "name": "RELIANCE INDUSTRIES",
-         "instrument_type": "EQ", "lot_size": 1, "tick_size": 0.05,
+         "instrument_type": "EQ", "lot_size": 1, "tick_size": 5,
          "isin": "INE002A01018"},
     ]
 
@@ -79,7 +79,7 @@ def test_equity_only_is_not_published_prior_preserved(tmp_path):
     write_snapshot(_rows(_complete_raw(), "2026-06-05"), db_path=db)
     equity_only = [{"segment": "NSE_EQ", "instrument_key": "NSE_EQ|INE002A01018",
                     "tradingsymbol": "RELIANCE", "name": "RELIANCE INDUSTRIES",
-                    "instrument_type": "EQ", "lot_size": 1, "tick_size": 0.05,
+                    "instrument_type": "EQ", "lot_size": 1, "tick_size": 5,
                     "isin": "INE002A01018"}]
     res = validate_and_publish(_rows(equity_only), _TODAY, db,
                                underlyings=("NIFTY",), now=_NOW)
@@ -116,7 +116,7 @@ def test_missing_option_type_is_rejected_by_shape_guard(tmp_path):
     db = tmp_path / "m.duckdb"
     fut_only = [{"segment": "NSE_FO", "instrument_key": "NSE_FO|1",
                  "tradingsymbol": "NIFTYFUT", "name": "NIFTY", "expiry": _FUTURE_EXPIRY,
-                 "instrument_type": "FUT", "lot_size": 75, "tick_size": 0.05}]
+                 "instrument_type": "FUT", "lot_size": 75, "tick_size": 5}]
     res = validate_and_publish(_rows(fut_only), _TODAY, db,
                                underlyings=("NIFTY",), now=_NOW)
     assert res.published is False

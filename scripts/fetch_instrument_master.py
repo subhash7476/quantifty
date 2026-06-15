@@ -145,7 +145,7 @@ def parse_instruments(raw_items: list[dict], snapshot_date: str) -> list[dict]:
             "lot_size":        int(item.get("lot_size") or 0),
             "exchange":        segment,
             "isin":            isin,
-            "tick_size":       float(item.get("tick_size") or 0.0),
+            "tick_size":       float(item.get("tick_size") or 0.0) / 100,
             "snapshot_date":   snapshot_date,
         })
 

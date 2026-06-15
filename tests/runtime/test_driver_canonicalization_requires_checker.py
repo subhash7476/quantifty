@@ -71,10 +71,10 @@ def real_checker(tmp_path):
     write_snapshot(parse_instruments([
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|53001", "tradingsymbol": "NIFTYFUT",
          "name": "NIFTY", "expiry": "2027-12-31", "instrument_type": "FUT",
-         "lot_size": 75, "tick_size": 0.05},
+         "lot_size": 75, "tick_size": 5},
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|54710", "tradingsymbol": "NIFTYCE",
          "name": "NIFTY", "expiry": "2027-12-31", "strike_price": 22500.0,
-         "instrument_type": "CE", "lot_size": 75, "tick_size": 0.05},
+         "instrument_type": "CE", "lot_size": 75, "tick_size": 5},
     ], today), db_path=master)
     return build_master_readiness(["NIFTY"], db_path=master)
 

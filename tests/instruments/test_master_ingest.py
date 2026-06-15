@@ -13,6 +13,7 @@ The pure parse step and the DB write step are exercised directly; the network
 download is not under test.
 """
 import duckdb
+import pytest
 
 from scripts.fetch_instrument_master import parse_instruments, write_snapshot
 
@@ -24,19 +25,19 @@ def _raw():
             "segment": "NSE_FO", "instrument_key": "NSE_FO|54710",
             "tradingsymbol": "NIFTY26FEB2522500CE", "name": "NIFTY",
             "expiry": "2026-02-25", "strike_price": 22500.0,
-            "instrument_type": "CE", "lot_size": 75, "tick_size": 0.05,
+            "instrument_type": "CE", "lot_size": 75, "tick_size": 5,
         },
         {  # index future (NSE_FO)
             "segment": "NSE_FO", "instrument_key": "NSE_FO|53001",
             "tradingsymbol": "NIFTY26FEBFUT", "name": "NIFTY",
             "expiry": "2026-02-26", "strike_price": 0.0,
-            "instrument_type": "FUT", "lot_size": 75, "tick_size": 0.05,
+            "instrument_type": "FUT", "lot_size": 75, "tick_size": 5,
         },
         {  # cash equity (NSE_EQ) — must be ingested now
             "segment": "NSE_EQ", "instrument_key": "NSE_EQ|INE002A01018",
             "tradingsymbol": "RELIANCE", "name": "RELIANCE INDUSTRIES",
             "expiry": None, "strike_price": 0.0,
-            "instrument_type": "EQ", "lot_size": 1, "tick_size": 0.05,
+            "instrument_type": "EQ", "lot_size": 1, "tick_size": 5,
             "isin": "INE002A01018",
         },
         {  # index (NSE_INDEX) — must be ingested now
@@ -49,7 +50,7 @@ def _raw():
             "segment": "MCX_FO", "instrument_key": "MCX_FO|12345",
             "tradingsymbol": "CRUDEOIL26FEBFUT", "name": "CRUDE OIL",
             "expiry": "2026-02-19", "strike_price": 0.0,
-            "instrument_type": "FUT", "lot_size": 100, "tick_size": 1.0,
+            "instrument_type": "FUT", "lot_size": 100, "tick_size": 100,
         },
         {  # BSE equity — out of scope, must be dropped
             "segment": "BSE_EQ", "instrument_key": "BSE_EQ|INE002A01018",
@@ -106,13 +107,13 @@ def test_write_snapshot_accumulates_history_across_dates(tmp_path):
         "segment": "NSE_FO", "instrument_key": "NSE_FO|54710",
         "tradingsymbol": "NIFTY24JAN0022500CE", "name": "NIFTY",
         "expiry": "2024-01-25", "strike_price": 22500.0,
-        "instrument_type": "CE", "lot_size": 50, "tick_size": 0.05,
+        "instrument_type": "CE", "lot_size": 50, "tick_size": 5,
     }]
     new = [{
         "segment": "NSE_FO", "instrument_key": "NSE_FO|54710",
         "tradingsymbol": "NIFTY24DEC0022500CE", "name": "NIFTY",
         "expiry": "2024-12-25", "strike_price": 22500.0,
-        "instrument_type": "CE", "lot_size": 75, "tick_size": 0.05,
+        "instrument_type": "CE", "lot_size": 75, "tick_size": 5,
     }]
     write_snapshot(parse_instruments(old, "2024-01-01"), db_path=db)
     write_snapshot(parse_instruments(new, "2024-12-01"), db_path=db)
@@ -125,6 +126,31 @@ def test_write_snapshot_accumulates_history_across_dates(tmp_path):
     ).fetchall()
     con.close()
     assert rows == [("2024-01-01", 50), ("2024-12-01", 75)]
+
+
+def test_parse_normalizes_tick_size_paise_to_rupees():
+    """F3 regression: Upstox encodes tick_size in paise; parse_instruments divides
+    by 100 so the DB and CanonicalInstrument hold rupee values."""
+    raw = [
+        {"segment": "NSE_FO", "instrument_key": "NSE_FO|1", "tradingsymbol": "NIFTYF",
+         "name": "NIFTY", "expiry": "2027-01-01", "instrument_type": "FUT",
+         "lot_size": 75, "tick_size": 5},       # 5 paise → ₹0.05
+        {"segment": "NSE_FO", "instrument_key": "NSE_FO|2", "tradingsymbol": "CRUDEOIL",
+         "name": "CRUDE", "expiry": "2027-01-01", "instrument_type": "FUT",
+         "lot_size": 100, "tick_size": 100},     # 100 paise → ₹1.00
+        {"segment": "NSE_INDEX", "instrument_key": "NSE_INDEX|Nifty 50",
+         "tradingsymbol": "Nifty 50", "name": "NIFTY",
+         "instrument_type": "INDEX", "lot_size": 0, "tick_size": 0},  # 0 paise → ₹0.00
+    ]
+    rows = parse_instruments(raw, snapshot_date="2026-01-01")
+    by_key = {r["instrument_key"]: r for r in rows}
+
+    assert by_key["NSE_FO|1"]["tick_size"] == pytest.approx(0.05)
+    assert by_key["NSE_FO|2"]["tick_size"] == pytest.approx(1.00)
+    assert by_key["NSE_INDEX|Nifty 50"]["tick_size"] == pytest.approx(0.00)
+    # lot_size is an integer count — must be unaffected by the tick_size fix
+    assert by_key["NSE_FO|1"]["lot_size"] == 75
+    assert by_key["NSE_FO|2"]["lot_size"] == 100
 
 
 def test_write_snapshot_is_idempotent_within_a_date(tmp_path):

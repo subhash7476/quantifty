@@ -44,10 +44,10 @@ def _write_master(path):
     rows = parse_instruments([
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|F1", "tradingsymbol": "NIFTYFUT",
          "name": "NIFTY", "expiry": "2026-06-25", "instrument_type": "FUT",
-         "lot_size": MASTER_LOT, "tick_size": 0.05},
+         "lot_size": MASTER_LOT, "tick_size": 5},
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|O1", "tradingsymbol": EXPECTED_OPTION_SYMBOL,
          "name": "NIFTY", "expiry": "2026-06-16", "strike_price": 22500.0,
-         "instrument_type": "CE", "lot_size": MASTER_LOT, "tick_size": 0.05},
+         "instrument_type": "CE", "lot_size": MASTER_LOT, "tick_size": 5},
     ], "2026-06-08")
     write_snapshot(rows, db_path=path)
 

@@ -25,7 +25,7 @@ def _ce(ikey, strike, expiry, lot):
     return {"segment": "NSE_FO", "instrument_key": ikey,
             "tradingsymbol": f"NIFTY{int(strike)}CE", "name": "NIFTY",
             "instrument_type": "CE", "expiry": expiry,
-            "strike_price": strike, "lot_size": lot, "tick_size": 0.05}
+            "strike_price": strike, "lot_size": lot, "tick_size": 5}
 
 
 @pytest.fixture

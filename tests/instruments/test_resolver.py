@@ -26,7 +26,7 @@ def db(tmp_path):
     current = [
         {"segment": "NSE_EQ", "instrument_key": "NSE_EQ|INE002A01018",
          "tradingsymbol": "RELIANCE", "name": "RELIANCE INDUSTRIES",
-         "instrument_type": "EQ", "lot_size": 1, "tick_size": 0.05,
+         "instrument_type": "EQ", "lot_size": 1, "tick_size": 5,
          "isin": "INE002A01018"},
         {"segment": "NSE_INDEX", "instrument_key": "NSE_INDEX|Nifty 50",
          "tradingsymbol": "Nifty 50", "name": "Nifty 50",
@@ -34,15 +34,15 @@ def db(tmp_path):
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|53001",
          "tradingsymbol": "NIFTY26FEBFUT", "name": "NIFTY",
          "expiry": "2026-02-26", "instrument_type": "FUT",
-         "lot_size": 75, "tick_size": 0.05},
+         "lot_size": 75, "tick_size": 5},
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|53002",
          "tradingsymbol": "NIFTY26MARFUT", "name": "NIFTY",
          "expiry": "2026-03-26", "instrument_type": "FUT",
-         "lot_size": 75, "tick_size": 0.05},
+         "lot_size": 75, "tick_size": 5},
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|54710",
          "tradingsymbol": "NIFTY26FEB2522500CE", "name": "NIFTY",
          "expiry": "2026-02-25", "strike_price": 22500.0,
-         "instrument_type": "CE", "lot_size": 75, "tick_size": 0.05},
+         "instrument_type": "CE", "lot_size": 75, "tick_size": 5},
     ]
     write_snapshot(parse_instruments(current, "2026-02-01"), db_path=path)
 
@@ -50,7 +50,7 @@ def db(tmp_path):
     revised = {"segment": "NSE_FO", "instrument_key": "NSE_FO|99999",
                "tradingsymbol": "NIFTY24DEC2522500CE", "name": "NIFTY",
                "expiry": "2024-12-25", "strike_price": 22500.0,
-               "instrument_type": "CE", "tick_size": 0.05}
+               "instrument_type": "CE", "tick_size": 5}
     write_snapshot(parse_instruments([{**revised, "lot_size": 50}], "2024-01-01"), db_path=path)
     write_snapshot(parse_instruments([{**revised, "lot_size": 75}], "2024-12-01"), db_path=path)
     return path

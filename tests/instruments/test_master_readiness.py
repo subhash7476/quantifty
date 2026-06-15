@@ -35,15 +35,15 @@ def _derivative_rows(expiry="2026-06-25"):
     return [
         {"segment": "NSE_EQ", "instrument_key": "NSE_EQ|INE002A01018",
          "tradingsymbol": "RELIANCE", "name": "RELIANCE INDUSTRIES",
-         "instrument_type": "EQ", "lot_size": 1, "tick_size": 0.05,
+         "instrument_type": "EQ", "lot_size": 1, "tick_size": 5,
          "isin": "INE002A01018"},
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|53001",
          "tradingsymbol": "NIFTYFUT", "name": "NIFTY", "expiry": expiry,
-         "instrument_type": "FUT", "lot_size": 75, "tick_size": 0.05},
+         "instrument_type": "FUT", "lot_size": 75, "tick_size": 5},
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|54710",
          "tradingsymbol": "NIFTY22500CE", "name": "NIFTY", "expiry": expiry,
          "strike_price": 22500.0, "instrument_type": "CE",
-         "lot_size": 75, "tick_size": 0.05},
+         "lot_size": 75, "tick_size": 5},
     ]
 
 
@@ -119,10 +119,10 @@ def test_active_expiry_present_accepts_monthly_only_underlying(tmp_path):
     monthly = [
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|90", "tradingsymbol": "BANKNIFTYFUT",
          "name": "BANKNIFTY", "expiry": "2026-06-30", "instrument_type": "FUT",
-         "lot_size": 30, "tick_size": 0.05},
+         "lot_size": 30, "tick_size": 5},
         {"segment": "NSE_FO", "instrument_key": "NSE_FO|91", "tradingsymbol": "BANKNIFTYCE",
          "name": "BANKNIFTY", "expiry": "2026-06-30", "strike_price": 50000.0,
-         "instrument_type": "CE", "lot_size": 30, "tick_size": 0.05},
+         "instrument_type": "CE", "lot_size": 30, "tick_size": 5},
     ]
     r = InstrumentResolver(db_path=_write(tmp_path, monthly, "2026-06-08"))
     assert r.active_expiry_present("BANKNIFTY", _EXPECTED) is True
@@ -167,7 +167,7 @@ def test_assess_block_coverage_when_no_derivative_rows(tmp_path):
     # Dated TODAY but equity-only — the headline §4 case a date-only gate misses.
     equity_only = [{"segment": "NSE_EQ", "instrument_key": "NSE_EQ|INE002A01018",
                     "tradingsymbol": "RELIANCE", "name": "RELIANCE INDUSTRIES",
-                    "instrument_type": "EQ", "lot_size": 1, "tick_size": 0.05,
+                    "instrument_type": "EQ", "lot_size": 1, "tick_size": 5,
                     "isin": "INE002A01018"}]
     r = InstrumentResolver(db_path=_write(tmp_path, equity_only, "2026-06-08"))
     v = assess(r, underlyings=["NIFTY"], now=_NOW)

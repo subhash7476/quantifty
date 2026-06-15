@@ -35,7 +35,7 @@ def test_uses_resolver_lot_size_when_master_present(tmp_path):
         "segment": "NSE_FO", "instrument_key": "NSE_FO|54710",
         "tradingsymbol": "NIFTY25FEB2622500CE", "name": "NIFTY",
         "expiry": "2026-02-25", "strike_price": 22500.0,
-        "instrument_type": "CE", "lot_size": 50, "tick_size": 0.05,
+        "instrument_type": "CE", "lot_size": 50, "tick_size": 5,
     }]
     write_snapshot(parse_instruments(rows, "2026-02-01"), db_path=path)
     sel = OptionsContractSelector(resolver=InstrumentResolver(db_path=path))
@@ -61,7 +61,7 @@ def test_policy_override_beats_resolver(tmp_path):
         "segment": "NSE_FO", "instrument_key": "NSE_FO|54710",
         "tradingsymbol": "NIFTY25FEB2622500CE", "name": "NIFTY",
         "expiry": "2026-02-25", "strike_price": 22500.0,
-        "instrument_type": "CE", "lot_size": 50, "tick_size": 0.05,
+        "instrument_type": "CE", "lot_size": 50, "tick_size": 5,
     }]
     write_snapshot(parse_instruments(rows, "2026-02-01"), db_path=path)
     sel = OptionsContractSelector(resolver=InstrumentResolver(db_path=path))

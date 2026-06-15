@@ -22,7 +22,7 @@ from scripts.fetch_instrument_master import parse_instruments, write_snapshot
 def _row(ikey, snap):
     return {"segment": "NSE_FO", "instrument_key": ikey, "tradingsymbol": "NIFTYx",
             "name": "NIFTY", "instrument_type": "CE", "expiry": "2026-06-25",
-            "strike_price": 22500.0, "lot_size": 75, "tick_size": 0.05}
+            "strike_price": 22500.0, "lot_size": 75, "tick_size": 5}
 
 
 # --- InstrumentResolver.latest_snapshot_date -------------------------------
