@@ -13,10 +13,18 @@ Acceptance criteria (PHASE_4C_IMPLEMENTATION_PLAN.md §2 / 4C.7):
   P4  Derivative order, CI absent → BrokerContractError (fail-fast, no payload sent)
   P5  Futures order, CI absent → BrokerContractError (fail-fast)
   P6  LookupError from to_broker → propagates as BrokerContractError
+
+Planned #4 end-to-end payload tests (real mapping, no mock):
+  P7  OPTION CI (product=None) + real mapping → payload product="D" (NRML default)
+  P8  FUTURE CI (product=None) + real mapping → payload product="D" (NRML default)
 """
 from datetime import date
 from unittest.mock import MagicMock
 import pytest
+
+from scripts.fetch_instrument_master import parse_instruments, write_snapshot
+from core.brokers.mapping.upstox import UpstoxMapping
+from core.instruments.resolver import InstrumentResolver
 
 from core.brokers.upstox_adapter import UpstoxAdapter, BrokerContractError
 from core.brokers.mapping.base import BrokerRef
@@ -180,3 +188,55 @@ def test_p6_lookup_error_from_mapping_propagates_as_broker_contract_error(monkey
 
     with pytest.raises(BrokerContractError, match="mapping"):
         adapter.place_order(_order(ci=_CE))
+
+
+# ---------------------------------------------------------------------------
+# Planned #4 — end-to-end payload tests with real mapping (product=None path)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def _db(tmp_path):
+    path = tmp_path / "instruments.duckdb"
+    rows = [
+        {"segment": "NSE_FO", "instrument_key": "NSE_FO|53001",
+         "tradingsymbol": "NIFTY26FEBFUT", "name": "NIFTY",
+         "expiry": "2026-02-26", "instrument_type": "FUT",
+         "lot_size": 75, "tick_size": 5},
+        {"segment": "NSE_FO", "instrument_key": "NSE_FO|54710",
+         "tradingsymbol": "NIFTY26FEB2522500CE", "name": "NIFTY",
+         "expiry": "2026-02-25", "strike_price": 22500.0,
+         "instrument_type": "CE", "lot_size": 75, "tick_size": 5},
+    ]
+    write_snapshot(parse_instruments(rows, "2026-02-01"), db_path=path)
+    return path
+
+
+def test_p7_option_ci_no_product_default_nrml(_db, monkeypatch):
+    r = InstrumentResolver(db_path=_db)
+    ci = r.resolve_option("NIFTY", date(2026, 2, 25), 22500.0, "CE")
+    assert ci.product is None  # production reality: resolver never sets product
+
+    adapter = UpstoxAdapter("key", "secret", "token", MagicMock())
+    adapter._mapping = UpstoxMapping(db_path=_db)
+    captured = _capture(adapter, monkeypatch)
+
+    adapter.place_order(_order(ci=ci, instrument_type=InstrumentType.OPTION))
+
+    assert captured["product"] == "D", "OPTION with product=None must emit NRML ('D')"
+    assert captured["instrument_token"] == "NSE_FO|54710"
+
+
+def test_p8_future_ci_no_product_default_nrml(_db, monkeypatch):
+    r = InstrumentResolver(db_path=_db)
+    ci = r.resolve_future("NIFTY", as_of=date(2026, 2, 1))
+    assert ci.product is None
+
+    adapter = UpstoxAdapter("key", "secret", "token", MagicMock())
+    adapter._mapping = UpstoxMapping(db_path=_db)
+    captured = _capture(adapter, monkeypatch)
+
+    adapter.place_order(_order(ci=ci, instrument_type=InstrumentType.FUTURE,
+                               symbol="NIFTY26FEBFUT"))
+
+    assert captured["product"] == "D", "FUTURE with product=None must emit NRML ('D')"
+    assert captured["instrument_token"] == "NSE_FO|53001"

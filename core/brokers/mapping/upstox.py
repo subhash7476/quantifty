@@ -15,7 +15,7 @@ from typing import Optional
 import duckdb
 
 from core.brokers.mapping.base import BrokerMapping, BrokerRef
-from core.instruments.canonical import CanonicalInstrument
+from core.instruments.canonical import AssetClass, CanonicalInstrument
 from core.instruments.resolver import InstrumentResolver, _DEFAULT_DB
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,15 @@ logger = logging.getLogger(__name__)
 # Platform product intent -> Upstox product code. Upstox has no NRML/CNC split;
 # carry and delivery both route as "D", intraday as "I".
 _PRODUCT = {"MIS": "I", "CNC": "D", "NRML": "D"}
+
+# When ci.product is None (resolver never populates it; master has no product column),
+# the asset class determines the safe default. FUTURE/OPTION require NRML to allow
+# overnight carry; EQUITY requires CNC for funded delivery. INDEX is non-tradable.
+_ASSET_DEFAULT_PRODUCT = {
+    AssetClass.FUTURE: "NRML",
+    AssetClass.OPTION: "NRML",
+    AssetClass.EQUITY: "CNC",
+}
 
 
 class UpstoxMapping(BrokerMapping):
@@ -64,11 +73,12 @@ class UpstoxMapping(BrokerMapping):
         if ref is None:
             raise LookupError(
                 f"no Upstox mapping for {instrument.canonical_id}")
+        product_intent = instrument.product or _ASSET_DEFAULT_PRODUCT.get(instrument.asset_class)
         return BrokerRef(
             instrument_key=ref.instrument_key,
             tradingsymbol=ref.tradingsymbol,
             exchange_token=ref.exchange_token,
-            product_code=_PRODUCT.get(instrument.product),
+            product_code=_PRODUCT.get(product_intent),
         )
 
     def from_broker_position(self, raw: dict) -> Optional[CanonicalInstrument]:

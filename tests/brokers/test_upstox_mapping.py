@@ -92,6 +92,20 @@ def test_product_code_translation(db):
     assert m.to_broker(dataclasses.replace(ci, product="CNC")).product_code == "D"
 
 
+def test_to_broker_default_product_by_asset_class(db):
+    m = UpstoxMapping(db_path=db)
+    r = InstrumentResolver(db_path=db)
+    future_ci = r.resolve_future("NIFTY", as_of=date(2026, 2, 1))
+    option_ci = r.resolve_option("NIFTY", date(2026, 2, 25), 22500.0, "CE")
+    equity_ci = r.resolve_equity("INE002A01018")
+    assert future_ci.product is None  # characterization: resolver never populates product
+    assert option_ci.product is None
+    assert equity_ci.product is None
+    assert m.to_broker(future_ci).product_code == "D"   # NRML — carry requires overnight
+    assert m.to_broker(option_ci).product_code == "D"   # NRML — overnight option selling
+    assert m.to_broker(equity_ci).product_code == "D"   # CNC — funded delivery
+
+
 def test_to_broker_unmapped_instrument_raises(db):
     m = UpstoxMapping(db_path=db)
     ghost = CanonicalInstrument(asset_class=AssetClass.EQUITY, exchange="NSE",
