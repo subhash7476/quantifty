@@ -310,11 +310,23 @@ def test_forward_option_order_identity_is_canonical_derived(tmp_path, monkeypatc
 #                 persistence / broker payload
 # =========================================================================== #
 def test_canonical_not_imported_on_order_persistence_broker_boundary():
-    """The order model, the persistence repositories, and the live brokers never
-    import `CanonicalInstrument` — the canonical object stays internal to the
-    derivation points (the G1 / 4C.7 boundary)."""
+    """Persistence repositories, paper broker, and the live adapter never import
+    `CanonicalInstrument` directly — canonical identity stays internal to the
+    derivation points for these files.
+
+    4C.7 BOUNDARY CROSSING (intentional, planned):
+    `order_models.py` now carries `canonical_instrument: Optional[CanonicalInstrument]`
+    so the adapter can translate it to a broker identity key via `UpstoxMapping`.
+    This crossing is the explicit goal of 4C.7 (PHASE_4C_IMPLEMENTATION_PLAN.md §2)
+    and was pre-approved in G1_CLOSEOUT_REPORT.md §F. `order_models.py` is therefore
+    excluded from this list; all other boundary files remain forbidden.
+
+    `upstox_adapter.py` imports `UpstoxMapping` (which internally uses CI) but does
+    NOT directly import `CanonicalInstrument` — the AST check below stays green for
+    it, and it remains in the list as a standing invariant."""
     boundary = [
-        CORE / "execution/order_models.py",
+        # order_models.py intentionally omitted — 4C.7 carries canonical_instrument
+        # for adapter payload translation; see rationale above.
         CORE / "execution/persistence/order_repository.py",
         CORE / "execution/persistence/position_repository.py",
         CORE / "execution/persistence/execution_store.py",

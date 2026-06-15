@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 
 from core.instruments.instrument_base import Instrument, InstrumentType
 from core.instruments.equity import Equity
+from core.instruments.canonical import CanonicalInstrument  # 4C.7: intentional boundary crossing
 
 
 class OrderSide(Enum):
@@ -35,6 +36,7 @@ class NormalizedOrder:
     correlation_id: UUID = field(default_factory=uuid4)
     metadata: OrderMetadata = field(default_factory=lambda: OrderMetadata(0.0))
     group_id: Optional[UUID] = None
+    canonical_instrument: Optional[CanonicalInstrument] = field(default=None)  # 4C.7
 
     def __init__(
         self,
@@ -51,6 +53,7 @@ class NormalizedOrder:
         correlation_id: Optional[UUID] = None,
         metadata: Optional[OrderMetadata] = None,
         group_id: Optional[UUID] = None,
+        canonical_instrument: Optional[CanonicalInstrument] = None,  # 4C.7
     ):
         """
         Backward-compatible constructor.
@@ -79,6 +82,7 @@ class NormalizedOrder:
         object.__setattr__(self, "correlation_id", correlation_id or uuid4())
         object.__setattr__(self, "metadata", metadata or OrderMetadata(0.0))
         object.__setattr__(self, "group_id", group_id)
+        object.__setattr__(self, "canonical_instrument", canonical_instrument)  # 4C.7
 
     @property
     def symbol(self) -> str:

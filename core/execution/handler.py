@@ -569,18 +569,40 @@ class ExecutionHandler:
                     timestamp=signal.timestamp,
                     policy=signal.metadata.get("option_policy", {}),
                 )
+                # 4C.7 — resolve CI for broker payload; resolver cache makes this a
+                # dict lookup since the selector already called resolve_option internally.
+                from core.instruments.resolver import InstrumentResolver
+                _as_of = signal.timestamp.date() if isinstance(signal.timestamp, datetime) else signal.timestamp
+                canonical_instrument = InstrumentResolver().resolve_option(
+                    signal.symbol, instrument.expiry, instrument.strike,
+                    instrument.option_type, as_of=_as_of)
             else:
                 # G1 Wave 4 #4 / O2 — derive the legacy identity for a derivative
                 # EXIT (or non-option entry) symbol from the canonical instrument
                 # master. canonicalize_symbol resolves a futures-shaped symbol to a
                 # Future (Wave 2 #1, unchanged) AND an option-shaped EXIT symbol to a
-                # master-lot Option (closing the O2 gap where parse hardcoded lot 1);
-                # the derived symbol stays byte-identical and the CanonicalInstrument
-                # stays internal (G1 / 4C.7). Equity / unresolved symbols fall back to
-                # InstrumentParser.parse exactly as before.
+                # master-lot Option; the derived symbol stays byte-identical.
+                # Equity / unresolved symbols fall back to InstrumentParser.parse.
                 from core.execution.canonical_restore import canonicalize_symbol
                 derived = canonicalize_symbol(signal.symbol, signal.timestamp)
                 instrument = derived if derived is not None else InstrumentParser.parse(signal.symbol)
+                # 4C.7 — surface CI for broker payload (resolver cache hit when derived
+                # is not None; None for equity / unresolved symbols).
+                if derived is not None:
+                    from core.instruments.resolver import InstrumentResolver
+                    from core.instruments.instrument_base import InstrumentType as _IType
+                    _as_of = signal.timestamp.date() if isinstance(signal.timestamp, datetime) else signal.timestamp
+                    if instrument.type == _IType.FUTURE:
+                        canonical_instrument = InstrumentResolver().resolve_future(
+                            instrument.underlying, as_of=_as_of)
+                    elif instrument.type == _IType.OPTION:
+                        canonical_instrument = InstrumentResolver().resolve_option(
+                            instrument.underlying, instrument.expiry, instrument.strike,
+                            instrument.option_type, as_of=_as_of)
+                    else:
+                        canonical_instrument = None
+                else:
+                    canonical_instrument = None
 
             # Determine Side and Quantity
             if signal.signal_type == SignalType.EXIT:
@@ -605,6 +627,7 @@ class ExecutionHandler:
 
             order = NormalizedOrder(
                 instrument=instrument,
+                canonical_instrument=canonical_instrument,  # 4C.7
                 side=side,
                 quantity=int(quantity),
                 order_type=ModelOrderType.MARKET,

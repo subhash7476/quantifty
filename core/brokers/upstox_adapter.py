@@ -4,9 +4,11 @@ import requests
 from typing import Dict, Optional
 from core.brokers.base import BrokerAdapter
 from core.brokers.broker_position import BrokerPosition
+from core.brokers.mapping.upstox import UpstoxMapping  # 4C.7
 from core.events import OrderEvent, OrderStatus
 from core.execution.position_tracker import Position
 from core.execution.position_models import PositionSide
+from core.instruments.instrument_base import InstrumentType  # 4C.7 fail-fast
 from core.clock import Clock
 
 
@@ -34,6 +36,7 @@ class UpstoxAdapter(BrokerAdapter):
         self.logger = logging.getLogger(__name__)
         self._last_req_time = 0.0
         self._req_interval = 0.11  # slightly above 0.1 → 9 req/sec
+        self._mapping: Optional[UpstoxMapping] = None  # 4C.7: lazy-init on first place_order
 
     def _rate_limit(self):
         now = time.time()
@@ -91,13 +94,38 @@ class UpstoxAdapter(BrokerAdapter):
         raise BrokerUnavailableError(f"Request exhausted without response on {endpoint}")
 
     def place_order(self, order: OrderEvent) -> str:
+        # 4C.7: route using canonical identity when available; fail fast for derivatives
+        # that lack it (master absent/stale is a misconfiguration, not a fallback case).
+        if self._mapping is None:
+            self._mapping = UpstoxMapping()
+        ci = getattr(order, "canonical_instrument", None)
+        if ci is not None:
+            try:
+                ref = self._mapping.to_broker(ci)
+            except LookupError as e:
+                raise BrokerContractError(
+                    f"No Upstox mapping for {ci.canonical_id} — "
+                    f"master projection may be stale: {e}"
+                ) from e
+            instrument_token = ref.instrument_key
+            product_code = ref.product_code or "I"
+        else:
+            itype = getattr(order, "instrument_type", None)
+            if itype in {InstrumentType.OPTION, InstrumentType.FUTURE}:
+                raise BrokerContractError(
+                    f"Derivative order for {order.symbol} has no canonical_instrument — "
+                    "master absent or stale; refusing to route with display symbol."
+                )
+            instrument_token = order.symbol
+            product_code = "I"
+
         payload = {
             "quantity": int(order.quantity),
-            "product": "I",  # INTRADAY
+            "product": product_code,
             "validity": "DAY",
             "price": order.price if order.order_type.value == "LIMIT" else 0,
             "tag": order.signal_id_reference,
-            "instrument_token": order.symbol,
+            "instrument_token": instrument_token,
             "order_type": "MARKET" if order.order_type.value == "MARKET" else "LIMIT",
             "transaction_type": "BUY" if order.side == "BUY" else "SELL",
             "disclosed_quantity": 0,
