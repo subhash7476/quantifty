@@ -86,10 +86,11 @@ Replace three-way-divergent, broker-coupled, display-string identity with **one 
 **Tests:** `tests/brokers/test_place_order_resolution.py` — F&O order ships instrument_key not display symbol; product honored; equity path unchanged. Paper-broker end-to-end.
 **Risk:** medium — but the path it replaces is non-functional for F&O, so there is no working behavior to regress; gate behind paper test.
 
-### 4C.8 — Wire reconciliation (canonical ↔ canonical)
-**Files changed:** `core/execution/reconciliation.py` (match on `canonical_id` via `from_broker_position`), the broker→recon normalizer.
-**Tests:** `tests/execution/test_recon_canonical.py` — broker position resolves to canonical_id; QUANTITY_MISMATCH/ORPHANED detected on canonical keys; format-mismatch bug gone.
-**Risk:** low — recon is operationally dead today (no live feed), so this is additive correctness.
+### 4C.8 — Wire reconciliation (canonical ↔ canonical) — RETIRED 2026-06-15
+
+**Status: RETIRED** — superseded by the MM7G/MM7I route decision (R1 architecture, locked 2026-06-12). The behavioral goal — zero false reconciliation alerts for an economically-matched position — was achieved upstream via **#6b.3** (`core/brokers/token_rekey.py`): the composition-root re-key aligns both sides of `reconcile()` to the `NSE_FO|<token>` key space before the engine runs. Acceptance criterion #5 ("ReconciliationEngine matches canonical_id ↔ canonical_id") is satisfied via key-space alignment upstream; `reconciliation.py` is intentionally broker-agnostic and was not changed. The original R2 path (modifying `reconciliation.py` to match on `canonical_id`) is retired without implementation.
+
+**Residual gap (option-selector path):** when `execution_mode=option`, `FillEvent.symbol` is set to `order.symbol` (display symbol) rather than `ci.instrument_key`. This is tracked as `FILL_KEY_ALIGNMENT_OPTION_SELECTOR` in `docs/PROJECT_STATE.md` Planned, scoped to `handler.py` fill construction only, gated on the first LIVE `execution_mode=option` strategy.
 
 ---
 
