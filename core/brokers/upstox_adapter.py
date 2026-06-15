@@ -126,7 +126,7 @@ class UpstoxAdapter(BrokerAdapter):
 
     def get_positions(self) -> Dict[str, Position]:
         try:
-            response = self._make_request("GET", "/portfolio/net-positions")
+            response = self._make_request("GET", "/portfolio/short-term-positions")
             positions = {}
             if response and response.get('status') == 'success':
                 for pos_data in response['data']:

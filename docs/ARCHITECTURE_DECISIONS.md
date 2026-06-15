@@ -261,3 +261,41 @@ The startup gate (Phase F, guaranteed by ADR-006) reconciles the restored ledger
 - Consistent with **ADR-001** (reconciliation detects and refuses divergence; a broker fault never passes silently and never overwrites the ledger), **ADR-004** (no trading on data you cannot trust — extends "stale" to "unreadable"), **ADR-006** (the single gate that guarantees reconciliation now guarantees it even when the broker source faults), and **ADR-MM7E-1** (the refusal stays in the gate, not the composition root).
 
 *Ref: docs/reports/MM7F_6A_W3_GATE_HARDENING_REPORT.md; docs/reports/MM7F_BROKER_POSITIONS_ADAPTER_REVIEW.md (§F4); docs/reports/MM7_LIVE_WIRING_REVIEW.md §3.2 (W3); core/runtime/driver.py (`_reconcile_ledger`); tests/runtime/test_driver_broker_positions_failure.py; docs/PROJECT_STATE.md (Planned #6a — DONE); docs/CHANGELOG_PLATFORM.md (2026-06-12); commit d3a4390; ADR-001, ADR-004, ADR-006, ADR-MM7E-1.*
+
+---
+
+## ADR-MM7J3 — `instrument_token` Is The Sole Reliable Reconciliation Key; `trading_symbol` Is Unreliable
+
+**Status:** **Accepted** (2026-06-15) · Phase MM7J.3 #6b.3 (R1 implementation; route frozen at MM7I).
+
+### Context
+`reconcile()` matches internal ledger keys against broker position keys by raw string. The internal ledger is keyed on the order's `instrument_token` (e.g. `NSE_FO|53001` — `place_order` sends `"instrument_token": order.symbol` at `upstox_adapter.py:86`; the fill keys `PositionTracker._positions` on that same value). The broker's `/portfolio/short-term-positions` response uses `trading_symbol` as its human display key — the compact form (`NIFTY26JAN2623500CE`) confirmed by MM7J.0/MM7J.1 to yield 0 rows in the spaced master (`NIFTY 20350 CE 30 JUN 26`). A shape-only adapter passing `trading_symbol` as the reconcile `symbol` would orphan every live derivative position — a false divergence → startup refusal on every run. MM7I froze the namespace-resolution route as R1 (composition-root re-key on `instrument_token`). MM7J.2 preserved `instrument_token` on `BrokerPosition`. This ADR records the #6b.3 R1 implementation.
+
+### Decision
+**`instrument_token` is the sole reliable reconciliation key for positions the platform opened.** `trading_symbol` is not used for reconciliation identity.
+
+At the composition root, the broker book is re-keyed by `instrument_token` before the shape adapter:
+
+```
+broker.get_positions()           → Dict[str, BrokerPosition]  (keyed on trading_symbol)
+rekey_broker_positions_by_token  → Dict[str, BrokerPosition]  (keyed on instrument_token)
+to_reconcile_positions           → List[Dict]                  (symbol = instrument_token)
+reconcile()                      → alerts                       (both sides match)
+```
+
+Implemented in `core/brokers/token_rekey.py`. G1-clean: uses `pos.instrument_token` (the `BrokerPosition` attribute), never the literal string `instrument_key`.
+
+Positions with `instrument_token is None` are **excluded from the reconcile input** and returned as **`UNRECONCILABLE_UNMAPPED_POSITION`** pre-alerts — distinct from `ORPHANED_BROKER_POSITION` (`ORPHANED` = present at broker, absent internally; `UNRECONCILABLE` = cannot be mapped into the key space). Cause metadata in `internal_value`: `"missing_token"` for `None`; `"unknown_token"` reserved. Tolerates `None` per MM7J.2 design.
+
+### Alternatives Considered
+- **`trading_symbol` → master lookup (R2 / 4C.8)** — rejected (MM7I): blocked on the paused 4C chain; compact form has 0 master coverage; R1 is deterministic and sufficient.
+- **Forward `trading_symbol` as `UNRECONCILABLE` to reconcile** — rejected: produces `ORPHANED_BROKER_POSITION` for every position the platform opened — a false-divergence → startup refusal.
+- **`CanonicalInstrument` lookup** — rejected: `CanonicalInstrument` must not cross the broker-payload boundary (G1 / 4C.7); `instrument_token` already equals the ledger key by construction.
+
+### Consequences
+- `trading_symbol` is not a reconciliation identity — must not be used as a reconcile key by any future work.
+- `UNRECONCILABLE_UNMAPPED_POSITION` is the correct alert for a None-token position; `ORPHANED_BROKER_POSITION` is not.
+- Live-wiring at the LIVE rung remains deferred: bind `broker_positions=lambda: to_reconcile_positions(rekey_broker_positions_by_token(broker.get_positions())[0])` at `fno_runner` LIVE rung, gated on a first-hand authenticated non-empty position capture.
+- Full suite **522 passing, 0 failing**.
+
+*Ref: core/brokers/token_rekey.py; tests/runtime/test_reconcile_symbol_namespace.py; docs/reports/MM7I_NAMESPACE_ROUTE_DECISION.md; docs/reports/MM7J0_R1_PRECONDITIONS.md; docs/CHANGELOG_PLATFORM.md (2026-06-15); ADR-001, ADR-MM7F-1.*

@@ -1,5 +1,5 @@
 """
-MM.7G — Broker-position symbol-NAMESPACE characterization (G5).
+MM.7G — Broker-position symbol-NAMESPACE characterization (G5) + #6b.3 acceptance.
 
 The MM7F adapter review (F1-note / risk 1) established that the shape mismatch
 (Dict[str, Position] -> List[Dict], enum -> string) is trivial, but the
@@ -20,15 +20,22 @@ reconcile() matches these by RAW STRING (reconciliation.py:54,57,77). The existi
 net (test_reconciliation_broker.py, test_broker_positions_adapter.py) masks the
 hazard by using `"RELIANCE"` on BOTH sides — an accidental namespace alignment.
 
-These tests CHARACTERIZE current behavior — they do not fix it. They prove that
-a real live broker book keyed on `trading_symbol`, reconciled today against an
-internal ledger keyed on the driver instrument key, produces a FALSE divergence
-for EVERY position (one QUANTITY_MISMATCH for the internal leg + one
-ORPHANED_BROKER_POSITION for the broker leg), even when the economic position is
-identical on both sides. The aligned-namespace cases pin the contrast: when the
-keys agree, reconcile() is correct and flags only genuine divergence.
+The first four tests pin the shape-adapter path (no re-key):
+  - aligned namespace → 0 alerts (correct)
+  - matching namespace qty mismatch → 1 QUANTITY_MISMATCH (correct)
+  - orphaned broker position (no internal counterpart) → 1 ORPHANED_BROKER_POSITION
+  - NAMESPACE MISMATCH (shape-adapter path only) → 2 false alerts — the smoking gun
 
-NO adapter. NO reconciliation change. NO broker change. Characterization only.
+#6b.3 (token-primary wiring) accepts this: `rekey_broker_positions_by_token`
+re-keys the broker book on instrument_token before the shape adapter runs, so both
+sides of reconcile() share the same `NSE_FO|<token>` key space, eliminating the
+false divergence. Positions whose instrument_token is None are excluded and returned
+as UNRECONCILABLE_UNMAPPED_POSITION alerts (distinct from ORPHANED — they cannot be
+mapped into the key space at all).
+
+instrument_token observed present for live NSE_EQ positions (6B.ENDPOINT capture);
+treated as present-for-live-NSE_EQ, not guaranteed for all position types.
+Implementation tolerates instrument_token is None per MM7J.2 design.
 """
 
 from datetime import datetime
@@ -39,6 +46,7 @@ from core.execution.broker_positions_adapter import to_reconcile_positions
 from core.execution.position_models import Position, PositionSide
 from core.execution.position_tracker import PositionTracker
 from core.execution.reconciliation import ReconciliationEngine
+from core.brokers.token_rekey import rekey_broker_positions_by_token
 from core.instruments.equity import Equity
 
 
@@ -127,13 +135,16 @@ def test_orphaned_broker_position_when_internal_empty():
 
 
 # --------------------------------------------------------------------------- #
-# (2) NAMESPACE MISMATCH — THE HAZARD. The SAME economic position (LONG 50) is
-# held internally under the driver instrument key (`NSE_FO|53001`) and reported
-# by the broker under its trading_symbol (`NIFTY26JAN2623500CE`). reconcile()'s
-# raw-string match treats the two keys as two unrelated symbols, producing a
+# (2) NAMESPACE MISMATCH — THE HAZARD (shape-adapter path only, for reference).
+# The SAME economic position (LONG 50) is held internally under the driver
+# instrument key (`NSE_FO|53001`) and reported by the broker under its
+# trading_symbol (`NIFTY26JAN2623500CE`). A shape-only adapter produces a
 # DOUBLE false divergence: a QUANTITY_MISMATCH on the internal leg (internal 50
-# vs broker 0) AND an ORPHANED_BROKER_POSITION on the broker leg. A shape-only
-# adapter (no key mapping) reconciled live would refuse to start on every run.
+# vs broker 0) AND an ORPHANED_BROKER_POSITION on the broker leg.
+#
+# #6b.3 ACCEPTANCE: with token-primary wiring (rekey_broker_positions_by_token)
+# before the shape adapter, both sides key on `NSE_FO|53001` → 0 alerts.
+# The broker payload must carry instrument_token for the re-key to succeed.
 # --------------------------------------------------------------------------- #
 def test_mismatched_namespace_same_position_double_false_divergence():
     internal = PositionTracker()
@@ -143,18 +154,61 @@ def test_mismatched_namespace_same_position_double_false_divergence():
         quantity=50, avg_price=120.0)
     engine = ReconciliationEngine(internal)
 
-    # Broker reports the identical position under its trading_symbol namespace.
+    # Broker reports the same position under its trading_symbol namespace BUT
+    # carries instrument_token = the ledger key.  The token-primary re-key
+    # converts the dict from {trading_symbol: pos} to {instrument_token: pos}
+    # before the shape adapter runs, so reconcile() sees matching keys.
     adapter = _adapter([
-        {"trading_symbol": "NIFTY26JAN2623500CE", "quantity": "50",
+        {"instrument_token": "NSE_FO|53001",
+         "trading_symbol": "NIFTY26JAN2623500CE", "quantity": "50",
          "average_price": "120.0"},
     ])
 
-    alerts = engine.reconcile(_bridge(adapter))
+    raw = adapter.get_positions()
+    rekeyed, pre_alerts = rekey_broker_positions_by_token(raw)
+    alerts = pre_alerts + engine.reconcile(to_reconcile_positions(rekeyed))
 
-    # Current behavior: the economically-matched position is flagged TWICE.
-    issues = {(a.symbol, a.issue) for a in alerts}
-    assert issues == {
-        ("NSE_FO|53001", "QUANTITY_MISMATCH"),       # internal leg vs broker 0
-        ("NIFTY26JAN2623500CE", "ORPHANED_BROKER_POSITION"),  # broker leg vs internal 0
-    }
-    assert len(alerts) == 2
+    # #6b.3 acceptance: the economically-matched position produces 0 alerts.
+    assert alerts == []
+
+
+# --------------------------------------------------------------------------- #
+# #6b.3 — None-token BrokerPosition path.
+# A position whose instrument_token is None (e.g. equity same-day delivery shape
+# where the token field was absent in the payload) cannot be mapped into the
+# `NSE_FO|<token>` key space. It is excluded from the reconcile input and
+# returned as an UNRECONCILABLE_UNMAPPED_POSITION alert with cause metadata.
+# --------------------------------------------------------------------------- #
+def test_none_token_broker_position_is_excluded_and_emits_unreconcilable():
+    adapter = _adapter([
+        {"trading_symbol": "RELIANCE", "quantity": "10", "average_price": "2500.5"},
+    ])
+    raw = adapter.get_positions()  # instrument_token is None — no token in payload
+
+    rekeyed, pre_alerts = rekey_broker_positions_by_token(raw)
+
+    assert rekeyed == {}
+    assert len(pre_alerts) == 1
+    assert pre_alerts[0].issue == "UNRECONCILABLE_UNMAPPED_POSITION"
+    assert pre_alerts[0].symbol == "RELIANCE"
+    assert pre_alerts[0].internal_value == "missing_token"
+
+
+def test_none_token_position_excluded_from_reconcile_engine():
+    """The UNRECONCILABLE position does not reach reconcile() — the engine
+    never sees it, so it cannot generate a spurious ORPHANED_BROKER_POSITION."""
+    engine = ReconciliationEngine(PositionTracker())  # empty internal book
+
+    adapter = _adapter([
+        {"trading_symbol": "RELIANCE", "quantity": "10", "average_price": "2500.5"},
+    ])
+    raw = adapter.get_positions()
+    rekeyed, pre_alerts = rekey_broker_positions_by_token(raw)
+
+    engine_alerts = engine.reconcile(to_reconcile_positions(rekeyed))
+
+    # engine sees nothing (rekeyed is empty) → no engine alerts
+    assert engine_alerts == []
+    # The only alert is the UNRECONCILABLE pre-alert
+    assert len(pre_alerts) == 1
+    assert pre_alerts[0].issue == "UNRECONCILABLE_UNMAPPED_POSITION"

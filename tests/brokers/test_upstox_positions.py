@@ -10,7 +10,7 @@ side=SHORT with a positive absolute quantity, and that the error/non-success pat
 still return {} (existing behavior unchanged).
 
 The broker HTTP boundary (_make_request) is the one unavoidable seam; it is replaced
-with a stub returning canned net-positions payloads. No network.
+with a stub returning canned positions payloads. No network.
 """
 
 from datetime import datetime
@@ -83,15 +83,17 @@ def test_get_positions_returns_empty_on_exception():
 
 
 # --------------------------------------------------------------------------- #
-# MM7J.2 — instrument_token preservation (Route R1, MM7J.1 verified the live
-# net-positions payload carries instrument_token = NSE_FO|<token>, byte-identical
-# to the ledger key). get_positions() must retain it on the returned position so
-# downstream reconciliation can key on it — WITHOUT changing the dict key, any
-# existing Position field, or any other observable behavior.
+# MM7J.2 — instrument_token preservation (Route R1). Upstox documentation suggests
+# the positions payload (GET /v2/portfolio/short-term-positions) carries
+# instrument_token = NSE_FO|<token>, expected byte-identical to the ledger key — but
+# live verification is still PENDING (no non-empty payload captured; see
+# docs/reports/UPSTOX_CANONICAL_API_MAP.md). get_positions() must retain it on the
+# returned position so downstream reconciliation can key on it — WITHOUT changing the
+# dict key, any existing Position field, or any other observable behavior.
 # --------------------------------------------------------------------------- #
 
 def test_get_positions_preserves_instrument_token():
-    """A derivative net-positions line carrying instrument_token surfaces it on
+    """A derivative positions line carrying instrument_token surfaces it on
     the returned broker position (NSE_FO|<token>, the ledger namespace)."""
     adapter = _adapter({
         "status": "success",

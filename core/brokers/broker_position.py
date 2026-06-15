@@ -1,8 +1,10 @@
 """
 Broker-position DTO (MM7J.2, Route R1).
 
-A broker's net-positions line carries `instrument_token` (e.g. `NSE_FO|79381`),
-which MM7J.1 verified is byte-identical to the internal ledger key. The execution
+A broker's positions line (`GET /v2/portfolio/short-term-positions`) is documented
+to carry `instrument_token` (e.g. `NSE_FO|79381`), expected byte-identical to the
+internal ledger key — but this is NOT yet live-verified: no non-empty position
+payload has been captured (see `docs/reports/UPSTOX_CANONICAL_API_MAP.md`). The execution
 `Position` model is deliberately broker-identity-free (the G1 boundary —
 `instrument_key`/token handling must NOT live in `core/execution/`). `BrokerPosition`
 is the broker-layer carrier: it IS-A `Position` (so it remains a drop-in for the
