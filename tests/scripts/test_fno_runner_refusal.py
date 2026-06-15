@@ -38,13 +38,14 @@ def test_refuses_fno_live_without_master_readiness():
         build_runner(source=NoopSource(), symbols=[DERIV], underlyings=None)
 
 
-def test_refuses_live_executionmode_without_broker_positions():
-    # Starting ExecutionMode.LIVE without reconciling the real broker book is
-    # unsafe; the root refuses (this is #6's territory; MM7E names it).
-    with pytest.raises(ValueError, match="broker_positions|reconcil"):
+def test_refuses_live_executionmode_without_live_broker():
+    # ExecutionMode.LIVE without a real BrokerAdapter is an unsafe wiring —
+    # PaperBroker synthetic fills would silently produce a LIVE-flagged run with
+    # no real orders. The root refuses before touching any other collaborator.
+    with pytest.raises(ValueError, match="BrokerAdapter|broker"):
         from scripts.fno_runner import build_runner
         build_runner(source=NoopSource(), symbols=[EQUITY],
-                     execution_mode=ExecutionMode.LIVE, broker_positions=None)
+                     execution_mode=ExecutionMode.LIVE, broker=None)
 
 
 def test_warns_when_reconciliation_vacuous_on_paper(tmp_path, monkeypatch, caplog):

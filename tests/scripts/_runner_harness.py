@@ -116,7 +116,8 @@ def make_master(tmp_path, underlying: str = "NIFTY") -> Path:
 
 
 def build(tmp_path, monkeypatch, *, source, symbols=(EQUITY,), underlyings=None,
-          execution_mode=ExecutionMode.PAPER, broker_positions=lambda: [],
+          execution_mode=ExecutionMode.PAPER, broker=None,
+          broker_positions=lambda: [],
           master_db_path=None, max_bars=3, n_bars=3, journal=None):
     """Construct a driver through the production root with the isolation seams
     injected. Production callers pass only source/symbols/underlyings; the net
@@ -126,7 +127,8 @@ def build(tmp_path, monkeypatch, *, source, symbols=(EQUITY,), underlyings=None,
         {symbols[0]: bar_series(symbols[0], n_bars, close=CLOSE)}, live=True)
     return fno_runner.build_runner(
         source=source, symbols=list(symbols), underlyings=underlyings,
-        execution_mode=execution_mode, broker_positions=broker_positions,
+        execution_mode=execution_mode, broker=broker,
+        broker_positions=broker_positions,
         master_db_path=master_db_path, clock=ReplayClock(FIXED_DT), provider=provider,
         db_manager=dbm, metrics_path=str(tmp_path / "metrics.json"),
         journal=journal, max_bars=max_bars)
