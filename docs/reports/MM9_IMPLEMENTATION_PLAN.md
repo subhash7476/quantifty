@@ -760,7 +760,7 @@ Do not update `SESSION_BOOTSTRAP.md` until MM9.2 is complete. MM9.1's single-sym
 ```
 MM9.1 — Basic Capital-Utilisation Gate
 [x] MM9.1-S1 — ExecutionConfig.max_capital_utilisation field added  (COMPLETE 2026-06-26)
-[ ] MM9.1-S2 — _check_margin_budget private method implemented
+[x] MM9.1-S2 — _estimate_required_margin deterministic estimation helper  (COMPLETE 2026-06-26)
 [ ] MM9.1-S3 — Call site wired in process_signal (after risk_manager, before add_order)
 [ ] MM9.1-S4 — Test suite passing (rejection, approval, EXIT bypass, multiplier, multi-symbol doc)
 [ ] MM9.1-S5 — fno_runner --initial-capital parameter wired

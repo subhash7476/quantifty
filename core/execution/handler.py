@@ -907,6 +907,11 @@ class ExecutionHandler:
         gst = 0.18 * (brokerage + exchange_txn + sebi)
         return brokerage + exchange_txn + sebi + stt + stamp + gst
 
+    def _estimate_required_margin(self, quantity: float, price: float) -> float:
+        # MM9.1: single-symbol estimate only.
+        # Future MM9.x: replace with broker/SPAN margin engine.
+        return quantity * price
+
     def _log_dry_run_order(self, signal, side, qty, price):
         self.logger.info(
             f"[DRY-RUN] {side} {qty} {signal.symbol} @ {price} at {self.clock.now()}")
