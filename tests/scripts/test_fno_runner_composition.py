@@ -73,3 +73,15 @@ def test_runner_injects_master_readiness_when_derivatives(tmp_path, monkeypatch)
               underlyings=["NIFTY"], master_db_path=master)
     assert d._master_readiness is not None
     assert d._master_readiness().state is ReadinessState.FRESH
+
+
+def test_initial_capital_propagates_to_execution_metrics(tmp_path, monkeypatch):
+    d = build(tmp_path, monkeypatch, source=NoopSource(), symbols=(EQUITY,),
+              initial_capital=500_000.0)
+    assert d._execution.metrics.cash_balance == 500_000.0
+    assert d._execution.metrics.max_equity == 500_000.0
+
+
+def test_initial_capital_default_is_100k(tmp_path, monkeypatch):
+    d = build(tmp_path, monkeypatch, source=NoopSource(), symbols=(EQUITY,))
+    assert d._execution.metrics.cash_balance == 100_000.0

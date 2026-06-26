@@ -90,6 +90,7 @@ def build_runner(
     journal: Optional[RuntimeEventJournal] = None,
     metrics_path: Optional[str] = None,
     max_bars: Optional[int] = None,
+    initial_capital: float = 100_000.0,
 ) -> LoopDriver:
     """Compose and return a live F&O LoopDriver around the injected source.
 
@@ -174,6 +175,7 @@ def build_runner(
         broker=order_broker,
         config=ExecutionConfig(mode=execution_mode),
         load_db_state=True,  # recovery at construction (ADR-001); driver reuses it
+        initial_capital=initial_capital,
     )
     if metrics_path is not None:
         handler_kwargs["metrics_path"] = metrics_path
