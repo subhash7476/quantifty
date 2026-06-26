@@ -48,6 +48,7 @@ def _build_handler(tmp_path, monkeypatch, config=None):
         db_manager=DatabaseManager(data_root=tmp_path),
         clock=clock, broker=PaperBroker(clock),
         config=config or ExecutionConfig(),
+        initial_capital=1_000_000_000.0,  # MM9.1: ample capital — characterization tests don't exercise the margin gate
         metrics_path=str(tmp_path / "metrics.json"),
         load_db_state=True,
     )

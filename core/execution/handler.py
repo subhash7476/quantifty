@@ -657,6 +657,21 @@ class ExecutionHandler:
                 raise ExecutionRuleError(
                     f"Pre-trade risk rejection: {risk_decision.reason}")
 
+            # MM9.1-S3: capital-utilisation gate
+            # D8: EXIT signals bypass — closing a position reduces margin; gating an EXIT is unsafe.
+            if signal.signal_type != SignalType.EXIT:
+                approved, utilisation = self._check_margin_budget(order, current_price)
+                if not approved:
+                    self.metrics.rejected_trades += 1
+                    self.logger.warning(
+                        "MARGIN_BUDGET_REJECTED symbol=%s signal_id=%s utilisation=%.2f%% "
+                        "limit=%.2f%% [C3: single-symbol gate only — other open positions not priced]",
+                        order.symbol, signal_id,
+                        utilisation * 100,
+                        self.config.max_capital_utilisation * 100,
+                    )
+                    return None
+
             # PHASE 5: Order Lifecycle Registration
             self.order_tracker.add_order(order)
 
@@ -911,6 +926,27 @@ class ExecutionHandler:
         # MM9.1: single-symbol estimate only.
         # Future MM9.x: replace with broker/SPAN margin engine.
         return quantity * price
+
+    def _check_margin_budget(self, order: NormalizedOrder, current_price: float) -> tuple[bool, float]:
+        # MM9.1: capital-utilisation gate — (approved, utilisation).
+        # C2: must be called before order_tracker.add_order to avoid orphaned orders on recovery.
+        # C3: single-symbol price dict — other open symbols contribute 0 to used_current.
+        if self.metrics.cash_balance <= 0:
+            return True, 0.0
+
+        # C1: canonical_instrument.multiplier is lot_size for F&O (e.g. 65 for NIFTY).
+        effective_multiplier = (
+            order.canonical_instrument.multiplier
+            if order.canonical_instrument is not None
+            else order.instrument.multiplier
+        )
+        used_current = self.margin_tracker.get_used_margin({order.symbol: current_price})
+        incremental_est = (
+            self._estimate_required_margin(order.quantity * effective_multiplier, current_price)
+            * self.margin_tracker.margin_rate
+        )
+        utilisation = (used_current + incremental_est) / self.metrics.cash_balance
+        return utilisation <= self.config.max_capital_utilisation, utilisation
 
     def _log_dry_run_order(self, signal, side, qty, price):
         self.logger.info(
