@@ -81,6 +81,8 @@ class ExecutionConfig:
     max_gamma_exposure: float = 100.0
     # MM8.2A: consecutive BrokerUnavailableError threshold before kill switch
     broker_error_threshold: int = 3
+    # MM9.1: capital-utilisation threshold for margin gate
+    max_capital_utilisation: float = 0.80
 
 
 @dataclass

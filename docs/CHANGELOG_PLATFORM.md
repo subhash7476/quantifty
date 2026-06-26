@@ -6,6 +6,11 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-26 — MM9.1-S1 — ExecutionConfig.max_capital_utilisation field (default 0.80) (569→573 passing)
+
+First slice of the MM9 margin-enforcement program (`docs/reports/MM9_IMPLEMENTATION_PLAN.md`). Adds one field to the `ExecutionConfig` dataclass in `core/execution/handler.py`: `max_capital_utilisation: float = 0.80`, appended as the last field (after `broker_error_threshold`). **Infrastructure-only — zero runtime behavior change:** the field is not read anywhere until MM9.1-S2 (`_check_margin_budget`) and MM9.1-S3 (call-site wiring in `process_signal`). All 20 existing `ExecutionConfig(...)` call sites verified no-arg or keyword-only, so appending a defaulted field is backwards-compatible. New test file `tests/execution/test_mm9_1_margin_gate.py` (+4 tests): default==0.80, configurable, existing fields unaffected (`broker_error_threshold==3`, `max_drawdown_limit==0.05`), type is `float`. Full suite **569 → 573 passing**, 0 failing. Margin Check status remains MISSING until the gate is wired in S3.
+*Ref: core/execution/handler.py; tests/execution/test_mm9_1_margin_gate.py; docs/reports/MM9_IMPLEMENTATION_PLAN.md §4 MM9.1-S1; docs/reports/MM9_1_S1_IMPLEMENTATION_SPEC.md.*
+
 ## 2026-06-16 — MM8 COMPLETE — Failure Escalation Hardening (569/569 passing)
 
 All seven MM8 slices delivered in one session. Silent broker-failure absorption eliminated: `BrokerAuthError` immediately activates the kill switch; `BrokerUnavailableError` activates the kill switch after `broker_error_threshold` (default 3) consecutive failures; both paths journal a `BROKER_ERROR` event via `RuntimeEventJournal`; `EXECUTION_CALLS` now meters only actual broker execution attempts (non-`None` return); `build_runner` refuses `ExecutionMode.LIVE` before construction when the Upstox token is absent or expired; and MM8.4's acceptance sweep caught and fixed a cross-slice bug where `BrokerUnavailableError` fell through to `return order` rather than `return None`, creating ghost orders and false EXECUTION_CALLS counts. 20 new tests across 5 new files; 565 → 569 passing. No ADR/Constitution violations. All existing tests green.
