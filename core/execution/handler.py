@@ -45,6 +45,7 @@ from core.execution.persistence.position_repository import PositionRepository
 from core.execution.risk_models import RiskStatus
 from core.clock import Clock
 from core.brokers.broker_base import BrokerAdapter
+from core.brokers.upstox_adapter import BrokerAuthError, BrokerUnavailableError
 from core.alerts.alerter import alerter
 from core.database.manager import DatabaseManager
 from core.logging import setup_logger
@@ -54,6 +55,7 @@ from core.risk.greeks.greeks_model import Greeks
 from core.analytics.capture import CaptureEngine
 from core.analytics.diagnostic_engine import DiagnosticsEngine
 from core.database.writers import TradingWriter, _to_str
+from core.runtime.event_journal import RuntimeEventJournal, EventType, Severity
 
 
 class ExecutionMode(Enum):
@@ -77,6 +79,8 @@ class ExecutionConfig:
     max_portfolio_delta: float = 1000.0
     max_portfolio_vega: float = 500.0
     max_gamma_exposure: float = 100.0
+    # MM8.2A: consecutive BrokerUnavailableError threshold before kill switch
+    broker_error_threshold: int = 3
 
 
 @dataclass
@@ -124,10 +128,12 @@ class ExecutionHandler:
                  config: Optional[ExecutionConfig] = None,
                  metrics_path: str = "logs/execution_metrics.json",
                  initial_capital: float = 100000.0,
-                 load_db_state: bool = True):
+                 load_db_state: bool = True,
+                 journal: Optional[RuntimeEventJournal] = None):
         self.db_manager = db_manager
         self.clock = clock
         self.broker = broker
+        self._journal = journal
         # Subscribe to broker fills
         self.broker.subscribe_fills(self._handle_broker_fill)
 
@@ -176,6 +182,7 @@ class ExecutionHandler:
             cash_balance=initial_capital
         )
         self._kill_switched = False
+        self._consecutive_broker_errors = 0
         self._trades_today = 0
         self.logger = logging.getLogger(__name__)
 
@@ -656,6 +663,7 @@ class ExecutionHandler:
                 broker_id = self.broker.place_order(order)
                 self.logger.info(
                     f"Order placed with broker. Broker ID: {broker_id}")
+                self._consecutive_broker_errors = 0
 
                 # Simulate immediate fill for backtesting (paper broker)
                 from core.brokers.paper_broker import PaperBroker
@@ -684,6 +692,32 @@ class ExecutionHandler:
                     # For compatibility, we'll return the order.
                     return order
 
+            except BrokerAuthError as e:
+                if self._journal:
+                    self._journal.record(
+                        EventType.BROKER_ERROR,
+                        f"Broker authentication failure: {e}",
+                        severity=Severity.CRITICAL,
+                        source_component="ExecutionHandler",
+                        metadata={"error": str(e), "signal_id": str(signal_id)},
+                    )
+                self.activate_kill_switch(f"BrokerAuthError: {e}")
+                return None
+            except BrokerUnavailableError as e:
+                self._consecutive_broker_errors += 1
+                if self._journal:
+                    self._journal.record(
+                        EventType.BROKER_ERROR,
+                        f"Broker unavailable: {e}",
+                        severity=Severity.WARNING,
+                        source_component="ExecutionHandler",
+                        metadata={"error": str(e), "signal_id": str(signal_id),
+                                  "consecutive_errors": self._consecutive_broker_errors},
+                    )
+                if self._consecutive_broker_errors >= self.config.broker_error_threshold:
+                    self.activate_kill_switch(
+                        f"BrokerUnavailableError x{self._consecutive_broker_errors}: {e}")
+                return None
             except Exception as e:
                 self.logger.error(f"Failed to place order with broker: {e}")
 

@@ -316,6 +316,10 @@ For each `SignalEvent` from `source.on_bar(bar)`, in list order:
 - Call `handler.process_signal(signal, current_price=bar.close)` (`handler.py:372`). Signature: `process_signal(signal: SignalEvent, current_price: float) -> Optional[NormalizedOrder]`.
 - `current_price` is **always `bar.close`** — deterministic, no separate price feed, no driver-side pricing.
 - The handler performs (driver does none of this): Phase-0 authority + idempotency, mandatory SL/risk-R enforcement, kill-switch check, daily-trade-limit, drawdown check, position-stacking guard, greek limits, order creation, broker submit. The driver **accepts the verdict**: a `NormalizedOrder` (submitted) or `None` (skipped/blocked).
+- **`EXECUTION_CALLS` metric semantic (changed in MM8.1C):**
+  - *Before MM8:* "process_signal returned without raising."
+  - *After MM8:* "execution path produced a non-None execution result."
+  - The driver meters `RuntimeMetric.EXECUTION_CALLS` only when `process_signal` returns **non-`None`**. A `None` return — kill-switch exit, stacking guard, drawdown block, risk refusal, or broker failure — is **not** metered. The metric now counts actual broker execution attempts only.
 
 ### 8.2 Order submission path
 

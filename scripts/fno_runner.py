@@ -45,6 +45,7 @@ from core.runtime.driver import LoopDriver
 from core.runtime.event_journal import RuntimeEventJournal
 from core.runtime.instrument_scope import has_derivatives
 from core.runtime.signal_source import SignalSource
+from core.auth.credentials import credentials as _live_credentials
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,16 @@ def build_runner(
             "(inject an UpstoxAdapter); refusing to start without real order routing"
         )
 
+    # MM8.3: refuse LIVE start when Upstox token is absent or expired — fail fast
+    # before any collaborator is constructed (earlier diagnostics, no wasted work).
+    if execution_mode is ExecutionMode.LIVE:
+        if not _live_credentials.has_upstox_token or _live_credentials.is_token_expired:
+            raise ValueError(
+                "fno_runner: ExecutionMode.LIVE requires a valid, unexpired Upstox "
+                "token; refresh the token before starting "
+                "(CredentialManager.needs_daily_refresh is True)"
+            )
+
     # A live F&O run with no checker is the W4 trap: a vacuous pass that also
     # disables G1 restore-canonicalization. The checker needs explicit underlyings
     # (broker keys can't derive them), so an F&O universe with no underlyings
@@ -166,6 +177,7 @@ def build_runner(
     )
     if metrics_path is not None:
         handler_kwargs["metrics_path"] = metrics_path
+    handler_kwargs["journal"] = journal
     execution = ExecutionHandler(**handler_kwargs)
 
     config = DriverConfig(mode=Mode.LIVE, symbols=list(symbols), max_bars=max_bars)

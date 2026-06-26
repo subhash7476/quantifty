@@ -2,11 +2,21 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-06-15
+**Last updated:** 2026-06-16
 
 ---
 
 ## Completed
+
+- **Phase MM8 — Failure Escalation Hardening — COMPLETE (2026-06-16).** Eliminated silent broker-failure absorption in `ExecutionHandler.process_signal`: auth failures and repeated broker outages now escalate through the existing kill-switch + journal framework. Gaps closed: G1 (BrokerAuthError swallowed), G2 (BrokerUnavailableError ghost orders), G3 (expired LIVE credentials not refused early), G4 (EXECUTION_CALLS miscounted non-executions). MM8.4 acceptance sweep caught and fixed a cross-slice fall-through bug (BrokerUnavailableError returned `order` instead of `None`). 569/569 tests passing. No ADR/Constitution violations.
+  - [✓] MM8.1A — Journal Injection — COMPLETE. `ExecutionHandler` accepts optional `RuntimeEventJournal`; `build_runner` injects the shared instance. +4 tests.
+  - [✓] MM8.1B — BrokerAuthError Escalation — COMPLETE. `BrokerAuthError` → `BROKER_ERROR` (CRITICAL) → `activate_kill_switch()` → `return None`. +5 tests.
+  - [✓] MM8.1C — EXECUTION_CALLS Metric Correction — COMPLETE. `EXECUTION_CALLS` meters only when `process_signal` returns non-`None`. `FakeExecutionHandler` updated. +3 tests.
+  - [✓] MM8.2A — Broker Error Threshold Infrastructure — COMPLETE. `ExecutionConfig.broker_error_threshold = 3`; `_consecutive_broker_errors` counter. +3 tests.
+  - [✓] MM8.2B — BrokerUnavailableError Escalation — COMPLETE. WARNING per failure; `activate_kill_switch()` at threshold; `return None` on every failure path. +5 tests.
+  - [✓] MM8.3 — Startup Credential Validation — COMPLETE. `build_runner()` refuses `ExecutionMode.LIVE` before construction when Upstox token absent or expired. +4 tests.
+  - [✓] MM8.4 — Integration & Acceptance — COMPLETE. Cross-slice sweep; fixed §7.5 fall-through bug. +4 tests.
+  *(Ref: docs/reports/MM8_FAILURE_ESCALATION_HARDENING_PLAN.md)*
 
 - **Salvage migration concluded.** Infra-only Upstox bot (Nifty / equity / options) carried from `D:\BOT\root` into `F:\Nifty`; strategies, indicators, research, ML, backtesting, scanners, and FTMO excluded. *(docs/reports/SALVAGE_REPORT.md)*
 - **`ExecutionHandler` restored.** The OMS/EMS core (`core/execution/handler.py`) that the initial migration had dropped is back and import-clean; the wrongly-kept `pixityAI_risk_engine.py` was removed. *(docs/reports/SALVAGE_REPORT.md §8)*

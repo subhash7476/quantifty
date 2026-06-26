@@ -642,11 +642,12 @@ class LoopDriver:
         for signal in signals:
             self._meter(RuntimeMetric.SIGNALS_ROUTED)
             try:
-                self._execution.process_signal(signal, bar.close)
+                result = self._execution.process_signal(signal, bar.close)
             except Exception as exc:  # §8.4: a single signal must not kill the loop
                 self._handle_signal_error(signal, exc)
                 continue
-            self._meter(RuntimeMetric.EXECUTION_CALLS)
+            if result is not None:
+                self._meter(RuntimeMetric.EXECUTION_CALLS)
 
     def _handle_signal_error(self, signal, exc: Exception) -> None:
         """

@@ -29,11 +29,20 @@ from core.execution.handler import ExecutionMode
 from core.execution.position_models import PositionSide
 
 from scripts.fno_runner import _make_live_broker_positions
+import scripts.fno_runner as fno_runner
 
 from _runner_harness import EQUITY, NoopSource, build
 
 NOW = datetime(2026, 6, 15, 9, 30, tzinfo=pytz.UTC)
 TOKEN = "NSE_FO|53001"
+
+
+def _patch_live_creds(monkeypatch):
+    from unittest.mock import MagicMock as _MM
+    mock = _MM()
+    mock.has_upstox_token = True
+    mock.is_token_expired = False
+    monkeypatch.setattr(fno_runner, "_live_credentials", mock)
 
 
 def _mock_broker(*broker_positions):
@@ -65,6 +74,7 @@ def _flat_bp(symbol="RELIANCE", token=None):
 def test_live_rung_uses_injected_broker_for_order_routing(tmp_path, monkeypatch):
     from core.brokers.paper_broker import PaperBroker
 
+    _patch_live_creds(monkeypatch)
     mock_adapter = _mock_broker(_long_bp())
     d = build(
         tmp_path, monkeypatch,
@@ -84,6 +94,7 @@ def test_live_rung_uses_injected_broker_for_order_routing(tmp_path, monkeypatch)
 
 def test_live_rung_auto_constructs_broker_positions_when_not_provided(
         tmp_path, monkeypatch):
+    _patch_live_creds(monkeypatch)
     mock_adapter = _mock_broker(_long_bp())
     d = build(
         tmp_path, monkeypatch,
@@ -154,6 +165,7 @@ def test_make_live_broker_positions_mixes_token_and_no_token(caplog):
 # --------------------------------------------------------------------------- #
 
 def test_live_rung_explicit_broker_positions_override_is_used(tmp_path, monkeypatch):
+    _patch_live_creds(monkeypatch)
     mock_adapter = _mock_broker(_long_bp())
     explicit = lambda: [{"symbol": "OVERRIDE", "quantity": 1.0, "side": "LONG"}]
 

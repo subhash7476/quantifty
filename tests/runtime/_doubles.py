@@ -276,7 +276,8 @@ class FakeExecutionHandler:
         self.routed.append((signal, current_price))
         if self._kill_switch_on is not None and signal.symbol == self._kill_switch_on:
             self.activate_kill_switch(f"handler tripped on {signal.symbol}")
-        return None
+            return None
+        return True  # non-None sentinel: broker execution path reached
 
 
 class FakeTelemetryTransport:
