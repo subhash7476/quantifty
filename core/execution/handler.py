@@ -420,6 +420,8 @@ class ExecutionHandler:
                     timestamp=fill.timestamp
                 )
                 
+                self._update_equity_metrics(trade)
+                
                 # Retrieve context from order metadata
                 context = None
                 if order.metadata and hasattr(order.metadata, 'strategy_metadata'):

@@ -167,6 +167,7 @@ def test_price_cache_overwritten_on_repeat_signal(tmp_path, monkeypatch):
 
 def test_margin_gate_uses_full_cache(tmp_path, monkeypatch):
     handler = _build_handler(tmp_path, monkeypatch)
+    handler._kill_switch_disabled = True  # S4: equity accounting reduces cash; test is about cache, not drawdown
     # First signal for AAA opens a position and warms cache AAA=100.
     handler.process_signal(
         _make_signal(symbol="NSE_EQ|AAA", suffix="P1D-A"), 100.0)

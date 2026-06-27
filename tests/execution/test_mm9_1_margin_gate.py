@@ -372,6 +372,7 @@ def test_multi_symbol_blindness_documented(tmp_path, monkeypatch, caplog):
     (C3 resolved), so the rejection WARNING no longer carries it.
     """
     handler = _build_handler(tmp_path, monkeypatch, initial_capital=1000.0)
+    handler._kill_switch_disabled = True  # S4: equity accounting reduces cash; test is about margin gate, not drawdown
     _inject_position(handler, "NSE_EQ|AAA", 500, 10.0)  # ~100% of capital if priced
 
     # BBB: different symbol, ~19% incremental — approved because AAA is invisible

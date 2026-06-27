@@ -334,6 +334,7 @@ def test_warning_emitted_exactly_once(tmp_path, monkeypatch, caplog):
         metrics_path=str(tmp_path / "metrics.json"),
         load_db_state=True,
     )
+    handler1._kill_switch_disabled = True  # S4: equity accounting reduces cash; test is about cold-cache warning
     handler1.process_signal(
         _make_signal(symbol="NSE_EQ|INE001A01036", suffix="A"), 100.0)
     handler1.process_signal(
