@@ -768,8 +768,8 @@ MM9.1 — Basic Capital-Utilisation Gate
 [x] MM9.1     — DRIVER_SPECIFICATION.md §8.5 "Margin Gate" added  (COMPLETE 2026-06-26)
 
 MM9.2 — Portfolio-Accurate Capital Controls
-[ ] MM9.2-S1 — Per-symbol price cache in ExecutionHandler
-[ ] MM9.2-S2 — MarginTracker multiplier fix (lot_size, zero-price guard)
+[x] MM9.2-S1 — Per-symbol price cache in ExecutionHandler  (COMPLETE 2026-06-27)
+[x] MM9.2-S2 — MarginTracker multiplier fix (lot_size, zero-price guard)  (COMPLETE 2026-06-27)
 [ ] MM9.2-S3 — Per-underlying notional cap gate
 [ ] MM9.2-S4 — _update_equity_metrics wired to fill path
 [ ] MM9.2     — Documentation updated

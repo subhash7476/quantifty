@@ -6,7 +6,17 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
-## 2026-06-26 — MM9.1-S4 — fno_runner initial_capital propagation (598→600 passing)
+## 2026-06-27 — MM9.2-S1+S2 — Handler-owned price cache + MarginTracker multiplier fix (600→626 passing)
+
+Two tightly coupled slices deployed together (MM9.2-S1 alone would compute portfolio margin with incorrect option multipliers — deployment pair per spec).
+
+**MM9.2-S1:** Resolves C3 portfolio blindness. `ExecutionHandler` now owns `_latest_prices: Dict[str, float]`, warmed at the start of every `process_signal` (ENTRY and EXIT). `_check_margin_budget` feeds the full cache to `MarginTracker.get_used_margin` instead of a single-symbol dict — the margin gate now sees all known symbols with a cached price. `MarginTracker` stays stateless (Architecture A). The `[C3: single-symbol gate only …]` disclosure is removed from the `MARGIN_BUDGET_REJECTED` log; a stacking-guard dependency comment is added to `_check_margin_budget` (spec §4.7/§8 R3). Cold-start residual (held-but-unsignalled symbols) and signal-driven staleness remain as documented limitations. +13 tests (600→613).
+*Ref: core/execution/handler.py; tests/execution/test_mm9_2_s1_price_cache.py; docs/reports/MM9_2_S1_IMPLEMENTATION_SPEC.md.*
+
+**MM9.2-S2:** Three surgical repairs: (1) `_calculate_single_exposure` prefers `lot_size` over `multiplier` (`getattr` pattern) — restored Option positions now compute `qty × price × lot_size` instead of `×1.0`, fixing the ~65× NIFTY / ~30× BANKNIFTY undercount. Futures (lot_size absent → multiplier fallback, which IS lot_size) and equities (fallback to 1.0) are unchanged. (2) `if price:` → `if price is not None:` in `get_exposure` — zero-priced legs (deep OTM) stay in the sum contributing 0. (3) Cold-cache startup WARNING in `__init__`: fires once when `_replay_state` recovered positions but `_latest_prices` is empty (spec §5.4 D-S1-4, deferred from S1). +13 tests (613→626). P3 G1 characterization test updated to ×lot_size. Full suite **626 passing, 0 failing**.
+*Ref: core/execution/margin_tracker.py; core/execution/handler.py; tests/execution/test_mm9_2_s2_margin_fix.py; tests/execution/test_g1_wave4b_position_characterization.py; docs/reports/MM9_2_S1_IMPLEMENTATION_SPEC.md.*
+
+---
 
 `build_runner()` now accepts `initial_capital: float = 100_000.0` (keyword-only) and threads it into `handler_kwargs` → `ExecutionHandler` → `ExecutionMetrics.cash_balance` / `max_equity`. Closes **I.H.2**: the MM9.1 capital-utilisation gate's denominator is now operator-configured rather than the hardcoded ₹1,00,000 default — so `max_capital_utilisation=0.80` maps to the operator's actual capital, not a fixed ₹80,000 budget. No production caller drives `build_runner` yet (no F&O entry script exists) — the effect is at the API boundary (BUILT, not WIRED to a live rung). Parameter-threading only: no change to gate logic, formula, or `ExecutionHandler`. `_runner_harness.build()` threads the same parameter so the composition net can exercise it. +2 tests (`test_initial_capital_propagates_to_execution_metrics` asserts `cash_balance`/`max_equity` == 500k; `test_initial_capital_default_is_100k` guards the default). Full suite **598 → 600 passing**, 0 failing.
 *Ref: scripts/fno_runner.py; tests/scripts/_runner_harness.py; tests/scripts/test_fno_runner_composition.py; docs/reports/MM9_1_S4_IMPLEMENTATION_SPEC.md.*
