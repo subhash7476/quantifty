@@ -8,7 +8,8 @@ code (zero production change) and encode today's reality exactly:
 
   P1  forward OPTION position identity        -> canonical Option, lot 65, mult 1.0
   P2  forward FUTURES position + margin       -> Future, mult 65.0, exposure x65 (intended)
-  P3  forward OPTION margin/PnL (mult 1.0)     -> behavior-preserving axis (must stay)
+  P3  forward OPTION margin/PnL                -> MM9.2-S2: margin axis now uses
+      lot_size (65); PnL axis still multiplier 1.0 (PnLTracker unchanged)
   P4  FLAT identity inert + get_position legacy
   P5  forward vs restored-canonicalized futures-> PARITY (both Future)
   P6  #6 prove-dead                            -> no Position(symbol=) in core/
@@ -17,8 +18,11 @@ code (zero production change) and encode today's reality exactly:
 Net was pinned green on current code first (P1 lot 1, P2 Equity/mult 1, P5 drift),
 then the #7 migration flipped exactly three intended axes (P1 lot 1->65, P2
 Equity->Future / mult x65, P5 drift->parity) — every assertion delta justified in
-G1_WAVE4B_POSITION_IMPLEMENTATION_REPORT. P3/P4/P6/P7 stayed green (option half is
-identity-only; FLAT/equity are inert/carve-out). Mirrors the harness of
+G1_WAVE4B_POSITION_IMPLEMENTATION_REPORT. P3/P4/P6/P7 stayed green through #7
+(option identity-only — P3's option margin stayed ×1.0, which was the pre-existing
+multiplier defect). MM9.2-S2 repaired P3's margin axis (now ×lot_size), leaving
+the PnL axis at ×1.0 (PnLTracker unchanged by the fix). P4/P6/P7 are inert/carve-out.
+Mirrors the harness of
 test_g1_wave4a1: a REAL ExecutionHandler over an ISOLATED tmp store + db_manager.
 """
 import pathlib
@@ -137,7 +141,7 @@ def test_p2_forward_futures_position_derives_future_multiplier(tmp_path, monkeyp
 
 
 # --------------------------------------------------------------------------- #
-# P3 — forward OPTION margin/PnL (multiplier 1.0) — behavior-preserving axis
+# P3 — forward OPTION margin (MM9.2-S2: lot_size now) + PnL (still mult 1.0)
 # --------------------------------------------------------------------------- #
 def test_p3_forward_option_margin_and_pnl_multiplier_one(tmp_path, monkeypatch):
     handler = _build_handler(tmp_path, monkeypatch, tmp_path / "execution.db")
@@ -148,9 +152,12 @@ def test_p3_forward_option_margin_and_pnl_multiplier_one(tmp_path, monkeypatch):
     margin = MarginTracker(handler.position_tracker)
     pnl = PnLTracker(handler.position_tracker)
 
+    # MM9.2-S2: MarginTracker now uses lot_size (65) for options instead of
+    # multiplier (1.0). Prior to S2 this was 75 * PRICE * 1.0 (the old defect).
     exposure = margin.get_exposure({OPTION_SYMBOL: OPTION_PRICE})
-    assert exposure == 75 * OPTION_PRICE * 1.0
+    assert exposure == 75 * OPTION_PRICE * float(NIFTY_MASTER_LOT)
     # avg_price == fill price == OPTION_PRICE (PaperBroker fills at current_price).
+    # PnLTracker still uses pos.instrument.multiplier (1.0) — unchanged by S2.
     unreal = pnl.get_unrealized_pnl({OPTION_SYMBOL: OPTION_PRICE + 100.0})
     assert unreal == (100.0) * 75 * 1.0          # multiplier 1.0; UNCHANGED by migration
 

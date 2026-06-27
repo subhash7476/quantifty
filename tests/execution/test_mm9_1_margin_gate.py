@@ -272,7 +272,9 @@ def test_warning_logged_on_rejection(tmp_path, monkeypatch, caplog):
     assert result is None
     msgs = [r.getMessage() for r in caplog.records]
     assert any("MARGIN_BUDGET_REJECTED" in m for m in msgs)
-    assert any("C3:" in m for m in msgs)
+    # MM9.2-S1 removed the [C3: ...] disclosure from the rejection log;
+    # the C3 limitation is resolved by the handler-owned price cache.
+    assert not any("C3:" in m for m in msgs)
 
 
 def test_warning_not_logged_on_approval(tmp_path, monkeypatch, caplog):
@@ -336,8 +338,12 @@ def test_recovery_positions_contribute_to_margin(tmp_path, monkeypatch):
     # Inject a recovered position on REC1, then call the gate for an order on
     # the SAME symbol (bypassing process_signal's stacking guard). The injected
     # position must show up in used_current. No mocking of get_used_margin.
+    # MM9.2-S1: _check_margin_budget reads self._latest_prices; warm REC1's
+    # entry to mimic the first signal arrival after a restart (the cache warms
+    # as bars/signals arrive — see MM9.2-S1 spec §5).
     handler = _build_handler(tmp_path, monkeypatch, initial_capital=1000.0)
     _inject_position(handler, "NSE_EQ|REC1", 100, 10.0)
+    handler._latest_prices["NSE_EQ|REC1"] = 10.0
     order = _make_order(symbol="NSE_EQ|REC1", quantity=10)
     approved, utilisation = handler._check_margin_budget(order, 10.0)
     # used_current = (100 * 10 * 1.0) * 0.2 = 200; incremental = (10 * 10) * 0.2 = 20
@@ -351,27 +357,30 @@ def test_recovery_positions_contribute_to_margin(tmp_path, monkeypatch):
 # =========================================================================== #
 
 def test_multi_symbol_blindness_documented(tmp_path, monkeypatch, caplog):
-    """C3 — documented MM9.1 limitation (not fixed here).
+    """Cold-start residual blindness after MM9.2-S1 (spec §8 R2).
 
-    get_used_margin is called with only the signaled symbol's price, so open
-    positions on OTHER symbols contribute 0 to used_current. Symbol AAA is
-    injected at ~100% of capital (500 @ 10, capital 1000 → used 1000 if priced).
-    A new BUY for symbol BBB carries only ~19% incremental and is APPROVED,
-    because AAA is invisible to the gate. A portfolio-aware gate would reject
-    BBB (utilisation ~119%). max_capital_utilisation therefore provides NO
-    portfolio-level protection for multi-symbol deployments. The fix is
-    MM9.2-S1 (per-symbol price cache). Every rejection WARNING carries the
-    [C3: ...] tag as the runtime disclosure of this limitation.
+    MM9.2-S1 introduced a handler-owned _latest_prices cache fed to
+    get_used_margin, resolving the original C3 portfolio blindness for any
+    symbol that has signalled since restart. The residual: a HELD symbol
+    whose position was restored via _replay_state but which has not yet
+    signalled is absent from _latest_prices, so it still contributes 0 to
+    used_current. Symbol AAA is injected (replay seam) at ~100% of capital
+    (500 @ 10, capital 1000 → used 1000 if priced). A new BUY for symbol BBB
+    carries only ~19% incremental and is APPROVED, because AAA is invisible
+    to the cold-start cache. The cold-start gap is bounded to the first tick
+    cycle per symbol (spec §5.4). The [C3: ...] runtime disclosure is gone
+    (C3 resolved), so the rejection WARNING no longer carries it.
     """
     handler = _build_handler(tmp_path, monkeypatch, initial_capital=1000.0)
     _inject_position(handler, "NSE_EQ|AAA", 500, 10.0)  # ~100% of capital if priced
 
-    # BBB: different symbol, ~19% incremental — approved because AAA is invisible.
+    # BBB: different symbol, ~19% incremental — approved because AAA is invisible
+    # to the cold-start cache (held via replay, never signalled since restart).
     sig_b = _make_signal(symbol="NSE_EQ|BBB", suffix="L1B")
     result = handler.process_signal(sig_b, 10.0)
-    assert result is not None  # C3 blindness: AAA's saturation invisible
+    assert result is not None  # cold-start residual: AAA's saturation invisible
 
-    # A rejection (its own incremental over the limit) discloses C3 in the WARNING.
+    # A rejection (its own incremental over the limit) — C3 disclosure is gone.
     monkeypatch.setattr(handler.logger, "propagate", True)
     caplog.clear()
     with caplog.at_level(logging.WARNING):
@@ -379,4 +388,5 @@ def test_multi_symbol_blindness_documented(tmp_path, monkeypatch, caplog):
         result2 = handler.process_signal(over, 1000.0)  # 100*1000*0.2/1000 = 20.0 > 0.8
     assert result2 is None
     msgs = [r.getMessage() for r in caplog.records]
-    assert any("MARGIN_BUDGET_REJECTED" in m and "C3:" in m for m in msgs)
+    assert any("MARGIN_BUDGET_REJECTED" in m for m in msgs)
+    assert not any("C3:" in m for m in msgs)

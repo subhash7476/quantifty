@@ -183,6 +183,12 @@ class ExecutionHandler:
             max_equity=initial_capital,
             cash_balance=initial_capital
         )
+        # MM9.2-S1: handler-owned latest-price cache. Warms on each
+        # process_signal call; fed to MarginTracker.get_used_margin so the
+        # gate observes all known symbols, not just the signalling one (C3).
+        # MarginTracker stays stateless (Architecture A). Stale for symbols
+        # that have not signalled since restart (§8 R1) — accepted limitation.
+        self._latest_prices: Dict[str, float] = {}
         self._kill_switched = False
         self._consecutive_broker_errors = 0
         self._trades_today = 0
@@ -194,6 +200,16 @@ class ExecutionHandler:
 
         if load_db_state:
             self._replay_state()
+
+        # MM9.2-S1 D-S1-4 (delivered in MM9.2-S2): one-shot cold-cache warning.
+        # Fires only at startup when _replay_state recovered positions but
+        # _latest_prices is still empty — those held symbols will be unpriced
+        # by the margin gate until their first signal warms the cache (§8 R2).
+        held = len(self.position_tracker.get_all_positions())
+        if held > 0 and not self._latest_prices:
+            self.logger.warning(
+                "latest-price cache is cold; %d held position(s) will be "
+                "unpriced by the margin gate until first signal arrival", held)
 
         self.logger = setup_logger("execution_handler")
 
@@ -450,6 +466,11 @@ class ExecutionHandler:
         self._processing_signal = True
 
         try:
+            # MM9.2-S1: record the signalling symbol's bar price before any
+            # gate so MarginTracker.get_used_margin sees the full universe.
+            # Applies to EXIT too — keeps the price warm for later entries.
+            self._latest_prices[signal.symbol] = current_price
+
             signal_id = getattr(signal, 'signal_id',
                                 signal.metadata.get('signal_id'))
             if not signal_id:
@@ -665,7 +686,7 @@ class ExecutionHandler:
                     self.metrics.rejected_trades += 1
                     self.logger.warning(
                         "MARGIN_BUDGET_REJECTED symbol=%s signal_id=%s utilisation=%.2f%% "
-                        "limit=%.2f%% [C3: single-symbol gate only — other open positions not priced]",
+                        "limit=%.2f%%",
                         order.symbol, signal_id,
                         utilisation * 100,
                         self.config.max_capital_utilisation * 100,
@@ -930,7 +951,14 @@ class ExecutionHandler:
     def _check_margin_budget(self, order: NormalizedOrder, current_price: float) -> tuple[bool, float]:
         # MM9.1: capital-utilisation gate — (approved, utilisation).
         # C2: must be called before order_tracker.add_order to avoid orphaned orders on recovery.
-        # C3: single-symbol price dict — other open symbols contribute 0 to used_current.
+        # MM9.2-S1: get_used_margin now receives the handler's full _latest_prices
+        # cache (Architecture A), so every held symbol with a cached price
+        # contributes to used_current. MarginTracker remains stateless.
+        # Stacking-guard dependency: used_margin(all positions) + incremental(new
+        # order) is non-double-counting only because process_signal blocks new
+        # entries on symbols that already hold a position. If pyramiding is ever
+        # introduced this gate MUST be redesigned to exclude order.symbol from
+        # used_current (see MM9.2-S1 spec §4.7 / §8 R3).
         if self.metrics.cash_balance <= 0:
             return True, 0.0
 
@@ -940,7 +968,7 @@ class ExecutionHandler:
             if order.canonical_instrument is not None
             else order.instrument.multiplier
         )
-        used_current = self.margin_tracker.get_used_margin({order.symbol: current_price})
+        used_current = self.margin_tracker.get_used_margin(self._latest_prices)
         incremental_est = (
             self._estimate_required_margin(order.quantity * effective_multiplier, current_price)
             * self.margin_tracker.margin_rate
