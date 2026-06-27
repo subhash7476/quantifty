@@ -315,7 +315,7 @@ For each `SignalEvent` from `source.on_bar(bar)`, in list order:
 
 - Call `handler.process_signal(signal, current_price=bar.close)` (`handler.py:372`). Signature: `process_signal(signal: SignalEvent, current_price: float) -> Optional[NormalizedOrder]`.
 - `current_price` is **always `bar.close`** — deterministic, no separate price feed, no driver-side pricing.
-- The handler performs (driver does none of this): Phase-0 authority + idempotency, mandatory SL/risk-R enforcement, kill-switch check, daily-trade-limit, drawdown check, position-stacking guard, greek limits, order creation, broker submit. The driver **accepts the verdict**: a `NormalizedOrder` (submitted) or `None` (skipped/blocked).
+- The handler performs (driver does none of this): Phase-0 authority + idempotency, mandatory SL/risk-R enforcement, kill-switch check, daily-trade-limit, drawdown check, position-stacking guard, greek limits, **capital-utilisation margin gate (MM9.1; ENTRY only — see §8.5)**, order creation, broker submit. The driver **accepts the verdict**: a `NormalizedOrder` (submitted) or `None` (skipped/blocked).
 - **`EXECUTION_CALLS` metric semantic (changed in MM8.1C):**
   - *Before MM8:* "process_signal returned without raising."
   - *After MM8:* "execution path produced a non-None execution result."
@@ -336,6 +336,18 @@ Owned entirely by the handler (`process_signal` → `order_factory` → `broker.
 - `process_signal` may raise on hard rule violations (e.g. `enforce_risk_clearance` → raises; `enforce_execution_authority`). The driver wraps each `process_signal` call so that **one signal's failure does not kill the loop**: log at error, publish a telemetry log line (§10), continue to the next signal/bar. The loop's survival is itself an observability requirement (a dead loop is the worst outcome — §12).
 - A raised exception is **never** swallowed silently (Constitution §6). It is logged via `core/logging:setup_logger("loop_driver")` and surfaced to telemetry.
 - A kill-switched handler is **not** an error: `process_signal` simply returns `None` (`handler.py:447`). The driver keeps looping (§3.2).
+
+### 8.5 Margin Gate (MM9.1)
+
+The execution handler applies a pre-trade capital-utilisation check before registering any ENTRY order. This satisfies Constitution Principle 4 ("no trade without margin validation") at the capital-deployment layer.
+
+- **Method:** `ExecutionHandler._check_margin_budget(order, current_price) -> tuple[bool, float]` — returns `(approved, utilisation)`.
+- **Formula:** `utilisation = (used_current + incremental_est) / cash_balance`; `approved = utilisation <= config.max_capital_utilisation` (default `0.80`; boundary inclusive — equal-to-limit is approved). `used_current = margin_tracker.get_used_margin({order.symbol: current_price})`; `incremental_est = _estimate_required_margin(qty * effective_multiplier, price) * margin_rate`, where `effective_multiplier` is `canonical_instrument.multiplier` (lot_size for F&O — the C1 fix) or `instrument.multiplier` (1.0 for equity) as fallback.
+- **Placement:** fires AFTER order normalisation and `RiskManager.evaluate` (PHASE 2), BEFORE `order_tracker.add_order()` (PHASE 5). A rejected order is therefore never registered in the tracker — eliminating orphan orders on session recovery (the C2 correction). Rejection increments `metrics.rejected_trades`, logs a `MARGIN_BUDGET_REJECTED symbol=… utilisation=…% limit=…% [C3: single-symbol gate only — other open positions not priced]` WARNING, and returns `None`.
+- **EXIT bypass (D8):** EXIT signals skip the gate unconditionally — closing a position reduces margin; gating an EXIT would block position-closing trades (the opposite of safety).
+- **Denominator (`cash_balance`):** a construction-time scalar set from `ExecutionHandler(initial_capital=...)`, propagated through `build_runner(initial_capital=...)` (MM9.1-S4). Does NOT update with PnL during the session and resets to the configured value on restart (I.H.1, deferred to MM9.2).
+- **Outcome (D4):** rejection, NOT kill switch — the session continues; the next bar may clear headroom. Orthogonal to the drawdown gate (which trips the kill switch).
+- **Limitation (C3 — documented, not fixed in MM9.1):** `get_used_margin()` is called with a single-symbol price dict, so open positions in *other* symbols contribute zero to `used_current`. The gate therefore provides no portfolio-level protection for multi-symbol deployments; `max_capital_utilisation=0.80` is a per-symbol threshold until MM9.2-S1 (per-symbol price cache). Pinned by `tests/execution/test_mm9_1_margin_gate.py::test_multi_symbol_blindness_documented`.
 
 ---
 

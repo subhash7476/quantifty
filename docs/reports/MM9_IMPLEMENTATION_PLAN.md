@@ -761,12 +761,11 @@ Do not update `SESSION_BOOTSTRAP.md` until MM9.2 is complete. MM9.1's single-sym
 MM9.1 — Basic Capital-Utilisation Gate
 [x] MM9.1-S1 — ExecutionConfig.max_capital_utilisation field added  (COMPLETE 2026-06-26)
 [x] MM9.1-S2 — _estimate_required_margin deterministic estimation helper  (COMPLETE 2026-06-26)
-[ ] MM9.1-S3 — Call site wired in process_signal (after risk_manager, before add_order)
-[ ] MM9.1-S4 — Test suite passing (rejection, approval, EXIT bypass, multiplier, multi-symbol doc)
-[ ] MM9.1-S5 — fno_runner --initial-capital parameter wired
-[ ] MM9.1     — PROJECT_STATE.md updated
-[ ] MM9.1     — CHANGELOG_PLATFORM.md entry added
-[ ] MM9.1     — DRIVER_SPECIFICATION.md §"Margin Gate" added
+[x] MM9.1-S3 — _check_margin_budget gate + call site in process_signal + full test suite (578→598)  (COMPLETE 2026-06-26; plan's S4 "test suite" delivered bundled with S3)
+[x] MM9.1-S4 — fno_runner.build_runner initial_capital propagation (598→600)  (COMPLETE 2026-06-26; plan's S5 renumbered S4; closes I.H.2 at API boundary)
+[x] MM9.1     — PROJECT_STATE.md updated  (COMPLETE 2026-06-26)
+[x] MM9.1     — CHANGELOG_PLATFORM.md entry added  (COMPLETE 2026-06-26)
+[x] MM9.1     — DRIVER_SPECIFICATION.md §8.5 "Margin Gate" added  (COMPLETE 2026-06-26)
 
 MM9.2 — Portfolio-Accurate Capital Controls
 [ ] MM9.2-S1 — Per-symbol price cache in ExecutionHandler
