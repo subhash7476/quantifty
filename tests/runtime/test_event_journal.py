@@ -120,9 +120,11 @@ def test_all_event_types_present():
         "BROKER_ERROR", "TELEMETRY_FAILURE", "STOPPING", "STOPPED",
         # MM.4 master-readiness gate (MASTER_MATERIALIZATION_POLICY.md §5).
         "INSTRUMENT_MASTER_UNAVAILABLE", "INSTRUMENT_MASTER_STALE",
+        # MM9.2-S3-S3: per-symbol price-cache unavailability at execution layer.
+        "PORTFOLIO_UNPRICEABLE",
     }
     assert {e.value for e in EventType} == expected
-    assert len(EventType) == 16
+    assert len(EventType) == 17
 
 
 def test_default_severity_defined_for_every_event_type():

@@ -73,6 +73,10 @@ class EventType(Enum):
     # start (WARN) — durably, since telemetry is lossy and this is audit-relevant.
     INSTRUMENT_MASTER_UNAVAILABLE = "INSTRUMENT_MASTER_UNAVAILABLE"
     INSTRUMENT_MASTER_STALE = "INSTRUMENT_MASTER_STALE"
+    # MM9.2-S3-S3: per-symbol price-cache unavailability at the execution layer.
+    # Distinct from WATCHDOG_STALE_DATA (aggregate, live-only, wall-clock, CRITICAL):
+    # this is per-signal/per-held-position, all-mode, deterministic-clock, WARNING.
+    PORTFOLIO_UNPRICEABLE = "PORTFOLIO_UNPRICEABLE"
 
 
 # Normative default severity per event type (section 15.4). BROKER_ERROR is
@@ -95,6 +99,7 @@ _DEFAULT_SEVERITY: Dict["EventType", "Severity"] = {
     EventType.STOPPED: Severity.INFO,
     EventType.INSTRUMENT_MASTER_UNAVAILABLE: Severity.CRITICAL,
     EventType.INSTRUMENT_MASTER_STALE: Severity.WARNING,
+    EventType.PORTFOLIO_UNPRICEABLE: Severity.WARNING,
 }
 
 

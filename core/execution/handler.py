@@ -7,12 +7,13 @@ Handles execution of strategy signals using the isolated trading database (SQLit
 import time
 import os
 import json
+import math
 import logging
 from uuid import uuid4, UUID
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Set, Union
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from dataclasses import dataclass, replace, field
 from enum import Enum
 
@@ -71,6 +72,19 @@ class PriceSnapshot:
     timestamp: datetime
 
 
+@dataclass(frozen=True)
+class PriceabilityResult:
+    # MM9.2-S3-S3: immutable value object returned by _check_book_priceable().
+    # Pure result — no logging/metrics/journal side effects live here; those
+    # remain in the process_signal call-site that consumes this object. Carries
+    # both stale and missing sets distinctly so the WARNING/journal payload can
+    # report each class (stale = seen but aged past max_price_age_s; missing =
+    # no _price_cache entry at all).
+    priceable: bool
+    stale_symbols: Set[str]
+    missing_symbols: Set[str]
+
+
 @dataclass
 class ExecutionConfig:
     """Configuration for execution handler."""
@@ -89,6 +103,15 @@ class ExecutionConfig:
     broker_error_threshold: int = 3
     # MM9.1: capital-utilisation threshold for margin gate
     max_capital_utilisation: float = 0.80
+    # MM9.2-S3-S3: max age (seconds) of a PriceSnapshot for a held position to
+    # count as FRESH. Default float('inf') DISABLES the freshness gate — the
+    # helper returns priceable=True without iterating the cache. Operators arm
+    # enforcement by setting a finite value (recommended 600.0 for 1-min bars),
+    # but ONLY after startup detection of non-universe held positions lands
+    # (spec §6.1 R1: a recovered position whose symbol is not in the driver
+    # universe would otherwise block every entry permanently). Age comparison is
+    # strictly greater-than: age == max_price_age_s is FRESH (spec §2.7).
+    max_price_age_s: float = float('inf')
 
 
 @dataclass
@@ -699,6 +722,56 @@ class ExecutionHandler:
             # MM9.1-S3: capital-utilisation gate
             # D8: EXIT signals bypass — closing a position reduces margin; gating an EXIT is unsafe.
             if signal.signal_type != SignalType.EXIT:
+                # MM9.2-S3-S3: fresh-book preflight gate. Runs BEFORE the
+                # capital gate so _check_margin_budget never computes utilisation
+                # on a partial book (a missing/stale held symbol would otherwise
+                # contribute 0 via get_exposure -> None price, understating
+                # used_current — the C3 under-count class). EXIT bypass is
+                # inherited from the outer if (spec §2.10). The helper is pure;
+                # all side effects (metrics/log/journal) live here.
+                priceability = self._check_book_priceable()
+                if not priceability.priceable:
+                    self.metrics.rejected_trades += 1
+                    stale_ages = {
+                        sym: round(
+                            (self.clock.now() -
+                             self._price_cache[sym].timestamp).total_seconds(),
+                            1)
+                        for sym in priceability.stale_symbols
+                    }
+                    self.logger.warning(
+                        "PORTFOLIO_UNPRICEABLE symbol=%s signal_id=%s missing=%s "
+                        "stale=%s ages_s=%s",
+                        order.symbol, signal_id,
+                        sorted(priceability.missing_symbols),
+                        sorted(priceability.stale_symbols),
+                        stale_ages,
+                    )
+                    if self._journal:
+                        # R4: journal write is fire-and-forget — a failure here
+                        # must never change the gate decision or return value.
+                        try:
+                            self._journal.record(
+                                EventType.PORTFOLIO_UNPRICEABLE,
+                                "Entry blocked: held book cannot be fully priced",
+                                source_component="ExecutionHandler",
+                                metadata={
+                                    "signal_symbol": order.symbol,
+                                    "signal_id": str(signal_id),
+                                    "missing_symbols": sorted(
+                                        priceability.missing_symbols),
+                                    "stale_symbols": sorted(
+                                        priceability.stale_symbols),
+                                    "stale_ages_s": stale_ages,
+                                    "max_price_age_s":
+                                        self.config.max_price_age_s,
+                                },
+                            )
+                        except Exception:
+                            self.logger.exception(
+                                "journal write failed for PORTFOLIO_UNPRICEABLE")
+                    return None
+
                 approved, utilisation = self._check_margin_budget(order, current_price)
                 if not approved:
                     self.metrics.rejected_trades += 1
@@ -965,6 +1038,43 @@ class ExecutionHandler:
         # MM9.1: single-symbol estimate only.
         # Future MM9.x: replace with broker/SPAN margin engine.
         return quantity * price
+
+    def _check_book_priceable(self) -> PriceabilityResult:
+        # MM9.2-S3-S3: fresh-book preflight gate. PURE — inspects only
+        # position_tracker and _price_cache; no logging, no metrics, no journal,
+        # no kill switch, no MarginTracker call, no state mutation. All side
+        # effects remain in the process_signal call-site (spec §4, R4, R8).
+        # Deterministic: age is self.clock.now() - snap.timestamp (ADR-003);
+        # never datetime.now(). Comparison is strictly greater-than, so a
+        # snapshot whose age is exactly max_price_age_s is FRESH (spec §2.7).
+        if math.isinf(self.config.max_price_age_s):
+            # Disabled (operator has not opted in). Contract: do not iterate.
+            return PriceabilityResult(
+                priceable=True, stale_symbols=set(), missing_symbols=set())
+
+        positions = self.position_tracker.get_all_positions()
+        held = {sym for sym, pos in positions.items()
+                if pos.side != PositionSide.FLAT}
+        if not held:
+            # Vacuously priceable — a flat book has nothing to price (spec §2.9).
+            return PriceabilityResult(
+                priceable=True, stale_symbols=set(), missing_symbols=set())
+
+        now = self.clock.now()
+        max_age = timedelta(seconds=self.config.max_price_age_s)
+        stale: Set[str] = set()
+        missing: Set[str] = set()
+
+        for sym in held:
+            snap = self._price_cache.get(sym)
+            if snap is None:
+                missing.add(sym)            # no cached price — unpriceable
+            elif (now - snap.timestamp) > max_age:
+                stale.add(sym)              # aged past threshold — unpriceable
+
+        priceable = not stale and not missing
+        return PriceabilityResult(
+            priceable=priceable, stale_symbols=stale, missing_symbols=missing)
 
     def _check_margin_budget(self, order: NormalizedOrder, current_price: float) -> tuple[bool, float]:
         # MM9.1: capital-utilisation gate — (approved, utilisation).
