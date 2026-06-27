@@ -32,7 +32,7 @@ MM9 is a four-milestone ladder:
 | Milestone | Scope | Status |
 |---|---|---|
 | **MM9.1** | Basic capital-utilisation gate in `process_signal` | **In scope — implement now** |
-| MM9.2 | Multi-symbol price cache, MarginTracker multiplier fix, per-underlying notional caps | Deferred |
+| MM9.2 | Multi-symbol price cache (S1), MarginTracker multiplier fix (S2), price freshness gate (S3) | **S1/S2/S3 COMPLETE (2026-06-27)**; S4 (`_update_equity_metrics`) pending. Original "per-underlying notional cap" (old S3) deferred — see §4 |
 | MM9.3 | Portfolio Greeks wiring, `PortfolioView` runtime integration | Deferred |
 | MM9.4 | SPAN engine, `MarginCalculator` protocol, buying-power model | Deferred |
 
@@ -452,6 +452,8 @@ MM9.1-S5 — fno_runner: --initial-capital wired to ExecutionHandler; gate denom
 
 ### MM9.2-S1 — Per-Symbol Price Cache
 
+**STATUS: COMPLETE (2026-06-27).** Delivered alongside S2 as a deployment pair. The cache was subsequently refactored to `Dict[str, PriceSnapshot]` in MM9.2-S3-S1 (see `MM9_2_S3_IMPLEMENTATION_SPEC_V2.md`); the `_latest_prices: Dict[str, float]` described below was the S1-as-built shape, now superseded.
+
 **Objective:** Maintain `self._latest_prices: Dict[str, float]` in `ExecutionHandler`, updated on every signal with the current bar's price. Pass this full cache to `get_used_margin()`. Resolves C3 (multi-symbol portfolio blindness).
 
 **Files touched:** `core/execution/handler.py`
@@ -468,6 +470,8 @@ MM9.2-S1 — per-symbol price cache; margin gate sees full portfolio exposure
 ---
 
 ### MM9.2-S2 — MarginTracker Multiplier Fix
+
+**STATUS: COMPLETE (2026-06-27).** Delivered as the second half of the S1+S2 deployment pair.
 
 **Objective:** Fix the pre-existing defect in `MarginTracker._calculate_single_exposure`: replace `pos.instrument.multiplier` with `getattr(pos.instrument, 'lot_size', None) or pos.instrument.multiplier`. Also fix `if price:` to `if price is not None:`.
 
