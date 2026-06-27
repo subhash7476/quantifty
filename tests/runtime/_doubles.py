@@ -235,6 +235,11 @@ class FakeExecutionHandler:
         self.canonicalize_calls = 0
         self.canonicalize_order_calls = 0
         self.routed: List = []
+        # MM9.2-S3-S2: per-bar price-feed coupling (§8). The driver calls
+        # update_market_price(symbol, bar.close) on every bar before on_bar.
+        # A recording spy so a test can assert WHAT was warmed, in WHICH order,
+        # at WHICH price (always bar.close). Otherwise inert — touches no cache.
+        self.price_updates: List = []
         self.position_tracker = PositionTracker()
         # process_signal raises for a signal whose symbol == raise_on (§8.4
         # per-signal exception isolation testing); None = never raises.
@@ -269,6 +274,12 @@ class FakeExecutionHandler:
         # watchdog calls this when the feed goes stale; the handler also calls it
         # itself on drawdown / limit / broker faults.
         self._kill_switched = True
+
+    def update_market_price(self, symbol, price):
+        # MM9.2-S3-S2: mirrors ExecutionHandler.update_market_price (§8 price
+        # feed). The driver's per-bar call (before on_bar) is recorded here so
+        # S3-S2 tests can assert cache warming for non-signaling symbols.
+        self.price_updates.append((symbol, price))
 
     def process_signal(self, signal, current_price):
         if self._raise_on is not None and signal.symbol == self._raise_on:

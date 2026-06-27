@@ -594,6 +594,17 @@ class LoopDriver:
                 continue
             # Advance time from the bar BEFORE any per-bar work (§6, ADR-003).
             self._clock.set_time(bar.timestamp)
+            # MM9.2-S3-S2: warm the handler's price cache on every bar, not
+            # only when a signal fires (spec §9). Placed after set_time so the
+            # snapshot's timestamp is the bar's deterministic time, and before
+            # on_bar so the cache is warm for any signal derived from this bar.
+            # Data-feed op only — no sizing/risk/order logic (spec §8 coupling
+            # note). Guarded on handler presence: the no-handler path
+            # (replay/inert/test) has nothing to warm. Double-call with
+            # process_signal is idempotent — the second write overwrites with
+            # an equal PriceSnapshot (spec §11).
+            if self._execution is not None:
+                self._execution.update_market_price(symbol, bar.close)
             # Pull signals after the clock advance, in list order (§5.2, §7.2).
             if self._source is not None:
                 self._dispatch_signals(self._source.on_bar(bar), bar)

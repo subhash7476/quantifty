@@ -309,6 +309,8 @@ A *prolonged* absence of live bars (feed frozen) is **not** the same as a moment
 
 Reuses `core/execution/handler.py:ExecutionHandler` **unchanged**. The driver is a thin caller.
 
+> **Price-feed coupling (MM9.2-S3-S2):** `LoopDriver._tick()` calls `execution.update_market_price(symbol, bar.close)` after advancing the deterministic clock (`set_time`) and before dispatching signals (`on_bar`). This is a data-feed operation, not a signal-dispatch or execution-policy operation. The driver remains unaware of execution logic; it passes market prices as raw data, in the same way it passes `bar.close` to `process_signal`. This coupling is minimal: one method, one scalar argument, no return value, no side effects on the driver. It does not violate the driver's neutrality principle, which prohibits the driver from making execution decisions — not from feeding data. The call is guarded on handler presence (the no-handler replay/inert/test path has nothing to warm); the second call inside `process_signal` overwrites the snapshot with an equal value (idempotent). This is the only driver→handler call besides `process_signal` (§8.1).
+
 ### 8.1 Signal routing
 
 For each `SignalEvent` from `source.on_bar(bar)`, in list order:
