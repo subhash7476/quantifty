@@ -308,7 +308,7 @@ def test_warning_emitted_when_recovered_positions_exist(tmp_path, monkeypatch, c
 
     # Position recovered, cache still cold.
     assert handler2.position_tracker.has_open_position("NSE_EQ|INE001A01036")
-    assert handler2._latest_prices == {}
+    assert handler2._price_cache == {}
 
     # Warning fired with the documented message and the correct count.
     warm_msgs = [r.getMessage() for r in caplog.records

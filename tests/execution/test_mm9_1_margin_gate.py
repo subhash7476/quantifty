@@ -338,12 +338,12 @@ def test_recovery_positions_contribute_to_margin(tmp_path, monkeypatch):
     # Inject a recovered position on REC1, then call the gate for an order on
     # the SAME symbol (bypassing process_signal's stacking guard). The injected
     # position must show up in used_current. No mocking of get_used_margin.
-    # MM9.2-S1: _check_margin_budget reads self._latest_prices; warm REC1's
+    # MM9.2-S1: _check_margin_budget reads self._price_cache; warm REC1's
     # entry to mimic the first signal arrival after a restart (the cache warms
     # as bars/signals arrive — see MM9.2-S1 spec §5).
     handler = _build_handler(tmp_path, monkeypatch, initial_capital=1000.0)
     _inject_position(handler, "NSE_EQ|REC1", 100, 10.0)
-    handler._latest_prices["NSE_EQ|REC1"] = 10.0
+    handler.update_market_price("NSE_EQ|REC1", 10.0)
     order = _make_order(symbol="NSE_EQ|REC1", quantity=10)
     approved, utilisation = handler._check_margin_budget(order, 10.0)
     # used_current = (100 * 10 * 1.0) * 0.2 = 200; incremental = (10 * 10) * 0.2 = 20

@@ -127,13 +127,13 @@ def _spy_used_margin(handler, monkeypatch):
 
 def test_price_cache_initializes_empty(tmp_path, monkeypatch):
     handler = _build_handler(tmp_path, monkeypatch)
-    assert handler._latest_prices == {}
+    assert handler._price_cache == {}
 
 
 def test_price_cache_updated_on_signal(tmp_path, monkeypatch):
     handler = _build_handler(tmp_path, monkeypatch)
     handler.process_signal(_make_signal(symbol="NSE_EQ|AAA", suffix="P1A"), 100.0)
-    assert handler._latest_prices.get("NSE_EQ|AAA") == 100.0
+    assert handler._price_cache.get("NSE_EQ|AAA").price == 100.0
 
 
 def test_price_cache_accumulates_across_signals(tmp_path, monkeypatch):
@@ -142,9 +142,9 @@ def test_price_cache_accumulates_across_signals(tmp_path, monkeypatch):
         _make_signal(symbol="NSE_EQ|AAA", suffix="P1B-A"), 100.0)
     handler.process_signal(
         _make_signal(symbol="NSE_EQ|BBB", suffix="P1B-B"), 200.0)
-    assert set(handler._latest_prices.keys()) == {"NSE_EQ|AAA", "NSE_EQ|BBB"}
-    assert handler._latest_prices["NSE_EQ|AAA"] == 100.0
-    assert handler._latest_prices["NSE_EQ|BBB"] == 200.0
+    assert set(handler._price_cache.keys()) == {"NSE_EQ|AAA", "NSE_EQ|BBB"}
+    assert handler._price_cache["NSE_EQ|AAA"].price == 100.0
+    assert handler._price_cache["NSE_EQ|BBB"].price == 200.0
 
 
 def test_price_cache_overwritten_on_repeat_signal(tmp_path, monkeypatch):
@@ -152,13 +152,13 @@ def test_price_cache_overwritten_on_repeat_signal(tmp_path, monkeypatch):
     # First BUY fills -> AAA long, cache[AAA] = 100.
     handler.process_signal(
         _make_signal(symbol="NSE_EQ|AAA", suffix="P1C-1"), 100.0)
-    assert handler._latest_prices["NSE_EQ|AAA"] == 100.0
+    assert handler._price_cache["NSE_EQ|AAA"].price == 100.0
     # Second BUY on AAA is blocked by the stacking guard, but the cache update
     # happens before that guard, so the price is overwritten anyway.
     result = handler.process_signal(
         _make_signal(symbol="NSE_EQ|AAA", suffix="P1C-2"), 150.0)
     assert result is None  # stacking guard rejected the second entry
-    assert handler._latest_prices["NSE_EQ|AAA"] == 150.0
+    assert handler._price_cache["NSE_EQ|AAA"].price == 150.0
 
 
 # =========================================================================== #
@@ -223,7 +223,7 @@ def test_exit_still_bypasses_gate(tmp_path, monkeypatch):
     assert result is not None
     assert calls["n"] == 0  # EXIT bypassed the gate
     # Cache update applied to EXIT too — price overwritten to 110.
-    assert handler._latest_prices["NSE_EQ|AAA"] == 110.0
+    assert handler._price_cache["NSE_EQ|AAA"].price == 110.0
 
 
 # =========================================================================== #
@@ -232,11 +232,11 @@ def test_exit_still_bypasses_gate(tmp_path, monkeypatch):
 
 def test_cache_warm_cold_start(tmp_path, monkeypatch):
     handler = _build_handler(tmp_path, monkeypatch)
-    assert handler._latest_prices == {}  # cold
+    assert handler._price_cache == {}  # cold
     handler.process_signal(
         _make_signal(symbol="NSE_EQ|AAA", suffix="P1H"), 100.0)
-    assert len(handler._latest_prices) == 1
-    assert handler._latest_prices == {"NSE_EQ|AAA": 100.0}
+    assert len(handler._price_cache) == 1
+    assert handler._price_cache["NSE_EQ|AAA"].price == 100.0
 
 
 def test_no_c3_warning_in_log_format(tmp_path, monkeypatch, caplog):
@@ -265,7 +265,7 @@ def test_cold_start_held_symbol_not_in_cache(tmp_path, monkeypatch):
     handler = _build_handler(tmp_path, monkeypatch, initial_capital=1_000_000.0)
     # Held position via the replay seam — bypasses process_signal entirely.
     _inject_position(handler, "NSE_EQ|HELD", 100, 100.0)
-    assert "NSE_EQ|HELD" not in handler._latest_prices
+    assert "NSE_EQ|HELD" not in handler._price_cache
     captured = _spy_used_margin(handler, monkeypatch)
     # Signal for an unrelated symbol — gate runs; HELD is unpriced -> 0.
     handler.process_signal(
@@ -281,14 +281,14 @@ def test_recovery_positions_priced_after_first_bar(tmp_path, monkeypatch):
     held position correctly priced."""
     handler = _build_handler(tmp_path, monkeypatch, initial_capital=1_000_000.0)
     _inject_position(handler, "NSE_EQ|HELD", 100, 100.0)
-    assert handler._latest_prices == {}  # cold after replay
+    assert handler._price_cache == {}  # cold after replay
 
     # First signal for HELD is blocked by the stacking guard (already long),
     # but the cache update at the start of process_signal still warms HELD.
     blocked = handler.process_signal(
         _make_signal(symbol="NSE_EQ|HELD", suffix="P2B-WARM"), 100.0)
     assert blocked is None  # stacking guard
-    assert handler._latest_prices["NSE_EQ|HELD"] == 100.0
+    assert handler._price_cache["NSE_EQ|HELD"].price == 100.0
 
     # Now a different symbol's signal triggers the gate; HELD contributes.
     captured = _spy_used_margin(handler, monkeypatch)
@@ -337,4 +337,4 @@ def test_stale_price_in_cache_for_non_signaling_symbol(tmp_path, monkeypatch):
         handler.process_signal(
             _make_signal(symbol=f"NSE_EQ|OTHER{i}", suffix=f"P3-{i}"), 10.0)
     # STALE's cached price is unchanged despite the (simulated) market drift.
-    assert handler._latest_prices["NSE_EQ|STALE"] == 100.0
+    assert handler._price_cache["NSE_EQ|STALE"].price == 100.0

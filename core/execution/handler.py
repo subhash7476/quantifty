@@ -65,6 +65,12 @@ class ExecutionMode(Enum):
     LIVE = "live"            # Real broker API
 
 
+@dataclass(frozen=True)
+class PriceSnapshot:
+    price: float
+    timestamp: datetime
+
+
 @dataclass
 class ExecutionConfig:
     """Configuration for execution handler."""
@@ -183,12 +189,15 @@ class ExecutionHandler:
             max_equity=initial_capital,
             cash_balance=initial_capital
         )
-        # MM9.2-S1: handler-owned latest-price cache. Warms on each
-        # process_signal call; fed to MarginTracker.get_used_margin so the
-        # gate observes all known symbols, not just the signalling one (C3).
-        # MarginTracker stays stateless (Architecture A). Stale for symbols
-        # that have not signalled since restart (§8 R1) — accepted limitation.
-        self._latest_prices: Dict[str, float] = {}
+        # MM9.2-S3-S1: handler-owned price cache. Replaces the prior
+        # signal-driven Dict[str, float] with a bundled PriceSnapshot value
+        # type so each entry carries its recording timestamp (Architecture B,
+        # spec §3/§4). Fed to MarginTracker.get_used_margin projected to
+        # Dict[str, float] so the gate observes all known symbols, not just
+        # the signalling one (C3). MarginTracker stays stateless. Stale for
+        # symbols that have not signalled since restart (§8 R1) — accepted
+        # until S3-S2 lands.
+        self._price_cache: Dict[str, PriceSnapshot] = {}
         self._kill_switched = False
         self._consecutive_broker_errors = 0
         self._trades_today = 0
@@ -203,10 +212,10 @@ class ExecutionHandler:
 
         # MM9.2-S1 D-S1-4 (delivered in MM9.2-S2): one-shot cold-cache warning.
         # Fires only at startup when _replay_state recovered positions but
-        # _latest_prices is still empty — those held symbols will be unpriced
+        # _price_cache is still empty — those held symbols will be unpriced
         # by the margin gate until their first signal warms the cache (§8 R2).
         held = len(self.position_tracker.get_all_positions())
-        if held > 0 and not self._latest_prices:
+        if held > 0 and not self._price_cache:
             self.logger.warning(
                 "latest-price cache is cold; %d held position(s) will be "
                 "unpriced by the margin gate until first signal arrival", held)
@@ -454,6 +463,13 @@ class ExecutionHandler:
             self.logger.warning(f"Exit diagnostics failed: {e}")
             return None
 
+    def update_market_price(self, symbol: str, price: float) -> None:
+        # MM9.2-S3-S1: sole writer for _price_cache. Pure data-feed operation
+        # — no logging, no metrics, no gate, no side effects. Timestamped with
+        # the deterministic clock so snapshot age is replay-identical (ADR-003).
+        self._price_cache[symbol] = PriceSnapshot(
+            price=price, timestamp=self.clock.now())
+
     def process_signal(self,
                        signal: SignalEvent,
                        current_price: float) -> Optional[NormalizedOrder]:
@@ -469,7 +485,9 @@ class ExecutionHandler:
             # MM9.2-S1: record the signalling symbol's bar price before any
             # gate so MarginTracker.get_used_margin sees the full universe.
             # Applies to EXIT too — keeps the price warm for later entries.
-            self._latest_prices[signal.symbol] = current_price
+            # MM9.2-S3-S1: routes through update_market_price so the entry is
+            # a PriceSnapshot carrying self.clock.now().
+            self.update_market_price(signal.symbol, current_price)
 
             signal_id = getattr(signal, 'signal_id',
                                 signal.metadata.get('signal_id'))
@@ -951,9 +969,12 @@ class ExecutionHandler:
     def _check_margin_budget(self, order: NormalizedOrder, current_price: float) -> tuple[bool, float]:
         # MM9.1: capital-utilisation gate — (approved, utilisation).
         # C2: must be called before order_tracker.add_order to avoid orphaned orders on recovery.
-        # MM9.2-S1: get_used_margin now receives the handler's full _latest_prices
-        # cache (Architecture A), so every held symbol with a cached price
+        # MM9.2-S1: get_used_margin now receives the handler's full _price_cache
+        # cache (Architecture B), so every held symbol with a cached price
         # contributes to used_current. MarginTracker remains stateless.
+        # MM9.2-S3-S1: project _price_cache (Dict[str, PriceSnapshot]) to
+        # Dict[str, float] immediately before the call — MarginTracker's
+        # signature is unchanged (MM9.4 SPAN seam preserved).
         # Stacking-guard dependency: used_margin(all positions) + incremental(new
         # order) is non-double-counting only because process_signal blocks new
         # entries on symbols that already hold a position. If pyramiding is ever
@@ -968,7 +989,8 @@ class ExecutionHandler:
             if order.canonical_instrument is not None
             else order.instrument.multiplier
         )
-        used_current = self.margin_tracker.get_used_margin(self._latest_prices)
+        prices = {sym: snap.price for sym, snap in self._price_cache.items()}
+        used_current = self.margin_tracker.get_used_margin(prices)
         incremental_est = (
             self._estimate_required_margin(order.quantity * effective_multiplier, current_price)
             * self.margin_tracker.margin_rate
