@@ -6,6 +6,18 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-27 — MM9.2-S4 — Realized Equity Accounting Wired (668→696 passing)
+
+One-call wiring: `self._update_equity_metrics(trade)` inserted into `_handle_broker_fill` after `TradeEvent` construction, before MAE/MFE and `trading_writer`. Activates the previously dead realized cash accounting method so `metrics.cash_balance` tracks BUY costs and SELL proceeds on every fill. Resolves **I.H.1** (static `cash_balance` denominator in the margin gate).
+
+**Production:** `core/execution/handler.py` — single line added in `_handle_broker_fill`.
+
+**Tests:** 6 new (`test_mm9_2_s4_equity_wiring.py` — 3 characterization, 3 integration). 3 existing tests updated with `_kill_switch_disabled=True` where the now-correct equity reduction triggered the drawdown kill switch before the subsystem under test could run (margin gate C3 test, full-cache propagation test, cold-cache warning test). Full suite **668→696 passing**, 0 failing.
+
+*Ref: core/execution/handler.py; tests/execution/test_mm9_2_s4_equity_wiring.py; tests/execution/test_mm9_1_margin_gate.py; tests/execution/test_mm9_2_s1_price_cache.py; tests/execution/test_mm9_2_s2_margin_fix.py.*
+
+---
+
 ## 2026-06-27 — MM9.2-S3 — Price Availability & Exposure Freshness (626→668 passing)
 
 Three sub-slices delivering per-symbol price freshness for the portfolio margin gate (spec `MM9_2_S3_IMPLEMENTATION_SPEC_V2.md`; v1.0 superseded). All three are no-op at default until an operator arms `max_price_age_s`.
