@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-28 — Repository hygiene: expanded .gitignore for external data and runtime artifacts
+
+Extended `.gitignore` to exclude all market data and runtime-generated files that belong in the external `F:\nifty` data repository: DuckDB/SQLite runtime databases, Parquet/pickle files, generated output directories (`historical/`, `reference/`, `research/`, `tick/`, `instruments/`, `span/`, `backtest/`, `scanner/`, `signals/`, `features/`, `backups/`, `cache/`). All 38 existing patterns preserved; zero tracked files affected. Completes the Git ↔ external data repository separation.
+
+*Ref: .gitignore.*
+
+---
+
 ## 2026-06-28 — MM9.4-S4 — Composition Swap & Buying-Power Integration (791→802 passing)
 
 Completed MM9.4 by wiring `SpanMarginCalculator` into the runtime at the composition root. Conditional construction: `SpanMarginCalculator` when a validated `SpanSnapshot` is available, `MarginTracker` otherwise. Capability-detection in the margin gate uses `get_incremental_margin()` when the calculator exposes it, with flat-rate fallback preserved. SPAN startup readiness gate enforced on LIVE + derivatives; absent snapshots fall back transparently.
