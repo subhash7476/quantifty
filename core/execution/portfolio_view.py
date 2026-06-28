@@ -20,6 +20,7 @@ from core.execution.margin_tracker import MarginTracker
 from core.execution.position_models import Position
 from core.risk.greeks.greeks_model import Greeks
 from core.risk.greeks.portfolio_greeks import PortfolioGreeks
+from core.risk.margin_calculator import MarginCalculator
 
 
 @dataclass(frozen=True)
@@ -48,7 +49,7 @@ class PortfolioView:
         self,
         position_tracker: PositionTracker,
         pnl_tracker: PnLTracker,
-        margin_tracker: MarginTracker,
+        margin_tracker: MarginCalculator,
         portfolio_greeks: Optional[PortfolioGreeks] = None,
     ):
         self.position_tracker = position_tracker

@@ -250,6 +250,52 @@ The empty-dict fallback strategy is accepted as a documented limitation for MM9.
 
 ---
 
+## ADR-007 — MarginCalculator Protocol Is The SPAN Substitution Seam
+
+**Status:** **Accepted** (2026-06-28) · MM9.4-S1.
+
+### Context
+
+The platform's margin model is currently a flat-rate calculator (`MarginTracker`, `core/execution/margin_tracker.py`) that multiplies gross notional exposure by `margin_rate` (default 0.20). This is insufficient for real option-selling margin, which requires SPAN-based scenario analysis. Replacing `MarginTracker` in-place would require changing every consumer's import and type annotation — a mechanical burden that discourages the replacement. Furthermore, the current implementation couples the margin model to the `core/execution/` package, where the flat-rate calculator lives beside the trackers it reads.
+
+### Decision
+
+A **`MarginCalculator` Protocol** (`core/risk/margin_calculator.py`) defines the abstract margin-computation seam. The protocol specifies the surface that any margin implementation must satisfy:
+
+* `margin_rate: float` — the margin requirement fraction.
+* `get_exposure(current_prices, symbol=None) -> float` — gross notional exposure.
+* `get_used_margin(current_prices) -> float` — estimated margin consumed.
+
+The protocol is a `typing.Protocol` — it is satisfied **structurally**, not by inheritance. `MarginTracker` satisfies it without subclassing, import change, or any code modification. The protocol lives in `core/risk/` (alongside Greeks), not in `core/execution/` (where the trackers live), reinforcing that margin computation is a risk-domain concern, not an execution concern.
+
+**Consumers are typed to the abstraction.** Both `PortfolioView.__init__` and `ExecutionHandler.__init__` declare their `margin_tracker` parameter/attribute as `MarginCalculator`, not `MarginTracker`. This means a future `SpanMarginCalculator` (MM9.4-S3/S4) can be dropped in place with zero consumer changes.
+
+**Protocol boundaries (hard rules):**
+
+1. **Statelessness.** Implementations must never cache positions, margin, or equity. Immutable configuration (e.g., SPAN parameters loaded at construction) is permitted — portfolio state is not.
+2. **Responsibility boundary.** `MarginCalculator` computes margin. `ExecutionHandler` decides admission. The calculator must never expose business-policy methods such as `can_trade(...)`, `approve(...)`, or `reject(...)`.
+3. **Determinism.** Future `SpanMarginCalculator` implementations must remain deterministic. SPAN parameters sourced from exchange data are immutable once loaded. No runtime I/O, no runtime downloads, no runtime broker queries.
+4. **No broker API at execution time.** Broker APIs must never be consulted during margin calculation. Broker APIs are permitted only for offline reconciliation, diagnostics, and research — never for execution-time margin computation.
+
+### Alternatives Considered
+
+- **`MarginTracker` as abstract base class** — rejected: requires inheritance and a subclass for every margin model; the flat-rate implementation would need to become a subclass, coupling it to the seam.
+- **Duck typing only (no Protocol)** — rejected: consumers would have no enforceable contract; a future implementor could omit required methods without static detection.
+- **Functional interface (single `calculate_margin(current_prices) -> float` function)** — rejected: discards `margin_rate` metadata that telemetry and reporting consume, and cannot be type-checked structurally across implementations.
+- **Protocol in `core/execution/`** — rejected: margin is a risk-domain concern; placing the seam in `core/risk/` keeps the abstraction co-located with the SPAN/Greeks family and avoids creating a cross-domain dependency from the risk model to the execution package.
+
+### Consequences
+
+- `MarginTracker` is unchanged — no subclass, no import change, no code modification. It satisfies `MarginCalculator` structurally.
+- Consumers are typed to `MarginCalculator`, making the `SpanMarginCalculator` swap purely a composition-root change.
+- The protocol enforces the SPAN-refactoring preconditions (statelessness, determinism, no broker API) by contract, preventing future implementations from accidentally introducing runtime I/O or caching.
+- The four boundary rules are documented and reviewable.
+- `MarginCalculator Protocol v1` is the versioned contract; future versions may extend the surface.
+
+*Ref: core/risk/margin_calculator.py; core/execution/margin_tracker.py; core/execution/portfolio_view.py; core/execution/handler.py; docs/reports/MM9_4_S1_IMPLEMENTATION_SPEC.md; ADR-003 (determinism), ADR-005 (execution before alpha).*
+
+---
+
 ## ADR-G1-W2 — Future Resolution Through Canonical Instrument
 
 **Status:** **Accepted** (2026-06-09) · Gate G1 Wave 2, Migration Target #1.

@@ -6,6 +6,20 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-28 — MM9.4-S1 — MarginCalculator Protocol & SPAN Architecture Seam (719→728 passing)
+
+Introduced `MarginCalculator` Protocol (`core/risk/margin_calculator.py` — `Protocol v1`) establishing the abstract margin-computation seam for future SPAN substitution. The protocol defines `margin_rate`, `get_exposure()`, and `get_used_margin()` — satisfied structurally by the existing `MarginTracker` with zero code changes to it. Both `PortfolioView` and `ExecutionHandler` now type their `margin_tracker` as `MarginCalculator` instead of the concrete `MarginTracker`.
+
+**Architectural contract (ADR-007):** `MarginCalculator` computes margin; `ExecutionHandler` decides admission — no business-policy methods on the calculator. Implementations must be stateless (no portfolio caching), deterministic (SPAN parameters immutable once loaded), and must never consult broker APIs at execution time.
+
+**Production:** `core/risk/margin_calculator.py` — new protocol file. `core/execution/portfolio_view.py` — import + type annotation update. `core/execution/handler.py` — import + type annotation.
+
+**Tests:** 9 new (`tests/risk/test_margin_calculator.py` — protocol conformance, structural typing, consumer compatibility). Full suite **719→728 passing, 0 failing**. Zero runtime behaviour change — type-system refactoring only.
+
+*Ref: core/risk/margin_calculator.py; core/execution/portfolio_view.py; core/execution/handler.py; docs/ARCHITECTURE_DECISIONS.md (ADR-007); tests/risk/test_margin_calculator.py.*
+
+---
+
 ## 2026-06-28 — MM9.3-S3 — Drawdown Gate I.M.2 Full Fix (710→719 passing)
 
 Replaced the legacy single-symbol drawdown equity calculation (`cash + net_qty(signal) * current_price`) with the canonical `PortfolioView.mtm_equity` across the full `_price_cache`, closing **I.M.2** (drawdown gate only accounted for the signalling symbol's unrealized PnL). The drawdown gate now reflects the full portfolio MTM equity, making it consistent with all other portfolio-state consumers.

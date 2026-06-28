@@ -36,6 +36,7 @@ from core.execution.position_tracker import PositionTracker
 from core.execution.position_models import PositionSide
 from core.execution.pnl_tracker import PnLTracker
 from core.execution.margin_tracker import MarginTracker
+from core.risk.margin_calculator import MarginCalculator
 from core.execution.groups.group_tracker import GroupTracker
 from core.execution.groups.group_pnl import GroupPnLTracker
 from core.execution.groups.order_group import OrderGroupType, GroupStatus
@@ -192,7 +193,7 @@ class ExecutionHandler:
 
         # Phase 8: Financial Trackers
         self.pnl_tracker = PnLTracker(self.position_tracker)
-        self.margin_tracker = MarginTracker(self.position_tracker)
+        self.margin_tracker: MarginCalculator = MarginTracker(self.position_tracker)
         self.reconciliation = ReconciliationEngine(self.position_tracker)
 
         # Phase 9B: Group Trackers
