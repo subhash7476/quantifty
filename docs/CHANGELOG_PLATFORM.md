@@ -6,6 +6,18 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-28 — MM9.3-S3 — Drawdown Gate I.M.2 Full Fix (710→719 passing)
+
+Replaced the legacy single-symbol drawdown equity calculation (`cash + net_qty(signal) * current_price`) with the canonical `PortfolioView.mtm_equity` across the full `_price_cache`, closing **I.M.2** (drawdown gate only accounted for the signalling symbol's unrealized PnL). The drawdown gate now reflects the full portfolio MTM equity, making it consistent with all other portfolio-state consumers.
+
+**Production:** `core/execution/handler.py` — three changes. (1) Import `PortfolioView`. (2) Construct `self._handler_portfolio_view` (the second of two intentional PortfolioView instances per MM9.3 parent spec §2.4: driver's instance serves telemetry, handler's serves risk decisions). (3) Replace the drawdown equity formula: `self._handler_portfolio_view.snapshot({sym: snap.price for sym, snap in self._price_cache.items()}, cash_balance=self.metrics.cash_balance).mtm_equity`. EXIT signals bypass the drawdown gate, matching the §D8 pattern used by all other risk gates. S3 explicitly preserves the EXIT drawdown bypass to maintain historical risk-reduction semantics after correcting the portfolio equity calculation.
+
+**Tests:** 9 new (`tests/execution/test_drawdown_gate_fix.py` — Block D handler construction 4, Block E gate equity 4, Block F EXIT bypass regression 1). Full suite **710→719 passing, 0 failing**. No changes to driver.py, fno_runner.py, portfolio_view.py, Greeks logic, gate ordering, kill-switch thresholds, logging, events, or telemetry.
+
+*Ref: core/execution/handler.py; tests/execution/test_drawdown_gate_fix.py.*
+
+---
+
 ## 2026-06-28 — MM9.3-S2 — PortfolioView Runtime Integration (693→710 passing)
 
 Wired `PortfolioView` into the LoopDriver's telemetry pipeline, making portfolio Greek exposure (delta, gamma, vega, theta, rho) observable to runtime consumers — the last architectural slice of MM9.3's S1A/S1B/S2 ladder before the drawdown gate fix (S3).

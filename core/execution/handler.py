@@ -29,6 +29,7 @@ from core.execution.order_models import NormalizedOrder, OrderMetadata, OrderSid
 from core.execution.order_models import OrderType as ModelOrderType
 # from core.execution.order_factory import OrderFactory # Replaced by internal logic for Phase 9A
 from core.execution.order_lifecycle import FillEvent
+from core.execution.portfolio_view import PortfolioView
 from core.execution.order_tracker import OrderTracker
 from core.execution.risk_manager import RiskManager
 from core.execution.position_tracker import PositionTracker
@@ -201,6 +202,18 @@ class ExecutionHandler:
 
         # Phase 9C: Portfolio Greeks
         self.portfolio_greeks = PortfolioGreeks(self.position_tracker)
+
+        # MM9.3-S3: handler-local PortfolioView for the drawdown gate (I.M.2
+        # full fix). Second of the two intentional instances (parent spec §2.4):
+        # the driver's instance (S2) serves telemetry; this one serves the
+        # per-signal risk decision. Both wrap the same three trackers — read-only
+        # projections, no state conflict (ADR-001).
+        self._handler_portfolio_view = PortfolioView(
+            position_tracker=self.position_tracker,
+            pnl_tracker=self.pnl_tracker,
+            margin_tracker=self.margin_tracker,
+            portfolio_greeks=self.portfolio_greeks,
+        )
 
         self._seen_signals: Set[str] = set()  # Phase 0: Idempotency registry
         self._processing_signal = False  # Phase 0: Authority guard
@@ -589,15 +602,20 @@ class ExecutionHandler:
                     f"Max daily trades ({self.config.max_trades_per_day}) reached.")
                 return None
 
-            # 4. Drawdown Kill Switch
-            total_equity = self.metrics.cash_balance + \
-                (self.position_tracker.net_quantity(signal.symbol) * current_price)
-            if not getattr(self, '_kill_switch_disabled', False):
-                dd = self.metrics.get_drawdown(total_equity)
-                if dd >= self.config.max_drawdown_limit:
-                    self.activate_kill_switch(
-                        f"Max drawdown ({dd*100:.1f}%) reached.")
-                    return None
+            # 4. Drawdown Kill Switch (EXIT bypasses — closing a position is
+            # never blocked, matching the pattern of other gates per §D8).
+            if signal.signal_type != SignalType.EXIT:
+                total_equity = self._handler_portfolio_view.snapshot(
+                    current_prices={sym: snap.price
+                                    for sym, snap in self._price_cache.items()},
+                    cash_balance=self.metrics.cash_balance,
+                ).mtm_equity
+                if not getattr(self, '_kill_switch_disabled', False):
+                    dd = self.metrics.get_drawdown(total_equity)
+                    if dd >= self.config.max_drawdown_limit:
+                        self.activate_kill_switch(
+                            f"Max drawdown ({dd*100:.1f}%) reached.")
+                        return None
 
             # 4b. Position Stacking Guard — max 1 position per symbol
             if signal.signal_type != SignalType.EXIT:

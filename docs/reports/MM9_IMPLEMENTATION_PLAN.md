@@ -33,7 +33,7 @@ MM9 is a four-milestone ladder:
 |---|---|---|
 | **MM9.1** | Basic capital-utilisation gate in `process_signal` | **In scope — implement now** |
 | MM9.2 | Multi-symbol price cache (S1), MarginTracker multiplier fix (S2), price freshness gate (S3) | **S1/S2/S3 COMPLETE (2026-06-27)**; S4 (`_update_equity_metrics`) pending. Original "per-underlying notional cap" (old S3) deferred — see §4 |
-| MM9.3 | Portfolio Greeks wiring, `PortfolioView` runtime integration | S1A/S1B/S2 COMPLETE |
+| MM9.3 | Portfolio Greeks wiring, `PortfolioView` runtime integration, drawdown gate I.M.2 fix | S1A/S1B/S2/S3 COMPLETE |
 | MM9.4 | SPAN engine, `MarginCalculator` protocol, buying-power model | Deferred |
 
 ### Out of Scope for MM9 Overall
@@ -743,7 +743,7 @@ Do not update `SESSION_BOOTSTRAP.md` until MM9.2 is complete. MM9.1's single-sym
 - **S1A — Greek Gate Semantic Correction — COMPLETE (2026-06-28).** `_check_greek_limits` converted from `raise ExecutionRuleError` to bool-returning D4 rejection gate.
 - **S1B — Portfolio Greek Aggregation — COMPLETE (2026-06-28).** Portfolio-level delta+vega+gamma aggregation via `PortfolioGreeks.calculate_portfolio_greeks()`.
 - **S2 — PortfolioView Runtime Integration — COMPLETE (2026-06-28).** `PortfolioView` wired into `LoopDriver._build_positions()`; enriched telemetry payload with portfolio Greeks, MTM equity, PnL breakdown, and real per-symbol `pnl_pct`; degraded raw fallback when `PortfolioView` absent.
-- **S3 — Drawdown Gate I.M.2 Full Fix — PENDING.
+- **S3 — Drawdown Gate I.M.2 Full Fix — COMPLETE (2026-06-28).** Replaced single-symbol drawdown equity with `PortfolioView.mtm_equity` via handler-local `_handler_portfolio_view`. EXIT bypass preserved. 719 passing.
 
 ### MM9.4 SPAN Work
 
