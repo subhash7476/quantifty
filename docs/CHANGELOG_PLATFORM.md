@@ -6,6 +6,18 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-28 — MM9.4-S2 — SPAN Parameter Sourcing Architecture (728→766 passing)
+
+Built the deterministic SPAN parameter data foundation — immutable DTOs, parser registry, repository with checksum verification, startup readiness evaluation, and an offline fetch pipeline. All data is ISO-date-versioned and append-only archived.
+
+**Production:** `core/risk/span/` — 6 new modules. `SpanSnapshot` + `SpanRiskArray` frozen dataclasses (immutable, deterministic). `ParserRegistry` keyed by `schema_version`; unknown versions raise `UnsupportedSpanSchema`. `SpanRepository` with `latest_version()` / `load()` — read-only, checksum-verified, no caching. `span_freshness.expected_span_date()` delegates to the instrument master's calendar. `span_readiness.evaluate()` / `assess()` / `build_span_readiness()` — READY or REFUSE verdicts (no WARN, no grace period). `span_pipeline` — injectable download, append-only promote, archive listing. `scripts/fetch_span_params.py` — the SOLE component performing network access; runtime reads only local files.
+
+**Tests:** 38 new across 6 test files (DTO immutability, parser registry, repository, freshness, readiness, pipeline). Full suite **728→766 passing, 0 failing**. Zero runtime behaviour changes — no driver, handler, PortfolioView, MarginTracker, or gate modifications.
+
+*Ref: core/risk/span/; scripts/fetch_span_params.py; tests/risk/span/.*
+
+---
+
 ## 2026-06-28 — MM9.4-S1 — MarginCalculator Protocol & SPAN Architecture Seam (719→728 passing)
 
 Introduced `MarginCalculator` Protocol (`core/risk/margin_calculator.py` — `Protocol v1`) establishing the abstract margin-computation seam for future SPAN substitution. The protocol defines `margin_rate`, `get_exposure()`, and `get_used_margin()` — satisfied structurally by the existing `MarginTracker` with zero code changes to it. Both `PortfolioView` and `ExecutionHandler` now type their `margin_tracker` as `MarginCalculator` instead of the concrete `MarginTracker`.

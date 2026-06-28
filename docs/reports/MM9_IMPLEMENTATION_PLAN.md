@@ -34,7 +34,7 @@ MM9 is a four-milestone ladder:
 | **MM9.1** | Basic capital-utilisation gate in `process_signal` | **In scope — implement now** |
 | MM9.2 | Multi-symbol price cache (S1), MarginTracker multiplier fix (S2), price freshness gate (S3) | **S1/S2/S3 COMPLETE (2026-06-27)**; S4 (`_update_equity_metrics`) pending. Original "per-underlying notional cap" (old S3) deferred — see §4 |
 | MM9.3 | Portfolio Greeks wiring, `PortfolioView` runtime integration, drawdown gate I.M.2 fix | S1A/S1B/S2/S3 COMPLETE |
-| MM9.4 | SPAN engine, `MarginCalculator` protocol, buying-power model | S1 COMPLETE |
+| MM9.4 | SPAN engine, `MarginCalculator` protocol, buying-power model | S1/S2 COMPLETE |
 
 ### Out of Scope for MM9 Overall
 
@@ -792,7 +792,7 @@ MM9.3 — Portfolio Exposure Controls
 
 MM9.4 — SPAN Integration
 [x] MM9.4-S1 — MarginCalculator protocol
-[ ] MM9.4-S2 — SPAN parameter sourcing
+[x] MM9.4-S2 — SPAN parameter sourcing
 [ ] MM9.4-S3 — SpanMarginCalculator implementation
 [ ] MM9.4-S4 — Buying-power gate formula
 [ ] MM9.4     — PLATFORM_CONSTITUTION.md §8 marked satisfied
