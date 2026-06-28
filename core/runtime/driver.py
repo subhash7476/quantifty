@@ -93,6 +93,7 @@ from core.execution.handler import ExecutionHandler
 from core.execution.portfolio_view import PortfolioView
 from core.execution.watchdog import RuntimeWatchdog
 from core.instruments.master_readiness import ReadinessState, ReadinessVerdict
+from core.risk.span.span_readiness import SpanReadinessVerdict
 from core.logging import setup_logger
 from core.runtime.config import DriverConfig
 from core.runtime.instrument_scope import has_derivatives
@@ -153,7 +154,8 @@ class LoopDriver:
                  telemetry: Optional[TelemetrySink] = None,
                  publisher: Optional[RuntimeTelemetryPublisher] = None,
                   master_readiness: Optional[Callable[[], ReadinessVerdict]] = None,
-                  portfolio_view: Optional[PortfolioView] = None):
+                  portfolio_view: Optional[PortfolioView] = None,
+                  span_readiness: Optional[Callable[[], SpanReadinessVerdict]] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
@@ -177,6 +179,10 @@ class LoopDriver:
         # _portfolio_summary, MTM equity, PnL breakdown, or Greek exposure.
         # The startup WARNING below makes this degradation observable at launch.
         self._portfolio_view = portfolio_view
+        # MM9.4-S4: optional SPAN readiness checker. When injected, the startup
+        # gate verifies a current SPAN snapshot exists before RUNNING. Absent
+        # for non-F&O runs — no behaviour change.
+        self._span_readiness = span_readiness
         # Runtime telemetry (Phase H) — observation only, never a source of truth
         # and never in the trade decision path. Defaults to the inert no-op sink
         # so the loop runs identically with or without telemetry wired. Increments
@@ -370,6 +376,12 @@ class LoopDriver:
         if not self._check_master_readiness():
             return False
 
+        # MM9.4-S4: SPAN parameter snapshot must be current before RUNNING.
+        # Runs AFTER instrument master (SPAN data references instruments) and
+        # BEFORE canonicalization (which needs SPAN data for margin calculations).
+        if not self._check_span_readiness():
+            return False
+
         # Option-B post-gate canonicalization (G1 Wave 3): re-resolve the restored
         # ledger's identity through the now-verified master, AFTER readiness and
         # BEFORE reconciliation. Currently a no-op (the in-place-swap body lands in
@@ -427,6 +439,47 @@ class LoopDriver:
                 "WARNING",
                 f"INSTRUMENT_MASTER_STALE latest={verdict.latest} expected={verdict.expected}",
             )
+        return True
+
+    def _check_span_readiness(self) -> bool:
+        """
+        MM9.4-S4: SPAN parameter snapshot readiness gate. Enforced only on
+        LIVE + derivative path with an injected checker — same guard as the
+        instrument master gate (mirrors _check_master_readiness). Paper/replay
+        and equity-only runs skip the check (no behaviour change).
+
+        Returns True to proceed (READY, or not applicable) or False if it
+        refused (BLOCK -> STOPPED).
+        """
+        if not (self._config.is_live
+                and has_derivatives(self._config.symbols)
+                and self._span_readiness is not None):
+            return True
+
+        verdict = self._span_readiness()
+        meta = {
+            "snapshot_date": verdict.snapshot_date.isoformat() if verdict.snapshot_date else None,
+            "expected_date": verdict.expected_date.isoformat(),
+            "reason": verdict.reason,
+        }
+        if verdict.state is ReadinessState.BLOCK:
+            self._emit(
+                EventType.INSTRUMENT_MASTER_UNAVAILABLE,
+                f"SPAN snapshot not ready ({verdict.reason})",
+                metadata=meta,
+            )
+            alerter.critical(
+                f"LoopDriver refused to start: SPAN snapshot not ready "
+                f"({verdict.reason})"
+            )
+            self._publish_log(
+                "ERROR",
+                f"SPAN_READINESS_BLOCK snapshot_date={verdict.snapshot_date} "
+                f"expected={verdict.expected_date} reason={verdict.reason}",
+            )
+            self.abort_startup()
+            return False
+
         return True
 
     def _canonicalize_restored_ledger(self) -> None:

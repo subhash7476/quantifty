@@ -41,6 +41,9 @@ from core.execution.broker_positions_adapter import to_reconcile_positions
 from core.execution.handler import ExecutionConfig, ExecutionHandler, ExecutionMode
 from core.execution.portfolio_view import PortfolioView
 from core.instruments.master_readiness import build_master_readiness
+from core.risk.span.span_freshness import expected_span_date
+from core.risk.span.span_readiness import build_span_readiness
+from core.risk.span.span_repository import SpanRepository
 from core.runtime.config import DriverConfig, Mode
 from core.runtime.driver import LoopDriver
 from core.runtime.event_journal import RuntimeEventJournal
@@ -144,6 +147,28 @@ def build_runner(
             list(underlyings), db_path=master_db_path
         )
 
+    # MM9.4-S4: SPAN parameter readiness — only for derivative universes with
+    # a successfully loaded snapshot. Paper/replay runs without a snapshot
+    # proceed with MarginTracker (no SPAN enforcement).
+    span_readiness = None
+    span_snapshot = None
+    if derivatives:
+        span_repo = SpanRepository()
+        expected = expected_span_date()
+        try:
+            span_snapshot = span_repo.load(expected)
+            span_readiness = build_span_readiness(span_repo)
+            logger.info(
+                "fno_runner: SPAN snapshot loaded for %s (hash=%s)",
+                expected, span_snapshot.file_hash[:12],
+            )
+        except Exception:
+            logger.warning(
+                "fno_runner: SPAN snapshot absent for %s — "
+                "proceeding with flat-rate MarginTracker",
+                expected,
+            )
+
     # --- LIVE rung: auto-construct broker_positions from the token_rekey chain -- #
     # If the caller does not override broker_positions, build it from the injected
     # adapter. Typed exceptions from get_positions() propagate to the driver's
@@ -178,6 +203,8 @@ def build_runner(
         load_db_state=True,  # recovery at construction (ADR-001); driver reuses it
         initial_capital=initial_capital,
     )
+    if span_snapshot is not None:
+        handler_kwargs["span_snapshot"] = span_snapshot
     if metrics_path is not None:
         handler_kwargs["metrics_path"] = metrics_path
     handler_kwargs["journal"] = journal
@@ -205,4 +232,5 @@ def build_runner(
         broker_positions=broker_positions,
         master_readiness=master_readiness,
         portfolio_view=portfolio_view,
+        span_readiness=span_readiness,
     )

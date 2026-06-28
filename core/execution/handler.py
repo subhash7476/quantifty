@@ -37,6 +37,8 @@ from core.execution.position_models import PositionSide
 from core.execution.pnl_tracker import PnLTracker
 from core.execution.margin_tracker import MarginTracker
 from core.risk.margin_calculator import MarginCalculator
+from core.risk.span.span_calculator import SpanMarginCalculator
+from core.risk.span.span_snapshot import SpanSnapshot
 from core.execution.groups.group_tracker import GroupTracker
 from core.execution.groups.group_pnl import GroupPnLTracker
 from core.execution.groups.order_group import OrderGroupType, GroupStatus
@@ -161,8 +163,9 @@ class ExecutionHandler:
                  config: Optional[ExecutionConfig] = None,
                  metrics_path: str = "logs/execution_metrics.json",
                  initial_capital: float = 100000.0,
-                 load_db_state: bool = True,
-                 journal: Optional[RuntimeEventJournal] = None):
+                  load_db_state: bool = True,
+                  journal: Optional[RuntimeEventJournal] = None,
+                  span_snapshot: Optional[SpanSnapshot] = None):
         self.db_manager = db_manager
         self.clock = clock
         self.broker = broker
@@ -193,7 +196,15 @@ class ExecutionHandler:
 
         # Phase 8: Financial Trackers
         self.pnl_tracker = PnLTracker(self.position_tracker)
-        self.margin_tracker: MarginCalculator = MarginTracker(self.position_tracker)
+        # MM9.4-S4: conditional SPAN calculator — when a validated SpanSnapshot
+        # is supplied, the margin tracker uses the SPAN-based SpanMarginCalculator;
+        # otherwise the flat-rate MarginTracker is used. Both satisfy the
+        # MarginCalculator protocol structurally.
+        if span_snapshot is not None:
+            self.margin_tracker: MarginCalculator = SpanMarginCalculator(
+                self.position_tracker, span_snapshot)
+        else:
+            self.margin_tracker: MarginCalculator = MarginTracker(self.position_tracker)
         self.reconciliation = ReconciliationEngine(self.position_tracker)
 
         # Phase 9B: Group Trackers
@@ -1158,10 +1169,19 @@ class ExecutionHandler:
         )
         prices = {sym: snap.price for sym, snap in self._price_cache.items()}
         used_current = self.margin_tracker.get_used_margin(prices)
-        incremental_est = (
-            self._estimate_required_margin(order.quantity * effective_multiplier, current_price)
-            * self.margin_tracker.margin_rate
-        )
+        # MM9.4-S4: capability detection — use SpanMarginCalculator's
+        # get_incremental_margin when available, otherwise fall back to
+        # the flat-rate estimate * margin_rate formula.
+        if hasattr(self.margin_tracker, 'get_incremental_margin'):
+            incremental_est = self.margin_tracker.get_incremental_margin(
+                order.symbol, order.quantity, current_price,
+                lot_size=effective_multiplier,
+            )
+        else:
+            incremental_est = (
+                self._estimate_required_margin(order.quantity * effective_multiplier, current_price)
+                * self.margin_tracker.margin_rate
+            )
         utilisation = (used_current + incremental_est) / self.metrics.cash_balance
         return utilisation <= self.config.max_capital_utilisation, utilisation
 

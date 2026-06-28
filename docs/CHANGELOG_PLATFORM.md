@@ -6,6 +6,18 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-28 — MM9.4-S4 — Composition Swap & Buying-Power Integration (791→802 passing)
+
+Completed MM9.4 by wiring `SpanMarginCalculator` into the runtime at the composition root. Conditional construction: `SpanMarginCalculator` when a validated `SpanSnapshot` is available, `MarginTracker` otherwise. Capability-detection in the margin gate uses `get_incremental_margin()` when the calculator exposes it, with flat-rate fallback preserved. SPAN startup readiness gate enforced on LIVE + derivatives; absent snapshots fall back transparently.
+
+**Production:** `core/execution/handler.py` — `span_snapshot` constructor param, conditional calculator, capability-detection in `_check_margin_budget`. `core/runtime/driver.py` — `span_readiness` param, `_check_span_readiness()` gate (READY/BLOCK, same guard as master readiness). `scripts/fno_runner.py` — `SpanRepository` snapshot load, readiness builder, injection into handler and driver.
+
+**Tests:** 11 new (`tests/risk/span/test_span_composition.py` — handler injection, gate substitution, startup readiness, composition root, rollback). Full suite **791→802 passing, 0 failing**. No protocol changes, no new SPAN math, no MarginTracker modifications.
+
+*Ref: core/execution/handler.py; core/runtime/driver.py; scripts/fno_runner.py; tests/risk/span/test_span_composition.py.*
+
+---
+
 ## 2026-06-28 — MM9.4-S3 — SpanMarginCalculator (766→791 passing)
 
 Implemented `SpanMarginCalculator` (`core/risk/span/span_calculator.py`) — the first concrete `MarginCalculator` consuming immutable `SpanSnapshot` risk arrays. Conservative SPAN model: per-position margin = `notional * max(scan_risk, short_option_min) * margin_rate`. Zero spread credits, inter-month offsets, NOV adjustments, runtime Greeks, or repricing.
