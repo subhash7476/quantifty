@@ -26,6 +26,7 @@ from core.brokers.paper_broker import PaperBroker
 from core.execution.handler import ExecutionConfig, ExecutionHandler
 from core.execution.order_lifecycle import FillEvent
 from core.execution.persistence.execution_store import ExecutionStore
+from core.risk.greeks.greeks_model import Greeks
 
 FIXED_DT = datetime(2026, 6, 9, 9, 30, tzinfo=pytz.UTC)
 
@@ -35,6 +36,7 @@ FIXED_DT = datetime(2026, 6, 9, 9, 30, tzinfo=pytz.UTC)
 # =========================================================================== #
 
 def _build_handler(tmp_path, monkeypatch, *, max_portfolio_delta=1000.0,
+                   max_portfolio_vega=500.0, max_gamma_exposure=100.0,
                    max_capital_utilisation=0.80, initial_capital=100_000.0):
     monkeypatch.setattr(
         handler_mod, "ExecutionStore",
@@ -44,6 +46,8 @@ def _build_handler(tmp_path, monkeypatch, *, max_portfolio_delta=1000.0,
     clock = ReplayClock(FIXED_DT)
     config = ExecutionConfig(
         max_portfolio_delta=max_portfolio_delta,
+        max_portfolio_vega=max_portfolio_vega,
+        max_gamma_exposure=max_gamma_exposure,
         max_capital_utilisation=max_capital_utilisation,
     )
     return ExecutionHandler(
@@ -90,22 +94,11 @@ def _inject_position(handler, symbol, qty, price, side="BUY"):
 
 
 # =========================================================================== #
-# Characterization test C1 (raises ExecutionRuleError) was deleted at slice
-# close — the crash-escalation defect is fixed. C2 below is retained for S1B.
+# Characterization tests C1 and C2 were deleted at their respective slice
+# closes. C1 (raises ExecutionRuleError) deleted at S1A close — semantics
+# fixed. C2 (checks_only_marginal) deleted at S1B close — portfolio scope
+# fixed. The gate is now portfolio-aware (delta + vega + gamma).
 # =========================================================================== #
-
-def test_current_greek_gate_checks_only_marginal_not_portfolio(
-        tmp_path, monkeypatch):
-    # C2 — documents the marginal-only interim state. RETAINED for S1B.
-    # Inject a held position with delta 200; set limit 100. A portfolio-aware
-    # gate would see combined 200 + 95 = 295 > 100 and reject. The current
-    # gate checks only the marginal 95 <= 100 and does not reject.
-    handler = _build_handler(tmp_path, monkeypatch, max_portfolio_delta=100.0)
-    _inject_position(handler, "NSE_EQ|HELD1", 200, 100.0)
-    signal = _make_signal(symbol="NSE_EQ|NEWSIG", suffix="C2")
-    result = handler._check_greek_limits(signal, 100.0)
-    # Pre-S1A: returns None (implicit). Post-S1A: returns True. Never False.
-    assert result is not False
 
 
 # =========================================================================== #
@@ -158,13 +151,13 @@ def test_greek_gate_increments_rejected_trades_on_breach(tmp_path, monkeypatch):
 
 
 def test_greek_gate_logs_warning_on_breach(tmp_path, monkeypatch, caplog):
-    # U5 — breach logs GREEK_DELTA_BREACH with symbol + signal_id; pass/EXIT silent.
+    # U5 — breach logs GREEK_LIMIT_BREACH with symbol + signal_id; pass/EXIT silent.
     handler = _build_handler(tmp_path, monkeypatch, max_portfolio_delta=50.0)
     monkeypatch.setattr(handler.logger, "propagate", True)
     with caplog.at_level(logging.WARNING):
         handler._check_greek_limits(_make_signal(suffix="U5breach"), 100.0)
     msgs = [r.getMessage() for r in caplog.records]
-    assert any("GREEK_DELTA_BREACH" in m for m in msgs)
+    assert any("GREEK_LIMIT_BREACH" in m for m in msgs)
     assert any("NSE_EQ|INE001A01036" in m for m in msgs)
     assert any("SIG-S1A-U5breach" in m for m in msgs)
 
@@ -255,3 +248,113 @@ def test_greek_gate_rejection_does_not_create_order_tracker_entry(
     result = handler.process_signal(_make_signal(suffix="I6"), 100.0)
     assert result is None
     assert len(handler.order_tracker.order_states()) == 0
+
+
+# =========================================================================== #
+# B1-B7 — S1B portfolio Greek aggregation tests
+# =========================================================================== #
+
+def test_greek_gate_returns_true_on_empty_book(tmp_path, monkeypatch):
+    # B1 — no positions → portfolio Greeks = 0; marginal within limits → True.
+    handler = _build_handler(tmp_path, monkeypatch, max_portfolio_delta=200.0)
+    signal = _make_signal(suffix="B1")
+    result = handler._check_greek_limits(signal, 100.0)
+    assert result is True
+
+
+def test_greek_gate_returns_false_on_portfolio_delta_breach(tmp_path, monkeypatch):
+    # B2 — mock portfolio delta=50; marginal=95; combined=145 > limit 100 → False.
+    handler = _build_handler(tmp_path, monkeypatch, max_portfolio_delta=100.0)
+    monkeypatch.setattr(
+        handler.portfolio_greeks, "calculate_portfolio_greeks",
+        lambda **kw: Greeks(50.0, 0.0, 0.0, 0.0, 0.0))
+    signal = _make_signal(suffix="B2")
+    result = handler._check_greek_limits(signal, 100.0)
+    assert result is False
+
+
+def test_greek_gate_returns_false_on_vega_breach(tmp_path, monkeypatch):
+    # B3 — portfolio vega=400; equity marginal vega=0; limit 300 → breach.
+    # Delta and gamma limits are loose so only vega triggers.
+    handler = _build_handler(
+        tmp_path, monkeypatch,
+        max_portfolio_delta=10000.0, max_portfolio_vega=300.0,
+        max_gamma_exposure=10000.0)
+    monkeypatch.setattr(
+        handler.portfolio_greeks, "calculate_portfolio_greeks",
+        lambda **kw: Greeks(0.0, 0.0, 400.0, 0.0, 0.0))
+    signal = _make_signal(suffix="B3")
+    result = handler._check_greek_limits(signal, 100.0)
+    assert result is False
+
+
+def test_greek_gate_returns_false_on_gamma_breach(tmp_path, monkeypatch):
+    # B4 — portfolio gamma=80; equity marginal gamma=0; limit 50 → breach.
+    handler = _build_handler(
+        tmp_path, monkeypatch,
+        max_portfolio_delta=10000.0, max_portfolio_vega=10000.0,
+        max_gamma_exposure=50.0)
+    monkeypatch.setattr(
+        handler.portfolio_greeks, "calculate_portfolio_greeks",
+        lambda **kw: Greeks(0.0, 80.0, 0.0, 0.0, 0.0))
+    signal = _make_signal(suffix="B4")
+    result = handler._check_greek_limits(signal, 100.0)
+    assert result is False
+
+
+def test_greek_gate_uses_price_cache_for_market_prices(tmp_path, monkeypatch):
+    # B5 — _price_cache projected to market_prices dict passed to PortfolioGreeks.
+    handler = _build_handler(tmp_path, monkeypatch, max_portfolio_delta=10000.0)
+    handler.update_market_price("NSE_EQ|SYM_A", 150.0)
+    handler.update_market_price("NSE_EQ|SYM_B", 250.0)
+    captured = {}
+
+    def spy(**kwargs):
+        captured.update(kwargs)
+        return Greeks(0.0, 0.0, 0.0, 0.0, 0.0)
+
+    monkeypatch.setattr(
+        handler.portfolio_greeks, "calculate_portfolio_greeks", spy)
+    signal = _make_signal(suffix="B5")
+    handler._check_greek_limits(signal, 100.0)
+    assert captured["market_prices"] == {"NSE_EQ|SYM_A": 150.0, "NSE_EQ|SYM_B": 250.0}
+
+
+def test_greek_gate_uses_signal_metadata_iv_for_marginal(tmp_path, monkeypatch):
+    # B6 — signal.metadata['iv'] is passed as volatility to GreeksCalculator.
+    handler = _build_handler(tmp_path, monkeypatch, max_portfolio_delta=10000.0)
+    monkeypatch.setattr(
+        handler.portfolio_greeks, "calculate_portfolio_greeks",
+        lambda **kw: Greeks(0.0, 0.0, 0.0, 0.0, 0.0))
+    from core.risk.greeks.greeks_calculator import GreeksCalculator
+    captured = {}
+
+    def spy_calc(**kwargs):
+        captured.update(kwargs)
+        return Greeks(95.0, 0.0, 0.0, 0.0, 0.0)
+
+    monkeypatch.setattr(GreeksCalculator, "calculate", spy_calc)
+    signal = _make_signal(suffix="B6")
+    signal.metadata["iv"] = 0.5
+    handler._check_greek_limits(signal, 100.0)
+    assert captured.get("volatility") == 0.5
+
+
+def test_greek_gate_defaults_iv_when_metadata_absent(tmp_path, monkeypatch):
+    # B7 — no 'iv' in metadata → default 0.20 passed to GreeksCalculator.
+    handler = _build_handler(tmp_path, monkeypatch, max_portfolio_delta=10000.0)
+    monkeypatch.setattr(
+        handler.portfolio_greeks, "calculate_portfolio_greeks",
+        lambda **kw: Greeks(0.0, 0.0, 0.0, 0.0, 0.0))
+    from core.risk.greeks.greeks_calculator import GreeksCalculator
+    captured = {}
+
+    def spy_calc(**kwargs):
+        captured.update(kwargs)
+        return Greeks(95.0, 0.0, 0.0, 0.0, 0.0)
+
+    monkeypatch.setattr(GreeksCalculator, "calculate", spy_calc)
+    signal = _make_signal(suffix="B7")
+    signal.metadata.pop("iv", None)
+    handler._check_greek_limits(signal, 100.0)
+    assert captured.get("volatility") == 0.20

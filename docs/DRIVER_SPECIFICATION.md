@@ -223,7 +223,7 @@ SignalSource (abstract):
 | Client | How it implements `SignalSource` | Notes |
 |---|---|---|
 | **Futures strategy** | `on_bar` returns directional `BUY`/`SELL`/`EXIT` `SignalEvent`s for equity-futures symbols. | Multi-position book (3–10) is handled by the handler's per-symbol trackers, not the seam. |
-| **Option strategy** | `on_bar` returns option `SignalEvent`s (the strike/expiry selection happens inside the source or via `core/execution/options/selector.py`). | Greeks limits enforced in `handler._check_greek_limits` (`handler.py:967` — MM9.3-S1A: bool-returning D4 rejection gate; body still marginal-only until S1B), not the driver. |
+| **Option strategy** | `on_bar` returns option `SignalEvent`s (the strike/expiry selection happens inside the source or via `core/execution/options/selector.py`). | Greeks limits enforced in `handler._check_greek_limits` (`handler.py:967` — MM9.3-S1B: portfolio + marginal aggregation across delta, vega, gamma; bool-returning D4 rejection gate), not the driver. |
 | **Discretionary trader** | A `SignalSource` backed by a **thread-safe queue** the human/UI writes to; `on_bar` **drains the queue synchronously** and returns whatever was enqueued since the last bar. | This is how an inherently *asynchronous* actor fits a *synchronous pull* model without breaking the single path. The async write is absorbed at the queue; the read is deterministic on the driver thread. |
 | **Replay engine** | A `SignalSource` that replays previously recorded `SignalEvent`s keyed by timestamp, returning those due at `bar.timestamp`. | Enables deterministic reproduction of a past session through the identical loop. Not a backtester — it injects recorded signals; it does not generate them. |
 

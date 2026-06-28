@@ -967,54 +967,62 @@ class ExecutionHandler:
     def _check_greek_limits(self, signal: SignalEvent, current_price: float) -> bool:
         """
         Phase 9C: Check if the new order would breach portfolio Greek limits.
-        S1A: bool-returning D4 rejection gate. Never raises.
+        S1B: portfolio + marginal aggregation across delta, vega, gamma.
         Returns True = allowed, False = rejected (caller returns None).
-        S1B replaces the marginal-only body with portfolio aggregation.
         """
         # EXIT always bypasses — reducing exposure is never blocked.
         if signal.signal_type == SignalType.EXIT:
             return True
 
-        # If we don't have necessary data in metadata, skip check (or fail safe)
-        # We assume signal.metadata might contain 'underlying_price', 'iv', 'tte'
-        meta = signal.metadata or {}
-        # Fallback to current if equity
-        underlying_price = meta.get('underlying_price', current_price)
-        iv = meta.get('iv', 0.20)
-        tte = meta.get('tte', 0.0)  # Years
+        # S1B.1: current portfolio Greeks (empty dicts → PortfolioGreeks applies
+        # IV=0.20 / TTE=0.0 defaults internally; Black76 T=0 is intrinsically
+        # safe — no divide-by-zero, intrinsic delta only).
+        market_prices = {sym: snap.price for sym, snap in self._price_cache.items()}
+        current_pf_greeks = self.portfolio_greeks.calculate_portfolio_greeks(
+            market_prices=market_prices,
+            volatilities={},
+            time_to_expiry_map={},
+            risk_free_rate=0.05,
+        )
 
-        # 1. Calculate Greeks for the NEW signal
+        # S1B.2: marginal signal Greeks
+        meta = signal.metadata or {}
+        # TODO(MM10): Migrate from InstrumentParser to canonical InstrumentResolver
+        # if PHASE 1 gate ordering changes. InstrumentParser.parse() is intentionally
+        # retained here because this gate runs at [9C], before PHASE 1 instrument
+        # resolution. Asset-class dispatch only is needed; broker-resolution is not.
         instrument = InstrumentParser.parse(signal.symbol)
         qty = self._calculate_position_size(signal, current_price)
         if signal.signal_type == SignalType.SELL:
             qty = -qty
 
-        # We need a calculator instance or static call
         from core.risk.greeks.greeks_calculator import GreeksCalculator
-        new_greeks = GreeksCalculator.calculate(
+        marginal_greeks = GreeksCalculator.calculate(
             instrument=instrument,
             quantity=qty,
-            underlying_price=underlying_price,
-            volatility=iv,
-            time_to_expiry=tte
+            underlying_price=meta.get('underlying_price', current_price),
+            volatility=meta.get('iv', 0.20),
+            time_to_expiry=meta.get('tte', 0.0),
         )
 
-        # 2. Get Current Portfolio Greeks
-        # Note: This requires full market data map which we might not have here.
-        # For this implementation, we assume we track accumulated greeks or fetch snapshot.
-        # Since we don't have a live market data provider injected here, we skip the *portfolio* addition check
-        # and just check the *marginal* impact if it's massive, or rely on the fact that
-        # PortfolioGreeks needs external data injection.
+        # S1B.3: combined limit check
+        combined_delta = current_pf_greeks.delta + marginal_greeks.delta
+        combined_vega = current_pf_greeks.vega + marginal_greeks.vega
+        combined_gamma = current_pf_greeks.gamma + marginal_greeks.gamma
 
-        # For strict compliance with Phase 9C objective "Simulate projected Greeks after order",
-        # we would need to fetch current portfolio greeks.
-        # As a safeguard, we check if the single order exceeds limits (e.g. massive delta).
-        # S1A interim: marginal-only check. S1B adds portfolio aggregation.
-        if abs(new_greeks.delta) > self.config.max_portfolio_delta:
+        breaches = []
+        if abs(combined_delta) > self.config.max_portfolio_delta:
+            breaches.append(
+                f"delta {combined_delta:.1f} vs limit {self.config.max_portfolio_delta}")
+        if abs(combined_vega) > self.config.max_portfolio_vega:
+            breaches.append(
+                f"vega {combined_vega:.1f} vs limit {self.config.max_portfolio_vega}")
+        if abs(combined_gamma) > self.config.max_gamma_exposure:
+            breaches.append(
+                f"gamma {combined_gamma:.1f} vs limit {self.config.max_gamma_exposure}")
+
+        if breaches:
             self.metrics.rejected_trades += 1
-            # signal_id derived inside (same canonical logic as process_signal
-            # at handler.py:517-522; deterministic, never diverges from the
-            # idempotency-locked value).
             sig_id = getattr(signal, 'signal_id',
                              (signal.metadata or {}).get('signal_id'))
             if not sig_id:
@@ -1022,9 +1030,12 @@ class ExecutionHandler:
                 raw_id = f"{signal.symbol}_{signal.strategy_id}_{signal.timestamp.isoformat()}"
                 sig_id = sha256(raw_id.encode()).hexdigest()
             self.logger.warning(
-                "GREEK_DELTA_BREACH symbol=%s signal_id=%s delta=%.2f limit=%.2f",
-                signal.symbol, sig_id, new_greeks.delta,
-                self.config.max_portfolio_delta,
+                "GREEK_LIMIT_BREACH symbol=%s signal_id=%s delta=%.1f vega=%.1f "
+                "gamma=%.1f limits=delta<%.1f vega<%.1f gamma<%.1f breaches=%s",
+                signal.symbol, sig_id, combined_delta, combined_vega,
+                combined_gamma, self.config.max_portfolio_delta,
+                self.config.max_portfolio_vega, self.config.max_gamma_exposure,
+                "; ".join(breaches),
             )
             return False
         return True

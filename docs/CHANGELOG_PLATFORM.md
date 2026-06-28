@@ -6,6 +6,18 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-28 — MM9.3-S1B — Portfolio Greek Aggregation (687→693 passing)
+
+Replaced the marginal-only body of `_check_greek_limits` with portfolio-level aggregation: current portfolio Greeks (via `PortfolioGreeks.calculate_portfolio_greeks()` over `_price_cache` prices + `position_tracker`) combined with marginal signal Greeks, checked against delta + vega + gamma limits simultaneously. Signature, EXIT bypass, and call site from S1A unchanged.
+
+**Production:** `core/execution/handler.py` — body replacement in `_check_greek_limits` only. S1B.1: `_price_cache` projected to `market_prices` dict, passed to `calculate_portfolio_greeks(market_prices, volatilities={}, time_to_expiry_map={}, risk_free_rate=0.05)` (empty dicts → 20% IV / 0.0 TTE defaults per position; Black76 T=0 is intrinsically safe — no divide-by-zero). S1B.2: marginal Greeks via `GreeksCalculator.calculate()` with `meta.get('iv', 0.20)` / `meta.get('tte', 0.0)`; `TODO(MM10)` comment on `InstrumentParser.parse()` flagging future canonical-resolver migration. S1B.3: combined delta+vega+gamma checked; multiple breaches → single `GREEK_LIMIT_BREACH` WARNING with all details; `rejected_trades += 1`; `return False`. `signal_id` derived inline (same sha256 logic as `process_signal:517-522`).
+
+**Tests:** 7 new (`test_greek_limits.py` B1-B7 — empty-book pass, portfolio delta/vega/gamma breaches, price-cache projection, metadata IV passthrough, IV default). C2 characterization (`checks_only_marginal`) deleted at slice close — portfolio scope fixed. U5 token assertion updated `GREEK_DELTA_BREACH` → `GREEK_LIMIT_BREACH`. `_build_handler` test helper extended with `max_portfolio_vega` / `max_gamma_exposure` params. Full suite **687→693 passing, 0 failing**.
+
+*Ref: core/execution/handler.py; tests/execution/test_greek_limits.py; docs/reports/MM9_3_S1B_IMPLEMENTATION_SPEC.md; docs/reports/MM9_3_IMPLEMENTATION_SPEC.md.*
+
+---
+
 ## 2026-06-28 — MM9.3-S1A — Greek Gate Semantic Correction (687 passing)
 
 Converted `_check_greek_limits` (`core/execution/handler.py:967`) from `raise ExecutionRuleError` (crash-escalation) to a **bool-returning D4 rejection gate** matching the MM9.1 `_check_margin_budget` / MM9.2 `_check_book_priceable` pattern. This is the first slice of MM9.3 (Portfolio Greeks); S1B replaces the marginal-only body with portfolio-level aggregation.

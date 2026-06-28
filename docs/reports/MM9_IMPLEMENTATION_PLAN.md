@@ -783,7 +783,7 @@ MM9.2 — Portfolio-Accurate Capital Controls
 
 MM9.3 — Portfolio Exposure Controls
 [x] MM9.3-S1A — Greek gate semantic correction (COMPLETE 2026-06-28)
-[ ] MM9.3-S1B — Portfolio Greek aggregation (replaces marginal-only body)
+[x] MM9.3-S1B — Portfolio Greek aggregation (COMPLETE 2026-06-28)
 [ ] MM9.3-S2 — PortfolioView runtime integration
 [ ] MM9.3     — Documentation updated
 
