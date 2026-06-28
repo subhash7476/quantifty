@@ -36,3 +36,68 @@ config/credentials.py
 .claude/
 *.png
 config/credentials.json
+
+# ==================================================================== #
+# Market Data & Runtime Artifacts (MM9.4+ data infrastructure)
+# ==================================================================== #
+
+# External data repository — F:\nifty is a separate drive, not tracked.
+# This entry catches any symlink or submodule that points to it.
+/nifty/
+
+# DuckDB runtime artifacts (WAL, shared-memory, temp)
+*.duckdb
+*.duckdb.wal
+*.wal
+*-wal
+*-shm
+
+# SQLite databases (runtime execution store, trading DB)
+*.sqlite
+*.sqlite3
+
+# Parquet files (SPAN snapshots, analytics exports)
+*.parquet
+
+# Pickle files (model checkpoints, serialised state)
+*.pkl
+
+# Data repository directories (migrated from D:\bot\root, tracked by F:\nifty)
+historical/
+reference/
+research/
+tick/
+
+# Instrument Master snapshots
+instruments/
+
+# SPAN parameter data
+span/
+
+# Live buffer / tick data
+live_buffer/
+
+# Backtest outputs (generated, not source)
+backtest/
+
+# Scanner / signal databases
+scanner/
+signals/
+
+# Feature engineering outputs
+features/
+
+# Configuration databases (runtime-generated, not templates)
+/config/*.db
+/config/*.duckdb
+
+# Backup directories
+backups/
+
+# Cache directories — allow .gitkeep
+cache/
+cache/*
+!cache/.gitkeep
+
+# Example data (samples are small, keep if tracked)
+# Full dataset downloads are ignored via historical/ reference/ above
