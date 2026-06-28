@@ -66,7 +66,7 @@ Verified by grep before planning:
 - **Extraction difficulty: LOW–MEDIUM.** Clean after removing the one strategy-count line; reads only infra collaborators otherwise.
 - **Hidden risks:**
   - Same private-attr / `ExecutionMetrics`-shape coupling to `ExecutionHandler` as heartbeat.
-  - Depends on `PositionTracker.get_all_positions()` returning objects with `.quantity` / `.avg_entry_price` — shape coupling. `pnl_pct` is hardcoded `0.0` (placeholder) — carries a known gap.
+  - Depends on `PositionTracker.get_all_positions()` returning objects with `.quantity` / `.avg_entry_price` — shape coupling. `pnl_pct` was originally a hardcoded `0.0` placeholder; as of MM9.3-S2 (2026-06-28), the enriched path via `PortfolioView` computes real per-position `pnl_pct` from `(current_price - avg_price) / avg_price * 100`. The fallback path (no `PortfolioView` injected) retains the `0.0` placeholder.
   - Fire-and-forget by design (errors swallowed) — failures are silent; do not treat published telemetry as a guaranteed record.
 - **Already duplicated in `F:\Nifty`?** **Transport yes, loop no.** `TelemetryPublisher`/bridge exist and `market_ingestor` already publishes *health*; the **trade-metrics/positions** publish loop is **not** present.
 

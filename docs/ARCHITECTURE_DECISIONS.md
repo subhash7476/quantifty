@@ -176,6 +176,80 @@ These are durable engineering notes that record a *decision in flight* — not n
 
 ---
 
+## IN-002 — Dual PortfolioView Instances (MM9.3-S2/S3)
+
+**Status:** **Resolved** (MM9.3-S3 closed, 2026-06-28).
+
+### Context
+
+`PortfolioView` (`core/execution/portfolio_view.py`) is a read-only projection over the three financial trackers (`position_tracker`, `pnl_tracker`, `margin_tracker`). It computes `mtm_equity`, `gross_exposure`, `used_margin`, and portfolio Greeks from a supplied price snapshot. Two independent callers need portfolio state at different lifecycle points: the LoopDriver needs it for telemetry publishing (per cadence), and the `ExecutionHandler` needs it for the per-signal drawdown risk gate. Both are read-only (ADR-001: Ledger Is Truth — a projection is not a source of truth) and both consume the same underlying trackers.
+
+Reusing the same `PortfolioView` instance across both callers would require threading it from the composition root (`fno_runner.py`) into the handler's constructor — a coupling that crosses the driver-handler boundary and adds lifecycle ordering constraints. Creating two instances that wrap the same trackers incurs zero state duplication (the view is stateless; it holds only references).
+
+### Decision
+
+Two `PortfolioView` instances exist, each bound to its caller's scope:
+
+1. **Driver's `portfolio_view`** (S2 — `core/runtime/driver.py`): constructed in `fno_runner.py` and injected into `LoopDriver.__init__`. Used in `_build_positions()` on each telemetry cadence to produce the enriched positions payload. Serves observability.
+
+2. **Handler's `_handler_portfolio_view`** (S3 — `core/execution/handler.py`): constructed in `ExecutionHandler.__init__`. Used in the drawdown gate (`process_signal` step 4) to compute `mtm_equity` across the full `_price_cache`. Serves risk evaluation.
+
+Both wrap the same three tracker instances (`self.position_tracker`, `self.pnl_tracker`, `self.margin_tracker`) and share the same `PortfolioGreeks` aggregator (`self.portfolio_greeks`). Neither mutates state. No locking is required (ADR-003: deterministic single-threaded runtime).
+
+### Consequences
+
+- The driver and handler each own their projection — no cross-boundary dependency.
+- Adding a third consumer in a later slice (e.g., a watchdog equity check) follows the same pattern: construct locally.
+- The `PortfolioView` constructor remains lightweight (four reference assignments); the cost of a second instance is negligible.
+- The `portfolio_greeks` parameter is injected in both instances but consumed only in the driver's telemetry path today — the handler's drawdown gate reads only `mtm_equity`.
+
+*Ref: core/execution/portfolio_view.py; core/runtime/driver.py; core/execution/handler.py; docs/reports/MM9_3_S2_IMPLEMENTATION_SPEC.md §2.4; ADR-001, ADR-003.*
+
+---
+
+## IN-003 — IV/TTE Fallback Strategy in Portfolio Greek Computation (MM9.3-S1B/S2)
+
+**Status:** **Resolved** (MM9.3-S2 closed, 2026-06-28).
+
+### Context
+
+`PortfolioGreeks.calculate_portfolio_greeks()` (`core/risk/greeks/portfolio_greeks.py`) computes portfolio-level Greeks for both the risk gate (`_check_greek_limits`, S1B) and the telemetry projection (`PortfolioView.snapshot()`, S2). Its signature requires `volatilities` and `time_to_expiry_map` per symbol. In the current S1B/S2 implementation, both callers pass **empty dicts** for these parameters:
+
+```python
+greeks = self._portfolio_greeks.calculate_portfolio_greeks(
+    market_prices=current_prices,
+    volatilities={},
+    time_to_expiry_map={},
+)
+```
+
+`PortfolioGreeks` applies safe defaults inside its per-position loop:
+- **IV:** `volatilities.get(symbol, 0.20)` — 20% volatility default.
+- **TTE:** `time_to_expiry_map.get(symbol, 0.0)` — zero time to expiry.
+
+### Decision
+
+The empty-dict fallback strategy is accepted as a documented limitation for MM9.3. The rationale:
+
+1. **TTE=0.0 is intrinsically safe.** `Black76Engine.calculate()` at T=0 returns delta as `+1` (ITM call), `-1` (ITM put), or `0` (OTM) — intrinsic value only. Gamma and vega are zero (no curvature or vol sensitivity at zero time). There is no divide-by-zero or NaN path (`black76_engine.py:32-39`).
+
+2. **Conservative delta limits.** The intrinsic-only delta reported at TTE=0 is *more conservative* for OTM positions (delta=0, underestimating exposure) and correct for ITM positions (delta=±1). The limit check (`delta > max_portfolio_delta`) treats an underestimated delta as safer — the gate may pass when it should block, but will never block when it should pass.
+
+3. **Telemetry Greeks are observational.** The S2 telemetry payload carries the same TTE=0 Greek values. Consumers (dashboards, operators) see the same conservative snapshot the risk gate evaluates against. There is no consumer-side expectation of IV smile or theta accuracy.
+
+4. **MM9.5 is the planned resolution.** A future MM9.5 slice will source per-position IV from the options feed and TTE from the canonical instrument's expiry field, passing real values through the callers. The empty-dict fallback ensures the API surface is correct (callers already pass the right parameter names) while requiring zero plumbing work today.
+
+### Consequences
+
+- All Greek values computed for option positions in S1B/S2 are TTE=0 intrinsic: delta is sound, vega and gamma are zero, theta is zero, rho is zero.
+- Equity and futures Greeks are unaffected (they dispatch through `GreeksCalculator`'s equity/future branches, which read neither IV nor TTE).
+- Operators must not rely on the telemetry `portfolio_greeks.vega` or `portfolio_greeks.theta` values for trading decisions until MM9.5.
+- The flag `TODO(MM10)` on `InstrumentParser.parse()` in the S1B code marks the future canonical-resolver migration path for per-position IV/TTE sourcing.
+
+*Ref: core/risk/greeks/portfolio_greeks.py; core/risk/greeks/greeks_model.py; core/risk/greeks/greeks_calculator.py; core/risk/greeks/black76_engine.py; docs/reports/MM9_3_S2_IMPLEMENTATION_SPEC.md §2.3; docs/reports/MM9_3_IMPLEMENTATION_SPEC.md §2.4.*
+
+---
+
 ## ADR-G1-W2 — Future Resolution Through Canonical Instrument
 
 **Status:** **Accepted** (2026-06-09) · Gate G1 Wave 2, Migration Target #1.

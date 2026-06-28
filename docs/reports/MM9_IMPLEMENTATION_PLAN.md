@@ -787,7 +787,8 @@ MM9.3 — Portfolio Exposure Controls
 [x] MM9.3-S1A — Greek gate semantic correction (COMPLETE 2026-06-28)
 [x] MM9.3-S1B — Portfolio Greek aggregation (COMPLETE 2026-06-28)
 [x] MM9.3-S2 — PortfolioView runtime integration
-[ ] MM9.3     — Documentation updated
+[x] MM9.3-S3 — Drawdown gate I.M.2 full fix
+[x] MM9.3     — Documentation updated
 
 MM9.4 — SPAN Integration
 [ ] MM9.4-S1 — MarginCalculator protocol

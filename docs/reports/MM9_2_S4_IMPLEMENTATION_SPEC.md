@@ -106,7 +106,7 @@ total_equity = self.metrics.cash_balance + \
     (self.position_tracker.net_quantity(signal.symbol) * current_price)
 ```
 
-After S4, `metrics.cash_balance` carries realized PnL from all prior fills rather than being permanently anchored to `initial_capital`. The gate's equity estimate therefore improves for any session with fills. The single-symbol unrealized PnL component of the gate's formula is NOT changed by S4 — this remains I.M.2. Full resolution of I.M.2 (portfolio-wide unrealized PnL in the gate) is deferred to MM9.3.
+After S4, `metrics.cash_balance` carries realized PnL from all prior fills rather than being permanently anchored to `initial_capital`. The gate's equity estimate therefore improves for any session with fills. The single-symbol unrealized PnL component of the gate's formula is NOT changed by S4 — this remains I.M.2 at the time of S4. **I.M.2 was subsequently fully resolved by MM9.3-S3** (2026-06-28): the drawdown gate now computes `PortfolioView.snapshot(full_price_cache, cash).mtm_equity`, incorporating portfolio-wide unrealized PnL from all held positions.
 
 ### 2.7 Fills With No order_state (Boundary)
 

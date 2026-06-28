@@ -22,7 +22,7 @@ Evidence: `margin_tracker.py:11–39`.
 self.margin_tracker = MarginTracker(self.position_tracker)
 ```
 
-`PortfolioView.snapshot()` (`portfolio_view.py:57–65`) calls `margin_tracker.get_exposure()` and `get_used_margin()` and includes them in `PortfolioSnapshot.gross_exposure` and `PortfolioSnapshot.used_margin`. `PortfolioView` is implemented and tested but **not wired into the runtime** — it is a read-only projection, never called during execution (`SESSION_BOOTSTRAP.md` §"Current Platform Status": "not yet wired into the runtime").
+`PortfolioView.snapshot()` (`portfolio_view.py:57–65`) calls `margin_tracker.get_exposure()` and `get_used_margin()` and includes them in `PortfolioSnapshot.gross_exposure` and `PortfolioSnapshot.used_margin`. `PortfolioView` was **not wired into the runtime** at audit time (2026-06-16). As of MM9.3-S2/S3 (2026-06-28), it is **wired** in two places: (1) `LoopDriver._build_positions()` for telemetry (S2), and (2) `ExecutionHandler._handler_portfolio_view` for the drawdown risk gate (S3).
 
 ### Where margin is enforced
 
@@ -236,7 +236,7 @@ The re-key chain (MM7J.3, `token_rekey.py`) is COMPLETE. Live-wiring at `Executi
 | "Live derivatives trading blocked on SPAN margin engine" | `PROJECT_STATE.md §Blocked` | PLANNED / BLOCKING |
 | `MarginTracker.get_used_margin()` | `margin_tracker.py:37` | PLACEHOLDER (computes; not enforced) |
 | `PortfolioSnapshot.used_margin` | `portfolio_view.py:64` | PLACEHOLDER (exposed in view; not gated) |
-| `max_portfolio_delta / vega / gamma` in `ExecutionConfig` | `handler.py:79–81` | PLACEHOLDER (config fields; `_check_greek_limits` has no live caller) |
+| `max_portfolio_delta / vega / gamma` in `ExecutionConfig` | `handler.py:79–81` | **LIVE** as of MM9.3-S1B (2026-06-28). `_check_greek_limits` reads them for portfolio-level delta+vega+gamma rejection. |
 | SPAN (any occurrence in `core/` or `scripts/`) | Zero occurrences | DEFERRED (only in `PROJECT_STATE.md` Planned #5 description) |
 | Buying power | Zero occurrences anywhere | MISSING |
 | Derivatives margin | Zero occurrences in `core/` | MISSING |

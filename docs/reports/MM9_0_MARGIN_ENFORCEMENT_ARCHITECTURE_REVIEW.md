@@ -239,7 +239,7 @@ The ordering in `process_signal` is also correct: drawdown check runs **before**
 
 ### 4.4 Portfolio Greeks
 
-`_check_greek_limits` (step 10) is a pre-order check currently calling a single-order greek estimate (not a portfolio-level calculation, and with no live caller). When eventually wired for portfolio-level Greek limits, it will be another rejection gate.
+`_check_greek_limits` (step 10) was a pre-order check with a marginal delta estimate and no live caller at review time (pre-S1A). Since MM9.3-S1B (2026-06-28), it is a **live bool-returning D4 rejection gate** performing portfolio-level delta+vega+gamma aggregation via `PortfolioGreeks.calculate_portfolio_greeks()`.
 
 **Structural relationship: margin and Greek checks are independent parallel gates.**
 

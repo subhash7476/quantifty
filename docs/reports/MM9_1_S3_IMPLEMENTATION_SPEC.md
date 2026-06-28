@@ -61,7 +61,7 @@ The gate occupies the **empty gap between PHASE 2 and PHASE 5**. GLM must insert
 [4]         Drawdown check → kill switch + return None
 [4b]        Position stacking guard (non-EXIT) → return None
 [5]         _check_risk_limits → ExecutionRuleError
-[9C]        _check_greek_limits (dead code path — no live caller)
+[9C]        _check_greek_limits (dead code path at MM9.1-S3 time; became live at MM9.3-S1B)
 [TLP]       Structural context capture
 [PHASE 1]   Instrument resolution + NormalizedOrder construction
 [PHASE 2]   RiskManager.evaluate → rejected_trades += 1 + ExecutionRuleError

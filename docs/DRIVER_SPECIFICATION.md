@@ -1,10 +1,10 @@
 # DRIVER_SPECIFICATION.md
 
-**Status:** SPECIFICATION v1.0 — implementation-ready, not yet implemented.
+**Status:** SPECIFICATION v1.1 — implementation-complete (MM9.3-S2/S3). Refer to `docs/PROJECT_STATE.md` for current milestone status.
 **Owner:** Principal Systems Architect.
 **Governing law:** `docs/PLATFORM_CONSTITUTION.md` v1.0 (Principles 1–5), `docs/ARCHITECTURE_DECISIONS.md` (ADR-001..006 — esp. ADR-006: the LoopDriver is the sole runtime orchestrator).
 **Source material:** `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`, `docs/reports/CAPABILITY_REVIEW.md`.
-**Scope:** the **Deterministic Loop Driver** — the highest-priority missing platform pillar (`docs/PROJECT_STATE.md` → Planned #1).
+**Scope:** the **Deterministic Loop Driver** — the platform's sole runtime orchestrator (ADR-006). Implementation is feature-complete (Phases A–H + Phase G closers + MM9.3-S2/S3 enhancements).
 
 > This document specifies a contract. It contains **no code** — only exact module references, signatures of existing collaborators, the file map the implementation will create/modify, and the behavioural rules an implementer must satisfy. Every reference below was verified against the live `F:\Nifty` tree.
 
@@ -427,7 +427,7 @@ Built each interval from the **read-only** execution snapshot (these are the exa
 
 Two paths (MM9.3-S2):
 
-**Enriched path** — when `LoopDriver` receives an injected `PortfolioView` (`portfolio_view is not None`, the production wiring via `fno_runner.py`): the payload is a full portfolio projection built from `PortfolioView.snapshot()`. Per-symbol entries carry real `pnl_pct` (computed from `_price_cache` and `Position.avg_price`) and `current_price`. A `_portfolio_summary` sentinel key (reserved metadata, never a valid NSE symbol) carries `cash_balance`, `realized_pnl`, `unrealized_pnl`, `mtm_equity`, `gross_exposure`, `used_margin`, and `portfolio_greeks` (delta/gamma/vega/theta/rho). The dashboard JS `updatePositions()` checks `position.quantity` — `_portfolio_summary` has none, so it is silently skipped.
+**Enriched path** — when `LoopDriver` receives an injected `PortfolioView` (`portfolio_view is not None`, the production wiring via `fno_runner.py`): the payload is a full portfolio projection built from `PortfolioView.snapshot()`. Per-symbol entries carry real `pnl_pct` (computed from `_price_cache` and `Position.avg_price`) and `current_price`. A `_portfolio_summary` sentinel key (reserved metadata, never a valid NSE symbol) carries `version` (integer, currently `1` — forward-compatibility marker), `cash_balance`, `realized_pnl`, `unrealized_pnl`, `mtm_equity`, `gross_exposure`, `used_margin`, and `portfolio_greeks` (delta/gamma/vega/theta/rho). The dashboard JS `updatePositions()` checks `position.quantity` — `_portfolio_summary` has none, so it is silently skipped.
 
 **Degraded path** — when `PortfolioView` is absent (`None`, the pre-S2 default for tests and replay): the flat per-symbol pass-through from `position_tracker.get_all_positions()` with `pnl_pct=0.0` placeholder (unchanged from the original §10.4 contract). A startup `WARNING` makes the degradation observable.
 

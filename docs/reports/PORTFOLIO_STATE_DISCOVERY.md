@@ -299,7 +299,7 @@ Phase 0 (hygiene) ──► Phase 1 (PortfolioView) ──► Phase 2 (H.3 telem
 | BrokerAdapter ABC lacks get_positions | `core/brokers/broker_base.py:6-35` |
 | Broken broker get_positions kwargs | `core/brokers/upstox_adapter.py:125-143` vs `core/execution/position_models.py:30-39` |
 | PortfolioGreeks dict-iteration defect | `core/risk/greeks/portfolio_greeks.py:32-33` |
-| Greek limit checks marginal only | `core/execution/handler.py:706-747` |
+| Greek limit checks marginal only | `core/execution/handler.py:706-747` | **RESOLVED** by MM9.3-S1B (2026-06-28): portfolio-level delta+vega+gamma aggregation. |
 | Dashboard reads metrics only | `app_facade/ops_facade.py:23-30` |
 | Only Portfolio* class in tree | `core/risk/greeks/portfolio_greeks.py:9` (grep: no Account/Ledger/Exposure classes) |
 | Pillars #2/#3 already named | `docs/PLATFORM_INVENTORY.md` §4 |
