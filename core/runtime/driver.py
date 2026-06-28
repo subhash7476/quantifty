@@ -90,6 +90,7 @@ from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
 from core.database.utils.market_hours import MarketHours
 from core.execution.handler import ExecutionHandler
+from core.execution.portfolio_view import PortfolioView
 from core.execution.watchdog import RuntimeWatchdog
 from core.instruments.master_readiness import ReadinessState, ReadinessVerdict
 from core.logging import setup_logger
@@ -151,7 +152,8 @@ class LoopDriver:
                  broker_positions: Optional[Callable[[], List[Dict[str, Any]]]] = None,
                  telemetry: Optional[TelemetrySink] = None,
                  publisher: Optional[RuntimeTelemetryPublisher] = None,
-                 master_readiness: Optional[Callable[[], ReadinessVerdict]] = None):
+                  master_readiness: Optional[Callable[[], ReadinessVerdict]] = None,
+                  portfolio_view: Optional[PortfolioView] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
@@ -169,6 +171,12 @@ class LoopDriver:
         # resolves/refreshes a master (Decision 6). Absent = no check (vacuous,
         # mirroring broker_positions); live F&O wiring is deferred.
         self._master_readiness = master_readiness
+        # MM9.3-S2: optional PortfolioView for enriched position telemetry.
+        # When absent, _build_positions() falls back to the pre-S2 raw pass-through
+        # (_build_positions_raw()), producing the flat per-symbol map without
+        # _portfolio_summary, MTM equity, PnL breakdown, or Greek exposure.
+        # The startup WARNING below makes this degradation observable at launch.
+        self._portfolio_view = portfolio_view
         # Runtime telemetry (Phase H) — observation only, never a source of truth
         # and never in the trade decision path. Defaults to the inert no-op sink
         # so the loop runs identically with or without telemetry wired. Increments
@@ -189,6 +197,11 @@ class LoopDriver:
         # data-driven trade Clock (§6.5) and never on the decision path.
         self._start_monotonic = time.monotonic()
         self._logger = setup_logger("loop_driver")
+        if self._portfolio_view is None:
+            self._logger.warning(
+                "PortfolioView unavailable; publishing degraded portfolio "
+                "telemetry (positions only)."
+            )
         self._state = RuntimeState.STARTUP
         self._bars_processed = 0
         self._signals_pulled = 0
@@ -753,12 +766,78 @@ class LoopDriver:
         """
         Build the positions snapshot published over telemetry (§10.4).
 
-        A **read-only projection** of ledger truth — the handler's
-        `position_tracker.get_all_positions()` (ADR-001) — keyed by symbol. It
-        computes NO PnL: per-position `pnl_pct` is a documented placeholder
-        (`0.0`) until live mark-to-market is wired (§10.4), never faked. With no
-        ExecutionHandler injected (replay/inert/test) the book is empty `{}`.
+        **Enriched path** (MM9.3-S2): when a `PortfolioView` is injected, the
+        payload is a full portfolio projection: per-symbol entries (with real
+        `pnl_pct` and `current_price`) plus a `_portfolio_summary` sentinel key
+        carrying financial fields and `portfolio_greeks`. The `_` prefix signals
+        "metadata, not a position entry" — the dashboard JS at
+        `dashboard.html:309` checks `position.quantity` for each entry, and
+        `_portfolio_summary` has no `quantity` field, so it is silently skipped.
+
+        **Degraded path** (pre-S2 fallback): when no `PortfolioView` is injected
+        or `PortfolioView.snapshot()` raises, returns the raw position-tracker
+        pass-through with placeholder `pnl_pct=0.0`. A startup WARNING makes this
+        degradation observable at launch.
+
+        The enriched path accesses `self._execution._price_cache` and
+        `self._execution.metrics.cash_balance` — an infra-to-infra coupling
+        pre-approved in MM9.2-S3-S2 / MM9.3-S2 §S2.2. The driver remains
+        single-threaded (ADR-003), so no locking is required — the snapshot is
+        consistent within each telemetry cadence call.
         """
+        if self._portfolio_view is not None and self._execution is not None:
+            prices = {sym: snap.price
+                      for sym, snap in self._execution._price_cache.items()}
+            cash = self._execution.metrics.cash_balance
+            try:
+                snapshot = self._portfolio_view.snapshot(prices, cash)
+            except Exception as exc:
+                self._logger.error(
+                    "_build_positions: PortfolioView.snapshot() failed: %s; "
+                    "falling back to raw positions", exc)
+                return self._build_positions_raw()
+
+            payload: Dict[str, Any] = {}
+            for sym, pos in snapshot.positions.items():
+                current_price = prices.get(sym, 0.0)
+                avg = pos.avg_price
+                pnl_pct = (
+                    (current_price - avg) / avg * 100.0
+                    if avg != 0.0 else 0.0
+                )
+                payload[sym] = {
+                    "quantity": pos.quantity,
+                    "avg_price": avg,
+                    "side": pos.side.value,
+                    "current_price": current_price,
+                    "pnl_pct": round(pnl_pct, 4),
+                }
+
+            g = snapshot.portfolio_greeks
+            payload["_portfolio_summary"] = {
+                "version": 1,
+                "cash_balance": snapshot.cash_balance,
+                "realized_pnl": snapshot.realized_pnl,
+                "unrealized_pnl": snapshot.unrealized_pnl,
+                "mtm_equity": snapshot.mtm_equity,
+                "gross_exposure": snapshot.gross_exposure,
+                "used_margin": snapshot.used_margin,
+                "portfolio_greeks": {
+                    "delta": round(g.delta, 4),
+                    "gamma": round(g.gamma, 4),
+                    "vega": round(g.vega, 4),
+                    "theta": round(g.theta, 4),
+                    "rho": round(g.rho, 4),
+                },
+            }
+            return payload
+
+        return self._build_positions_raw()
+
+    def _build_positions_raw(self) -> Dict[str, Any]:
+        """Pre-S2 fallback: raw position-tracker pass-through, no financial
+        projection. Returns the exact pre-S2 flat format (per-symbol entries,
+        placeholder `pnl_pct=0.0`, no `_portfolio_summary`)."""
         if self._execution is None:
             return {}
         return {
@@ -766,7 +845,7 @@ class LoopDriver:
                 "quantity": pos.quantity,
                 "avg_price": pos.avg_price,
                 "side": pos.side.value,
-                "pnl_pct": 0.0,  # placeholder until live MTM (§10.4 known gap)
+                "pnl_pct": 0.0,
             }
             for symbol, pos in self._execution.position_tracker.get_all_positions().items()
         }

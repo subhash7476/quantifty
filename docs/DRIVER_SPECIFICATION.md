@@ -425,7 +425,13 @@ Built each interval from the **read-only** execution snapshot (these are the exa
 
 ### 10.4 Position publishing — `publish_positions(data)`
 
-Built from `handler.position_tracker.get_all_positions()` (objects exposing `.quantity` / `.avg_entry_price`; `RUNNER_EXTRACTION_BLUEPRINT.md` §4). Per-position `pnl_pct` is currently a placeholder (`0.0`) in the salvaged logic — carried forward as a **known gap**, to be filled when live MTM is wired, not faked.
+Two paths (MM9.3-S2):
+
+**Enriched path** — when `LoopDriver` receives an injected `PortfolioView` (`portfolio_view is not None`, the production wiring via `fno_runner.py`): the payload is a full portfolio projection built from `PortfolioView.snapshot()`. Per-symbol entries carry real `pnl_pct` (computed from `_price_cache` and `Position.avg_price`) and `current_price`. A `_portfolio_summary` sentinel key (reserved metadata, never a valid NSE symbol) carries `cash_balance`, `realized_pnl`, `unrealized_pnl`, `mtm_equity`, `gross_exposure`, `used_margin`, and `portfolio_greeks` (delta/gamma/vega/theta/rho). The dashboard JS `updatePositions()` checks `position.quantity` — `_portfolio_summary` has none, so it is silently skipped.
+
+**Degraded path** — when `PortfolioView` is absent (`None`, the pre-S2 default for tests and replay): the flat per-symbol pass-through from `position_tracker.get_all_positions()` with `pnl_pct=0.0` placeholder (unchanged from the original §10.4 contract). A startup `WARNING` makes the degradation observable.
+
+The enriched path accesses `self._execution._price_cache` and `self._execution.metrics.cash_balance` — an infra-to-infra coupling pre-approved in MM9.2-S3-S2/MM9.3-S2 §S2.2. Both paths are read-only (ADR-001) and share the same best-effort, clock-throttled cadence as §10.2/§10.3 (§10.6). PortfolioView.snapshot() failures are caught and fall back to the degraded path (telemetry survives).
 
 ### 10.5 Health publishing — `publish_health(data)`
 

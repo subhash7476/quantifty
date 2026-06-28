@@ -6,6 +6,20 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-28 — MM9.3-S2 — PortfolioView Runtime Integration (693→710 passing)
+
+Wired `PortfolioView` into the LoopDriver's telemetry pipeline, making portfolio Greek exposure (delta, gamma, vega, theta, rho) observable to runtime consumers — the last architectural slice of MM9.3's S1A/S1B/S2 ladder before the drawdown gate fix (S3).
+
+**Production:** `core/execution/portfolio_view.py` — `PortfolioSnapshot` gains `portfolio_greeks: Greeks` field; `PortfolioView.__init__` accepts `Optional[PortfolioGreeks]` (default `None` → zero Greeks); `snapshot()` delegates to the injected aggregator with empty-dict IV/TTE fallbacks (unchanged from S1B). `core/runtime/driver.py` — accepts `Optional[PortfolioView]` with startup WARNING when absent; `_build_positions()` enriched path produces flat per-symbol entries (real `pnl_pct`) + `_portfolio_summary` sentinel (versioned at 1, carrying cash/PnL/margin/Greeks); `_build_positions_raw()` extracted as the pre-S2 fallback. `scripts/fno_runner.py` — constructs `PortfolioView` bound to the handler's existing trackers and `portfolio_greeks` (no second instance), injected into `LoopDriver`.
+
+**Payload backward compatibility preserved:** the positions channel stays flat per-symbol; portfolio metadata embedded under `_portfolio_summary` (dashboard JS checks `position.quantity` — the sentinel key has none, silently skipped). `_price_cache` private coupling documented as approved infra-to-infra dependency (MM9.2-S3-S2, §10.7). ADR-003 single-threaded snapshot consistency noted; no locking required.
+
+**Tests:** 17 new (8 Block A — PortfolioSnapshot Greek fields + `PortfolioView` injection; 8 Block B — `LoopDriver._build_positions()` enriched/raw paths; 1 Block C — real Handler + PortfolioView + LoopDriver end-to-end telemetry). `tests/runtime/_doubles.py`: `FakeExecutionHandler` gains `_price_cache` and `metrics` for enriched-path tests; `FakePriceSnapshot` helper added. Full suite **693→710 passing, 0 failing**. No S2 commit or documentation update was in the scope.
+
+*Ref: core/execution/portfolio_view.py; core/runtime/driver.py; scripts/fno_runner.py; tests/execution/test_portfolio_view_greeks.py; tests/runtime/test_driver_portfolio_view.py; tests/integration/test_portfolio_view_driver.py; tests/runtime/_doubles.py; docs/reports/MM9_3_S2_IMPLEMENTATION_SPEC.md.*
+
+---
+
 ## 2026-06-28 — MM9.3-S1B — Portfolio Greek Aggregation (687→693 passing)
 
 Replaced the marginal-only body of `_check_greek_limits` with portfolio-level aggregation: current portfolio Greeks (via `PortfolioGreeks.calculate_portfolio_greeks()` over `_price_cache` prices + `position_tracker`) combined with marginal signal Greeks, checked against delta + vega + gamma limits simultaneously. Signature, EXIT bypass, and call site from S1A unchanged.

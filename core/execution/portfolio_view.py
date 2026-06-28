@@ -12,12 +12,14 @@ a pass-through of an existing tracker calculation — no new financial logic.
 """
 
 from dataclasses import dataclass
-from typing import Dict
+from typing import Dict, Optional
 
 from core.execution.position_tracker import PositionTracker
 from core.execution.pnl_tracker import PnLTracker
 from core.execution.margin_tracker import MarginTracker
 from core.execution.position_models import Position
+from core.risk.greeks.greeks_model import Greeks
+from core.risk.greeks.portfolio_greeks import PortfolioGreeks
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,7 @@ class PortfolioSnapshot:
     mtm_equity: float
     gross_exposure: float
     used_margin: float
+    portfolio_greeks: Greeks
 
 
 class PortfolioView:
@@ -46,14 +49,27 @@ class PortfolioView:
         position_tracker: PositionTracker,
         pnl_tracker: PnLTracker,
         margin_tracker: MarginTracker,
+        portfolio_greeks: Optional[PortfolioGreeks] = None,
     ):
         self.position_tracker = position_tracker
         self.pnl_tracker = pnl_tracker
         self.margin_tracker = margin_tracker
+        self._portfolio_greeks = portfolio_greeks
 
     def snapshot(self, current_prices: Dict[str, float], cash_balance: float) -> PortfolioSnapshot:
         realized_pnl = self.pnl_tracker.get_realized_pnl()
         unrealized_pnl = self.pnl_tracker.get_unrealized_pnl(current_prices)
+
+        if self._portfolio_greeks is not None:
+            greeks = self._portfolio_greeks.calculate_portfolio_greeks(
+                market_prices=current_prices,
+                volatilities={},
+                time_to_expiry_map={},
+                risk_free_rate=0.05,
+            )
+        else:
+            greeks = Greeks(0.0, 0.0, 0.0, 0.0, 0.0)
+
         return PortfolioSnapshot(
             positions=self.position_tracker.get_all_positions(),
             cash_balance=cash_balance,
@@ -62,4 +78,5 @@ class PortfolioView:
             mtm_equity=cash_balance + unrealized_pnl,
             gross_exposure=self.margin_tracker.get_exposure(current_prices),
             used_margin=self.margin_tracker.get_used_margin(current_prices),
+            portfolio_greeks=greeks,
         )

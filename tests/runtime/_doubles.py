@@ -226,6 +226,10 @@ class FakeExecutionHandler:
     - position_tracker: a REAL PositionTracker (the ledger's position truth) so
       Phase H.3 position publishing reads a real get_all_positions() snapshot; a
       test populates it directly via `position_tracker._positions[...]`.
+    - _price_cache: Dict[str, FakePriceSnapshot] — MM9.3-S2 infra-to-infra coupling
+      for PortfolioView enrichment (§10.7 pre-approved). Duck-typed to match the
+      real handler's PriceSnapshot.price attribute.
+    - metrics: simple object with cash_balance attribute.
     """
 
     def __init__(self, reconcile_alerts: Optional[List] = None,
@@ -252,33 +256,23 @@ class FakeExecutionHandler:
         # The real handler owns this attribute and flips it via
         # activate_kill_switch (§10.7).
         self._kill_switched = False
+        # MM9.3-S2: price cache for PortfolioView enrichment.
+        self._price_cache: Dict[str, 'FakePriceSnapshot'] = {}
+        self.metrics = _FakeMetrics()
 
     def _replay_state(self) -> None:
         self.replay_state_calls += 1
 
     def canonicalize_restored_positions(self) -> None:
-        # Mirrors ExecutionHandler.canonicalize_restored_positions (G1 Wave 3
-        # #7-as-restored): the driver triggers it on the live-F&O gate-pass. A
-        # recording no-op here so the gate wiring is assertable without a real
-        # resolver/master.
         self.canonicalize_calls += 1
 
     def canonicalize_restored_orders(self) -> None:
-        # Mirrors ExecutionHandler.canonicalize_restored_orders (G1 Wave 3 #8):
-        # the driver triggers it on the live-F&O gate-pass, alongside the position
-        # canonicalization. A recording no-op so the gate wiring is assertable.
         self.canonicalize_order_calls += 1
 
     def activate_kill_switch(self, reason: str = "") -> None:
-        # Mirrors ExecutionHandler.activate_kill_switch (idempotent flip). The
-        # watchdog calls this when the feed goes stale; the handler also calls it
-        # itself on drawdown / limit / broker faults.
         self._kill_switched = True
 
     def update_market_price(self, symbol, price):
-        # MM9.2-S3-S2: mirrors ExecutionHandler.update_market_price (§8 price
-        # feed). The driver's per-bar call (before on_bar) is recorded here so
-        # S3-S2 tests can assert cache warming for non-signaling symbols.
         self.price_updates.append((symbol, price))
 
     def process_signal(self, signal, current_price):
@@ -288,7 +282,21 @@ class FakeExecutionHandler:
         if self._kill_switch_on is not None and signal.symbol == self._kill_switch_on:
             self.activate_kill_switch(f"handler tripped on {signal.symbol}")
             return None
-        return True  # non-None sentinel: broker execution path reached
+        return True
+
+
+class FakePriceSnapshot:
+    """Duck-typed stand-in for handler.PriceSnapshot.
+    Used in _price_cache for MM9.3-S2 enriched-path tests."""
+    def __init__(self, price: float, timestamp=None):
+        self.price = price
+        self.timestamp = timestamp or datetime.now(pytz.UTC)
+
+
+class _FakeMetrics:
+    """Minimal metrics stand-in carrying cash_balance for enriched-path tests."""
+    def __init__(self):
+        self.cash_balance = 100000.0
 
 
 class FakeTelemetryTransport:

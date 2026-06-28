@@ -39,6 +39,7 @@ from core.database.providers.base import MarketDataProvider
 from core.database.providers.live_market import LiveDuckDBMarketDataProvider
 from core.execution.broker_positions_adapter import to_reconcile_positions
 from core.execution.handler import ExecutionConfig, ExecutionHandler, ExecutionMode
+from core.execution.portfolio_view import PortfolioView
 from core.instruments.master_readiness import build_master_readiness
 from core.runtime.config import DriverConfig, Mode
 from core.runtime.driver import LoopDriver
@@ -182,6 +183,16 @@ def build_runner(
     handler_kwargs["journal"] = journal
     execution = ExecutionHandler(**handler_kwargs)
 
+    # MM9.3-S2: PortfolioView for enriched telemetry. Uses the handler's
+    # existing PortfolioGreeks instance (handler.py:203) — not a new one — so
+    # both the risk gate (S1B) and telemetry read the same stateless aggregator.
+    portfolio_view = PortfolioView(
+        position_tracker=execution.position_tracker,
+        pnl_tracker=execution.pnl_tracker,
+        margin_tracker=execution.margin_tracker,
+        portfolio_greeks=execution.portfolio_greeks,
+    )
+
     config = DriverConfig(mode=Mode.LIVE, symbols=list(symbols), max_bars=max_bars)
 
     return LoopDriver(
@@ -193,4 +204,5 @@ def build_runner(
         execution=execution,
         broker_positions=broker_positions,
         master_readiness=master_readiness,
+        portfolio_view=portfolio_view,
     )

@@ -33,7 +33,7 @@ MM9 is a four-milestone ladder:
 |---|---|---|
 | **MM9.1** | Basic capital-utilisation gate in `process_signal` | **In scope — implement now** |
 | MM9.2 | Multi-symbol price cache (S1), MarginTracker multiplier fix (S2), price freshness gate (S3) | **S1/S2/S3 COMPLETE (2026-06-27)**; S4 (`_update_equity_metrics`) pending. Original "per-underlying notional cap" (old S3) deferred — see §4 |
-| MM9.3 | Portfolio Greeks wiring, `PortfolioView` runtime integration | Deferred |
+| MM9.3 | Portfolio Greeks wiring, `PortfolioView` runtime integration | S1A/S1B/S2 COMPLETE |
 | MM9.4 | SPAN engine, `MarginCalculator` protocol, buying-power model | Deferred |
 
 ### Out of Scope for MM9 Overall
@@ -70,7 +70,7 @@ Three CRITICAL corrections to the MM9.0 design are required before implementatio
 
 `MarginTracker` is injected into `ExecutionHandler` at `handler.py:163` and exposed in `PortfolioView.snapshot()` (`portfolio_view.py:57–65`). It is never called in the execution decision path.
 
-`PortfolioView` is implemented and tested but not wired into the runtime (read-only projection only).
+`PortfolioView` is implemented, tested, and wired into the LoopDriver telemetry pipeline (MM9.3-S2).
 
 Known pre-existing defects in `MarginTracker` (documented; not MM9.1's to fix):
 - `_calculate_single_exposure` uses `pos.instrument.multiplier`, which is hardcoded to `1.0` for all options by `canonical_restore.py:68` — underestimates option exposure by factor of `lot_size`
@@ -738,10 +738,12 @@ Do not update `SESSION_BOOTSTRAP.md` until MM9.2 is complete. MM9.1's single-sym
 - `initial_capital` propagation in `fno_runner` (if not done in MM9.1-S5)
 - Per-underlying notional cap as secondary gate
 
-### MM9.3 Planned Work
+### MM9.3 Status
 
-- Portfolio-level Greeks aggregation (`_check_greek_limits` currently unreachable)
-- `PortfolioView` runtime integration (currently display-only)
+- **S1A — Greek Gate Semantic Correction — COMPLETE (2026-06-28).** `_check_greek_limits` converted from `raise ExecutionRuleError` to bool-returning D4 rejection gate.
+- **S1B — Portfolio Greek Aggregation — COMPLETE (2026-06-28).** Portfolio-level delta+vega+gamma aggregation via `PortfolioGreeks.calculate_portfolio_greeks()`.
+- **S2 — PortfolioView Runtime Integration — COMPLETE (2026-06-28).** `PortfolioView` wired into `LoopDriver._build_positions()`; enriched telemetry payload with portfolio Greeks, MTM equity, PnL breakdown, and real per-symbol `pnl_pct`; degraded raw fallback when `PortfolioView` absent.
+- **S3 — Drawdown Gate I.M.2 Full Fix — PENDING.
 
 ### MM9.4 SPAN Work
 
@@ -784,7 +786,7 @@ MM9.2 — Portfolio-Accurate Capital Controls
 MM9.3 — Portfolio Exposure Controls
 [x] MM9.3-S1A — Greek gate semantic correction (COMPLETE 2026-06-28)
 [x] MM9.3-S1B — Portfolio Greek aggregation (COMPLETE 2026-06-28)
-[ ] MM9.3-S2 — PortfolioView runtime integration
+[x] MM9.3-S2 — PortfolioView runtime integration
 [ ] MM9.3     — Documentation updated
 
 MM9.4 — SPAN Integration
