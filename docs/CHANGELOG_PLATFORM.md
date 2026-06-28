@@ -6,6 +6,18 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-28 — MM9.3-S1A — Greek Gate Semantic Correction (687 passing)
+
+Converted `_check_greek_limits` (`core/execution/handler.py:967`) from `raise ExecutionRuleError` (crash-escalation) to a **bool-returning D4 rejection gate** matching the MM9.1 `_check_margin_budget` / MM9.2 `_check_book_priceable` pattern. This is the first slice of MM9.3 (Portfolio Greeks); S1B replaces the marginal-only body with portfolio-level aggregation.
+
+**Production:** `core/execution/handler.py` — two edits. (1) Method signature `-> bool`, EXIT early-return (`return True`), `raise ExecutionRuleError` replaced with `rejected_trades += 1` + `GREEK_DELTA_BREACH symbol=... signal_id=... delta=... limit=...` WARNING + `return False`, terminal `return True`. `signal_id` derived inside the helper via the same canonical sha256 logic as `process_signal:517-522`. (2) Call site at handler.py:615: `if not self._check_greek_limits(signal, current_price): return None` (was a fire-and-forget call). The body remains marginal-only (delta only; known interim limitation — S1B adds portfolio aggregation). `InstrumentParser.parse` intentionally unchanged (G1 carve-out #3; closure guard green).
+
+**Tests:** 13 new (`tests/execution/test_greek_limits.py` — U1-U6 gate-method unit, I1-I6 call-site integration incl. orphan-order regression + margin-gate pre-emption). C1 characterization (`raises_executionruleerror`) deleted at slice close — the defect is fixed. C2 (`checks_only_marginal`) retained for S1B. Full suite **687 passing, 0 failing**.
+
+*Ref: core/execution/handler.py; tests/execution/test_greek_limits.py; docs/reports/MM9_3_S1A_IMPLEMENTATION_SPEC.md; docs/reports/MM9_3_IMPLEMENTATION_SPEC.md.*
+
+---
+
 ## 2026-06-27 — MM9.2-S4 — Realized Equity Accounting Wired (668→696 passing)
 
 One-call wiring: `self._update_equity_metrics(trade)` inserted into `_handle_broker_fill` after `TradeEvent` construction, before MAE/MFE and `trading_writer`. Activates the previously dead realized cash accounting method so `metrics.cash_balance` tracks BUY costs and SELL proceeds on every fill. Resolves **I.H.1** (static `cash_balance` denominator in the margin gate).

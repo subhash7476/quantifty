@@ -609,8 +609,11 @@ class ExecutionHandler:
             enforce_risk_clearance(
                 risk_approved, reason=f"Risk limits exceeded for {signal.symbol}")
 
-            # Phase 9C: Greek Risk Check
-            self._check_greek_limits(signal, current_price)
+            # Phase 9C: Greek Risk Check (S1A: bool-returning rejection gate;
+            # EXIT bypasses inside the method). Runs before instrument
+            # resolution — a rejection returns None before any order is built.
+            if not self._check_greek_limits(signal, current_price):
+                return None
 
             # TLP V1: Capture Structural Context Snapshot
             tlp_context = None
@@ -961,11 +964,17 @@ class ExecutionHandler:
                 return False
         return True
 
-    def _check_greek_limits(self, signal: SignalEvent, current_price: float):
+    def _check_greek_limits(self, signal: SignalEvent, current_price: float) -> bool:
         """
         Phase 9C: Check if the new order would breach portfolio Greek limits.
-        This is a simulation check.
+        S1A: bool-returning D4 rejection gate. Never raises.
+        Returns True = allowed, False = rejected (caller returns None).
+        S1B replaces the marginal-only body with portfolio aggregation.
         """
+        # EXIT always bypasses — reducing exposure is never blocked.
+        if signal.signal_type == SignalType.EXIT:
+            return True
+
         # If we don't have necessary data in metadata, skip check (or fail safe)
         # We assume signal.metadata might contain 'underlying_price', 'iv', 'tte'
         meta = signal.metadata or {}
@@ -1000,9 +1009,25 @@ class ExecutionHandler:
         # For strict compliance with Phase 9C objective "Simulate projected Greeks after order",
         # we would need to fetch current portfolio greeks.
         # As a safeguard, we check if the single order exceeds limits (e.g. massive delta).
+        # S1A interim: marginal-only check. S1B adds portfolio aggregation.
         if abs(new_greeks.delta) > self.config.max_portfolio_delta:
-            raise ExecutionRuleError(
-                f"Order Delta {new_greeks.delta:.2f} exceeds limit {self.config.max_portfolio_delta}")
+            self.metrics.rejected_trades += 1
+            # signal_id derived inside (same canonical logic as process_signal
+            # at handler.py:517-522; deterministic, never diverges from the
+            # idempotency-locked value).
+            sig_id = getattr(signal, 'signal_id',
+                             (signal.metadata or {}).get('signal_id'))
+            if not sig_id:
+                from hashlib import sha256
+                raw_id = f"{signal.symbol}_{signal.strategy_id}_{signal.timestamp.isoformat()}"
+                sig_id = sha256(raw_id.encode()).hexdigest()
+            self.logger.warning(
+                "GREEK_DELTA_BREACH symbol=%s signal_id=%s delta=%.2f limit=%.2f",
+                signal.symbol, sig_id, new_greeks.delta,
+                self.config.max_portfolio_delta,
+            )
+            return False
+        return True
 
     def _calculate_position_size(self, signal: SignalEvent, current_price: float) -> float:
         # If strategy provided explicit sizing (e.g., ATR-based), use it

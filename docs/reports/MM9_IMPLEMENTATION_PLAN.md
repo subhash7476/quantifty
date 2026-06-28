@@ -524,7 +524,9 @@ MM9.2-S4 — wire _update_equity_metrics to fill path; cash_balance tracks reali
 
 **Files touched:** `core/execution/handler.py`, `core/risk/greeks/`
 
-**Dependencies:** MM9.2 complete; IV source available per position
+**Dependencies:** MM9.2 complete; IV source available per position — resolved via TTE=0.0/IV=0.20 defaults; true per-position IV deferred to MM9.5.
+
+**Split:** S1A (semantic correction — COMPLETE 2026-06-28) + S1B (portfolio aggregation). S1A converted `_check_greek_limits` from `raise ExecutionRuleError` to a bool-returning D4 rejection gate (EXIT bypass, `GREEK_DELTA_BREACH` WARNING, call-site wired). Body remains marginal-only until S1B.
 
 ---
 
@@ -780,7 +782,8 @@ MM9.2 — Portfolio-Accurate Capital Controls
 [ ] MM9.2     — SESSION_BOOTSTRAP.md §"Current Gaps §8" updated
 
 MM9.3 — Portfolio Exposure Controls
-[ ] MM9.3-S1 — PortfolioGreeks aggregation over open positions
+[x] MM9.3-S1A — Greek gate semantic correction (COMPLETE 2026-06-28)
+[ ] MM9.3-S1B — Portfolio Greek aggregation (replaces marginal-only body)
 [ ] MM9.3-S2 — PortfolioView runtime integration
 [ ] MM9.3     — Documentation updated
 
