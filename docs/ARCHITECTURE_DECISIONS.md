@@ -291,6 +291,7 @@ The protocol is a `typing.Protocol` — it is satisfied **structurally**, not by
 - The protocol enforces the SPAN-refactoring preconditions (statelessness, determinism, no broker API) by contract, preventing future implementations from accidentally introducing runtime I/O or caching.
 - The four boundary rules are documented and reviewable.
 - `MarginCalculator Protocol v1` is the versioned contract; future versions may extend the surface.
+- **MM9.4-S3 (2026-06-28):** `SpanMarginCalculator` (`core/risk/span/span_calculator.py`) is the first concrete implementation. It satisfies the protocol structurally (no inheritance), consumes immutable `SpanSnapshot` risk arrays, and exposes a calculator-only `get_incremental_margin()` method not on the protocol. The composition-root swap (replacing `MarginTracker` with `SpanMarginCalculator` in `fno_runner.py`) remains S4.
 
 *Ref: core/risk/margin_calculator.py; core/execution/margin_tracker.py; core/execution/portfolio_view.py; core/execution/handler.py; docs/reports/MM9_4_S1_IMPLEMENTATION_SPEC.md; ADR-003 (determinism), ADR-005 (execution before alpha).*
 

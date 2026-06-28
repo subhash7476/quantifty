@@ -6,6 +6,20 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-28 — MM9.4-S3 — SpanMarginCalculator (766→791 passing)
+
+Implemented `SpanMarginCalculator` (`core/risk/span/span_calculator.py`) — the first concrete `MarginCalculator` consuming immutable `SpanSnapshot` risk arrays. Conservative SPAN model: per-position margin = `notional * max(scan_risk, short_option_min) * margin_rate`. Zero spread credits, inter-month offsets, NOV adjustments, runtime Greeks, or repricing.
+
+**Production:** `core/risk/span/span_calculator.py` — `SpanMarginCalculator` structurally satisfying `MarginCalculator` protocol (no inheritance). Module-level metric constants (`SPAN_METRIC_SCAN_RISK`, `SPAN_METRIC_SHORT_OPTION_MIN`). Exception hierarchy: `SpanMarginError` → `UnsupportedInstrument`, `MissingRiskArray`, `MissingRiskMetric`. Calculator-only `get_incremental_margin()` method (not on protocol). `core/risk/span/__init__.py` — export additions.
+
+**Deterministic:** zero filesystem/network/broker/clock I/O. Repository-independent: imports only `SpanSnapshot`. Not yet injected — composition swap is S4.
+
+**Tests:** 25 new across 7 groups (protocol conformance, margin math, exceptions, incremental, determinism, import isolation, multi-position). Full suite **766→791 passing, 0 failing**.
+
+*Ref: core/risk/span/span_calculator.py; core/risk/span/__init__.py; tests/risk/span/test_span_calculator.py.*
+
+---
+
 ## 2026-06-28 — MM9.4-S2 — SPAN Parameter Sourcing Architecture (728→766 passing)
 
 Built the deterministic SPAN parameter data foundation — immutable DTOs, parser registry, repository with checksum verification, startup readiness evaluation, and an offline fetch pipeline. All data is ISO-date-versioned and append-only archived.

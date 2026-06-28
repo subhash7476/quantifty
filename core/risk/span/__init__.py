@@ -22,6 +22,13 @@ from core.risk.span.span_readiness import (
     assess,
     build_span_readiness,
 )
+from core.risk.span.span_calculator import (
+    SpanMarginCalculator,
+    SpanMarginError,
+    UnsupportedInstrument,
+    MissingRiskArray,
+    MissingRiskMetric,
+)
 
 __all__ = [
     "SpanSnapshot",
@@ -34,4 +41,9 @@ __all__ = [
     "evaluate",
     "assess",
     "build_span_readiness",
+    "SpanMarginCalculator",
+    "SpanMarginError",
+    "UnsupportedInstrument",
+    "MissingRiskArray",
+    "MissingRiskMetric",
 ]
