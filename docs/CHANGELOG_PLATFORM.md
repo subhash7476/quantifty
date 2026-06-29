@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-29 — MM9.5-S4 — Integration Certification: runtime SPAN margin gate hardening, end-to-end test suite, MM9.5 CLOSED (249→249 passing)
+
+Fixed GAP-1 — the single production robustness defect: `_check_margin_budget` now catches `SpanMarginError`, logs the exception class and message, and safely returns `(False, 1.0)` instead of crashing the tick loop. Added 29 new tests across 6 files (Phases 1–5): SPAN margin gate end-to-end (I1–I8), negative-path integration (N1–N6), determinism (D1–D3), composition + startup wiring (S1–S4, G1–G7), and regression compatibility (R1–R5). All 249 tests pass; 4 regression markers skipped. Only `handler.py` changed in production. Parser, calculator, snapshot, and all SPAN infrastructure untouched. **MM9.5 CLOSED — scan-risk subsystem certified production-ready.**
+
+*Ref: core/execution/handler.py; tests/execution/test_mm9_5_s4_span_margin_integration.py; tests/execution/test_mm9_5_s4_span_negative.py; tests/execution/test_mm9_5_s4_span_determinism.py; tests/scripts/test_mm9_5_s4_fno_runner_span_wiring.py; tests/runtime/test_mm9_5_s4_driver_span_gate.py; tests/execution/test_mm9_5_s4_span_regression.py.*
+
+---
+
 ## 2026-06-29 — MM9.5-S3 — SpanMarginCalculator Migration: absolute-Rs formula, real SPAN regression suite (196→196 passing)
 
 Corrected the margin formula from `notional x fraction` to `qty x lot_size x Rs/unit` (ADR-008 verification closed). Renamed `_risk_percentage()` to `_scan_margin_per_unit()`. Added 5 new metric constants and `get_snapshot_param()` accessor. `short_option_minimum` defaults to 0.0 when absent. All existing calculator test fixtures updated from fraction to Rs-unit values. New Group H (5 accessor tests) and Group R (7 regression tests against `nsccl.20260625.i01.spn`). NIFTY lot_size=65, BANKNIFTY lot_size=30 (verified from instrument database). Real-file validated: 10 NIFTY lots margin = 1,458,834 Rs, 5 BANKNIFTY lots margin = 827,010 Rs — both price-independent. This milestone migrates only the scan-risk component of SPAN; spread credits, portfolio offsets, exposure margin, delivery margin, and complete SPAN portfolio margin are explicitly out of scope. Import isolation preserved; parser untouched.

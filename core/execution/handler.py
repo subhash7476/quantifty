@@ -37,7 +37,7 @@ from core.execution.position_models import PositionSide
 from core.execution.pnl_tracker import PnLTracker
 from core.execution.margin_tracker import MarginTracker
 from core.risk.margin_calculator import MarginCalculator
-from core.risk.span.span_calculator import SpanMarginCalculator
+from core.risk.span.span_calculator import SpanMarginCalculator, SpanMarginError
 from core.risk.span.span_snapshot import SpanSnapshot
 from core.execution.groups.group_tracker import GroupTracker
 from core.execution.groups.group_pnl import GroupPnLTracker
@@ -1168,20 +1168,27 @@ class ExecutionHandler:
             else order.instrument.multiplier
         )
         prices = {sym: snap.price for sym, snap in self._price_cache.items()}
-        used_current = self.margin_tracker.get_used_margin(prices)
-        # MM9.4-S4: capability detection — use SpanMarginCalculator's
-        # get_incremental_margin when available, otherwise fall back to
-        # the flat-rate estimate * margin_rate formula.
-        if hasattr(self.margin_tracker, 'get_incremental_margin'):
-            incremental_est = self.margin_tracker.get_incremental_margin(
-                order.symbol, order.quantity, current_price,
-                lot_size=effective_multiplier,
+        try:
+            used_current = self.margin_tracker.get_used_margin(prices)
+            # MM9.4-S4: capability detection — use SpanMarginCalculator's
+            # get_incremental_margin when available, otherwise fall back to
+            # the flat-rate estimate * margin_rate formula.
+            if hasattr(self.margin_tracker, 'get_incremental_margin'):
+                incremental_est = self.margin_tracker.get_incremental_margin(
+                    order.symbol, order.quantity, current_price,
+                    lot_size=effective_multiplier,
+                )
+            else:
+                incremental_est = (
+                    self._estimate_required_margin(order.quantity * effective_multiplier, current_price)
+                    * self.margin_tracker.margin_rate
+                )
+        except SpanMarginError as e:
+            self.logger.warning(
+                "MARGIN_BUDGET_REJECTED span_margin_error=%s:%s",
+                type(e).__name__, e,
             )
-        else:
-            incremental_est = (
-                self._estimate_required_margin(order.quantity * effective_multiplier, current_price)
-                * self.margin_tracker.margin_rate
-            )
+            return False, 1.0
         utilisation = (used_current + incremental_est) / self.metrics.cash_balance
         return utilisation <= self.config.max_capital_utilisation, utilisation
 
