@@ -38,6 +38,7 @@ def _make_snapshot(risk_arrays=None):
         exchange="NSE",
         segment="FO",
         file_hash="test_hash",
+        is_settlement=False,
         risk_arrays=risk_arrays or {},
         metadata={},
     )
@@ -143,6 +144,7 @@ def test_repository_loads_snapshot(tmp_path):
         exchange="NSE",
         segment="FO",
         file_hash=actual_hash,
+        is_settlement=False,
         risk_arrays={},
         metadata={},
     )
@@ -166,7 +168,7 @@ def test_repository_latest_version(tmp_path):
     snap_dir.mkdir()
     for d in [date(2026, 6, 27), date(2026, 6, 28)]:
         snap = _make_snapshot().__class__(
-            d, "v1", "NSE", "FO", "h", {}, {})
+            d, "v1", "NSE", "FO", "h", False, {}, {})
         with open(snap_dir / f"nse_fo_span_{d.isoformat()}.parquet", "wb") as f:
             pickle.dump(snap, f)
     repo = SpanRepository(snap_dir)

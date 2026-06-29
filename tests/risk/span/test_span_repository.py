@@ -36,6 +36,7 @@ def repo_with_snapshot(tmp_path):
         exchange="NSE",
         segment="FO",
         file_hash="",  # filled by _write_fixture
+        is_settlement=False,
         risk_arrays={"NIFTY": SpanRiskArray("NIFTY", {"sr": 0.15})},
         metadata={},
     )
@@ -47,6 +48,7 @@ def repo_with_snapshot(tmp_path):
         exchange=snap.exchange,
         segment=snap.segment,
         file_hash=actual_hash,
+        is_settlement=False,
         risk_arrays=snap.risk_arrays,
         metadata=snap.metadata,
     )
@@ -62,7 +64,7 @@ def test_latest_version_returns_most_recent(tmp_path):
     snap_dir = tmp_path / "span"
     snap_dir.mkdir(exist_ok=True)
     for d in [date(2026, 6, 27), date(2026, 6, 28), date(2026, 6, 29)]:
-        snap = SpanSnapshot(d, "v1", "NSE", "FO", "h", {}, {})
+        snap = SpanSnapshot(d, "v1", "NSE", "FO", "h", False, {}, {})
         import pickle
         fname = f"nse_fo_span_{d.isoformat()}.parquet"
         with open(snap_dir / fname, "wb") as f:
@@ -100,6 +102,7 @@ def test_load_checksum_mismatch_raises(tmp_path):
         exchange="NSE",
         segment="FO",
         file_hash="wrong_hash",
+        is_settlement=False,
         risk_arrays={},
         metadata={},
     )
@@ -116,6 +119,7 @@ def test_load_no_zip_warns_and_succeeds(tmp_path):
         exchange="NSE",
         segment="FO",
         file_hash="some_hash",
+        is_settlement=False,
         risk_arrays={},
         metadata={},
     )
@@ -136,13 +140,14 @@ def test_repository_does_not_cache(tmp_path):
         exchange="NSE",
         segment="FO",
         file_hash="",
+        is_settlement=False,
         risk_arrays={},
         metadata={},
     )
     snap_dir, _, _, actual_hash = _write_fixture_snapshot(tmp_path, snap)
     import pickle
     # Fix hash
-    snap_fixed = SpanSnapshot(date(2026, 6, 28), "v1", "NSE", "FO", actual_hash, {}, {})
+    snap_fixed = SpanSnapshot(date(2026, 6, 28), "v1", "NSE", "FO", actual_hash, False, {}, {})
     with open(snap_dir / "nse_fo_span_2026-06-28.parquet", "wb") as f:
         pickle.dump(snap_fixed, f)
     repo = SpanRepository(snap_dir)

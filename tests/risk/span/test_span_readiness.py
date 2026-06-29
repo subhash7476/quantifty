@@ -81,7 +81,7 @@ def test_build_span_readiness_returns_readiness_verdict(tmp_path):
     import pickle
     snap_dir = tmp_path / "span"
     snap_dir.mkdir(exist_ok=True)
-    snap = SpanSnapshot(date(2026, 6, 29), "v1", "NSE", "FO", "h", {}, {})
+    snap = SpanSnapshot(date(2026, 6, 29), "v1", "NSE", "FO", "h", False, {}, {})
     with open(snap_dir / "nse_fo_span_2026-06-29.parquet", "wb") as f:
         pickle.dump(snap, f)
     repo = SpanRepository(snap_dir)

@@ -84,6 +84,7 @@ def main() -> int:
         exchange="NSE",
         segment="FO",
         file_hash=file_hash,
+        is_settlement=False,
         risk_arrays={},
         metadata={
             "source_url": url,

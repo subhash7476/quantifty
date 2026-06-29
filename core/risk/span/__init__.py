@@ -1,10 +1,10 @@
 """
-SPAN Parameter Infrastructure (MM9.4-S2)
+SPAN Parameter Infrastructure (MM9.5-S2)
 ========================================
 Deterministic, immutable data foundation for SPAN margin computation.
 
 Modules:
-  span_snapshot   — Immutable DTOs (SpanSnapshot, SpanRiskArray)
+  span_snapshot   — Immutable DTOs (SpanSnapshot, SpanRiskArray, etc.)
   span_parser     — Parser registry keyed by schema_version
   span_repository — On-disk snapshot read path, checksum verification
   span_freshness  — Expected trading-date computation
@@ -12,8 +12,15 @@ Modules:
   span_pipeline   — Fetch-job pipeline primitives (download, promote, archive)
 """
 
-from core.risk.span.span_snapshot import SpanSnapshot, SpanRiskArray
-from core.risk.span.span_parser import ParserRegistry, UnsupportedSpanSchema
+from core.risk.span.span_snapshot import (
+    SpanSnapshot,
+    SpanRiskArray,
+    UnsupportedSpanSchema,
+    SpanFutureContract,
+    SpanOptionSeries,
+    SpanOptionContract,
+)
+from core.risk.span.span_parser import ParserRegistry, register_parser, parse_span_xml
 from core.risk.span.span_repository import SpanRepository
 from core.risk.span.span_freshness import expected_span_date
 from core.risk.span.span_readiness import (
@@ -29,12 +36,20 @@ from core.risk.span.span_calculator import (
     MissingRiskArray,
     MissingRiskMetric,
 )
+from core.risk.span.parser_v400 import parse_span_xml as _parse_v400
+
+# Register the v4.00 parser in the default global registry (ADR-010).
+register_parser("4.00", _parse_v400)
 
 __all__ = [
     "SpanSnapshot",
     "SpanRiskArray",
-    "ParserRegistry",
     "UnsupportedSpanSchema",
+    "SpanFutureContract",
+    "SpanOptionSeries",
+    "SpanOptionContract",
+    "ParserRegistry",
+    "parse_span_xml",
     "SpanRepository",
     "expected_span_date",
     "SpanReadinessVerdict",

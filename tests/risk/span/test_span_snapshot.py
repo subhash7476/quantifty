@@ -14,6 +14,7 @@ def test_span_snapshot_is_frozen():
         exchange="NSE",
         segment="FO",
         file_hash="abc123",
+        is_settlement=False,
         risk_arrays={},
         metadata={},
     )
@@ -40,6 +41,7 @@ def test_span_snapshot_carries_required_fields():
         exchange="NSE",
         segment="FO",
         file_hash="abc123",
+        is_settlement=False,
         risk_arrays={"NIFTY": SpanRiskArray(symbol="NIFTY", risk_metrics={"sr": 0.15})},
         metadata={"downloaded_at": datetime(2026, 6, 28, 10, 0, tzinfo=pytz.UTC)},
     )
@@ -69,6 +71,7 @@ def test_span_snapshot_empty_risk_arrays():
         exchange="NSE",
         segment="FO",
         file_hash="abc123",
+        is_settlement=False,
         risk_arrays={},
         metadata={},
     )
@@ -82,6 +85,7 @@ def test_span_snapshot_deterministic_repr():
         exchange="NSE",
         segment="FO",
         file_hash="abc123",
+        is_settlement=False,
         risk_arrays={"A": SpanRiskArray("A", {"x": 1.0})},
         metadata={"k": "v"},
     )
@@ -91,6 +95,7 @@ def test_span_snapshot_deterministic_repr():
         exchange="NSE",
         segment="FO",
         file_hash="abc123",
+        is_settlement=False,
         risk_arrays={"A": SpanRiskArray("A", {"x": 1.0})},
         metadata={"k": "v"},
     )

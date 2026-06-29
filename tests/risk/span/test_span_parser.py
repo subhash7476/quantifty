@@ -1,4 +1,10 @@
-"""Block H — Parser registry + UnsupportedSpanSchema (MM9.4-S2)."""
+"""Block H — Parser registry + UnsupportedSpanSchema (MM9.4-S2, MM9.5-S1)."""
+
+from datetime import date
+
+import pytest
+
+import hashlib
 
 from datetime import date
 
@@ -6,71 +12,68 @@ import pytest
 
 from core.risk.span.span_parser import (
     ParserRegistry,
-    UnsupportedSpanSchema,
-    parse_span_csv,
     register_parser,
+    parse_span_xml,
 )
-from core.risk.span.span_snapshot import SpanSnapshot, SpanRiskArray
+from core.risk.span.span_snapshot import (
+    SpanSnapshot,
+    SpanRiskArray,
+    UnsupportedSpanSchema,
+)
 
 
 def test_registry_starts_empty():
     reg = ParserRegistry()
     assert reg.versions() == []
     with pytest.raises(UnsupportedSpanSchema):
-        reg.parse("v99", {"key": "val"})
+        reg.parse("9.99", b"some bytes")
 
 
-def test_register_and_parse_v1():
+def test_register_and_parse_v400():
     reg = ParserRegistry()
 
-    def _v1_parser(data: dict) -> SpanSnapshot:
+    def _v400_parser(raw: bytes) -> SpanSnapshot:
         return SpanSnapshot(
             snapshot_date=date(2026, 6, 28),
-            schema_version="v1",
+            schema_version="4.00",
             exchange="NSE",
             segment="FO",
-            file_hash=data.get("file_hash", ""),
-            risk_arrays={
-                s["symbol"]: SpanRiskArray(s["symbol"], s["metrics"])
-                for s in data.get("scrips", [])
-            },
+            file_hash=hashlib.sha256(raw).hexdigest(),
+            is_settlement=False,
+            risk_arrays={},
             metadata={},
         )
 
-    reg.register("v1", _v1_parser)
-    assert "v1" in reg.versions()
-    result = reg.parse("v1", {"file_hash": "xyz", "scrips": [
-        {"symbol": "NIFTY", "metrics": {"sr": 0.15}},
-    ]})
+    reg.register("4.00", _v400_parser)
+    assert "4.00" in reg.versions()
+    result = reg.parse("4.00", b"hello")
     assert isinstance(result, SpanSnapshot)
-    assert result.schema_version == "v1"
-    assert result.file_hash == "xyz"
-    assert "NIFTY" in result.risk_arrays
+    assert result.schema_version == "4.00"
+    assert result.file_hash == hashlib.sha256(b"hello").hexdigest()
 
 
 def test_unknown_version_raises():
     reg = ParserRegistry()
     with pytest.raises(UnsupportedSpanSchema):
-        reg.parse("v999", {})
+        reg.parse("9.99", b"ignored")
 
 
-def test_parse_span_csv_module_function():
-    """The module-level parse_span_csv dispatches through the global registry."""
-    register_parser("v1", lambda d: SpanSnapshot(
-        date(2026, 6, 28), "v1", "NSE", "FO", d.get("file_hash", ""), {}, {}))
-    result = parse_span_csv("v1", {"file_hash": "abc"})
+def test_parse_span_xml_module_function():
+    """The module-level parse_span_xml dispatches through the global registry."""
+    register_parser("4.00", lambda raw: SpanSnapshot(
+        date(2026, 6, 28), "4.00", "NSE", "FO", hashlib.sha256(raw).hexdigest(), False, {}, {}))
+    result = parse_span_xml("4.00", b"abc")
     assert result is not None
-    assert result.schema_version == "v1"
+    assert result.schema_version == "4.00"
 
 
 def test_register_parser_deprecated():
     """register_parser is the legacy module-level registration (or no-op)."""
-    # This should not raise
-    register_parser("v1", lambda d: None)
+    register_parser("4.00", lambda raw: None)
 
 
 def test_multiple_versions_coexist():
     reg = ParserRegistry()
-    reg.register("v1", lambda d: SpanSnapshot(date(2026, 6, 28), "v1", "NSE", "FO", "", {}, {}))
-    reg.register("v2", lambda d: SpanSnapshot(date(2026, 6, 28), "v2", "NSE", "FO", "", {}, {}))
-    assert set(reg.versions()) == {"v1", "v2"}
+    reg.register("4.00", lambda raw: SpanSnapshot(date(2026, 6, 28), "4.00", "NSE", "FO", "", False, {}, {}))
+    reg.register("4.01", lambda raw: SpanSnapshot(date(2026, 6, 28), "4.01", "NSE", "FO", "", False, {}, {}))
+    assert set(reg.versions()) == {"4.00", "4.01"}

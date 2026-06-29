@@ -51,6 +51,7 @@ def _snapshot(risk_data):
         exchange="NSE",
         segment="FO",
         file_hash="test",
+        is_settlement=False,
         risk_arrays={
             sym: SpanRiskArray(symbol=sym, risk_metrics=metrics)
             for sym, metrics in risk_data.items()

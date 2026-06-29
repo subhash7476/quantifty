@@ -6,6 +6,39 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-29 — MM9.5-S2 — Parser Completeness: SpanFutureContract, SpanOptionSeries, SpanOptionContract; 7-key risk_metrics; regression suite (184→184 passing)
+
+Completed the parser completeness milestone. Extended `parser_v400.py` with full extraction of per-contract futures and options data into three new frozen DTOs: `SpanFutureContract`, `SpanOptionSeries`, `SpanOptionContract`. Added three new `SpanSnapshot` fields (`futures`, `option_series`, `option_contracts`) with `field(default_factory=dict)` for backward compatibility. Expanded `risk_metrics` from 2 to 7 keys: added `price_scan_range`, `vol_scan_range`, `cvf`, `intra_spread_charge_rs`, `risk_free_rate`. Extracted `metadata["scan_scenarios"]` (16 scenario definitions). Added `_safe_float()` helper, refactored `_derive_scan_risk` → `_extract_ra_tuple` + `_derive_scan_risk`. Corrected the RA sign convention from `-ra * w` to `ra * w` (positive = loss, matching the real NSE file). New test files: `test_parser_v400_s2.py` (Blocks H–L, 44 tests) and `test_parser_v400_regression.py` (Block M, 17 tests pinned to `nsccl.20260625.i01.spn`). Real-file validated: NIFTY scan_risk=2244.36, BANKNIFTY=5513.40, 239 underlyings, 158,713 option contracts, 1,302 futures, cvf=1.0 for all, NIFTY spread=425.0, BANKNIFTY spread=1029.0. Parser completeness verified: `sum(option_contracts) == metadata["option_count"]`. Zero regressions.
+
+*Ref: core/risk/span/span_snapshot.py; core/risk/span/parser_v400.py; core/risk/span/__init__.py; tests/risk/span/test_parser_v400_s2.py; tests/risk/span/test_parser_v400_regression.py.*
+
+---
+
+## 2026-06-29 — MM9.5-S1 — ParserV400 & SpanSnapshot Integration: ParserRegistry bytes contract, ParserV400, SpanSnapshot.is_settlement (123→123 passing)
+
+Implemented the foundational SPAN parser milestone. Fixed `ParserRegistry` type annotation from `Dict[str, Callable[[dict], SpanSnapshot]]` to `Dict[str, Callable[[bytes], SpanSnapshot]]` (ADR-009). Deleted the `parse_span_csv` function. Changed the registry version key from `"v1"` to `"4.00"` (ADR-010). Added `is_settlement: bool` field to `SpanSnapshot`. Created `core/risk/span/parser_v400.py` — the complete XML parser for PC-SPAN 4.00 files: metadata extraction, nearest-expiry futures selection, 16-scenario RA reduction, `UnsupportedSpanSchema` error handling. Preserves raw RA values in `metadata["scenario_values"]`. Moved `UnsupportedSpanSchema` to `span_snapshot.py` to break circular import. Registered the v4.00 parser in the default global registry. Updated all existing SpanSnapshot construction sites. 49 new tests (Blocks A–G). Real-file smoke-tested against `nsccl.20260625.i01.spn`.
+
+*Ref: core/risk/span/span_snapshot.py; core/risk/span/span_parser.py; core/risk/span/parser_v400.py; core/risk/span/__init__.py; tests/risk/span/test_parser_v400.py.*
+
+---
+
+## 2026-06-29 — MM9.5 Architecture Reconciliation: real NSE SPAN file reverse-engineered; ADR-008/009/010 accepted
+
+Reverse-engineered the production NSE NSCCL SPAN file (`nsccl.20260625.i01.spn`, PC-SPAN format 4.00, 57.2 MB, latin-1 XML) and produced a formal architecture reconciliation against the MM9.4 data model. MM9.4 is fundamentally correct; three targeted fixes are required before real margin computation is correct.
+
+**Findings:** 239 underlyings, 158,713 option strikes, 1,302 futures contracts. NIFTY: priceScan=2234.01, worst RA loss=2244.36 Rs/lot-unit (75 lots → Rs 168,327/lot). BANKNIFTY: priceScan=5488.30, worst RA=5513.40 Rs/lot-unit (30 lots → Rs 165,402/lot). SOM=0.0 for all index options. Inter-month dSpreads: NIFTY Rs 425/lot-pair, BANKNIFTY Rs 1,029/lot-pair (deferred MM10).
+
+**Three ADRs accepted (2026-06-29):**
+- **ADR-008:** `scan_risk` unit = absolute Rs per lot-unit (not fraction of notional). Formula: `margin = abs(qty) × lot_size × scan_risk`. Closes G-1 unit mismatch in MM9.4-S3.
+- **ADR-009:** `ParserRegistry` input contract = raw `bytes`. Registry is format-agnostic; the parser owns all stages (ZIP decompression, encoding, XML parse, RA reduction). Closes G-2 wrong signature (`dict`) and G-3 wrong name (`parse_span_csv`).
+- **ADR-010:** Registry key = `<fileFormat>` verbatim ("4.00", not "v1"). Alias policy for minor-compatible updates; new parser for breaking changes; `UnsupportedSpanSchema` + BLOCK for unknown versions. Closes G-4/G-5 version-key mismatch.
+
+**MM9.5 implementation scope defined:** S1 (parser fix + XML parser), S2 (calculator formula fix), S3 (integration test with real SPAN values), S4 deferred to MM10 (spread credits).
+
+*Ref: docs/reports/SPAN_XML_SCHEMA_AND_MM9_MAPPING.md; docs/reports/MM9_5_ARCHITECTURE_RECONCILIATION.md; docs/architecture_decisions.md (ADR-008/009/010); reference/span/nsccl.20260625.i01.spn.*
+
+---
+
 ## 2026-06-28 — Repository hygiene: expanded .gitignore for external data and runtime artifacts
 
 Extended `.gitignore` to exclude all market data and runtime-generated files that belong in the external `F:\nifty` data repository: DuckDB/SQLite runtime databases, Parquet/pickle files, generated output directories (`historical/`, `reference/`, `research/`, `tick/`, `instruments/`, `span/`, `backtest/`, `scanner/`, `signals/`, `features/`, `backups/`, `cache/`). All 38 existing patterns preserved; zero tracked files affected. Completes the Git ↔ external data repository separation.

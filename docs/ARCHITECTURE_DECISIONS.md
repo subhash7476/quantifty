@@ -421,3 +421,152 @@ Positions with `instrument_token is None` are **excluded from the reconcile inpu
 - Full suite **522 passing, 0 failing**.
 
 *Ref: core/brokers/token_rekey.py; tests/runtime/test_reconcile_symbol_namespace.py; docs/reports/MM7I_NAMESPACE_ROUTE_DECISION.md; docs/reports/MM7J0_R1_PRECONDITIONS.md; docs/CHANGELOG_PLATFORM.md (2026-06-15); ADR-001, ADR-MM7F-1.*
+
+---
+
+## ADR-008 — SpanRiskArray `scan_risk` Unit Convention
+
+**Status:** Accepted (2026-06-29) · MM9.5 Architecture Reconciliation.
+
+### Context
+
+ADR-007 introduced the `MarginCalculator` protocol and the `SpanMarginCalculator` (MM9.4-S3) as the first concrete implementation. ADR-007's protocol boundaries explicitly deferred the canonical unit of `scan_risk` to be confirmed against a real NSE SPAN file ("to be confirmed" — a placeholder the reconciliation now closes).
+
+The MM9.4-S3 implementation (`core/risk/span/span_calculator.py`) assumed **Strategy A**: `scan_risk` is a dimensionless fraction of notional, and computed margin as `notional × max(scan_risk, short_option_min) × margin_rate`. The method was named `_risk_percentage`, encoding the fraction assumption in its name.
+
+Reverse-engineering the actual NSE NSCCL SPAN file (`reference/span/nsccl.20260625.i01.spn`, PC-SPAN format 4.00, 57.2 MB) revealed that risk array (`<ra><a>`) values are in **absolute Rs per lot-unit** — verified empirically: NIFTY worst-case RA value = 2244.36 Rs/lot-unit × 75 lot-units = Rs 168,327 per lot, consistent with published NSCCL margin requirements. Strategy A would produce an absurd result (notional × 2244 → notional × a price).
+
+### Decision
+
+`scan_risk` in `SpanRiskArray.risk_metrics["scan_risk"]` stores **absolute Rs per lot-unit**. It is never a fraction of notional, and the current underlying price plays no role in the scan margin calculation.
+
+**Canonical formula:**
+
+```
+units  = abs(qty) × lot_size
+margin = units × scan_risk
+```
+
+`short_option_minimum` is also in Rs per lot-unit (0.0 for index options — NSE does not impose SOM on NIFTY/BANKNIFTY index options; `<somTiers/tier/rate/val>` = 0 in the real file). The effective per-position scan margin is:
+
+```
+margin = units × max(scan_risk, short_option_minimum)
+```
+
+**Derivation of `scan_risk` from RA values:** the `<ra>` element contains 16 `<a>` scenario values. The sign convention in the PC-SPAN 4.00 file is: **positive RA = loss to position holder, negative RA = gain**. The worst-case loss is:
+
+```
+scan_risk = max(0, max( weight[i] × RA[i]  for i in 0..15 ))
+```
+
+where scenarios 15 and 16 (1-indexed) carry weight=0.3 (extreme up/down move); all other scenarios carry weight=1.0. The parser must perform this reduction before populating `risk_metrics["scan_risk"]`. The `max(0, ...)` clamp ensures that an all-gain RA (all values negative) produces a zero margin.
+
+**The `MarginCalculator.margin_rate` multiplier is retained** — it represents a regulatory or house additional buffer applied on top of the scan range, not a substitute for the scan risk itself.
+
+### Alternatives Considered
+
+- **Strategy A — scan_risk as fraction of notional** — rejected: empirically falsified by the real NSE SPAN file. RA values for NIFTY are in the 2000–2244 Rs range; a "fraction" of 2244 applied to any position notional is nonsensical. Verified: 2244.36 × 75 lots = Rs 168,327 ≈ published NSCCL margin (~9.3% of notional at NIFTY 24,000).
+- **Parse RA weighted-average (all 16 scenarios)** — rejected: SPAN defines initial margin as the **worst-case** (maximum loss) across scenarios, not an average; the averaging interpretation understates required margin.
+
+### Consequences
+
+- `SpanMarginCalculator._single_span_margin` (MM9.4-S3) contains the wrong formula and must be corrected in MM9.5-S2: replace `notional * risk_pct * margin_rate` with `units * scan_risk * margin_rate`, remove the price dependency from the scan margin path, rename `_risk_percentage` to reflect the Rs/lot semantics.
+- The parser (MM9.5-S1) must emit `scan_risk` as the worst-case Rs/lot-unit value derived from the 16-scenario RA reduction; it must also explicitly emit `short_option_minimum = 0.0` (not omit the key — the current calculator raises `MissingRiskMetric` on absence).
+- No consumer outside `core/risk/span/` is affected by the unit choice: `MarginCalculator.get_used_margin` returns Rs, and the upstream callers (`_check_margin_budget`, `PortfolioView`) consume only the Rs result.
+- This decision supersedes the "to be confirmed" placeholder in ADR-007 and closes gap G-1 from `docs/reports/SPAN_XML_SCHEMA_AND_MM9_MAPPING.md`.
+
+*Ref: core/risk/span/span_calculator.py; docs/reports/SPAN_XML_SCHEMA_AND_MM9_MAPPING.md (G-1); docs/reports/MM9_5_ARCHITECTURE_RECONCILIATION.md (D1, D2); reference/span/nsccl.20260625.i01.spn; ADR-007.*
+
+---
+
+## ADR-009 — ParserRegistry Input Contract: Raw Bytes
+
+**Status:** Accepted (2026-06-29) · MM9.5 Architecture Reconciliation.
+
+### Context
+
+`ParserRegistry` (`core/risk/span/span_parser.py`) was written with the type annotation `Dict[str, Callable[[dict], SpanSnapshot]]` — parser functions were expected to receive a pre-parsed `dict`. The function intended to be registered is named `parse_span_csv`, suggesting a CSV format.
+
+The real NSE SPAN file is a binary XML document (PC-SPAN format 4.00, CRLF line endings, latin-1 character encoding, 57.2 MB). It is not CSV. It is not a Python dict. When delivered as a ZIP archive (the standard NSE distribution format), it requires decompression before parsing. No concrete parser is registered in the current codebase; only the registry infrastructure exists.
+
+Without a binding decision on what the registry accepts, a future implementor could introduce a pre-parsing layer in the registry (coupling it to ZIP/XML), write the parser to receive a parsed `dict` or `ElementTree` (coupling to a specific intermediate), or receive raw `bytes` and own all stages. Only one of these respects the registry's stated role as a format-agnostic dispatch table.
+
+### Decision
+
+Parser functions registered in `ParserRegistry` accept **raw `bytes`** — the verbatim binary content of the `.spn` file (or the content of the primary XML file after ZIP extraction at the caller's discretion). The registry's type annotation is `Callable[[bytes], SpanSnapshot]`.
+
+**Responsibility allocation:**
+
+| Stage | Owner |
+|---|---|
+| File location on disk | `SpanRepository` |
+| ZIP decompression (if applicable) | Parser function |
+| Character encoding detection/decode | Parser function |
+| XML parsing | Parser function |
+| Field extraction (priceScan, volScan, RA values) | Parser function |
+| RA 16-scenario worst-case reduction | Parser function |
+| `SpanSnapshot` construction | Parser function |
+
+The registry is format-agnostic: it stores a version string → callable mapping and dispatches. It performs no format detection, no ZIP handling, no XML parsing, no dict construction. A bytes-in, `SpanSnapshot`-out contract is the minimum-assumption interface that keeps the registry reusable across future format changes.
+
+### Alternatives Considered
+
+- **Registry accepts a pre-parsed `dict`** — rejected: a dict is an intermediate representation whose schema is chosen by whoever builds the dict, not by the parser; coupling the registry to that schema forces all parser implementations to agree on a dict format that is version-specific and undocumented. The bytes contract avoids this layer.
+- **Registry accepts a parsed `xml.etree.ElementTree.Element` (the root element)** — rejected: the registry would need to parse the XML, selecting an encoding and parser library before dispatch; this couples the registry to one XML parsing approach and breaks the format-agnostic invariant.
+- **Registry handles ZIP extraction and passes decompressed bytes to the parser** — rejected for the same reason: adds responsibility to the registry, requires it to understand the ZIP-vs-raw-file distinction, and cannot be format-agnostic.
+
+### Consequences
+
+- `parse_span_csv` in `span_parser.py` must be renamed `parse_span_xml` (or `parse_nsccl_span_v4`) in MM9.5-S1 to reflect the real format.
+- The function signature changes from `parse_span_csv(schema_version: str, raw_data: dict)` to `parse_span_xml(raw: bytes) -> SpanSnapshot`.
+- The registry key used in `span_parser.py` ("v1") must be updated to "4.00" per ADR-010.
+- All tests that register parsers using a `dict` call signature or the "v1" key must be updated in MM9.5-S1 alongside the production change.
+- `SpanRepository` passes the raw file bytes to `ParserRegistry.parse(version, raw_bytes)` — no pre-parsing before dispatch.
+- Future parser authors own the full format-specific stack: a `parse_span_v5_xml(raw: bytes)` function registered under "5.00" owns its own ZIP/XML handling independently.
+
+*Ref: core/risk/span/span_parser.py; docs/reports/MM9_5_ARCHITECTURE_RECONCILIATION.md (D3, G-2, G-3); ADR-007.*
+
+---
+
+## ADR-010 — SPAN Version Key Policy: `<fileFormat>` Verbatim
+
+**Status:** Accepted (2026-06-29) · MM9.5 Architecture Reconciliation.
+
+### Context
+
+`ParserRegistry` dispatches by `schema_version` string. The current implementation registers parsers under the key `"v1"` — an internal label with no relationship to any NSE-defined version identifier.
+
+The real NSE SPAN file header is `<fileFormat val="4.00">`. NSE NSCCL is the authoritative source for format versioning; their numbering scheme (major.minor, "4.00") is the only version label that appears in the file itself and in NSE documentation. The "v1" internal key provides no traceability to the NSE format and offers no upgrade policy: if NSE releases format 4.01 or 5.00, there is no defined behavior.
+
+Before any concrete parser is registered (none exists today — only the registry infrastructure), the version key convention must be locked so that the registry contract is coherent between the key chosen at registration time and the key derived from the file at parse time.
+
+### Decision
+
+**Registry keys match `<fileFormat val="...">` verbatim.** The version key for the current NSE SPAN format is `"4.00"`, not `"v1"`. At parse time, the pipeline reads the `<fileFormat>` attribute from the incoming file and passes it as the `schema_version` argument to `ParserRegistry.parse(schema_version, raw)`.
+
+**Policy for format changes:**
+
+| NSE format change | Action |
+|---|---|
+| Minor, backward-compatible (e.g., 4.01) | Alias: register the `"4.00"` parser under `"4.01"` as well. No new parser function. |
+| Breaking minor change (new required elements / changed semantics) | New parser function registered under the new key (e.g., `"4.01"`). `"4.00"` parser remains for archive replay. |
+| Major version (e.g., 5.00) | New parser function registered under `"5.00"`. Old parsers remain for archive replay. |
+| Unknown version string | `ParserRegistry.parse` raises `UnsupportedSpanSchema`. Startup readiness converts this to **BLOCK**. |
+
+Archive replay correctness is preserved: a historical `.spn` file from format "4.00" will always dispatch to the "4.00" parser even after newer parsers are registered, because the key comes verbatim from the file's own `<fileFormat>` attribute.
+
+### Alternatives Considered
+
+- **Internal versioning ("v1", "v2", …)** — rejected: no traceability from an internal key to the NSE format version that file belongs to; an operator cannot inspect a SPAN file and know which registry key to use without a separate mapping table; introduces a hidden translation layer with no authoritative source.
+- **Integer major-only versioning (4, 5)** — rejected: discards the NSE minor version, which may carry breaking changes; the "4.00" → "4.01" alias rule above handles minor-compatible updates without losing the distinction between major and minor.
+- **Semantic version parsing (extract major.minor, dispatch on major only)** — rejected: NSE's format versioning semantics are not published; assuming minor versions are always backward-compatible is an unverified claim; verbatim matching is the safest default and the alias rule handles the common case.
+
+### Consequences
+
+- The key `"v1"` in `span_parser.py` must be replaced with `"4.00"` in MM9.5-S1 alongside the ADR-009 parser rename.
+- The pipeline (parser function or `SpanRepository.load`) must extract `<fileFormat val="...">` from the raw file before dispatching; the version key in the registry must equal the NSE `<fileFormat>` value.
+- All tests that use the "v1" key must be updated in MM9.5-S1 (the version key is not a public contract today; no external callers exist).
+- `UnsupportedSpanSchema` is the correct exception for unknown formats; the startup readiness check must treat it as BLOCK — not WARN — because trading on margin computed from an unrecognised format is undefined.
+- The alias policy means registering `"4.01"` pointing to the same `parse_span_xml` function requires one line; a future `parse_span_xml_v5` is registered under `"5.00"` independently.
+
+*Ref: core/risk/span/span_parser.py; docs/reports/MM9_5_ARCHITECTURE_RECONCILIATION.md (D5, D6, G-4, G-5); ADR-007, ADR-009.*
