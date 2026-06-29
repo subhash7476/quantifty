@@ -12,7 +12,8 @@
   - **S1**: ParserRegistry bytes contract, ParserV400, `SpanSnapshot.is_settlement` (49 new tests)
   - **S2**: Complete parser extraction — `SpanFutureContract`, `SpanOptionSeries`, `SpanOptionContract`, 7-key `risk_metrics`, real-file regression (61 new tests)
   - **S3**: Calculator formula corrected from `notional x fraction` to `qty x lot_size x Rs/unit`, `get_snapshot_param` accessor (12 new tests)
-  - **S4**: Runtime integration certification — `SpanMarginError` caught in margin gate, 33 new integration tests across 6 files, 249 total passing. Parser, calculator, snapshot unchanged through S4. Platform ready for MM10.
+  - **S4**: Runtime integration certification — `SpanMarginError` caught in margin gate, 33 new integration tests across 6 files.
+  **Final test count: 249 passing, 4 skipped. Tag: `mm9.5-complete`.** Parser, calculator, snapshot unchanged through S4. Platform ready for MM10.
 
 - **MM9.5-S3 — SpanMarginCalculator Migration — COMPLETE (2026-06-29).** Corrected the SpanMarginCalculator formula from `notional x max(scan_risk%, som%)` to `qty x lot_size x max(scan_risk_rs, som_rs) x margin_rate` (ADR-008 verification closed). Replaced `_risk_percentage()` with `_scan_margin_per_unit()`. Added 5 metric constants and `get_snapshot_param()` accessor. `short_option_minimum` defaults to 0.0 when absent. All test fixtures updated to Rs-unit values. Added Group H (5 accessor tests) and Group R (7 regression tests pinned to real NSE SPAN file). NIFTY lot_size=65, BANKNIFTY lot_size=30 verified from instrument database. Real-file margin: 10 NIFTY lots = 1,458,834 Rs, 5 BANKNIFTY lots = 827,010 Rs — price-independent. Scan-risk component only — no spread credits, portfolio offsets, exposure/delivery margin, or complete SPAN portfolio margin. Parser untouched, import isolation preserved. *(Ref: `docs/CHANGELOG_PLATFORM.md`, `core/risk/span/span_calculator.py`, `tests/risk/span/test_span_calculator_regression.py`)*
 
