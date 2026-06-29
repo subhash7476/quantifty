@@ -35,6 +35,13 @@ from core.risk.span.span_calculator import (
     UnsupportedInstrument,
     MissingRiskArray,
     MissingRiskMetric,
+    SPAN_METRIC_SCAN_RISK,
+    SPAN_METRIC_SHORT_OPTION_MIN,
+    SPAN_METRIC_PRICE_SCAN_RANGE,
+    SPAN_METRIC_VOL_SCAN_RANGE,
+    SPAN_METRIC_CVF,
+    SPAN_METRIC_INTRA_SPREAD_CHARGE,
+    SPAN_METRIC_RISK_FREE_RATE,
 )
 from core.risk.span.parser_v400 import parse_span_xml as _parse_v400
 
@@ -61,4 +68,11 @@ __all__ = [
     "UnsupportedInstrument",
     "MissingRiskArray",
     "MissingRiskMetric",
+    "SPAN_METRIC_SCAN_RISK",
+    "SPAN_METRIC_SHORT_OPTION_MIN",
+    "SPAN_METRIC_PRICE_SCAN_RANGE",
+    "SPAN_METRIC_VOL_SCAN_RANGE",
+    "SPAN_METRIC_CVF",
+    "SPAN_METRIC_INTRA_SPREAD_CHARGE",
+    "SPAN_METRIC_RISK_FREE_RATE",
 ]

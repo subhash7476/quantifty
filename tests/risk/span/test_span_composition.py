@@ -58,7 +58,7 @@ def test_margin_tracker_is_default_without_snapshot():
 def test_span_calculator_produced_when_snapshot_given():
     """SpanMarginCalculator is created when span_snapshot is supplied."""
     pt = PositionTracker()
-    snap = _make_snapshot({"NIFTY": {SPAN_METRIC_SCAN_RISK: 0.15, SPAN_METRIC_SHORT_OPTION_MIN: 0.08}})
+    snap = _make_snapshot({"NIFTY": {SPAN_METRIC_SCAN_RISK: 30.0, SPAN_METRIC_SHORT_OPTION_MIN: 16.0}})
     calc = SpanMarginCalculator(pt, snap)
     assert isinstance(calc, SpanMarginCalculator)
     assert hasattr(calc, "get_incremental_margin")
@@ -87,14 +87,13 @@ def test_margin_tracker_lacks_get_incremental_margin():
 
 
 def test_get_incremental_margin_correct_value():
-    """get_incremental_margin matches expected SPAN calculation."""
+    """get_incremental_margin matches expected SPAN calculation (absolute-Rs)."""
     snap = _make_snapshot({
-        "NIFTY": SpanRiskArray("NIFTY", {SPAN_METRIC_SCAN_RISK: 0.15, SPAN_METRIC_SHORT_OPTION_MIN: 0.08}),
+        "NIFTY": SpanRiskArray("NIFTY", {SPAN_METRIC_SCAN_RISK: 30.0, SPAN_METRIC_SHORT_OPTION_MIN: 16.0}),
     })
     calc = SpanMarginCalculator(PositionTracker(), snap)
-    # notional = 50 * 200 * 65 = 650000
-    # risk_pct = max(0.15, 0.08) = 0.15
-    # margin = 650000 * 0.15 * 1.0 = 97500
+    # risk = max(30.0, 16.0) = 30.0 (Rs/unit)
+    # margin = qty * lot_size * risk * margin_rate = 50 * 65 * 30.0 * 1.0 = 97500
     result = calc.get_incremental_margin("NIFTY", 50, 200.0, lot_size=65)
     assert result == 97500.0
 

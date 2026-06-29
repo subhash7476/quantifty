@@ -1,12 +1,14 @@
 """
-SpanMarginCalculator (MM9.4-S3)
+SpanMarginCalculator (MM9.5-S3)
 -------------------------------
-First concrete MarginCalculator implementation consuming SpanSnapshot.
+Consumes immutable SpanSnapshot from parser_v400.  The margin formula uses
+absolute rupees per underlying unit (ADR-008): scan_risk is NOT a fraction.
 
-Conservative SPAN margin model:
-  - get_exposure: gross notional (same algorithm as MarginTracker)
-  - get_used_margin: per-position SPAN risk = notional * max(scan_risk, short_option_min)
-  - get_incremental_margin: SPAN risk for a proposed order
+  margin = qty_lots x lot_size x max(scan_risk_rs, som_rs) x margin_rate
+
+This milestone migrates ONLY the scan-risk component of SPAN.  It does NOT
+implement: spread credits, portfolio offsets, exposure margin, delivery
+margin, or complete SPAN portfolio margin.
 
 Deterministic: zero filesystem, network, broker, or clock I/O.
 Repository-independent: imports only SpanSnapshot from the SPAN package.
@@ -19,11 +21,16 @@ from core.risk.span.span_snapshot import SpanSnapshot
 
 
 # --------------------------------------------------------------------------- #
-# Metric constants — implementation-time confirmed against NSE SPAN schema.
-# These are the named risk metric keys inside SpanRiskArray.risk_metrics.
+# Metric constants — keys inside SpanRiskArray.risk_metrics populated by
+# parser_v400 (MM9.5-S2).  scan_risk is confirmed as Rs per underlying unit.
 # --------------------------------------------------------------------------- #
-SPAN_METRIC_SCAN_RISK = "scan_risk"
-SPAN_METRIC_SHORT_OPTION_MIN = "short_option_minimum"
+SPAN_METRIC_SCAN_RISK            = "scan_risk"
+SPAN_METRIC_SHORT_OPTION_MIN     = "short_option_minimum"
+SPAN_METRIC_PRICE_SCAN_RANGE     = "price_scan_range"
+SPAN_METRIC_VOL_SCAN_RANGE       = "vol_scan_range"
+SPAN_METRIC_CVF                  = "cvf"
+SPAN_METRIC_INTRA_SPREAD_CHARGE  = "intra_spread_charge_rs"
+SPAN_METRIC_RISK_FREE_RATE       = "risk_free_rate"
 
 
 # --------------------------------------------------------------------------- #
@@ -95,8 +102,9 @@ class SpanMarginCalculator:
     def get_used_margin(self, current_prices: Dict[str, float]) -> float:
         """Total SPAN margin for all held positions.
 
-        For each position: margin = notional * max(scan_risk, short_option_min)
-        * margin_rate.
+        For each position: margin = qty x lot_size x max(scan_risk, som)
+        x margin_rate.  Price does NOT appear in the scan margin path
+        (ADR-008 — scan_risk is absolute Rs per underlying unit).
         """
         total = 0.0
         for sym in self.position_tracker._positions:
@@ -119,8 +127,8 @@ class SpanMarginCalculator:
 
         Args:
             symbol:   The contract symbol (must have a risk array).
-            quantity: Proposed order quantity.
-            price:    Current price.
+            quantity: Proposed order quantity (in lots).
+            price:    Current price (used for exposure only, NOT scan margin).
             lot_size: Contract lot size (default 1.0 for equity).
 
         Returns:
@@ -128,11 +136,26 @@ class SpanMarginCalculator:
 
         Raises:
             MissingRiskArray: No risk array for symbol.
-            MissingRiskMetric: scan_risk or short_option_min absent.
+            MissingRiskMetric: scan_risk absent.
         """
-        risk_pct = self._risk_percentage(symbol)
-        notional = quantity * price * lot_size
-        return notional * risk_pct * self.margin_rate
+        risk = self._scan_margin_per_unit(symbol)
+        return quantity * lot_size * risk * self.margin_rate
+
+    def get_snapshot_param(self, symbol: str, metric: str) -> float:
+        """Return any risk_metrics value from the snapshot for a given symbol.
+
+        Raises MissingRiskArray  if symbol not in snapshot.
+        Raises MissingRiskMetric if metric absent.
+        """
+        risk_array = self._snapshot.risk_arrays.get(symbol)
+        if risk_array is None:
+            raise MissingRiskArray(f"No SPAN risk array for symbol {symbol!r}")
+        value = risk_array.risk_metrics.get(metric)
+        if value is None:
+            raise MissingRiskMetric(
+                f"Missing metric {metric!r} for symbol {symbol!r}"
+            )
+        return value
 
     # -- Internal helpers ------------------------------------------------ #
 
@@ -145,21 +168,30 @@ class SpanMarginCalculator:
         return pos.quantity * current_price * lot_size
 
     def _single_span_margin(self, symbol: str, current_price: float) -> float:
-        """SPAN margin for one held position (before margin_rate haircut)."""
+        """SPAN margin for one held position (before margin_rate haircut).
+
+        Formula: qty_lots x lot_size x scan_risk_rs (absolute rupees per
+        underlying unit — price does NOT appear here).
+        """
         pos = self.position_tracker.get_position(symbol)
         lot_size = getattr(pos.instrument, "lot_size", None) or pos.instrument.multiplier
-        notional = pos.quantity * current_price * lot_size
-        risk_pct = self._risk_percentage(symbol)
-        return notional * risk_pct
+        risk = self._scan_margin_per_unit(symbol)
+        return pos.quantity * lot_size * risk
 
-    def _risk_percentage(self, symbol: str) -> float:
-        """Look up the SPAN risk percentage for a symbol.
+    def _scan_margin_per_unit(self, symbol: str) -> float:
+        """Look up the SPAN margin per underlying unit for a symbol.
 
-        Returns max(scan_risk, short_option_min).
+        Returns max(scan_risk, short_option_min) in absolute Rs per
+        underlying unit.
+
+        scan_risk is sourced from the v400 parser as Rs per underlying unit.
+        short_option_minimum defaults to 0.0 if absent (index-instrument
+        SOM is 0 for all underlyings in the reference file; non-zero SOM
+        for equity underlyings requires unit confirmation before use).
 
         Raises:
             MissingRiskArray: No risk array for symbol.
-            MissingRiskMetric: scan_risk or short_option_min absent.
+            MissingRiskMetric: scan_risk absent.
         """
         risk_array = self._snapshot.risk_arrays.get(symbol)
         if risk_array is None:
@@ -171,9 +203,5 @@ class SpanMarginCalculator:
             raise MissingRiskMetric(
                 f"Missing {SPAN_METRIC_SCAN_RISK!r} for symbol {symbol!r}"
             )
-        short_opt_min = risk_array.risk_metrics.get(SPAN_METRIC_SHORT_OPTION_MIN)
-        if short_opt_min is None:
-            raise MissingRiskMetric(
-                f"Missing {SPAN_METRIC_SHORT_OPTION_MIN!r} for symbol {symbol!r}"
-            )
-        return max(scan_risk, short_opt_min)
+        som = risk_array.risk_metrics.get(SPAN_METRIC_SHORT_OPTION_MIN, 0.0)
+        return max(scan_risk, som)

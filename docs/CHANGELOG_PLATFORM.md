@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-29 — MM9.5-S3 — SpanMarginCalculator Migration: absolute-Rs formula, real SPAN regression suite (196→196 passing)
+
+Corrected the margin formula from `notional x fraction` to `qty x lot_size x Rs/unit` (ADR-008 verification closed). Renamed `_risk_percentage()` to `_scan_margin_per_unit()`. Added 5 new metric constants and `get_snapshot_param()` accessor. `short_option_minimum` defaults to 0.0 when absent. All existing calculator test fixtures updated from fraction to Rs-unit values. New Group H (5 accessor tests) and Group R (7 regression tests against `nsccl.20260625.i01.spn`). NIFTY lot_size=65, BANKNIFTY lot_size=30 (verified from instrument database). Real-file validated: 10 NIFTY lots margin = 1,458,834 Rs, 5 BANKNIFTY lots margin = 827,010 Rs — both price-independent. This milestone migrates only the scan-risk component of SPAN; spread credits, portfolio offsets, exposure margin, delivery margin, and complete SPAN portfolio margin are explicitly out of scope. Import isolation preserved; parser untouched.
+
+*Ref: core/risk/span/span_calculator.py; tests/risk/span/test_span_calculator.py; tests/risk/span/test_span_calculator_regression.py.*
+
+---
+
 ## 2026-06-29 — MM9.5-S2 — Parser Completeness: SpanFutureContract, SpanOptionSeries, SpanOptionContract; 7-key risk_metrics; regression suite (184→184 passing)
 
 Completed the parser completeness milestone. Extended `parser_v400.py` with full extraction of per-contract futures and options data into three new frozen DTOs: `SpanFutureContract`, `SpanOptionSeries`, `SpanOptionContract`. Added three new `SpanSnapshot` fields (`futures`, `option_series`, `option_contracts`) with `field(default_factory=dict)` for backward compatibility. Expanded `risk_metrics` from 2 to 7 keys: added `price_scan_range`, `vol_scan_range`, `cvf`, `intra_spread_charge_rs`, `risk_free_rate`. Extracted `metadata["scan_scenarios"]` (16 scenario definitions). Added `_safe_float()` helper, refactored `_derive_scan_risk` → `_extract_ra_tuple` + `_derive_scan_risk`. Corrected the RA sign convention from `-ra * w` to `ra * w` (positive = loss, matching the real NSE file). New test files: `test_parser_v400_s2.py` (Blocks H–L, 44 tests) and `test_parser_v400_regression.py` (Block M, 17 tests pinned to `nsccl.20260625.i01.spn`). Real-file validated: NIFTY scan_risk=2244.36, BANKNIFTY=5513.40, 239 underlyings, 158,713 option contracts, 1,302 futures, cvf=1.0 for all, NIFTY spread=425.0, BANKNIFTY spread=1029.0. Parser completeness verified: `sum(option_contracts) == metadata["option_count"]`. Zero regressions.
