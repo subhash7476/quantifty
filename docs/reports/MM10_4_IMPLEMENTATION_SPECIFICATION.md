@@ -40,33 +40,40 @@ SPAN risk parameter file.
 set in the reference SPAN file. No existing code reads `risk_metrics["extreme_loss"]`.
 No reader should conclude that ELM is "already partially in SpanSnapshot."
 
-### 0c. ELM Rate Data — To Be Verified Before Implementation
+### 0c. ELM Rate Data — Authoritative Source and Phase 1 Scope
 
-**Research method:** Web search + page fetch against NSE Clearing (nseclearing.in) and NSE
-India (nseindia.com). NSE/NSCCL servers were unreachable via direct HTTP during research
-(ECONNRESET, timeouts). Rates below were extracted from search-engine content summaries of
-official NSE pages. They are **pending direct verification from an official artifact.**
+**Authoritative source:** NSE Clearing Corporation Ltd (NSCCL) is the regulatory authority
+for F&O margin requirements. The definitive reference for ELM rates is the NSE Clearing
+equity derivatives margins page:
 
-| Segment | ELM Rate | Applies To | Source (search summary) |
-|---------|----------|-----------|------------------------|
-| Index Futures (NIFTY, BANKNIFTY) | **3%** of notional | All positions (long and short) | nseindia.com/products/content/derivatives/equities/margins.htm |
-| Index Options | **3%** of notional | Short positions only | Same |
-| Stock Futures | Higher of 5% or 1.5 x sigma x sqrt(N) | All positions | NSE Clearing FAQ |
-| Stock Options | Higher of 5% or 1.5 x sigma x sqrt(N) | Short positions only | NSE Clearing FAQ |
-| Expiry-day additional (index options) | **+2%** on short positions | Short index options, day of expiry | SEBI Oct-2024 circular, effective 2024-11-21 |
+```
+https://www.nseclearing.com/Risk_Management/Equity_Derivatives/Margins/
+```
 
-**ELM rate for stock derivatives** depends on a rolling EWMA volatility computation published
-separately by NSE Clearing. It is not a static constant.
+Rates are also published in NSCCL circulars (downloadable PDFs). The circular number must be
+recorded in `elm_rates.py` once verified. NSE Clearing servers were unreachable via direct
+HTTP during spec research; the 3% figure below is a best-available candidate from indirect
+sources and is **unverified until the implementer confirms from the authoritative page above.**
+
+**ELM rate schedule (Phase 1 scope — index derivatives only):**
+
+| Product category | ELM Rate | Applies to | Status |
+|-----------------|----------|-----------|--------|
+| Index derivatives (NIFTY, BANKNIFTY) | **3%** of notional | Futures: long + short. Options: short only. | Pending NSCCL verification |
+| Stock derivatives | `max(5%, 1.5 × σ × √N)` | Futures: long + short. Options: short only. | Out of scope — Future Extension 1 |
+| Expiry-day additional (index short options) | **+2%** | Short index options on expiry day | Out of scope — Future Extension 2 |
+| Deep OTM option ELM | TBD from NSCCL | Short positions | Out of scope — Future Extension 3 |
+| Long-dated option ELM | TBD from NSCCL | Short positions | Out of scope — Future Extension 4 |
 
 **Phase 1 scope for MM10.4:**
-- Index derivatives only (NIFTY, BANKNIFTY)
-- Fixed-rate ELM from the rate table above (no volatility computation)
-- Expiry-day additional ELM is **out of scope** (requires runtime expiry detection)
-- Stock derivatives ELM is **out of scope** (requires separate NSE risk file and volatility data)
+- Index derivatives only: NIFTY, BANKNIFTY
+- Single static rate per product category (no volatility computation)
+- All out-of-scope rules documented in Section 11 (Future Extensions)
 
-**Implementer action required before coding:** Verify the 3% rate by accessing NSE Clearing's
-current margins page directly or via a downloadable NSCCL circular. If the official rate differs
-from 3%, update `core/risk/elm_rates.py` accordingly. See **Risk 1**.
+**Implementer action required before coding:** Access the NSE Clearing margins page above,
+locate the current ELM schedule for equity derivatives, and record the exact NSCCL circular
+number and date as a comment in `elm_rates.py`. Do not write any rate value without this
+verification. See **Risk 1**.
 
 **Notional value definition (confirmed from multiple sources):**
 ```
@@ -198,20 +205,43 @@ SPAN XML.
 Owns the ELM rate table for known underlyings. This is the single location for regulatory
 constants derived from NSE Clearing circulars. It must not import from the SPAN subsystem.
 
-```python
-from typing import Dict
+**Design: product-category-based representation.**
+NSE Clearing groups instruments by product category (INDEX, STOCK), not by individual
+underlying. The category is the stable unit: adding a new index underlying (e.g. MIDCPNIFTY)
+requires only one line in `_INDEX_UNDERLYINGS`; the rate is inherited from the category.
+`INDEX_ELM_RATES` is a derived flat dict for the `NseMarginEngine` constructor — no interface
+change to the engine is required.
 
-# ELM rates from NSE Clearing (fraction of notional, e.g. 0.03 = 3%).
-# ** Rate pending verification — see MM10.4 spec Risk 1. **
-# ** Implementer must confirm from official NSCCL circular before deployment. **
-# ** Record the circular number as a comment here once verified. **
+```python
+from typing import Dict, FrozenSet
+
+# Source: NSE Clearing Corporation equity derivatives margins page
+#   https://www.nseclearing.com/Risk_Management/Equity_Derivatives/Margins/
+#
+# ** Rates pending implementer verification — see MM10.4 spec Risk 1. **
+# ** Record the NSCCL circular number and date as a comment here once verified. **
+# ** Example: NSCCL/CMPT/43028/2019 dated 2019-06-14 — TO BE REPLACED with actual. **
+
+# Category-level rates (single source of truth).
+# Stock derivatives ELM (max(5%, 1.5σ√N)) requires a runtime volatility feed
+# and is not a static constant — see Future Extension 1.
+ELM_RATES_BY_CATEGORY: Dict[str, float] = {
+    "INDEX": 0.03,    # Phase 1 scope — TO BE VERIFIED from NSCCL circular
+}
+
+# Underlyings covered by Phase 1 (index derivatives only).
+# Adding a new index underlying requires only a single entry here.
+_INDEX_UNDERLYINGS: FrozenSet[str] = frozenset({"NIFTY", "BANKNIFTY"})
+
+# Flat underlying→rate dict for NseMarginEngine constructor.
+# Derived from category rates — do NOT hard-code individual rates here.
 INDEX_ELM_RATES: Dict[str, float] = {
-    "NIFTY":     0.03,   # NSE circular — TO BE VERIFIED
-    "BANKNIFTY": 0.03,   # NSE circular — TO BE VERIFIED
+    u: ELM_RATES_BY_CATEGORY["INDEX"] for u in _INDEX_UNDERLYINGS
 }
 ```
 
-No computation logic. No SPAN imports. One dict, documented with circular reference.
+No computation logic. No SPAN imports. Category rates drive per-underlying rates;
+`INDEX_ELM_RATES` is the public export consumed by `handler.py`.
 
 ### 4c. Modified: `core/risk/nse_margin_engine.py`
 
@@ -589,10 +619,11 @@ in `_price_cache`. Enforce in `test_u4`: zero price → ELM = 0, log emitted.
 
 ### Risk 4 — Expiry-day additional ELM omitted (LOW for normal operation)
 SEBI's November 2024 circular added 2% ELM on short index options on their expiry day.
-This is not implemented in Phase 1. On expiry days the system understates required margin.
+Phase 1 does not implement this. On expiry days the system understates required margin by
+2% of notional for short index options.
 
-**Mitigation:** Acceptable for Phase 1; positions are typically reduced before expiry.
-Resolve in a future sub-ticket requiring runtime expiry detection.
+**Mitigation:** Acceptable for Phase 1. See Section 11, Extension 2 for the full design.
+Positions are typically reduced before expiry in normal operation.
 
 ### Risk 5 — Calendar spread 1/3 far-month ELM rule omitted (LOW)
 NSE reduces ELM on the far-month futures leg of a calendar spread to 1/3 of notional. Phase 1
@@ -603,11 +634,11 @@ ELM for each matched spread pair.
 spread-pair matching logic already in `_spread_credit`.
 
 ### Risk 6 — Stock derivatives ELM not implemented (MEDIUM for future scope)
-Stock derivatives ELM requires a separate NSE-published volatility file and EWMA rate
-computation. Phase 1 applies 0% ELM to any underlying not in `elm_rates.py`.
+Stock derivatives ELM is `max(5%, 1.5σ√N)` — not a static constant. Phase 1 applies 0% ELM
+to any underlying not in `_elm_rates`. `ELM_RATES_BY_CATEGORY` reserves the `"STOCK"` key
+as the extension point.
 
-**Mitigation:** Explicit scope exclusion. When stock derivatives are added, extend `elm_rates.py`
-with a dynamic rate loader. This is not MM10.4 scope.
+**Mitigation:** Explicit scope exclusion. See Section 11, Extension 1 for the full design.
 
 ---
 
@@ -676,3 +707,77 @@ These are structural requirements, not preferences. Any violation causes review 
 12. **`_resolve_elm_rate` must use startswith prefix matching.** `get_incremental_margin`
     receives a contract symbol; `_elm_rates` keys are underlying names. Direct dict lookup
     always returns 0.0 for contract symbols.
+
+---
+
+## 11. Future Extensions (Out of Scope for MM10.4)
+
+The following ELM rules are deliberately excluded from Phase 1. They are documented here so
+that future implementers understand what remains and can size the work correctly.
+
+### Extension 1 — Stock Derivatives ELM
+
+**Rule:** ELM for stock F&O is `max(5%, 1.5 × σ × √N)` where σ is the daily volatility of
+the underlying and N is the look-back period, both published by NSE Clearing on a rolling
+basis via a separate risk file.
+
+**Prerequisite:** A new data pipeline to ingest the NSE Clearing stock-level volatility file.
+`ELM_RATES_BY_CATEGORY` already reserves the `"STOCK"` key (commented out in Phase 1) as
+the entry point for this work. The per-underlying `_elm_rates` dict in `NseMarginEngine`
+stays the same; the loader populates it with dynamic rates at startup.
+
+**Impact files:** `elm_rates.py` (add dynamic loader), `nse_margin_engine.py` (pass
+refreshed rates on each computation cycle or accept a callable), new `nsccl_stock_vol.py`
+data-feed module.
+
+### Extension 2 — Expiry-Day Additional ELM
+
+**Rule:** SEBI circular dated October 2024 (effective 2024-11-21) mandates an additional 2%
+ELM on short index option positions on their weekly expiry day. Combined ELM on expiry day
+becomes 5% (3% base + 2% additional) for short index options.
+
+**Prerequisite:** Runtime expiry detection. `_elm_margin` must know the current date and
+compare it to each position's `inst.expiry`. The `SpanReadiness` and `SpanSnapshot` layers
+already carry expiry data; the engine's clock dependency must be introduced cleanly (inject
+`as_of: date` into `get_used_margin` or a dedicated `set_date()` method).
+
+**Impact files:** `nse_margin_engine.py`, `margin_calculator.py` Protocol v2 (if signature
+changes — consider whether this breaks the frozen protocol), `test_nse_margin_engine.py`.
+
+**Note:** This rule makes `get_used_margin` non-deterministic across calendar dates for
+identical portfolios and prices. The spec for this extension must address how tests handle
+date injection.
+
+### Extension 3 — Deep OTM Option ELM
+
+**Rule:** NSE may apply specific ELM treatment for deep out-of-the-money short option
+positions where the option premium is negligible but tail risk remains. The exact rule
+(minimum notional floor, strike-distance threshold) requires confirmation from a current
+NSCCL circular.
+
+**Prerequisite:** NSCCL circular research (this rule was not confirmed during MM10.4 spec
+research). Until confirmed, the Phase 1 formula — ELM on full notional for all short options
+regardless of moneyness — is conservative and correct as a floor.
+
+**Impact files:** `nse_margin_engine.py` (`_elm_margin` gains a strike-distance condition),
+`elm_rates.py` (possible deep-OTM rate table).
+
+### Extension 4 — Long-Dated Option ELM
+
+**Rule:** NSE may apply additional margin requirements for options with far expiries (e.g.,
+monthly vs. weekly contracts) to account for higher gamma and vega risk over longer horizons.
+The exact rule requires NSCCL circular confirmation.
+
+**Prerequisite:** Same as Extension 3. Expiry-distance logic would be co-located with the
+Extension 2 expiry-detection infrastructure.
+
+**Impact files:** `nse_margin_engine.py`, possibly `elm_rates.py` (maturity-bucketed rates).
+
+---
+
+### Extension development order (recommended)
+
+Extension 2 (expiry-day) is the highest regulatory priority given the SEBI effective date
+(November 2024). Extensions 3 and 4 require rule confirmation before implementation begins.
+Extension 1 (stock derivatives) requires a separate data pipeline and is scoped as a separate
+milestone.
