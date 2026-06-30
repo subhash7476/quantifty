@@ -570,3 +570,38 @@ Archive replay correctness is preserved: a historical `.spn` file from format "4
 - The alias policy means registering `"4.01"` pointing to the same `parse_span_xml` function requires one line; a future `parse_span_xml_v5` is registered under `"5.00"` independently.
 
 *Ref: core/risk/span/span_parser.py; docs/reports/MM9_5_ARCHITECTURE_RECONCILIATION.md (D5, D6, G-4, G-5); ADR-007, ADR-009.*
+
+---
+
+## ADR-011 — NseMarginEngine Is The MarginCalculator For LIVE F&O
+
+**Date:** 2026-06-30
+
+**Status:** ACCEPTED
+
+### Context
+
+MM10.3 introduced `NseMarginEngine` as a composition layer wrapping `SpanMarginCalculator` with calendar spread credits. MM10.4 added ELM. This changed the production margin architecture from a single calculator to a layered engine.
+
+Without an explicit ADR, two interpretations are possible:
+- `SpanMarginCalculator` is the production `MarginCalculator` and `NseMarginEngine` is an optional enhancement
+- `NseMarginEngine` is the production `MarginCalculator` and `SpanMarginCalculator` is its internal SPAN component
+
+### Decision
+
+`NseMarginEngine` is the production `MarginCalculator` for LIVE F&O from MM10.3 onwards.
+
+`SpanMarginCalculator` is its internal SPAN component — not the production calculator once spread credits and ELM are live.
+
+`SpanMarginCalculator` remains independently testable and is a valid conservative fallback (scan-only, no credits, no ELM).
+
+`MarginTracker` remains the flat-rate fallback for non-F&O and non-SPAN portfolios.
+
+### Consequences
+
+- `ExecutionHandler` receives `NseMarginEngine` (not `SpanMarginCalculator`) when `span_snapshot` is provided.
+- All future margin components (exposure margin, delivery margin) are added to `NseMarginEngine`, not to `SpanMarginCalculator`.
+- `SpanMarginCalculator` is feature-frozen after MM10.2 — no new methods, no new data sources.
+- ELM data source (`elm_rates.py`, NSE Clearing circulars) is independent of the SPAN XML data source — these sources never merge.
+
+*Ref: core/risk/nse_margin_engine.py; core/risk/elm_rates.py; core/execution/handler.py; docs/reports/MM10_ARCHITECTURE_REVISION.md; docs/reports/MM10_3_IMPLEMENTATION_SPECIFICATION.md; docs/reports/MM10_4_IMPLEMENTATION_SPECIFICATION.md.*
