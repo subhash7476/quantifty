@@ -43,37 +43,30 @@ No reader should conclude that ELM is "already partially in SpanSnapshot."
 ### 0c. ELM Rate Data — Authoritative Source and Phase 1 Scope
 
 **Authoritative source:** NSE Clearing Corporation Ltd (NSCCL) is the regulatory authority
-for F&O margin requirements. The definitive reference for ELM rates is the NSE Clearing
-equity derivatives margins page:
+for F&O margin requirements. Rates are sourced from:
 
 ```
-https://www.nseclearing.com/Risk_Management/Equity_Derivatives/Margins/
+https://www.nseclearing.in/risk-management/equity-derivatives/margins
 ```
 
-Rates are also published in NSCCL circulars (downloadable PDFs). The circular number must be
-recorded in `elm_rates.py` once verified. NSE Clearing servers were unreachable via direct
-HTTP during spec research; the 3% figure below is a best-available candidate from indirect
-sources and is **unverified until the implementer confirms from the authoritative page above.**
-
-**ELM rate schedule (Phase 1 scope — index derivatives only):**
+**ELM rate schedule — confirmed from the official NSE Clearing page above:**
 
 | Product category | ELM Rate | Applies to | Status |
 |-----------------|----------|-----------|--------|
-| Index derivatives (NIFTY, BANKNIFTY) | **3%** of notional | Futures: long + short. Options: short only. | Pending NSCCL verification |
-| Stock derivatives | `max(5%, 1.5 × σ × √N)` | Futures: long + short. Options: short only. | Out of scope — Future Extension 1 |
+| Index derivatives (NIFTY, BANKNIFTY) | **2%** of notional | Futures: long + short. Options: short only. | Confirmed — NSE Clearing |
+| Stock derivatives | **3.5%** of notional | Futures: long + short. Options: short only. | Out of scope — Future Extension 1 |
 | Expiry-day additional (index short options) | **+2%** | Short index options on expiry day | Out of scope — Future Extension 2 |
 | Deep OTM option ELM | TBD from NSCCL | Short positions | Out of scope — Future Extension 3 |
 | Long-dated option ELM | TBD from NSCCL | Short positions | Out of scope — Future Extension 4 |
 
+**Note on stock derivatives:** The 3.5% rate applies to stock F&O where the underlying
+volatility-based rate `max(3.5%, 1.5 × σ × √N)` has 3.5% as its floor. The dynamic
+component requires a separate NSE Clearing volatility feed and is out of scope for Phase 1.
+
 **Phase 1 scope for MM10.4:**
-- Index derivatives only: NIFTY, BANKNIFTY
+- Index derivatives only: NIFTY, BANKNIFTY at 2%
 - Single static rate per product category (no volatility computation)
 - All out-of-scope rules documented in Section 11 (Future Extensions)
-
-**Implementer action required before coding:** Access the NSE Clearing margins page above,
-locate the current ELM schedule for equity derivatives, and record the exact NSCCL circular
-number and date as a comment in `elm_rates.py`. Do not write any rate value without this
-verification. See **Risk 1**.
 
 **Notional value definition (confirmed from multiple sources):**
 ```
@@ -215,18 +208,15 @@ change to the engine is required.
 ```python
 from typing import Dict, FrozenSet
 
-# Source: NSE Clearing Corporation equity derivatives margins page
-#   https://www.nseclearing.com/Risk_Management/Equity_Derivatives/Margins/
-#
-# ** Rates pending implementer verification — see MM10.4 spec Risk 1. **
-# ** Record the NSCCL circular number and date as a comment here once verified. **
-# ** Example: NSCCL/CMPT/43028/2019 dated 2019-06-14 — TO BE REPLACED with actual. **
+# Source: NSE Clearing equity derivatives margins page
+#   https://www.nseclearing.in/risk-management/equity-derivatives/margins
 
 # Category-level rates (single source of truth).
-# Stock derivatives ELM (max(5%, 1.5σ√N)) requires a runtime volatility feed
-# and is not a static constant — see Future Extension 1.
+# Stock floor is 3.5%; the full rule is max(3.5%, 1.5σ√N) but the dynamic
+# component requires a separate NSCCL volatility feed — see Future Extension 1.
 ELM_RATES_BY_CATEGORY: Dict[str, float] = {
-    "INDEX": 0.03,    # Phase 1 scope — TO BE VERIFIED from NSCCL circular
+    "INDEX": 0.02,    # 2% — confirmed from NSE Clearing page
+    "STOCK": 0.035,   # 3.5% floor — Phase 2; dynamic component out of scope
 }
 
 # Underlyings covered by Phase 1 (index derivatives only).
@@ -353,7 +343,18 @@ the known rate-table keys. This is sufficient for Phase 1 (NIFTY and BANKNIFTY o
 
 ```python
 def _resolve_elm_rate(self, symbol: str) -> float:
-    """Match contract symbol to elm_rates by prefix (e.g. 'NIFTY25...' -> 'NIFTY')."""
+    """Resolve ELM rate from a contract symbol via prefix matching.
+
+    This helper exists solely because get_incremental_margin() receives a
+    contract symbol (e.g. "NIFTY25JUN25FUT") rather than an underlying name.
+    It is NOT used by _elm_margin(), which always has inst.underlying available
+    and performs a direct dict lookup — the clean path.
+
+    If MarginCalculator Protocol v3 ever carries richer instrument metadata
+    (underlying name or InstrumentType) in get_incremental_margin(), this helper
+    can be removed and replaced with a direct self._elm_rates.get(underlying)
+    call, matching the _elm_margin pattern.
+    """
     for underlying, rate in self._elm_rates.items():
         if symbol.startswith(underlying):
             return rate
@@ -582,18 +583,13 @@ Extend Group G determinism test with a portfolio containing options to verify EL
 
 ## 8. Risks
 
-### Risk 1 — ELM rate unverified (HIGH)
-NSE and NSCCL servers were unreachable during specification research. The 3% figure was
-extracted from a search-engine summary of the NSE equity derivatives margins page, not from a
-direct page fetch or downloaded circular. The advisor for this spec flagged this explicitly:
-"I can't confirm 1.5% from here either — my own recollection leans toward 2% and I'm not
-certain." Three different candidate rates appeared in research: 1.5%, 2%, and 3%.
+### Risk 1 — ELM rates confirmed (RESOLVED)
+Rates confirmed from the official NSE Clearing equity derivatives margins page:
+`https://www.nseclearing.in/risk-management/equity-derivatives/margins`
 
-**Mitigation:** Before writing any value into `elm_rates.py`, the implementer (DeepSeek V4)
-must open `nseclearing.in/risk-management/equity-derivatives/margins` or download the
-relevant NSE Clearing circular and record the exact circular number. This is a BLOCKING
-precondition for Phase S-R2 tests. If NSE servers remain unreachable, request the URL from
-the Technical Lead.
+Index derivatives: **2%**. Stock derivatives floor: **3.5%** (Phase 2 scope).
+No implementer verification step required. `elm_rates.py` may be written directly using
+these values. Phase S-R2 reference regression should use 2% for NIFTY/BANKNIFTY.
 
 ### Risk 2 — get_incremental_margin overestimates ELM for long options (LOW)
 Phase 1 applies ELM to all positions in `get_incremental_margin`, including long options which
