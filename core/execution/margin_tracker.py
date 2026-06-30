@@ -45,3 +45,12 @@ class MarginTracker:
     def get_used_margin(self, current_prices: Dict[str, float]) -> float:
         """Estimate used margin based on gross exposure."""
         return self.get_exposure(current_prices) * self.margin_rate
+
+    def get_incremental_margin(
+        self,
+        symbol: str,
+        quantity: float,
+        price: float,
+        lot_size: float = 1.0,
+    ) -> float:
+        return abs(quantity) * lot_size * price * self.margin_rate

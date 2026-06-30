@@ -52,7 +52,7 @@ def test_margin_tracker_is_default_without_snapshot():
     """Handler constructs MarginTracker when span_snapshot is absent."""
     mt = MarginTracker(PositionTracker())
     assert isinstance(mt, MarginTracker)
-    assert not hasattr(mt, "get_incremental_margin")
+    assert hasattr(mt, "get_incremental_margin")
 
 
 def test_span_calculator_produced_when_snapshot_given():
@@ -80,10 +80,10 @@ def test_span_calculator_has_get_incremental_margin():
     assert hasattr(calc, "get_incremental_margin")
 
 
-def test_margin_tracker_lacks_get_incremental_margin():
-    """MarginTracker does not have get_incremental_margin."""
+def test_margin_tracker_has_get_incremental_margin():
+    """MarginTracker has get_incremental_margin (MM10.1-S2)."""
     mt = MarginTracker(PositionTracker())
-    assert not hasattr(mt, "get_incremental_margin")
+    assert hasattr(mt, "get_incremental_margin")
 
 
 def test_get_incremental_margin_correct_value():

@@ -72,7 +72,7 @@ tick/
 instruments/
 
 # SPAN parameter data
-span/
+data/span/
 
 # Live buffer / tick data
 live_buffer/

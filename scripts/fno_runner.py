@@ -27,7 +27,9 @@ default to the production construction and exist so the characterization net
 can isolate the canonical store, the live provider, and the wall clock.
 """
 
+from datetime import date
 import logging
+import pickle
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from core.brokers.base import BrokerAdapter
@@ -40,9 +42,12 @@ from core.database.providers.live_market import LiveDuckDBMarketDataProvider
 from core.execution.broker_positions_adapter import to_reconcile_positions
 from core.execution.handler import ExecutionConfig, ExecutionHandler, ExecutionMode
 from core.execution.portfolio_view import PortfolioView
-from core.instruments.master_readiness import build_master_readiness
+from core.instruments.master_readiness import ReadinessState, build_master_readiness
 from core.risk.span.span_freshness import expected_span_date
-from core.risk.span.span_readiness import build_span_readiness
+from core.risk.span.span_readiness import (
+    SpanReadinessVerdict,
+    build_span_readiness,
+)
 from core.risk.span.span_repository import SpanRepository
 from core.runtime.config import DriverConfig, Mode
 from core.runtime.driver import LoopDriver
@@ -77,6 +82,22 @@ def _make_live_broker_positions(adapter: BrokerAdapter) -> Callable[[], List[Dic
             )
         return to_reconcile_positions(rekeyed)
     return _fetch
+
+
+def _make_span_block_checker(expected_date: date) -> Callable[[], SpanReadinessVerdict]:
+    """Return an always-BLOCK SPAN readiness checker for the given date.
+
+    Used when SpanRepository.load() fails on a LIVE F&O startup — the checker
+    is injected into LoopDriver so _check_span_readiness() fires and refuses.
+    """
+    def _check() -> SpanReadinessVerdict:
+        return SpanReadinessVerdict(
+            state=ReadinessState.BLOCK,
+            snapshot_date=None,
+            expected_date=expected_date,
+            reason=f"SPAN snapshot absent or corrupt for {expected_date} — LIVE F&O refused",
+        )
+    return _check
 
 
 def build_runner(
@@ -162,12 +183,20 @@ def build_runner(
                 "fno_runner: SPAN snapshot loaded for %s (hash=%s)",
                 expected, span_snapshot.file_hash[:12],
             )
-        except Exception:
-            logger.warning(
-                "fno_runner: SPAN snapshot absent for %s — "
-                "proceeding with flat-rate MarginTracker",
-                expected,
-            )
+        except (FileNotFoundError, ValueError, OSError, pickle.UnpicklingError):
+            if execution_mode is ExecutionMode.LIVE:
+                span_readiness = _make_span_block_checker(expected)
+                logger.error(
+                    "fno_runner: SPAN snapshot absent or corrupt for %s — "
+                    "LIVE F&O startup refused (BLOCK injected)",
+                    expected,
+                )
+            else:
+                logger.warning(
+                    "fno_runner: SPAN snapshot absent for %s — "
+                    "proceeding with flat-rate MarginTracker (PAPER/non-LIVE mode)",
+                    expected,
+                )
 
     # --- LIVE rung: auto-construct broker_positions from the token_rekey chain -- #
     # If the caller does not override broker_positions, build it from the injected

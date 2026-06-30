@@ -1,5 +1,5 @@
 """
-MarginCalculator Protocol v1
+MarginCalculator Protocol v2
 -----------------------------
 Abstract interface for margin computation. Implementations calculate margin
 exposure and usage from current market prices and the position tracker.
@@ -8,6 +8,7 @@ Protocol contract:
   - margin_rate: float — the margin requirement fraction.
   - get_exposure(current_prices, symbol=None) -> float — gross notional exposure.
   - get_used_margin(current_prices) -> float — estimated margin consumed.
+  - get_incremental_margin(symbol, quantity, price, lot_size=1.0) -> float — margin estimate for a proposed order.
 
 Implementations MUST be stateless with respect to portfolio state: positions,
 margin, and equity must never be cached. Immutable configuration (e.g., SPAN
@@ -30,8 +31,7 @@ from typing import Dict, Optional, Protocol
 
 
 class MarginCalculator(Protocol):
-    """Protocol v1: margin computation seam for flat-rate and future SPAN
-    implementations. Satisfied structurally by MarginTracker."""
+    """Protocol v2: adds get_incremental_margin for pre-trade margin estimation."""
 
     margin_rate: float
 
@@ -41,3 +41,12 @@ class MarginCalculator(Protocol):
 
     def get_used_margin(self, current_prices: Dict[str, float]) -> float:
         """Estimated margin consumed given current prices."""
+
+    def get_incremental_margin(
+        self,
+        symbol: str,
+        quantity: float,
+        price: float,
+        lot_size: float = 1.0,
+    ) -> float:
+        """Margin estimate for a proposed order (pre-trade check)."""
