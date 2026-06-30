@@ -6,6 +6,70 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-06-30 — MM10.4 — Extreme Loss Margin (ELM): NseMarginEngine Phase 2, regulatory ELM constants, architectural data-source boundary enforced (1055→1055 passing)
+
+Added Extreme Loss Margin (ELM) to `NseMarginEngine` — a regulatory margin component mandated by SEBI/NSE, applied as a fixed percentage of notional value. ELM is additive to SPAN margin and never reduced by calendar spread credits.
+
+**New module:** `core/risk/elm_rates.py` — authoritative NSE Clearing ELM rate table. INDEX=2%, STOCK=3.5% (Phase 2). Zero SPAN imports — independent data source from NSE Clearing circulars. Category-based representation: `ELM_RATES_BY_CATEGORY`, `INDEX_ELM_RATES` for NIFTY/BANKNIFTY.
+
+**`NseMarginEngine` changes:** Required `elm_rates` constructor parameter (no default — silent zero-ELM is a production safety risk). `_elm_margin(prices)` two-pass algorithm: Pass 1 builds underlying→spot-price map from futures positions; Pass 2 computes ELM = rate × lot × qty × price per position. Long options exempt (per NSE rules). `get_used_margin = max(0.0, span_margin - spread_credit) + elm` (ELM outside clamp). `get_incremental_margin = span_incr + elm_incr` via prefix-matched `_resolve_elm_rate(symbol)`. `_elm_rates` stored as independent copy.
+
+**Architecture guards:** 3 tests verify zero ELM leakage into frozen SPAN components (calculator, snapshot, parser). `elm_rates.py` verified free of `core.risk.span` imports.
+
+**Data-source boundary preserved:** SPAN XML → SpanSnapshot (unchanged). NSE Clearing circulars → `elm_rates.py` (new, independent). These sources never merge.
+
+*Ref: core/risk/elm_rates.py; core/risk/nse_margin_engine.py; core/execution/handler.py; tests/risk/test_nse_margin_engine.py (Groups S–AA, 35 new tests, 73 total).*
+
+---
+
+## 2026-06-30 — MM10.3 — NseMarginEngine: Calendar Spread Credits, margin composition layer established (1020→1020 passing)
+
+Established the permanent margin composition layer. `NseMarginEngine` wraps `SpanMarginCalculator` with calendar spread credit reduction, satisfying `MarginCalculator` Protocol v2 structurally. `SpanMarginCalculator` becomes the internal SPAN component — no longer the production MarginCalculator for LIVE F&O once spread credits are live.
+
+**New module:** `core/risk/nse_margin_engine.py` — composition layer. Constructor: `NseMarginEngine(span_calc, span_snapshot)`. Defers `get_exposure`, `get_incremental_margin` to the calculator. `get_used_margin = max(0.0, span_margin - spread_credit)`.
+
+**Calendar spread credit algorithm (`_spread_credit`):** Matches opposite-direction futures positions across different expiries of the same underlying. Greedy nearest-expiry matching. Credit = `max(0.0, (scan_near + scan_far - intra_spread_charge) × lot_size × n_matched)`. Contract-level scan risk lookup with symbol-level fallback. `_SCENARIO_WEIGHTS` duplicated from calculator (intentional — R10 verifies equivalence). Options and equity excluded from matching.
+
+**Handler wiring:** `NseMarginEngine(SpanMarginCalculator(pt, snap), snap)` at `handler.py:204`.
+
+**Tests:** 38 tests (Groups A–R). Spread credit basics, partial/greedy matching, scan risk lookup, zero charge, determinism, architecture guards, handler integration, 4 real-file regression tests.
+
+*Ref: core/risk/nse_margin_engine.py; core/execution/handler.py; tests/risk/test_nse_margin_engine.py (Groups A–R).*
+
+---
+
+## 2026-06-30 — MM10.2 — Contract-Level SPAN Risk: per-expiry futures and per-strike option RA routing (986→986 passing)
+
+Upgraded `SpanMarginCalculator` to derive SPAN scan margin from per-contract RA tuples in `SpanSnapshot`, replacing the nearest-expiry symbol-level approximation.
+
+**`span_calculator.py` changes:** Added `_SCENARIO_WEIGHTS` constant (1 line, intentionally duplicated from parser), `_derive_contract_scan_risk(ra)`, `_lookup_future_scan_risk(underlying, expiry)`, `_lookup_option_scan_risk(underlying, expiry, strike, option_type_str)` with CE↔C / PE↔P normalization, `_resolve_scan_risk(pos)` routing dispatcher by `InstrumentType`. SOM floor applied on option path only. `_single_span_margin` calls `_resolve_scan_risk(pos)`.
+
+**Option type normalization:** `SpanOptionContract.option_type` stores `'C'`/`'P'` (SPAN XML); `OptionType.value` is `'CE'`/`'PE'` (instrument model). `_lookup_option_scan_risk` normalizes before comparing — encodes both variants for forward compatibility.
+
+**Fallback:** Contract miss (expiry/strike absent from snapshot) → symbol-level via `instrument.underlying`. No new exceptions.
+
+**Tests:** 18 new (I1–I6, J1–J6, K1–K3, R8–R10). Real-file regression: Jul-2026 NIFTY futures → 1,466,257 Rs; C-23750 CE option → 395,330 Rs. R10 proves `_SCENARIO_WEIGHTS` parity with parser.
+
+**SpanMarginCalculator now feature-frozen.** `MarginCalculator` Protocol v2 unchanged.
+
+*Ref: core/risk/span/span_calculator.py; tests/risk/span/test_span_calculator.py (Groups I–K); tests/risk/span/test_span_calculator_regression.py (R8–R10).*
+
+---
+
+## 2026-06-30 — MM10.1 — Safety Hardening & MarginCalculator Protocol v2 (968→968 passing)
+
+Closed the production safety gap where LIVE F&O could start with absent/corrupt SPAN data, and formalised the `MarginCalculator` protocol.
+
+**S1 — Safety Hardening (`fno_runner.py`):** Narrowed `except Exception` to `(FileNotFoundError, ValueError, OSError, pickle.UnpicklingError)`. LIVE F&O with absent/corrupt SPAN now injects an always-BLOCK readiness checker → startup refused (error log). PAPER/non-LIVE behaviour unchanged (warning log, flat-rate MarginTracker). New `_make_span_block_checker()` helper in composition layer only (not in SpanReadiness/SpanRepository). Driver unchanged.
+
+**S2 — Protocol v2 (`margin_calculator.py`, `margin_tracker.py`, `handler.py`):** Added `get_incremental_margin(symbol, quantity, price, lot_size=1.0)` to `MarginCalculator` protocol. Added `get_incremental_margin` to `MarginTracker` (flat-rate formula: `abs(qty) × lot_size × price × rate`). Removed `hasattr` duck-typing from handler — direct protocol call. `_estimate_required_margin` retained as dead code.
+
+**Tests:** 11 new (S1: 5 startup refusal; S2: 6 protocol v2). 968 collected, 964 passed, 4 skipped.
+
+*Ref: scripts/fno_runner.py; core/risk/margin_calculator.py; core/execution/margin_tracker.py; core/execution/handler.py; tests/risk/span/test_mm10_1_s1_span_hard_refusal.py; tests/risk/span/test_mm10_1_s2_protocol_v2.py.*
+
+---
+
 ## 2026-06-29 — MM9.5-S4 — Integration Certification: runtime SPAN margin gate hardening, end-to-end test suite, MM9.5 CLOSED (249→249 passing)
 
 Fixed GAP-1 — the single production robustness defect: `_check_margin_budget` now catches `SpanMarginError`, logs the exception class and message, and safely returns `(False, 1.0)` instead of crashing the tick loop. Added 29 new tests across 6 files (Phases 1–5): SPAN margin gate end-to-end (I1–I8), negative-path integration (N1–N6), determinism (D1–D3), composition + startup wiring (S1–S4, G1–G7), and regression compatibility (R1–R5). All 249 tests pass; 4 regression markers skipped. Only `handler.py` changed in production. Parser, calculator, snapshot, and all SPAN infrastructure untouched. **MM9.5 CLOSED — scan-risk subsystem certified production-ready.**
