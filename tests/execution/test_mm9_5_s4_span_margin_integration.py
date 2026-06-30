@@ -93,7 +93,8 @@ def test_span_gate_rejects_over_limit(tmp_path, monkeypatch):
 # --------------------------------------------------------------------------- #
 
 def test_span_gate_boundary_equal(tmp_path, monkeypatch):
-    capital = 30.0 / 0.80  # scan_risk=30, lot=1, qty=1 → utilisation=30/capital=0.80
+    # scan=30 + ELM 0.02*1*1*100=2 → total=32
+    capital = 32.0 / 0.80
     handler = _build_handler(tmp_path, monkeypatch, span_snapshot=_make_snap(), initial_capital=capital)
     _, utilisation = handler._check_margin_budget(_order("NIFTY"), 100.0)
     assert utilisation == pytest.approx(0.80, rel=1e-9)
@@ -113,7 +114,9 @@ def test_span_gate_includes_used_current(tmp_path, monkeypatch):
         quantity=1, price=100.0, timestamp=FIXED_DT, side="BUY",
     ))
     _, utilisation = handler._check_margin_budget(_order("NIFTY"), 100.0)
-    assert utilisation == pytest.approx(60.0 / 100_000.0, rel=1e-9)
+    # ELM at 2% adds 2 Rs to incremental estimate for qty=1, lot=1, price=100
+    # 30 existing + (30 scan + 2 ELM) incremental = 62
+    assert utilisation == pytest.approx(62.0 / 100_000.0, rel=1e-9)
 
 
 # --------------------------------------------------------------------------- #
@@ -130,7 +133,8 @@ def test_span_gate_futures_multiplier(tmp_path, monkeypatch):
         strategy_id="s", signal_id="s", timestamp=FIXED_DT,
     )
     _, utilisation = handler._check_margin_budget(order, 100.0)
-    assert utilisation == pytest.approx(3900.0 / 100_000.0, rel=1e-9)
+    # SPAN: 2*65*30=3900. ELM: 0.02*65*2*100=260. Total=4160
+    assert utilisation == pytest.approx(4160.0 / 100_000.0, rel=1e-9)
 
 
 # --------------------------------------------------------------------------- #
@@ -142,7 +146,8 @@ def test_span_gate_margin_rate_haircut(tmp_path, monkeypatch):
     handler = _build_handler(tmp_path, monkeypatch, span_snapshot=snap)
     handler.margin_tracker.margin_rate = 1.5
     _, utilisation = handler._check_margin_budget(_order("NIFTY"), 100.0)
-    assert utilisation == pytest.approx(45.0 / 100_000.0, rel=1e-9)
+    # SPAN: 1*1*30*1.5=45. ELM: 0.02*1*1*100=2 (not multiplied by margin_rate). Total=47
+    assert utilisation == pytest.approx(47.0 / 100_000.0, rel=1e-9)
 
 
 # --------------------------------------------------------------------------- #
@@ -150,10 +155,12 @@ def test_span_gate_margin_rate_haircut(tmp_path, monkeypatch):
 # --------------------------------------------------------------------------- #
 
 def test_span_gate_price_independence(tmp_path, monkeypatch):
+    """Price independence holds for SPAN margin; ELM adds price-dependent term."""
     handler = _build_handler(tmp_path, monkeypatch, span_snapshot=_make_snap())
     _, u1 = handler._check_margin_budget(_order("NIFTY"), 100.0)
     _, u2 = handler._check_margin_budget(_order("NIFTY"), 500.0)
-    assert u1 == u2
+    # ELM at 2% adds 0.02 * 1 * 1 * price, so u2 > u1
+    assert abs(u2 - u1) == pytest.approx(0.02 * 1 * 1 * 400.0 / 100_000.0, rel=1e-9)
 
 
 # --------------------------------------------------------------------------- #

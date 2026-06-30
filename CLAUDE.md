@@ -23,6 +23,8 @@ Components certified as stable and no longer receiving feature changes:
 | SpanReadiness | `core/risk/span/span_readiness.py` | MM9.5 | Startup readiness evaluation |
 | SpanMarginCalculator | `core/risk/span/span_calculator.py` | MM10.2 | Contract-level SPAN margin computation |
 | MarginCalculator Protocol | `core/risk/margin_calculator.py` | MM10.1 | Protocol v2 — stable interface |
+| ELM Rates | `core/risk/elm_rates.py` | MM10.4 | Regulatory ELM constants — NSCCL source |
+| NseMarginEngine | `core/risk/nse_margin_engine.py` | MM10.4 | Margin composition layer (SPAN + credits + ELM) |
 
 ## Architecture Principles (DO NOT VIOLATE)
 

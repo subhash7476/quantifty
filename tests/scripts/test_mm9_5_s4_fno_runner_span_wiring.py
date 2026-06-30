@@ -6,6 +6,7 @@ import pytest
 
 from core.execution.handler import ExecutionHandler, ExecutionConfig
 from core.execution.margin_tracker import MarginTracker
+from core.risk.nse_margin_engine import NseMarginEngine
 from core.risk.span.span_calculator import SpanMarginCalculator
 from core.risk.span.span_snapshot import SpanSnapshot, SpanRiskArray
 from core.risk.span.span_calculator import SPAN_METRIC_SCAN_RISK, SPAN_METRIC_SHORT_OPTION_MIN
@@ -43,7 +44,7 @@ def test_snapshot_loaded_injects_span_calculator(tmp_path, monkeypatch):
         config=ExecutionConfig(), metrics_path=str(tmp_path / "metrics.json"),
         load_db_state=True, initial_capital=100_000.0, span_snapshot=_make_snap(),
     )
-    assert isinstance(handler.margin_tracker, SpanMarginCalculator)
+    assert isinstance(handler.margin_tracker, NseMarginEngine)
 
 
 # --------------------------------------------------------------------------- #

@@ -36,7 +36,9 @@ from core.execution.position_tracker import PositionTracker
 from core.execution.position_models import PositionSide
 from core.execution.pnl_tracker import PnLTracker
 from core.execution.margin_tracker import MarginTracker
+from core.risk.elm_rates import INDEX_ELM_RATES
 from core.risk.margin_calculator import MarginCalculator
+from core.risk.nse_margin_engine import NseMarginEngine
 from core.risk.span.span_calculator import SpanMarginCalculator, SpanMarginError
 from core.risk.span.span_snapshot import SpanSnapshot
 from core.execution.groups.group_tracker import GroupTracker
@@ -197,12 +199,14 @@ class ExecutionHandler:
         # Phase 8: Financial Trackers
         self.pnl_tracker = PnLTracker(self.position_tracker)
         # MM9.4-S4: conditional SPAN calculator — when a validated SpanSnapshot
-        # is supplied, the margin tracker uses the SPAN-based SpanMarginCalculator;
+        # is supplied, the margin tracker uses the SPAN-based NseMarginEngine;
         # otherwise the flat-rate MarginTracker is used. Both satisfy the
         # MarginCalculator protocol structurally.
         if span_snapshot is not None:
-            self.margin_tracker: MarginCalculator = SpanMarginCalculator(
+            _span_calc = SpanMarginCalculator(
                 self.position_tracker, span_snapshot)
+            self.margin_tracker: MarginCalculator = NseMarginEngine(
+                _span_calc, span_snapshot, elm_rates=INDEX_ELM_RATES)
         else:
             self.margin_tracker: MarginCalculator = MarginTracker(self.position_tracker)
         self.reconciliation = ReconciliationEngine(self.position_tracker)
