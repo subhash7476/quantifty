@@ -4,6 +4,8 @@ NIFTY lot size = 65 (verified from instrument database, post-Oct-2025 NSE revisi
 BANKNIFTY lot size = 30 (verified from instrument database)
 
 Tests are skipped when the reference SPAN file is absent.
+
+MM10.2: R8 (futures far-month), R9 (option contract), R10 (backward equivalence).
 """
 
 import pathlib
@@ -14,6 +16,8 @@ from datetime import date
 from core.execution.position_tracker import PositionTracker
 from core.execution.position_models import Position, PositionSide
 from core.instruments.equity import Equity
+from core.instruments.future import Future
+from core.instruments.option import Option, OptionType
 from core.risk.span.span_snapshot import SpanSnapshot, SpanRiskArray
 from core.risk.span.span_calculator import (
     SpanMarginCalculator,
@@ -98,3 +102,53 @@ def test_r7_margin_independent_of_price(real_snapshot):
     pt = _tracker_with("NIFTY", qty=10, lot_size=65)
     calc = SpanMarginCalculator(pt, real_snapshot)
     assert calc.get_used_margin({"NIFTY": 20000.0}) == calc.get_used_margin({"NIFTY": 30000.0})
+
+
+def test_r8_futures_far_month_per_contract_routing(real_snapshot):
+    """Future with Jul-2026 expiry uses its own RA (2255.78), not nearest (2244.36)."""
+    pt = PositionTracker()
+    inst = Future("NIFTY25JUL", underlying="NIFTY", expiry=date(2026, 7, 28), multiplier=65)
+    pt._positions["NIFTY25JUL"] = Position(
+        instrument=inst, side=PositionSide.LONG, quantity=10, avg_price=100.0)
+    calc = SpanMarginCalculator(pt, real_snapshot)
+    margin = calc.get_used_margin({"NIFTY25JUL": 24000.0})
+    assert margin == pytest.approx(1_466_257.0, abs=1.0)
+    assert margin != pytest.approx(1_458_834.0, abs=1.0)
+
+
+def test_r9_option_contract_per_strike_routing(real_snapshot):
+    """Option contracts use per-strike RA, not nearest-futures scan risk."""
+    pt_a = PositionTracker()
+    inst_a = Option(
+        "NIFTY25JUL23750CE", underlying="NIFTY", expiry=date(2026, 7, 28),
+        strike=23750.0, option_type=OptionType.CALL, lot_size=65,
+    )
+    pt_a._positions["NIFTY25JUL23750CE"] = Position(
+        instrument=inst_a, side=PositionSide.LONG, quantity=10, avg_price=100.0)
+    calc_a = SpanMarginCalculator(pt_a, real_snapshot)
+
+    pt_b = PositionTracker()
+    inst_b = Option(
+        "NIFTY25JUL23750PE", underlying="NIFTY", expiry=date(2026, 7, 28),
+        strike=23750.0, option_type=OptionType.PUT, lot_size=65,
+    )
+    pt_b._positions["NIFTY25JUL23750PE"] = Position(
+        instrument=inst_b, side=PositionSide.LONG, quantity=10, avg_price=100.0)
+    calc_b = SpanMarginCalculator(pt_b, real_snapshot)
+
+    margin_a = calc_a.get_used_margin({"NIFTY25JUL23750CE": 24000.0})
+    margin_b = calc_b.get_used_margin({"NIFTY25JUL23750PE": 24000.0})
+    assert margin_a == pytest.approx(395_330.0, abs=1.0)
+    assert margin_b == pytest.approx(143_390.0, abs=1.0)
+    assert margin_a != margin_b
+
+
+def test_r10_backward_equivalence_nearest_expiry(real_snapshot):
+    """Nearest-expiry Future contract matches symbol-level R2 value."""
+    pt = PositionTracker()
+    inst = Future("NIFTY25JUN", underlying="NIFTY", expiry=date(2026, 6, 30), multiplier=65)
+    pt._positions["NIFTY25JUN"] = Position(
+        instrument=inst, side=PositionSide.LONG, quantity=10, avg_price=100.0)
+    calc = SpanMarginCalculator(pt, real_snapshot)
+    margin = calc.get_used_margin({"NIFTY25JUN": 24000.0})
+    assert margin == pytest.approx(1_458_834.0, abs=1.0)

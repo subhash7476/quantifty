@@ -14,9 +14,11 @@ Deterministic: zero filesystem, network, broker, or clock I/O.
 Repository-independent: imports only SpanSnapshot from the SPAN package.
 """
 
+from datetime import date
 from typing import Dict, Optional
 
 from core.execution.position_tracker import PositionTracker
+from core.instruments.instrument_base import InstrumentType
 from core.risk.span.span_snapshot import SpanSnapshot
 
 
@@ -31,6 +33,14 @@ SPAN_METRIC_VOL_SCAN_RANGE       = "vol_scan_range"
 SPAN_METRIC_CVF                  = "cvf"
 SPAN_METRIC_INTRA_SPREAD_CHARGE  = "intra_spread_charge_rs"
 SPAN_METRIC_RISK_FREE_RATE       = "risk_free_rate"
+
+# Intentionally duplicated from parser_v400.py.
+#
+# Parser is feature-frozen.
+# Calculator must not depend on parser internals.
+#
+# R10 permanently verifies mathematical equivalence.
+_SCENARIO_WEIGHTS = (1.0,) * 14 + (0.3, 0.3)
 
 
 # --------------------------------------------------------------------------- #
@@ -159,6 +169,65 @@ class SpanMarginCalculator:
 
     # -- Internal helpers ------------------------------------------------ #
 
+    @staticmethod
+    def _derive_contract_scan_risk(ra: tuple) -> float:
+        """Derive scan risk from a 16-element contract RA tuple.
+
+        Uses the same scenario-weight formula as parser_v400.
+        """
+        return max(0.0, max(v * w for v, w in zip(ra, _SCENARIO_WEIGHTS)))
+
+    def _lookup_future_scan_risk(self, underlying: str, expiry: date) -> Optional[float]:
+        """Look up per-expiry futures scan risk. Returns None on miss."""
+        contracts = self._snapshot.futures.get(underlying)
+        if contracts is None:
+            return None
+        for f in contracts:
+            if f.expiry == expiry:
+                return self._derive_contract_scan_risk(f.ra)
+        return None
+
+    def _lookup_option_scan_risk(
+        self, underlying: str, expiry: date, strike: float, option_type_str: str,
+    ) -> Optional[float]:
+        """Look up per-strike/expiry option scan risk. Returns None on miss."""
+        norm = "C" if option_type_str in ("CE", "C") else "P"
+        contracts = self._snapshot.option_contracts.get(underlying)
+        if contracts is None:
+            return None
+        for oc in contracts:
+            if oc.expiry == expiry and oc.strike == strike and oc.option_type in (norm, option_type_str):
+                contract_scan_risk = self._derive_contract_scan_risk(oc.ra)
+                ra = self._snapshot.risk_arrays.get(underlying)
+                som_floor = ra.risk_metrics.get(SPAN_METRIC_SHORT_OPTION_MIN, 0.0) if ra is not None else 0.0
+                return max(contract_scan_risk, som_floor)
+        return None
+
+    def _resolve_scan_risk(self, pos) -> float:
+        """Route to contract-level or symbol-level scan risk based on instrument type."""
+        instrument_type = pos.instrument.type
+
+        if instrument_type is InstrumentType.FUTURE:
+            underlying = pos.instrument.underlying
+            expiry = pos.instrument.expiry
+            result = self._lookup_future_scan_risk(underlying, expiry)
+            if result is not None:
+                return result
+            return self._scan_margin_per_unit(underlying)
+
+        elif instrument_type is InstrumentType.OPTION:
+            underlying = pos.instrument.underlying
+            expiry = pos.instrument.expiry
+            strike = pos.instrument.strike
+            ot_str = pos.instrument.option_type.value
+            result = self._lookup_option_scan_risk(underlying, expiry, strike, ot_str)
+            if result is not None:
+                return result
+            return self._scan_margin_per_unit(underlying)
+
+        else:
+            return self._scan_margin_per_unit(pos.symbol)
+
     def _single_exposure(self, symbol: str, current_price: Optional[float]) -> float:
         """Gross notional for one position."""
         if current_price is None:
@@ -172,10 +241,13 @@ class SpanMarginCalculator:
 
         Formula: qty_lots x lot_size x scan_risk_rs (absolute rupees per
         underlying unit — price does NOT appear here).
+
+        MM10.2: scan risk is routed through _resolve_scan_risk for
+        contract-level lookup. Fallback to symbol-level if contract miss.
         """
         pos = self.position_tracker.get_position(symbol)
         lot_size = getattr(pos.instrument, "lot_size", None) or pos.instrument.multiplier
-        risk = self._scan_margin_per_unit(symbol)
+        risk = self._resolve_scan_risk(pos)
         return pos.quantity * lot_size * risk
 
     def _scan_margin_per_unit(self, symbol: str) -> float:

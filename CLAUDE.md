@@ -10,6 +10,20 @@ Production-grade, deterministic algorithmic trading platform.
 
 ---
 
+## Feature-Frozen Components
+
+Components certified as stable and no longer receiving feature changes:
+
+| Component | File | Frozen Since | Notes |
+|-----------|------|-------------|-------|
+| ParserRegistry | `core/risk/span/span_parser.py` | MM9.5 | Parser registration infrastructure |
+| ParserV400 | `core/risk/span/parser_v400.py` | MM9.5 | NSE SPAN v4.00 XML parser |
+| SpanSnapshot | `core/risk/span/span_snapshot.py` | MM9.5 | Immutable DTOs |
+| SpanRepository | `core/risk/span/span_repository.py` | MM9.5 | Read-only archive access |
+| SpanReadiness | `core/risk/span/span_readiness.py` | MM9.5 | Startup readiness evaluation |
+| SpanMarginCalculator | `core/risk/span/span_calculator.py` | MM10.2 | Contract-level SPAN margin computation |
+| MarginCalculator Protocol | `core/risk/margin_calculator.py` | MM10.1 | Protocol v2 — stable interface |
+
 ## Architecture Principles (DO NOT VIOLATE)
 
 1. **Strategies Stay Dumb** — emit `SignalEvent` only; no broker/sizing/risk logic inside strategies
