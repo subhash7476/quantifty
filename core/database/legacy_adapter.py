@@ -56,39 +56,6 @@ def get_db():
     return get_connection()
 
 # Legacy persistence functions
-def save_insight(insight, db_path: Optional[str] = None) -> None:
-    from core.database.writers import AnalyticsWriter
-    AnalyticsWriter(_get_manager()).save_insight(insight)
-
-def save_insights(insights: List, db_path: Optional[str] = None) -> int:
-    from core.database.writers import AnalyticsWriter
-    return AnalyticsWriter(_get_manager()).save_insights_batch(insights)
-
-def save_regime_snapshot(snapshot, db_path: Optional[str] = None) -> None:
-    from core.database.writers import AnalyticsWriter
-    AnalyticsWriter(_get_manager()).save_regime_snapshot(snapshot)
-
 def save_trade(trade, db_path: Optional[str] = None) -> None:
     from core.database.writers import TradingWriter
     TradingWriter(_get_manager()).save_trade(trade)
-
-def save_signal(signal, db_path: Optional[str] = None) -> None:
-    from core.database.writers import TradingWriter
-    TradingWriter(_get_manager()).save_signal(signal)
-
-def get_latest_insights(symbol: Optional[str] = None, limit: int = 50) -> List[dict]:
-    """Fetch recent confluence insights, optionally filtered by symbol."""
-    try:
-        with _get_manager().signals_reader() as conn:
-            sql = "SELECT * FROM confluence_insights"
-            params = []
-            if symbol:
-                sql += " WHERE symbol = ?"
-                params.append(symbol)
-            sql += " ORDER BY timestamp DESC LIMIT ?"
-            params.append(limit)
-            rows = conn.execute(sql, params).fetchall()
-            cols = [d[0] for d in conn.description]
-            return [dict(zip(cols, r)) for r in rows]
-    except Exception:
-        return []

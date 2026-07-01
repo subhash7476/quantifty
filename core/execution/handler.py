@@ -59,7 +59,6 @@ from core.logging import setup_logger
 from core.instruments.instrument_parser import InstrumentParser
 from core.risk.greeks.portfolio_greeks import PortfolioGreeks
 from core.risk.greeks.greeks_model import Greeks
-from core.analytics.capture import CaptureEngine
 from core.analytics.diagnostic_engine import DiagnosticsEngine
 from core.database.writers import TradingWriter, _to_str
 from core.runtime.event_journal import RuntimeEventJournal, EventType, Severity
@@ -161,7 +160,6 @@ class ExecutionHandler:
                  clock: Clock,
                  broker: BrokerAdapter,
                  risk_manager: Optional[RiskManager] = None,
-                 capture_engine: Optional[CaptureEngine] = None,
                  config: Optional[ExecutionConfig] = None,
                  metrics_path: str = "logs/execution_metrics.json",
                  initial_capital: float = 100000.0,
@@ -182,7 +180,6 @@ class ExecutionHandler:
 
         self.config = config or ExecutionConfig()
         self.risk_manager = risk_manager or RiskManager(config=self.config)
-        self.capture_engine = capture_engine
         self.trading_writer = TradingWriter(self.db_manager)
 
         # Persistence Layer
@@ -649,22 +646,6 @@ class ExecutionHandler:
             if not self._check_greek_limits(signal, current_price):
                 return None
 
-            # TLP V1: Capture Structural Context Snapshot
-            tlp_context = None
-            if self.capture_engine and signal.signal_type != SignalType.EXIT:
-                try:
-                    tlp_context = self.capture_engine.capture_context(
-                        symbol=signal.symbol,
-                        timestamp=signal.timestamp,
-                        signal_rank=signal.metadata.get('rank', 0),
-                        signal_percentile=signal.metadata.get('percentile', 0.0),
-                        sl_distance=sl_dist_f,
-                        risk_r=risk_r_f,
-                        signal_score=signal.confidence
-                    )
-                except Exception as e:
-                    self.logger.warning(f"Failed to capture TLP context: {e}")
-
             # PHASE 1: Order Creation (Deterministic Intake)
             current_position = self.position_tracker.get_position(
                 signal.symbol)
@@ -725,10 +706,7 @@ class ExecutionHandler:
                 side = OrderSide.BUY if signal.signal_type == SignalType.BUY else OrderSide.SELL
                 quantity = self._calculate_position_size(signal, current_price)
 
-            # Attach TLP Context to Metadata
             strategy_meta = signal.metadata.copy() if signal.metadata else {}
-            if tlp_context:
-                strategy_meta['tlp_context'] = tlp_context
 
             order_meta = OrderMetadata(
                 original_confidence=signal.confidence,
