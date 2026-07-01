@@ -1,15 +1,8 @@
 """
-Legacy Data Package - Backward Compatibility Shim
--------------------------------------------------
-This package redirects all imports to the new core.database module.
+core.data — Market Data Access Package
 
-DEPRECATED: Use core.database instead.
+Contains modules for fetching and processing market data:
 
-All modules in this package are re-exports from core.database:
-    - duckdb_client -> core.database.legacy_adapter
-    - schema -> core.database.schema
-    - analytics_persistence -> core.database.legacy_adapter
+  - options_provider.py     — Upstox V3 option chain fetcher + DuckDB cache
+  - MarketDataFeedV3_pb2.py — Protobuf wire schema for Upstox MarketDataFeed V3
 """
-
-# This package exists solely for backward compatibility.
-# New code should import from core.database directly.

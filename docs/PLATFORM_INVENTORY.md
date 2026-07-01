@@ -10,6 +10,8 @@
 
 ## Market Data
 
+> **Note (MM11.3):** This section is superseded by the verified current-state evidence in `docs/reports/MM11_IMPLEMENTATION_SPECIFICATION.md` §0a. Twelve `core/data/` legacy modules previously listed here under "KEEP (verify)" or "REMOVE" verdicts have been removed per the deletion record in `docs/reports/MM11_REMOVAL_LEDGER.md`. The only remaining `core/data/` modules are `options_provider.py` (KEEP — options dashboard) and `MarketDataFeedV3_pb2.py` (KEEP — protobuf wire schema). See §4 below for the consolidated post-MM11.2 dead-code verdicts now resolved.
+
 | Module(s) | Purpose | Key deps | Verdict | Reasoning |
 |---|---|---|---|---|
 | `core/database/providers/{base,live_market,market_data,resampling_wrapper,zmq_market}.py` | Canonical provider layer (live/historical/zmq/resampled bars) | DatabaseManager, zmq_handler | **KEEP** | The lineage actually imported by facades/ingestors. Constitution §3 Market Data. |
@@ -118,6 +120,8 @@
 *(Note: `legacy_adapter.py` and the strategy DDL inside `database/schema.py` are also strategy residue — filed under Ledger with REFACTOR verdicts to avoid double-listing.)*
 
 ## Dead Code
+
+> **Note (MM11.3):** This section is superseded by `docs/reports/MM11_IMPLEMENTATION_SPECIFICATION.md` §0a and the deletion record in `docs/reports/MM11_REMOVAL_LEDGER.md`. All 12 `core/data/` legacy modules listed below — including the two "REMOVE (pending)" items and the three "KEEP (verify)" items that §0a corrected to REMOVE — have been removed in MM11.2. The Dead Code ledger is now closed for the `core/data/` domain. Remaining dead-code targets (strategy-shaped DDL, `AnalyticsQuery`, etc.) are tracked in later MM11 slices.
 
 | Module(s) | Purpose | Verdict | Reasoning |
 |---|---|---|---|
