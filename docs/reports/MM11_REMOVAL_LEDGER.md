@@ -535,6 +535,32 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 
 ---
 
+### MM11.5 — `AnalyticsProvider` ABC (core/database/providers/base.py)
+
+- **What it was:** `AnalyticsProvider` ABC with two abstract methods (`get_latest_snapshot`, `get_market_regime`) — an aspirational analytics-provider interface referencing `DuckDBAnalyticsProvider`/`CachedAnalyticsProvider`/`MockAnalyticsProvider` (docstring-only; no classes exist) and `ConfluenceInsight` (docstring-only; no class exists). Its docstring mentions `TradingRunner` and `AnalyticsPopulator` (neither exist in this repository).
+- **Disposition:** REMOVED
+- **Gate 1 — proof of non-use:**
+  - Python-import grep (`from core.database.providers.base import AnalyticsProvider`): zero importers anywhere.
+  - Subclass search (`AnalyticsProvider)` or `(AnalyticsProvider`): zero classes extend `AnalyticsProvider` anywhere in the repo.
+  - Method call search (`get_latest_snapshot`, `get_market_regime` on AnalyticsProvider): zero callers anywhere. The `get_market_regime` name also exists on `AnalyticsQuery` in `queries.py` (separate dead class — RETAINED-WITH-JUSTIFICATION in MM11.1).
+  - `DuckDBAnalyticsProvider`: zero hits outside docstrings. No class exists.
+  - `CachedAnalyticsProvider`: zero hits outside docstrings. No class exists.
+  - `MockAnalyticsProvider`: zero hits outside docstrings. No class exists.
+  - `ConfluenceInsight`: zero hits outside docstrings. No class exists.
+  - Test reference grep: zero hits in `tests/`.
+  - Composition-root grep: zero construction sites.
+- **Gate 2 — proof of behavior preservation:**
+  - Full-suite result BEFORE: 1055 passed, 4 skipped
+  - Full-suite result AFTER: 1055 passed, 4 skipped
+  - Diff: identical pass/fail/skip sets
+- **Gate 3 — full suite passes:** 1055 passed, 4 skipped
+- **Gate 4 — why:** MM11.5 spec §0c; `AnalyticsProvider` is a strategy-coupled abstraction with zero implementations, zero consumers, zero tests, and no live path to execution. The three implementer names and `ConfluenceInsight` type were docstring-only aspirational references — no classes exist. Removing the ABC is the correct disposition. `MarketDataProvider` (the canonical, live interface in the same file) is untouched.
+- **Change reference:** MM11.5 commit (not yet committed)
+- **Slice:** MM11.5
+- **Date:** 2026-07-01
+
+---
+
 ## MM11.7 Reconciliation Record
 
 To be completed at milestone close (spec §2, MM11.7, acceptance criterion 2): a line-for-line cross-check of the full pre-MM11 → post-MM11 tree diff against the entries above. Every deletion in the diff must have an entry; every entry must correspond to an actual change in the diff. Mismatches in either direction block the Platform v1.0 declaration until resolved.

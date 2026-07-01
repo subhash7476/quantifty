@@ -1,15 +1,13 @@
 """
 Abstract Provider Interfaces
 ----------------------------
-Base classes for market data and analytics providers.
+Base class for market data providers.
 
-These interfaces define the contract that the TradingRunner expects.
-All providers must implement these methods.
+Defines the contract that market data consumers expect.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime
-from typing import Optional, List, Tuple, Any, Dict
+from typing import Optional, List, Tuple
 
 from core.events import OHLCVBar
 
@@ -112,54 +110,4 @@ class MarketDataProvider(ABC):
         pass
 
 
-class AnalyticsProvider(ABC):
-    """
-    Abstract interface for analytics providers.
 
-    The TradingRunner calls these methods to get pre-computed analytics.
-    Analytics are computed offline by the AnalyticsPopulator and stored
-    in the database.
-
-    Implementations can be:
-    - DuckDBAnalyticsProvider: Direct database queries
-    - CachedAnalyticsProvider: In-memory caching wrapper
-    - MockAnalyticsProvider: Test data (smoke tests)
-
-    Usage:
-        provider = CachedAnalyticsProvider(DuckDBAnalyticsProvider())
-        snapshot = provider.get_latest_snapshot("SYMBOL", as_of=bar.timestamp)
-        regime = provider.get_market_regime("SYMBOL", as_of=bar.timestamp)
-    """
-
-    @abstractmethod
-    def get_latest_snapshot(
-        self, symbol: str, as_of: Optional[datetime] = None
-    ) -> Optional[Any]:
-        """
-        Get the latest analytics snapshot for a symbol.
-
-        Args:
-            symbol: The instrument key.
-            as_of: Optional timestamp for point-in-time queries (backtest).
-                   If None, returns the most recent snapshot.
-
-        Returns:
-            ConfluenceInsight object or None if not available.
-        """
-        pass
-
-    @abstractmethod
-    def get_market_regime(
-        self, symbol: str, as_of: Optional[datetime] = None
-    ) -> Optional[Dict[str, Any]]:
-        """
-        Get the current market regime for a symbol.
-
-        Args:
-            symbol: The instrument key.
-            as_of: Optional timestamp for point-in-time queries.
-
-        Returns:
-            Dictionary with regime information or None.
-        """
-        pass
