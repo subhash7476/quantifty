@@ -605,3 +605,289 @@ Without an explicit ADR, two interpretations are possible:
 - ELM data source (`elm_rates.py`, NSE Clearing circulars) is independent of the SPAN XML data source — these sources never merge.
 
 *Ref: core/risk/nse_margin_engine.py; core/risk/elm_rates.py; core/execution/handler.py; docs/reports/MM10_ARCHITECTURE_REVISION.md; docs/reports/MM10_3_IMPLEMENTATION_SPECIFICATION.md; docs/reports/MM10_4_IMPLEMENTATION_SPECIFICATION.md.*
+
+**2026-07-01 update — MM10.5 Spec Section 8, Risk 1 CLOSED:**
+
+Primary-source research (`docs/reports/MM10_5_MARGIN_COMPONENT_VERIFICATION.md`) resolves the
+Risk 1 discriminator (`docs/reports/MM10_5_IMPLEMENTATION_SPECIFICATION.md` §8;
+`docs/reports/MM10_5_ARCHITECTURE_REASSESSMENT.md`) as **Hypothesis B (H-same)**: "Exposure
+Margin" is not a component distinct from ELM for NSE Equity Derivatives — it is the retired
+name for it. SEBI's own risk-management history page states ELM "replaces the terms 'exposure
+margin' and 'second line of defence'"; NSE's current MG-12/MG-13 clearing report schema
+itemizes only SPAN Margin, Extreme Loss Margin, Delivery Margin, and Margin on Consolidated
+Crystallized Obligation — no separate Exposure Margin field exists in any current F&O clearing
+report.
+
+**Correction to Consequences above:** the bullet "All future margin components (exposure
+margin, delivery margin) are added to `NseMarginEngine`" is stale. There is no separate
+exposure margin component to add — `elm_rates.py` / `_elm_margin` already is it. Delivery
+Margin remains the one genuinely outstanding future component for `NseMarginEngine`.
+
+**Binding consequence:** do not write `exposure_margin_rates.py` or an `_em_margin` method on
+`NseMarginEngine`. MM10.4's `_elm_margin` is the complete implementation of this regulatory
+charge; adding a second component would double-count it. MM10.5 may proceed on this basis.
+
+**Successor:** ADR-012 formally retires MM10.5 on this basis.
+
+---
+
+## ADR-012 — MM10.5 Retired: Exposure Margin Is ELM Under Legacy Naming; MM10 Complete
+
+**Date:** 2026-07-01
+
+**Status:** ACCEPTED
+
+### Context
+
+MM10.5 was scoped (`docs/reports/MM10_5_IMPLEMENTATION_SPECIFICATION.md`) to add a third,
+additive margin component — `exposure_margin_rates.py` + an `_em_margin` method on
+`NseMarginEngine` — on top of SPAN and ELM (MM10.4). The spec's own Section 8, Risk 1, flagged
+this as unverified: is "Exposure Margin" a genuine third NSCCL component, or a legacy name for
+ELM under a different label? Upstox `/charges/margin` API evidence
+(`docs/reports/MM10_5_ARCHITECTURE_REASSESSMENT.md`) sharpened the question (all sampled
+responses reconcile exactly to `span_margin + exposure_margin` with zero residual; Upstox's own
+field docs tie `exposure_margin` to "ELM percentage values") but a pre-trade blocked-margin
+endpoint cannot rule out a separate end-of-day ELM charge, so it did not close Risk 1 on its own.
+
+Primary-source research (`docs/reports/MM10_5_MARGIN_COMPONENT_VERIFICATION.md`) resolved it:
+SEBI's risk-management history page states ELM "replaces the terms 'exposure margin' and
+'second line of defence' that have been used hitherto"; NSE's current MG-12 (Detail Margin File)
+and MG-13 (Client Level Margin File) clearing report schemas itemize SPAN Margin, Extreme Loss
+Margin, Delivery Margin, and Margin on Consolidated Crystallized Obligation only — no separate
+Exposure Margin field exists in any current F&O clearing report. This is Hypothesis B (H-same)
+per the Reassessment doc's discriminator (§3): two non-SPAN percentage line items were found
+(ELM + none), not three, so H-same is confirmed and H-separate is rejected.
+
+Two independent public NSE artifacts were checked this session as candidate corroborating
+sources and both came back uninformative, not contradictory: (1) today's live SPAN Risk
+Parameter file (`reference/span/.../nsccl.20260701.i01.spn`, PC-SPAN v4.00) contains zero
+occurrences of `exposure`/`extreme`/`elm`/`loss`/`buffer`/`defence` — expected and orthogonal,
+since a PC-SPAN file only ever encodes the SPAN-component risk arrays and would omit these terms
+under either hypothesis; (2) a live-browser open of the NSE page describing the MG-12/MG-13
+field list (`nseindia.com/static/products-services/equity-derivatives-data-reports-margin`,
+`nseindia.com/all-reports-derivatives`) was attempted — the browser extension is connected, but
+`nseindia.com` is blocked by the extension's own safety restrictions for both target URLs, so
+the check could not be completed and is not completable through this channel. The Technical
+Lead's requested final sanity check therefore remains formally unperformed. Retirement proceeds
+without it, on the user's explicit instruction, on the strength of the primary-source research
+already gathered in `MM10_5_MARGIN_COMPONENT_VERIFICATION.md` (SEBI risk-management history page,
+NSE Clearing FAQ PDF, and the MG-12/13/14/15 report-schema field-list text, all independently
+corroborating).
+
+### Decision
+
+**MM10.5 is retired**, not deferred and not superseded by a renamed future milestone. "Exposure
+Margin," as used in broker docs/APIs (Upstox `exposure_margin`) and pre-2009 SEBI circulars, is
+the legacy name for Extreme Loss Margin (ELM) for NSE Equity Derivatives — not a distinct,
+additive regulatory charge. `NseMarginEngine` will not gain an `exposure_margin_rates.py` module
+or an `_em_margin` method; MM10.4's `_elm_margin` already is the complete implementation.
+
+**MM10 (Complete SPAN portfolio margin) is complete** for its SPAN scan-risk (MM9.5) +
+contract-level RA routing (MM10.2) + calendar spread credits (MM10.3) + ELM/exposure-margin
+resolution (MM10.4–MM10.5) scope.
+
+**Delivery Margin is descoped from MM10.** It was listed in `docs/PROJECT_STATE.md` as remaining
+MM10 scope but has no spec, no implementation, and no successor milestone number. Per explicit
+user instruction, it is not folded into a renamed future milestone at this time — it is simply
+removed from MM10's scope, unimplemented, and not to be touched without a fresh scoping decision.
+
+### Consequences
+
+- ADR-011 stands; its 2026-07-01 update already anticipated this closure. This ADR is the
+  formal retirement act that update deferred.
+- `docs/PROJECT_STATE.md` Planned item 5 moves from "MM10.1–MM10.4 COMPLETE" to "MM10.1–MM10.5
+  COMPLETE," with Delivery Margin recorded as descoped, not remaining, scope.
+- `docs/PROJECT_STATE.md`'s Blocked-section MM10.5 entry (2026-07-01) is closed and moved to
+  Completed.
+- No code changes result from this ADR — it is a scope/documentation closure only.
+- The Margin Authority Model review's separate recommendation (a new ADR distinguishing
+  `NseMarginEngine` sizing authority from broker order-acceptance authority,
+  `docs/reports/MARGIN_AUTHORITY_ARCHITECTURE_REVIEW.md` §3 Q6) is unaffected by this ADR and
+  remains open, not yet written.
+
+*Ref: docs/reports/MM10_5_IMPLEMENTATION_SPECIFICATION.md §8 Risk 1;
+docs/reports/MM10_5_ARCHITECTURE_REASSESSMENT.md;
+docs/reports/MM10_5_MARGIN_COMPONENT_VERIFICATION.md; ADR-011.*
+
+---
+
+## ADR-013 — Two Margin Authorities: `NseMarginEngine` Sizes, Broker RMS Accepts
+
+**Date:** 2026-07-01
+
+**Status:** ACCEPTED
+
+### Context
+
+Upstox `/charges/margin` order-margin API evidence prompted a platform-level question the MM10.5
+Risk 1 discriminator never addressed: now that a broker margin API is visibly available, should
+the broker replace or supplement `NseMarginEngine` as the margin authority for LIVE trading?
+`docs/reports/MARGIN_AUTHORITY_ARCHITECTURE_REVIEW.md` answered this in full; ADR-012's
+Consequences left the resulting new-ADR recommendation (its §3 Q6) explicitly open and
+"not yet written." This ADR is that formal decision.
+
+Without an explicit split, "the broker becomes authoritative for LIVE" is ambiguous between two
+readings: (a) the broker becomes authoritative for order acceptance only, or (b) the broker
+replaces `NseMarginEngine` as the sizing calculator in LIVE mode. Reading (b) would collapse two
+platform principles that already forbid it independent of this evidence: **Runner Is Neutral**
+(CLAUDE.md Principle 4 — the LoopDriver treats live and backtest data identically; a backtest has
+no broker session, so sizing cannot depend on a broker call without live and backtest running on
+structurally different margin logic) and **Audit-First** (Principle 5 — every trade must be
+explainable by exact analytical facts; a broker's returned total is an opaque number, while
+`NseMarginEngine`'s `span - credit + elm` is a decomposable, auditable formula).
+
+### Decision
+
+The platform recognizes **two distinct margin authorities**, never merged:
+
+| Authority | Owns | Component |
+|---|---|---|
+| **Computation / sizing authority** | "What margin will this position consume, as a decomposable formula?" | `NseMarginEngine` — used for research, backtesting, paper trading, and LIVE pre-trade sizing/gating |
+| **Order-acceptance authority** | "Will the exchange/broker actually accept this order at this margin?" | The broker RMS, at the gateway |
+
+`NseMarginEngine` remains the sole sizing/computation authority in every mode, including LIVE,
+unchanged from ADR-011. The broker's authority is scoped **only** to accepting or rejecting the
+order it receives — it is never consulted for sizing and never overrides `NseMarginEngine`'s
+computed margin.
+
+**Revised product objective.** `NseMarginEngine`'s purpose is a **deterministic implementation of
+publicly available NSE Clearing margin rules** — for research, backtesting, paper trading,
+deterministic sizing, auditability, and broker-independent execution. It is **not**, and was
+never achievably, an exact clone of any broker's proprietary RMS: retail has no access to broker
+RMS internals or a historical broker-side SPAN archive, so byte-for-byte parity with a broker's
+number was never a claim the local engine could honestly make. Restating the objective this way
+makes the existing design *more* correct relative to its actual, achievable goal — it requires no
+redesign of any frozen component.
+
+**Broker margin reconciliation is deferred.** Obtaining a broker margin estimate, comparing it to
+`NseMarginEngine`'s output, logging differences, and surfacing them for an operational decision
+before order submission is a **LIVE execution capability**, not a margin calculation capability.
+It is explicitly deferred until LIVE trading is an active milestone: there is currently no
+production strategy, no funded LIVE account, and no operational need for it. It must never
+influence backtesting, research, or paper trading. No implementation work — including a
+configurable validation-policy enum or a multi-broker provider abstraction — is undertaken now,
+ahead of a concrete consumer.
+
+### Alternatives Considered
+
+- **Broker `/charges/margin` replaces `NseMarginEngine` for LIVE sizing** — rejected: violates
+  Runner Is Neutral and Audit-First (Context above); also reintroduces the exact ambiguity
+  ADR-011 already closed ("which component is the production calculator").
+- **A `MarginProvider` abstraction anticipating future brokers (Zerodha, Dhan, ...)** — rejected
+  as premature: exactly one broker is integrated today; a provider hierarchy would guess its
+  interface shape from zero second implementations, and would create a second, differently-named
+  seam alongside the existing `MarginCalculator` Protocol (ADR-007) for no present consumer —
+  inviting the same kind of ambiguity ADR-011 was written to prevent.
+- **A configurable OFF / WARN / STRICT margin-validation policy, built now** — rejected as
+  premature: there is no broker margin fetch, no comparison logic, and no reconciliation
+  scaffolding in the repository to configure. `OFF` is also not a real per-environment policy
+  choice — it is the only physically possible state in backtest/research (no broker session
+  exists to query), so it should be structurally forced by source absence, not selectable,
+  whenever this is eventually built (mirroring how `require_reconciliation_on_start` already
+  branches by source presence rather than by mode).
+- **Merge the broker's total into `NseMarginEngine.get_used_margin`** — rejected: destroys
+  determinism (ADR-003) and auditability (ADR-005), and reintroduces live/backtest divergence.
+
+### Consequences
+
+- No change to `ExecutionHandler` construction or `MarginCalculator` injection. ADR-007 and
+  ADR-011 stand unmodified.
+- Closes the open item left by ADR-012's Consequences (Margin Authority Model review, §3 Q6).
+- A future LIVE-only margin reconciliation layer, if and when built, is strictly additive: it
+  consumes `NseMarginEngine` output and a broker margin fetch as two independent inputs, never
+  replaces either with the other, and a validation-policy config belongs to that future milestone
+  — not to this ADR.
+- The revised product objective ("deterministic implementation of public NSE rules," not "exact
+  broker clone") is the durable framing for `NseMarginEngine` going forward and should inform any
+  future margin-related documentation or design discussion.
+- Margin subsystem (`core/risk/span/`, `core/risk/elm_rates.py`, `core/risk/nse_margin_engine.py`)
+  is feature-frozen; this ADR adds no new margin computation and requests none.
+
+*Ref: docs/reports/MARGIN_AUTHORITY_ARCHITECTURE_REVIEW.md §§1-4 (Q1/Q3, Q4, Q5, Q6);
+ADR-003, ADR-005, ADR-007, ADR-011, ADR-012; CLAUDE.md Architecture Principles 3, 4, 5.*
+
+---
+
+## ADR-014 — MM11 Sequencing: Platform Consolidation Precedes External Strategy Integration
+
+**Date:** 2026-07-01
+
+**Status:** ACCEPTED
+
+### Context
+
+`docs/reports/MM11_ARCHITECTURE_REVIEW_AND_PROPOSAL.md` (Part 2) initially recommended an
+External Strategy Integration Contract (a `SignalSource` conformance harness, a non-alpha
+reference implementation, and a promotion-path document) as MM11, with Platform Consolidation
+(Planned items #2/#3/#7 — strategy-analytics residue, dead `core/data/*` twins, unified
+market-data layer) named as a legitimate but secondary alternative. The Technical Lead challenged
+this recommendation directly and asked for an objective reassessment, not a defense of the
+original call, specifically probing whether publishing an integration contract before
+consolidating and freezing the infrastructure was the correct sequence.
+
+Two facts were checked before re-deciding (`MM11_ARCHITECTURE_REVIEW_AND_PROPOSAL.md` §3.1):
+`core/runtime/signal_source.py` (the `SignalSource` ABC) has exactly one commit in its history —
+it has never been modified since introduction — and the three consolidation candidates share no
+file surface with the integration-contract deliverables (`core/runtime/driver.py`,
+`scripts/fno_runner.py`, `core/runtime/signal_source.py`).
+
+### Decision
+
+**MM11 is Platform Consolidation / Infrastructure Freeze.** External Strategy Integration
+(the Part 2 proposal, unchanged in content) is resequenced to **MM12**.
+
+This is a **prioritization decision, not a dependency decision** — the reassessment explicitly
+rejects the premise that consolidation is a technical prerequisite for the integration contract:
+the contract has never changed and the planned consolidation work does not touch it. The
+resequencing is chosen because:
+
+1. Consolidation's consumer (the codebase and its own documentation) is real and present today;
+   the integration contract's consumer (a future external strategy) is not.
+2. The consolidation items have sat in `docs/PROJECT_STATE.md` "Planned" since MM7–MM8, repeatedly
+   deprioritized in favor of forward-looking milestones — a pattern this decision declines to
+   repeat a third time.
+3. Publishing an external-facing contract on top of stale top-level docs is a genuine problem:
+   `README.md` currently describes this repository as a "Market Data Repository," not the trading
+   platform CLAUDE.md describes, and `PROJECT_REVIEW_SUMMARY.md` (dated 2026-03-04) describes a
+   prior, different multi-strategy monolith. A documentation-audit pass should precede anything
+   external-facing.
+4. The integration contract loses nothing by waiting one milestone: the `SignalSource` ABC stays
+   frozen regardless, and PAPER validation of a reference implementation is exactly as achievable
+   at MM12 as it would have been at MM11.
+
+**Named cost, accepted knowingly:** this sequencing defers the first end-to-end proof that the
+MM7–MM10 execution stack actually drives a `SignalSource` through the real composition root
+(`fno_runner.py`) in a running process, rather than only through test doubles. This is the one
+genuinely strong argument for doing External Strategy Integration first, and it is not addressed
+by the prioritization reasoning above — it is accepted as a known, bounded tradeoff (the stack is
+already heavily unit/integration tested; a thin non-alpha reference source in PAPER is marginal
+incremental de-risking, not a large unknown).
+
+### Alternatives Considered
+
+- **External Strategy Integration Contract as MM11** (the original Part 2 recommendation) —
+  not rejected on its merits, only resequenced: it remains a fully valid MM12. Rejected as MM11
+  specifically because its consumer does not exist yet, while a same-cost, present-consumer
+  alternative (consolidation) was available and had been repeatedly deferred.
+- **"Consolidate first to avoid future breaking changes to the integration contract"** — rejected
+  as the stated justification: this ADR's own verification (`git log` on `signal_source.py`; file
+  surface disjointness) disproves it. Anyone re-litigating this decision on churn-avoidance grounds
+  should be pointed to §3.1 of the reassessment document, not re-argued with from scratch.
+- **Do both in parallel** — not adopted as the formal sequencing, though nothing in this ADR
+  forbids incidental parallel progress; the decision names MM11/MM12 as the priority order for
+  planning and reporting purposes, not a hard technical gate preventing overlap.
+
+### Consequences
+
+- `docs/PROJECT_STATE.md` Planned items #2, #3, #7 are promoted to the active MM11 scope; the
+  stale top-level docs rewrite (`README.md`, `PROJECT_REVIEW_SUMMARY.md`) is added to MM11 scope
+  as the external-facing-docs sub-item identified in this reassessment.
+  `MM11_ARCHITECTURE_REVIEW_AND_PROPOSAL.md` Part 2's content becomes the MM12 proposal, unchanged.
+- No code, ADR, or contract change results from this ADR itself — it is a sequencing/roadmap
+  decision. `SignalSource`, `LoopDriver`, `ExecutionHandler`, and the margin subsystem are
+  unaffected and remain as specified in ADR-002, ADR-006, ADR-MM7E-1, ADR-011/012/013.
+- A future MM12 kickoff should re-verify (not assume) that `signal_source.py` is still unmodified
+  before treating this ADR's stability claim as still current.
+
+*Ref: docs/reports/MM11_ARCHITECTURE_REVIEW_AND_PROPOSAL.md Part 3 (§3.1–§3.4);
+ADR-002, ADR-006, ADR-MM7E-1, ADR-013; docs/PROJECT_STATE.md Planned #2, #3, #7.*

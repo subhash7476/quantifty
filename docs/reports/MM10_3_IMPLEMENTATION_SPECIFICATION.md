@@ -6,6 +6,10 @@
 **Status:** For ChatGPT Technical Lead review  
 **Milestone tag:** `mm10.3-complete` (target)  
 **Predecessor:** `mm10.2-complete`
+**2026-07-01 update:** this doc's references to a future "Exposure Margin (MM10.5)" component are
+now stale — MM10.5 was **retired, not implemented**; "Exposure Margin" was resolved to be the
+same regulatory charge as ELM under legacy naming, not a separate additive term
+(`docs/architecture_decisions.md` ADR-012).
 
 ---
 

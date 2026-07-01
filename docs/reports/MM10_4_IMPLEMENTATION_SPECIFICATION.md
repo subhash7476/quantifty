@@ -6,6 +6,10 @@
 **Status:** For ChatGPT Technical Lead review
 **Milestone tag:** `mm10.4-complete` (target)
 **Predecessor:** `mm10.3-complete`
+**2026-07-01 update:** this doc's forward-references to "resolve in MM10.5" (instrument-type
+routing for pre-trade estimate conservatism) are now orphaned — MM10.5 was **retired, not
+implemented** (`docs/architecture_decisions.md` ADR-012). The underlying conservatism limitation
+remains open, unscheduled.
 
 ---
 

@@ -26,6 +26,13 @@ Components certified as stable and no longer receiving feature changes:
 | ELM Rates | `core/risk/elm_rates.py` | MM10.4 | Regulatory ELM constants — NSCCL source |
 | NseMarginEngine | `core/risk/nse_margin_engine.py` | MM10.4 | Margin composition layer (SPAN + credits + ELM) |
 
+## Margin Architecture — Two Authorities (MM10, closed)
+
+- **Sizing/computation authority**: `NseMarginEngine` — sole margin calculator in research, backtest, paper, and LIVE (unchanged in every mode). It is a deterministic implementation of publicly available NSE Clearing margin rules, not a broker RMS clone — perfect broker parity is structurally unreachable at retail.
+- **Order-acceptance authority**: the broker RMS, at the gateway only — never consulted for sizing, never overrides `NseMarginEngine`'s computed margin.
+- Broker margin reconciliation (fetch/compare/log broker vs. local) is a **deferred LIVE-only capability** — no code exists today; do not build a `MarginProvider` abstraction or a validation-policy config ahead of a concrete need (no production strategy, no funded LIVE account exists yet).
+- *(ADR-011, ADR-012, ADR-013 — `docs/ARCHITECTURE_DECISIONS.md`)*
+
 ## Architecture Principles (DO NOT VIOLATE)
 
 1. **Strategies Stay Dumb** — emit `SignalEvent` only; no broker/sizing/risk logic inside strategies

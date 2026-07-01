@@ -5,6 +5,10 @@
 **Author role:** System Architect  
 **Predecessor milestone:** MM9.5-complete (tag: `mm9.5-complete`, commit: `1bb6b60`)  
 **Status:** Pre-implementation — for Technical Lead review and approval  
+**2026-07-01 update:** MM10.1–MM10.4 implemented as specified. MM10.5 (Exposure Margin, §ELM+EM
+composition) was subsequently **retired, not implemented** — resolved as the same regulatory
+charge as ELM under legacy naming. See `docs/architecture_decisions.md` ADR-012 and
+`docs/reports/MM10_5_MARGIN_COMPONENT_VERIFICATION.md`.  
 
 **Evidence base:**  
 - As-built source: `core/risk/span/` (all modules, post-MM9.5)  

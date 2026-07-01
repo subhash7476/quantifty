@@ -4,6 +4,8 @@
 **Date:** 2026-06-29  
 **Author role:** System Architect  
 **Status:** Revision to `MM10_ARCHITECTURE_ROADMAP.md` — for Technical Lead approval  
+**2026-07-01 update:** MM10.5 (Exposure Margin) subsequently **retired, not implemented** — see
+`docs/architecture_decisions.md` ADR-012.  
 **Scope:** Architectural responsibility boundary only. No implementation code. No redesign of MM9.5 components.
 
 ---
