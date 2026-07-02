@@ -1196,3 +1196,39 @@ composition).
 
 *Ref: docs/reports/MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md §8, §12, §16.3–§16.4; ADR-018;
 PLATFORM_CONSTITUTION.md §6; DRIVER_SPECIFICATION.md §3.2 (kill-switched-but-running), §8.4.*
+
+---
+
+## ADR-020 — Reference Strategy Is A Permanently PAPER-Confined, Non-Alpha Canary; Guard Behavior Is Proven Live Via Throwaway Fixtures
+
+**Status:** Accepted (2026-07-02)
+
+### Context
+
+MM12.4 requires the first concrete `SignalSource` implementation to validate the full platform pipeline end-to-end. This reference strategy must never be mistaken for a real trading strategy, must never be promoted to LIVE, and must prove the platform's guard infrastructure (ADR-018/ADR-019) works through the real composition root.
+
+### Decision
+
+1. **Reference strategy is permanently PAPER-confined and non-alpha.** The chosen design is `reference_strategies/heartbeat/` — a fixed-cadence, single-equity-symbol heartbeat (`HeartbeatSignalSource`) that trades on a deterministic bar-count schedule with no market awareness. It is permanently confined to `ExecutionMode.PAPER` and must never be promoted through the CONFORMANT → PAPER-VALIDATED → LIVE-APPROVED ladder (MM12.1 §14.1). This is enforced by convention (no code ever constructs it with `execution_mode=ExecutionMode.LIVE`), not by a new runtime policy object.
+
+2. **Alternative designs were explicitly rejected.** Inert source, queue-backed discretionary source, indicator-based strategy, and seeded-random signal generator were each evaluated and rejected (MM12.4 §2.1).
+
+3. **Guard behavior is proven live via separate throwaway fixtures.** `reference_strategies/fault_fixtures/` contains `AlwaysRaisesSource` (proves quarantine-and-continue) and `BadMetadataSource` (proves reject-and-journal). These are separate from the heartbeat strategy so the two proofs remain visibly distinct.
+
+4. **`fno_runner.build_runner` unconditionally wraps every injected `source` in `GuardedSignalSource`.** This is execution of ADR-018, explicitly deferred by MM12.3 to this milestone — not a new decision.
+
+5. **ADR-002's checkable invariant is extended** to forbid any `core/` module from importing `reference_strategies` (mirroring the existing `core.strategies|runner|backtest|state|models|ftmo` carve-out).
+
+### Alternatives Considered
+
+- **Trading an F&O instrument to exercise SPAN/NseMarginEngine** — rejected: pulls in instrument-master/contract-selection complexity with no incremental proof value for this milestone's primary goal (proving the external-strategy hosting pipeline).
+- **Wrapping the guard only for a strategy-specific code path** — rejected: contradicts ADR-018's "every external source" wording and would silently leave a future strategy unguarded.
+
+### Consequences
+
+- The reference strategy's `strategy_id` (`reference_heartbeat_v1`) never appears in any LIVE-mode journal record, by construction.
+- Guard behavior is proven through the real composition root using throwaway fixtures, establishing the standing pattern for any future strategy's guard proof.
+- `reference_strategies/` is excluded from `core/` module import scanning (ADR-002 extension).
+- A named limitation exists: shadow-state recovery across a process restart while a position is open is out of scope for this strategy — `on_start(context)` position projection remains reserved (ADR-017).
+
+*Ref: docs/reports/MM12_4_REFERENCE_STRATEGY_ARCHITECTURE.md; ADR-002; ADR-016; ADR-017; ADR-018; ADR-019.*

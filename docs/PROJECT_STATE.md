@@ -2,11 +2,13 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-02 (MM12.4 — Reference Strategy Architecture proposed, awaiting approval)
+**Last updated:** 2026-07-02 (MM12.4 — Reference Strategy Implementation complete)
 
 ---
 
 ## Completed
+
+- **MM12.4 — Reference Strategy Implementation — COMPLETE (2026-07-02).** Implemented the first concrete `SignalSource` through the real composition root. `HeartbeatSignalSource` (fixed-cadence, non-alpha, single-equity-equity heartbeat) passes MM12.2 conformance, wraps in `GuardedSignalSource` with zero rejections, and exercises the full data→guard→driver→execution→risk→margin→PaperBroker→ledger→telemetry→journal pipeline. `AlwaysRaisesSource`/`BadMetadataSource` fixtures prove guard behavior live. One permitted production change: `fno_runner.build_runner` unconditionally wraps every injected source in `GuardedSignalSource` (ADR-018 execution). Zero diffs in seven frozen platform files. ADR-020 accepted. **1125 passed, 4 skipped** (was 1121). *(docs/reports/MM12_4_REFERENCE_STRATEGY_ARCHITECTURE.md; docs/reports/MM12_4_IMPLEMENTATION_REPORT.md)*
 
 - **Platform Infrastructure Version 1.0 — CERTIFIED (2026-07-02, MM11.7).** The deterministic execution substrate is declared **v1.0 Complete**: `LoopDriver` runtime (Phases A–H), `ExecutionHandler` OMS/EMS, SPAN + `NseMarginEngine` + ELM risk/margin engine, canonical instrument architecture, SQLite-truth persistence + DuckDB audit projection, ZMQ telemetry, and the Paper/Upstox broker adapters — import-clean, fully tested (**1055 passed, 4 skipped**), free of verified-dead code, internally consistent. **Excluded by design (not v1.0):** live-capital trading (`ExecutionMode.LIVE` gated/unexercised), any strategy/alpha (`core/strategies/` intentionally empty; no production `SignalSource`), and live broker reconciliation — deferred to MM12 (External Strategy Integration Contract), MM13 (First Strategy PAPER validation), MM14 (LIVE readiness + broker margin reconciliation). Independent certification and the Removal-Ledger↔tree-diff reconciliation both PASS. *(docs/reports/MM11_7_PLATFORM_V1.0_CERTIFICATION.md; docs/reports/MM11_REMOVAL_LEDGER.md; ADR-015)*
 

@@ -57,11 +57,14 @@ def test_runner_targets_mode_live_executionmode_paper_first(tmp_path, monkeypatc
 def test_runner_omits_checker_for_equity_universe(tmp_path, monkeypatch):
     # Finding E1-c carve-out: equity-only LIVE legitimately has no checker; and
     # Design B — the injected source is what the driver carries (the root did not
-    # construct it).
+    # construct it). MM12.4: the source is wrapped in GuardedSignalSource at the
+    # composition root (ADR-018).
+    from core.runtime.guarded_signal_source import GuardedSignalSource
     source = NoopSource()
     d = build(tmp_path, monkeypatch, source=source, symbols=(EQUITY,))
     assert d._master_readiness is None
-    assert d._source is source
+    assert isinstance(d._source, GuardedSignalSource)
+    assert d._source._inner is source
 
 
 def test_runner_injects_master_readiness_when_derivatives(tmp_path, monkeypatch):

@@ -52,7 +52,9 @@ from core.risk.span.span_repository import SpanRepository
 from core.runtime.config import DriverConfig, Mode
 from core.runtime.driver import LoopDriver
 from core.runtime.event_journal import RuntimeEventJournal
+from core.runtime.guarded_signal_source import GuardedSignalSource
 from core.runtime.instrument_scope import has_derivatives
+from core.runtime.metrics import TelemetrySink
 from core.runtime.signal_source import SignalSource
 from core.auth.credentials import credentials as _live_credentials
 
@@ -113,6 +115,7 @@ def build_runner(
     provider: Optional[MarketDataProvider] = None,
     db_manager: Optional[DatabaseManager] = None,
     journal: Optional[RuntimeEventJournal] = None,
+    telemetry: Optional[TelemetrySink] = None,
     metrics_path: Optional[str] = None,
     max_bars: Optional[int] = None,
     initial_capital: float = 100_000.0,
@@ -249,6 +252,14 @@ def build_runner(
         portfolio_greeks=execution.portfolio_greeks,
     )
 
+    # MM12.4: every injected source is wrapped in GuardedSignalSource at the
+    # composition root (ADR-018 execution, deferred by MM12.3). The same
+    # telemetry sink is shared with the LoopDriver so guard counters are
+    # observable from a single InMemoryTelemetrySink.
+    guarded_source = GuardedSignalSource(
+        source, journal=journal, telemetry=telemetry,
+    )
+
     config = DriverConfig(mode=Mode.LIVE, symbols=list(symbols), max_bars=max_bars)
 
     return LoopDriver(
@@ -256,7 +267,8 @@ def build_runner(
         clock=clock,
         provider=provider,
         journal=journal,
-        source=source,
+        source=guarded_source,
+        telemetry=telemetry,
         execution=execution,
         broker_positions=broker_positions,
         master_readiness=master_readiness,

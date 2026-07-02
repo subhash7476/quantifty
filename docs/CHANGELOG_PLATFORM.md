@@ -6,10 +6,24 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
-## 2026-07-02 — MM12.4 — Reference Strategy Architecture (PROPOSED)
+## 2026-07-02 — MM12.4 — Reference Strategy Implementation (COMPLETE)
 
-Authored `docs/reports/MM12_4_REFERENCE_STRATEGY_ARCHITECTURE.md` — architecture only, no code. Refines MM12.1 §15's one-line MM12.4 deliverable ("reference non-alpha SignalSource + end-to-end PAPER proof") into a concrete design: a fixed-cadence, single-equity-symbol, non-alpha "heartbeat" strategy (`reference_strategies/heartbeat/`) that actually trades a deterministic BUY/EXIT round trip, chosen over inert/queue-backed alternatives because those exercise neither Risk, Margin, Persistence, nor a real Execution round trip. Covers strategy selection + rationale, lifecycle, signal-generation rules, metadata requirements, determinism/replay guarantees (scoped explicitly to exclude PaperBroker's per-fill UUID and journal wall-clock timestamps from the replay diff), PAPER-trading expectations, failure modes, and a ten-objective coverage table making the one deliberate gap explicit (equity trades exercise only the flat-rate MarginTracker gate, not SPAN/NseMarginEngine). Proposes ADR-020 (reference strategy is permanently PAPER-confined; guard behavior proven live via separate throwaway fault fixtures, never the reference strategy itself) and names the one production wiring change this milestone authorizes: `fno_runner.build_runner` unconditionally wrapping every injected source in `GuardedSignalSource` — execution of already-Accepted ADR-018, not a new decision. Zero code changes; zero frozen-component diffs. Awaiting Technical Lead approval before MM12.4b (implementation) begins.
-*(docs/reports/MM12_4_REFERENCE_STRATEGY_ARCHITECTURE.md; docs/reports/MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md §15)*
+Implemented the approved Reference Strategy Architecture end-to-end. Deliverables:
+
+1. **`reference_strategies/heartbeat/`** — `HeartbeatSignalSource` (fixed-cadence BUY/EXIT on bar count) + `build_signal_source(config)` factory. Passes MM12.2 Layers 1+2 conformance unmodified (CONFORMANT gate). Passes GuardedSignalSource wrapping with zero rejections/quarantines. 4 new conformance tests.
+
+2. **`reference_strategies/fault_fixtures/`** — `AlwaysRaisesSource` (proves quarantine-and-continue) and `BadMetadataSource` (proves reject-and-journal).
+
+3. **`scripts/fno_runner.py`** — one permitted production change: unconditional `GuardedSignalSource` wrap around every injected source at the composition root (ADR-018 execution, deferred by MM12.3), plus a new `telemetry` parameter threaded into both the guard and the LoopDriver. Zero diffs in the seven frozen files (`core/runtime/driver.py`, `core/execution/handler.py`, `core/runtime/signal_source.py`, `core/runtime/conformance.py`, `core/runtime/guarded_signal_source.py`, `core/runtime/event_journal.py`, `core/runtime/metrics.py`).
+
+4. **`scripts/run_reference_strategy.py`** — happy-path PAPER runner over a synthetic bar corpus. Reports telemetry counters; verifies zero guard events.
+
+5. **`scripts/run_fault_drill.py`** — fault-injection runner proving `AlwaysRaisesSource` → STRATEGY_ERROR + STRATEGY_QUARANTINED (edge-triggered once, loop survives) and `BadMetadataSource` → SIGNAL_CONTRACT_REJECTED (clean sibling still routes).
+
+6. **ADR-020** — accepted and recorded in `docs/ARCHITECTURE_DECISIONS.md`: reference strategy is permanently PAPER-confined, non-alpha canary; guard behavior proven live via separate throwaway fixtures; ADR-002 invariant extended to forbid `core/` from importing `reference_strategies`.
+
+Full regression: **1125 passed, 4 skipped** (was 1121). One existing test updated (`test_runner_omits_checker_for_equity_universe` checks `GuardedSignalSource` wrapper identity instead of raw source identity). All acceptance criteria met: conformance gate, zero guard events on happy path, replay-equivalence provable by design, fault drill proves both guard paths, telemetry counters non-zero, frozen files zero-diff, existing suite zero regressions.
+*(reference_strategies/heartbeat/; reference_strategies/fault_fixtures/; scripts/run_reference_strategy.py; scripts/run_fault_drill.py; scripts/fno_runner.py; docs/ARCHITECTURE_DECISIONS.md ADR-020; tests/runtime/test_heartbeat_strategy.py; docs/reports/MM12_4_REFERENCE_STRATEGY_ARCHITECTURE.md)*
 
 ## 2026-07-02 — MM12.3 — GuardedSignalSource (runtime boundary guard)
 
