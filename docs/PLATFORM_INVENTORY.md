@@ -121,7 +121,9 @@
 
 ## Dead Code
 
-> **Note (MM11.3):** This section is superseded by `docs/reports/MM11_IMPLEMENTATION_SPECIFICATION.md` §0a and the deletion record in `docs/reports/MM11_REMOVAL_LEDGER.md`. All 12 `core/data/` legacy modules listed below — including the two "REMOVE (pending)" items and the three "KEEP (verify)" items that §0a corrected to REMOVE — have been removed in MM11.2. The Dead Code ledger is now closed for the `core/data/` domain. Remaining dead-code targets (strategy-shaped DDL, `AnalyticsQuery`, etc.) are tracked in later MM11 slices.
+> **Note (MM11.3):** This section is superseded by `docs/reports/MM11_IMPLEMENTATION_SPECIFICATION.md` §0a and the deletion record in `docs/reports/MM11_REMOVAL_LEDGER.md`. All 12 `core/data/` legacy modules listed below — including the two "REMOVE (pending)" items and the three "KEEP (verify)" items that §0a corrected to REMOVE — have been removed in MM11.2. The Dead Code ledger is now closed for the `core/data/` domain.
+>
+> **Additional MM11.4/MM11.5 resolutions (2026-07-01):** Strategy-shaped DDL (20 tables) pruned in MM11.4; `AnalyticsProvider` ABC removed in MM11.5. See `docs/reports/MM11_REMOVAL_LEDGER.md` for the full per-item deletion record.
 
 | Module(s) | Purpose | Verdict | Reasoning |
 |---|---|---|---|

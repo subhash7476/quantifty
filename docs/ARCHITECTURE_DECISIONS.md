@@ -52,6 +52,8 @@ The platform is **strategy-agnostic**. The only permitted dependency direction i
 - Surviving strategy-coupled code (`CaptureEngine`/`metrics_service` inputs, `legacy_adapter.save_signal`, strategy DDL in the shared schema) is **soft residue** to be refactored out, not new violations.
 - The platform is testable and deployable headless (Flask + options dashboard boot with zero strategies).
 
+**MM11 resolution note (2026-07-01):** the three "soft residue" items listed above are now resolved: `CaptureEngine`/`metrics_service` removed (MM11.1), `legacy_adapter.save_signal` removed (MM11.1), strategy-specific DDL pruned (MM11.4). See `docs/reports/MM11_REMOVAL_LEDGER.md`.
+
 ---
 
 ## ADR-003 — Deterministic Event Processing

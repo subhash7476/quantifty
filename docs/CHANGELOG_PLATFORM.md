@@ -6,6 +6,31 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-01 — MM11.5 — Remove dead AnalyticsProvider abstraction
+
+Removed the `AnalyticsProvider` ABC from `core/database/providers/base.py` — a strategy-coupled abstraction with zero implementations, zero consumers, and zero tests. The three docstring-named implementers (`DuckDBAnalyticsProvider`, `CachedAnalyticsProvider`, `MockAnalyticsProvider`) and `ConfluenceInsight` type never existed as real classes. The live `MarketDataProvider` interface in the same file was retained unchanged. Removal Ledger updated. **1055 passing, 4 skipped.**
+*(docs/reports/MM11_REMOVAL_LEDGER.md)*
+
+## 2026-07-01 — MM11.4 — Database Schema Consolidation
+
+Removed 20 obsolete DDL constants from `core/database/schema.py`, including all strategy paper-trading tables (Nifty Shield, V9 PM Scalper, Stock Day-Type), backtest/scanner tables, orphaned strategy-analytics tables (`confluence_insights`, `regime_snapshots`, `commodity_strategy_snapshots`), orphaned options structural tables (`daily_oi_summary`, `gex_snapshot`), the orphaned DuckDB `orders`/`positions` duplicate DDL, and `fo_stocks_master`. Live execution tables (`trades`, `trade_context`, `option_chain_snapshot`) and live config tables (`users`, `roles`, `fo_stocks`, `websocket_status`, `runner_state`, `instrument_meta`) retained unchanged. Removal Ledger updated. **1055 passing, 4 skipped.**
+*(core/database/schema.py; docs/reports/MM11_REMOVAL_LEDGER.md)*
+
+## 2026-07-01 — MM11.3 — core/data Package Retirement
+
+Documentation update closing Planned #7: `core/data/__init__.py` docstring rewritten — no longer claims to be a "backward compatibility shim", accurately describes the two remaining live modules (`options_provider.py`, `MarketDataFeedV3_pb2.py`). `docs/PLATFORM_INVENTORY.md` Market Data and Dead Code sections marked superseded. No file moves performed. **1055 passing, 4 skipped.**
+*(core/data/__init__.py; docs/PLATFORM_INVENTORY.md)*
+
+## 2026-07-01 — MM11.2 — Remove Dead core/data Legacy Modules
+
+Removed 12 verified-dead legacy twin modules from `core/data/` — all backward-compatibility shims re-exporting from `core/database/*` or dead concrete classes with zero external importers. Live modules retained: `options_provider.py` (options dashboard) and `MarketDataFeedV3_pb2.py` (protobuf wire schema). Removal Ledger updated. **1055 passing, 4 skipped.**
+*(core/data/*.py; docs/reports/MM11_REMOVAL_LEDGER.md)*
+
+## 2026-07-01 — MM11.1 — Retire Unwired CaptureEngine / TLP Pipeline
+
+Removed the never-wired `CaptureEngine`/`StructuralMetricsService` TLP pipeline: deleted `core/analytics/capture.py` and `metrics_service.py`; removed the `capture_engine` constructor parameter, assignment, and always-false branch from `ExecutionHandler`; removed unused analytics persistence helpers from `core/database/legacy_adapter.py`, `writers.py`, and `__init__.py`. Removal Ledger established with 8 entries. **1055 passing, 4 skipped.**
+*(core/analytics/capture.py; core/analytics/metrics_service.py; core/execution/handler.py; core/database/legacy_adapter.py; core/database/writers.py; core/database/__init__.py)*
+
 ## 2026-07-01 — ADR-014: MM11 Reassessed — Platform Consolidation, not Integration Contract (docs only, no code)
 
 The Technical Lead challenged the prior same-day MM11 proposal (External Strategy Integration

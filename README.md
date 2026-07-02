@@ -1,116 +1,85 @@
-# Nifty Market Data Repository
+# Nifty Trading Platform
 
-**Single source of truth** for all market data, reference data, and research datasets used by the Nifty trading platform.
+Production-grade, deterministic algorithmic trading platform for Indian equity derivatives.
+
+**Stack:** Python 3.10+ · DuckDB · Upstox V2 (REST + WebSocket) · Flask + Tailwind CSS
 
 ---
 
-## Directory Layout
+## Quick Start
 
-```
-F:\nifty
-├── reference/                  # Static reference data (immutable)
-│   ├── instrument_master/      # NSE F&O instrument master (DuckDB)
-│   │   ├── latest/             # Most recent snapshot
-│   │   └── archive/            # Historical snapshots
-│   ├── span/                   # SPAN margin parameter files
-│   │   ├── latest/             # Current trading day
-│   │   └── archive/            # Historical SPAN files
-│   ├── contract_specs/         # Contract specifications
-│   ├── lot_sizes/              # Lot size reference
-│   ├── expiries/               # Expiry calendars (weekly, monthly)
-│   ├── holidays/               # NSE holiday calendars
-│   └── metadata/               # Symbol lists, corporate actions, etc.
-│
-├── historical/                 # Historical market data (append-only)
-│   ├── equity/                 # Equity cash market candles
-│   ├── futures/                # Futures candles
-│   ├── options/                # Options data (chain snapshots, Greeks)
-│   ├── index/                  # Index candles (1d, 1m)
-│   │   ├── 1d/                 # Daily NSE candles (2023–2026)
-│   │   └── 1m/                 # 1-minute NSE candles (2024–2026)
-│   └── mcx/                    # MCX commodity candles
-│
-├── tick/                       # Tick-by-tick data
-│   ├── 2022/                   # 2022 ticks
-│   ├── 2023/                   # 2023 ticks
-│   ├── 2024/                   # 2024 ticks
-│   ├── 2025/                   # 2025 ticks
-│   └── 2026/                   # 2026 ticks
-│
-├── research/                   # Research and feature datasets
-│   ├── trading/                # Trading research (day features, FTMO)
-│   ├── experiments/            # Experimental data
-│   ├── weather/                # Weather data (if applicable)
-│   └── exports/                # Exported analysis results
-│
-├── examples/                   # Representative samples for AI inspection
-│   ├── instrument_master/      # Instrument master sample
-│   ├── option_chain/           # Option chain sample
-│   ├── futures/                # Futures data sample
-│   ├── tick/                   # Tick data sample
-│   └── span/                   # SPAN parameter sample
-│
-├── cache/                      # Derived/temporary caches (ephemeral)
-├── logs/                       # Processing logs
-└── backups/                    # Data backups
+```bash
+pip install -r requirements.txt
+python scripts/run_flask.py          # Start dashboard (localhost:5000)
+python -m pytest tests/ -q           # Run test suite
 ```
 
 ---
 
-## Naming Conventions
+## Architecture
 
-| Dataset | Format | Naming Pattern |
-|---------|--------|----------------|
-| Candle files (1d) | `{YYYY-MM-DD}.duckdb` | Date-keyed DuckDB files |
-| Candle files (1m) | `{YYYY-MM-DD}.duckdb` | Same pattern, one file per day |
-| Instrument master | `nse_fo_instruments.duckdb` | Single DuckDB database |
-| Option chain | `options_poller.duckdb` | Polled option chain |
-| SPAN files | `nse_fo_span_{YYYY-MM-DD}.parquet` | ISO-date versioned |
-| Features | `{context}_{descriptor}_{year}.csv` | Descriptive names |
-| FTMO/cache | `cache_{symbol}_{timeframe}.parquet` | Instrument + timeframe |
+```
+CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
+```
 
----
+The platform follows five architecture principles:
 
-## Ownership
+1. **Strategies Stay Dumb** — emit `SignalEvent` only; no broker/sizing/risk logic inside strategies
+2. **Analytics Produce Facts** — all indicators pre-computed offline; runtime is read-only
+3. **Execution Owns Reality** — risk, sizing, and broker interaction live exclusively in `core/execution/`
+4. **Runner is Neutral** — single-threaded orchestrator; live and backtest data treated identically
+5. **Audit-First** — every trade must be explainable by exact analytical facts
 
-- **Instrument master**: Updated daily via `scripts/fetch_instrument_master.py`
-- **SPAN parameters**: Updated daily via `scripts/fetch_span_params.py`
-- **Historical candles**: Populated via `scripts/fetch_intermarket_data.py`
-- **All other data**: Appended by the respective platform data pipeline
+See `CLAUDE.md` for the full development guide and `docs/PLATFORM_CONSTITUTION.md` for governance.
 
 ---
 
-## Update Procedure
+## Milestone Status
 
-1. **Instrument master**: Run `python scripts/fetch_instrument_master.py` daily (validated before published).
-2. **SPAN data**: Run `python scripts/fetch_span_params.py` daily during market hours.
-3. **Candles**: Run `python scripts/fetch_intermarket_data.py` for incremental backfill.
-4. **Manual data**: Place new datasets in the appropriate `historical/` subdirectory with ISO-date naming.
-
----
-
-## Archive Policy
-
-- **Instrument master snapshots**: Retain last 5 trading days in `reference/instrument_master/archive/`
-- **SPAN files**: Retain last 90 trading days in `reference/span/archive/`
-- **Historical candles**: Permanent (append-only, never deleted)
-- **Tick data**: Permanent (append-only)
-- **Research datasets**: Retain indefinitely in `research/trading/`
+| Milestone | Status |
+|-----------|--------|
+| MM9 — Margin enforcement | **Complete** (SPAN margin, calendar spreads, ELM) |
+| MM10 — Complete SPAN portfolio margin | **Complete** (ADR-011/012/013, margin architecture closed) |
+| MM11 — Platform consolidation | **In progress** (MM11.1–MM11.5 done; MM11.6 documentation audit) |
+| MM12 — External Strategy Integration Contract | **Future** |
+| MM13 — Broker reconciliation | **Future** |
 
 ---
 
-## Source
+## Key Directories
 
-All data was migrated from `D:\bot\root` on 2026-06-28. The original source is preserved in place until the migration is verified.
+| Path | Purpose |
+|------|---------|
+| `core/execution/` | Risk, sizing, broker interaction |
+| `core/brokers/` | Broker adapters — Upstox and PaperBroker |
+| `core/instruments/` | Canonical instrument model, resolver, and master DB |
+| `core/runtime/` | LoopDriver, telemetry, signal source contracts |
+| `core/risk/span/` | SPAN margin parser, calculator, snapshot |
+| `core/database/` | DuckDB/SQLite persistence (manager, schema, writers) |
+| `flask_app/` | Thin Flask UI — display only, no computation |
+| `scripts/` | CLI entry points — data ingestion, runners |
+| `tests/` | Unit and integration tests by domain |
+| `docs/` | Architecture docs, reports, ADRs |
 
 ---
 
-## Adding New Datasets
+## Data Layout
 
-Place new datasets in the appropriate subdirectory:
+- **1-min candles**: `data/market_data/nse/candles/1m/{YYYY-MM-DD}.duckdb`
+- **Instrument master**: `data/instruments/nse_fo_instruments.duckdb`
+- **SPAN files**: `reference/span/` (archived PC-SPAN XML)
+- **Option chain**: `data/market_data/options.duckdb`
+- **Runtime events**: `logs/runtime_events.jsonl`
+- **Execution state**: `data/execution.db` (SQLite — orders, fills, positions)
 
-1. **Reference data** → `reference/<category>/`
-2. **Historical prices** → `historical/<asset_class>/`
-3. **Tick data** → `tick/<year>/`
-4. **Research** → `research/<domain>/`
-5. **Examples** → `examples/<category>/` (small, representative samples only)
+---
+
+## Governance
+
+See `docs/PLATFORM_CONSTITUTION.md` — the foundational governance document.
+
+Architecture decisions are recorded in `docs/ARCHITECTURE_DECISIONS.md` (append-only ADRs).
+
+Project status tracked in `docs/PROJECT_STATE.md`.
+
+Development conventions in `CLAUDE.md`.
