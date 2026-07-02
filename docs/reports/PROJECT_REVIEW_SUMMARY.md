@@ -1,3 +1,16 @@
+> **SUPERSEDED — historical artifact (2026-03-04).** This review describes a prior, different
+> multi-strategy monolith that no longer exists in this repository. **Every finding below is
+> either resolved or factually stale:** the "committed credentials" Critical finding is resolved
+> (`config/credentials.json` is gitignored/untracked); the missing-`requirements.txt` finding is
+> stale (the file exists); the "stub trading entry script" describes a script that has since been
+> superseded by the deterministic `LoopDriver` / `scripts/fno_runner.py` composition root. It is
+> retained unedited, relocated from the repo root to `docs/reports/`, purely as a point-in-time
+> record. For current platform status see `docs/PROJECT_STATE.md`, `docs/ARCHITECTURE_DECISIONS.md`,
+> and `docs/reports/MM11_7_PLATFORM_V1.0_CERTIFICATION.md`.
+> *(Relocated + superseded under MM11.7; see `docs/reports/MM11_REMOVAL_LEDGER.md`.)*
+
+---
+
 # Project Review Summary (2026-03-04)
 
 ## Scope

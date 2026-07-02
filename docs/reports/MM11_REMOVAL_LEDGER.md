@@ -5,7 +5,7 @@
 
 **Rule:** an entry is added *at the time* an item is removed, not reconstructed afterward. A slice is not complete if code was deleted but no entry exists here for it, regardless of test status. See spec §1.5 for the four-part proof each entry must satisfy before it is written.
 
-**Status:** empty — MM11 execution has not started. Slices append entries below as they run.
+**Status:** COMPLETE — MM11.1–MM11.6 committed (`85780da`…`08d465f`); MM11.7 close-out executed, pending commit. All slice entries are filed below; the MM11.7 Reconciliation Record (end of file) is closed and PASSES, covering the committed range `2b3c050`→HEAD **plus** the uncommitted MM11.7 working-tree changes.
 
 ---
 
@@ -55,7 +55,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Characterization test: N/A — provably dead file; `capture_engine` was never passed at any construction site
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0b; unambiguously dead code — never wired at composition root, always-false guard in handler.py, all internal methods return stubs/fallbacks
-- **Change reference:** MM11.1 commit (not yet committed)
+- **Change reference:** `85780da` (MM11.1: Retire unwired CaptureEngine / TLP pipeline)
 - **Slice:** MM11.1
 - **Date:** 2026-07-01
 
@@ -75,7 +75,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0b; only consumer was `CaptureEngine` (also deleted); `update_daily_metrics` has zero live callers
-- **Change reference:** MM11.1 commit (not yet committed)
+- **Change reference:** `85780da` (MM11.1: Retire unwired CaptureEngine / TLP pipeline)
 - **Slice:** MM11.1
 - **Date:** 2026-07-01
 
@@ -94,7 +94,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0b; `init_tlp_logger` has zero call sites; `TLPLogger` is never instantiated anywhere
-- **Change reference:** MM11.1 commit (not yet committed)
+- **Change reference:** `85780da` (MM11.1: Retire unwired CaptureEngine / TLP pipeline)
 - **Slice:** MM11.1
 - **Date:** 2026-07-01
 
@@ -113,7 +113,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §2; removing an always-false branch and its unreachable parameter is behavior-neutral by construction
-- **Change reference:** MM11.1 commit (not yet committed)
+- **Change reference:** `85780da` (MM11.1: Retire unwired CaptureEngine / TLP pipeline)
 - **Slice:** MM11.1
 - **Date:** 2026-07-01
 
@@ -132,7 +132,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §2 (contingent removal); confirmed zero live callers after handler.py changes
-- **Change reference:** MM11.1 commit (not yet committed)
+- **Change reference:** `85780da` (MM11.1: Retire unwired CaptureEngine / TLP pipeline)
 - **Slice:** MM11.1
 - **Date:** 2026-07-01
 
@@ -151,7 +151,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §2 (contingent removal); confirmed zero live callers after handler.py changes
-- **Change reference:** MM11.1 commit (not yet committed)
+- **Change reference:** `85780da` (MM11.1: Retire unwired CaptureEngine / TLP pipeline)
 - **Slice:** MM11.1
 - **Date:** 2026-07-01
 
@@ -170,7 +170,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §2 (contingent removal); confirmed zero live callers after handler.py changes
-- **Change reference:** MM11.1 commit (not yet committed)
+- **Change reference:** `85780da` (MM11.1: Retire unwired CaptureEngine / TLP pipeline)
 - **Slice:** MM11.1
 - **Date:** 2026-07-01
 
@@ -189,7 +189,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §2 (contingent removal); confirmed zero live callers after handler.py changes
-- **Change reference:** MM11.1 commit (not yet committed)
+- **Change reference:** `85780da` (MM11.1: Retire unwired CaptureEngine / TLP pipeline)
 - **Slice:** MM11.1
 - **Date:** 2026-07-01
 
@@ -209,6 +209,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Change reference:** N/A — not removed
 - **Slice:** MM11.1 (investigated only)
 - **Date:** 2026-07-01
+- **Disposition superseded (2026-07-02, MM11.7):** the promised formal evaluation was performed at MM11.7 (MM11.5 did not touch it, as flagged in the v1.0 certification finding G-3). Outcome: **REMOVED** — see the `MM11.7 — AnalyticsQuery` entry below.
 
 ---
 
@@ -229,7 +230,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets at every checkpoint
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2 (MM11.2); zero external importers; all three files are re-export shims with no downstream consumers; the dead chain had no test coverage
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -248,7 +249,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Full-suite result AFTER: 1055 passed, 4 skipped
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2; zero external importers; re-export shim with no downstream consumers
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -264,7 +265,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2; zero external importers.
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -280,7 +281,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2; zero external importers.
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -296,7 +297,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2; zero external importers.
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -312,7 +313,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2; zero external importers.
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -328,7 +329,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2; zero external importers.
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -345,7 +346,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2; §0a corrected the 2026-06-04 verdict; zero external importers confirmed by fresh grep at execution time.
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -362,7 +363,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2; §0a corrected the 2026-06-04 verdict; zero external importers confirmed by fresh grep at execution time.
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -379,7 +380,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.1 spec §0a/§2; zero external importers; no file entered any import graph.
-- **Change reference:** MM11.2 commit (not yet committed)
+- **Change reference:** `5f34939` (MM11.2: Remove dead core/data legacy modules)
 - **Slice:** MM11.2
 - **Date:** 2026-07-01
 
@@ -397,7 +398,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.3 spec §2; Planned #7 documentation closure; no code behaviour changed
-- **Change reference:** MM11.3 commit (not yet committed)
+- **Change reference:** `e1fbf26` (MM11.3: core/data package retirement and documentation update)
 - **Slice:** MM11.3
 - **Date:** 2026-07-01
 
@@ -415,7 +416,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Full-suite result AFTER: 1055 passed, 4 skipped
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.4a spec; MM11.1 removed the sole reader and writer; DDL prune is the logical conclusion of MM11.1's deletion
-- **Change reference:** MM11.4 commit (not yet committed)
+- **Change reference:** `dad4210` (MM11.4: Consolidate database schema)
 - **Slice:** MM11.4a
 - **Date:** 2026-07-01
 
@@ -431,7 +432,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.4a spec; sole writer and reader removed in MM11.1; no remaining consumers.
-- **Change reference:** MM11.4 commit (not yet committed)
+- **Change reference:** `dad4210` (MM11.4: Consolidate database schema)
 - **Slice:** MM11.4a
 - **Date:** 2026-07-01
 
@@ -448,7 +449,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.4b spec; all six tables are strategy paper-trading residue with no live writers or readers in the platform.
-- **Change reference:** MM11.4 commit (not yet committed)
+- **Change reference:** `dad4210` (MM11.4: Consolidate database schema)
 - **Slice:** MM11.4b
 - **Date:** 2026-07-01
 
@@ -464,7 +465,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.4b spec; no live writers or readers; backtest and scanner functionality lives outside this repository per ADR-002.
-- **Change reference:** MM11.4 commit (not yet committed)
+- **Change reference:** `dad4210` (MM11.4: Consolidate database schema)
 - **Slice:** MM11.4b
 - **Date:** 2026-07-01
 
@@ -480,7 +481,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.4b spec; last reader of `confluence_insights` was `AnalyticsQuery` (zero importers, RETAINED-WITH-JUSTIFICATION in MM11.1). Last writer was `AnalyticsWriter` (removed MM11.1). Remaining two tables had zero consumers.
-- **Change reference:** MM11.4 commit (not yet committed)
+- **Change reference:** `dad4210` (MM11.4: Consolidate database schema)
 - **Slice:** MM11.4b
 - **Date:** 2026-07-01
 
@@ -496,7 +497,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.4b spec; independent re-verification confirms zero live consumers in the options dashboard path; spec's caution note resolved in favour of removal.
-- **Change reference:** MM11.4 commit (not yet committed)
+- **Change reference:** `dad4210` (MM11.4: Consolidate database schema)
 - **Slice:** MM11.4b
 - **Date:** 2026-07-01
 
@@ -513,7 +514,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.4b spec + PROJECT_STATE.md finding; the DuckDB `orders`/`positions` DDL in schema.py was part of the old architecture's `BOOTSTRAP_STATEMENTS` (zero consumers) and is superseded by the SQLite `execution.db` ledger substrate.
-- **Change reference:** MM11.4 commit (not yet committed)
+- **Change reference:** `dad4210` (MM11.4: Consolidate database schema)
 - **Slice:** MM11.4b
 - **Date:** 2026-07-01
 
@@ -529,7 +530,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** 1055/4 both before and after.
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.4b spec; no writers or readers; `fo_stocks` (the live variant) retained.
-- **Change reference:** MM11.4 commit (not yet committed)
+- **Change reference:** `dad4210` (MM11.4: Consolidate database schema)
 - **Slice:** MM11.4b
 - **Date:** 2026-07-01
 
@@ -555,15 +556,53 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Diff: identical pass/fail/skip sets
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped
 - **Gate 4 — why:** MM11.5 spec §0c; `AnalyticsProvider` is a strategy-coupled abstraction with zero implementations, zero consumers, zero tests, and no live path to execution. The three implementer names and `ConfluenceInsight` type were docstring-only aspirational references — no classes exist. Removing the ABC is the correct disposition. `MarketDataProvider` (the canonical, live interface in the same file) is untouched.
-- **Change reference:** MM11.5 commit (not yet committed)
+- **Change reference:** `31a394e` (MM11.5: Remove dead AnalyticsProvider abstraction)
 - **Slice:** MM11.5
 - **Date:** 2026-07-01
 
 ---
 
+### MM11.7 — `AnalyticsQuery` (core/database/queries.py)
+
+- **What it was:** `AnalyticsQuery` class (`get_latest_insight`, `get_insights`, `get_market_regime`) — read-only SQLite queries against `confluence_insights` and `regime_insights`. Retained-with-justification in MM11.1 with its formal evaluation explicitly deferred to MM11.5; MM11.5 removed `AnalyticsProvider` but did not touch this class (v1.0 certification finding G-3 / M-6).
+- **Disposition:** REMOVED (class deleted from `queries.py`; the module and its live `MarketDataQuery`/`TradingQuery` classes are retained)
+- **Gate 1 — proof of non-use:**
+  - Python-import grep (`AnalyticsQuery`): referenced only at its own definition (`queries.py:373`); zero external importers. `core/database/__init__.py` exports only `MarketDataQuery`, never `AnalyticsQuery`.
+  - String-literal grep: after removal, `confluence_insights` / `regime_insights` remain only in `flask_app/blueprints/database.py` (generic DB browser — excluded per §0e) and `scripts/migrate_monolith_to_isolated.py` (one-time migration — excluded). No semantic reader remains.
+  - Dead-table evidence: both tables' DDL was removed in MM11.4; the class queried tables that no longer exist — functionally inert since MM11.4.
+- **Gate 2 — proof of behavior preservation:**
+  - Full-suite result BEFORE change: 1055 passed, 4 skipped
+  - Full-suite result AFTER change: 1055 passed, 4 skipped
+  - Diff: identical pass/fail/skip sets
+  - Characterization test: N/A — provably dead class, zero importers, no runtime path
+- **Gate 3 — full suite passes:** 1055 passed, 4 skipped (re-run 2026-07-02, 87.9s)
+- **Gate 4 — why:** honors the MM11.1 RETAINED-WITH-JUSTIFICATION promise to formally evaluate at a later slice; the class is dead (zero importers) and queries tables removed in MM11.4. REMOVE is the disposition (vs a formal RETAINED entry), per certification remediation M-6.
+- **Change reference:** MM11.7 close-out (2026-07-02; not yet committed)
+- **Slice:** MM11.7
+- **Date:** 2026-07-02
+
+---
+
+### MM11.7 — `PROJECT_REVIEW_SUMMARY.md` (repo root → docs/reports/)
+
+- **What it was:** A 2026-03-04 repository review describing a prior, different multi-strategy monolith; sat at the repo root, undated-header, describing state that no longer exists (certification finding D-1 / M-3; spec §6 deviation #4).
+- **Disposition:** RELOCATED (`PROJECT_REVIEW_SUMMARY.md` → `docs/reports/PROJECT_REVIEW_SUMMARY.md`) with a supersession header prepended; content otherwise unedited, per §6 deviation #4 (treated as a historical artifact, not rewritten in place).
+- **Gate 1 — proof of non-use:** N/A — docs-only; no code imports it. Repo-wide grep shows references only as a path in ADR-014, the MM11 spec, and this ledger — all documentation.
+- **Gate 2 — proof of behavior preservation:** N/A — docs-only; no runtime surface. Suite unchanged (1055 passed, 4 skipped).
+- **Gate 3 — full suite passes:** 1055 passed, 4 skipped (re-run 2026-07-02).
+- **Gate 4 — why:** DoD item 6; the stale root-level document actively misled a reader about current repository state. Relocation + supersession header preserves the historical record without misrepresenting the present.
+- **Change reference:** MM11.7 close-out (2026-07-02; `git mv` + header; not yet committed)
+- **Slice:** MM11.7
+- **Date:** 2026-07-02
+
+---
+
 ## MM11.7 Reconciliation Record
 
-To be completed at milestone close (spec §2, MM11.7, acceptance criterion 2): a line-for-line cross-check of the full pre-MM11 → post-MM11 tree diff against the entries above. Every deletion in the diff must have an entry; every entry must correspond to an actual change in the diff. Mismatches in either direction block the Platform v1.0 declaration until resolved.
+Line-for-line cross-check of the full pre-MM11 → post-MM11 tree diff against the entries above (spec §2, MM11.7, acceptance criterion 2). Every deletion in the diff must have an entry; every entry must correspond to an actual change in the diff.
 
-- **Reconciliation performed:** not yet
-- **Result:** —
+- **Reconciliation performed:** 2026-07-02 (MM11.7 close-out; independently re-verified in the v1.0 certification, Readiness Checklist item 4).
+- **Scope:** `2b3c050` (pre-MM11 baseline) → HEAD, plus the uncommitted MM11.7 close-out working-tree changes (AnalyticsQuery removal, PROJECT_REVIEW_SUMMARY relocation).
+- **Committed slices (`2b3c050`→`08d465f`):** 14 file deletions (2 analytics + 12 `core/data/*`) each matched to a ledger entry, both directions; symbol/DDL removals in modified files covered by entries and confirmed by a zero-dangling-reference grep for every removed symbol. `queries.py` correctly retained (its live classes) at that point.
+- **MM11.7 close-out (working tree):** `AnalyticsQuery` class removal ↔ `MM11.7 — AnalyticsQuery` entry; `PROJECT_REVIEW_SUMMARY.md` relocation ↔ `MM11.7 — PROJECT_REVIEW_SUMMARY.md` entry. No unmatched change in either direction.
+- **Result:** **PASSES** — every diff change has a ledger entry and every entry maps to an actual change. No mismatch blocks the Platform v1.0 declaration.

@@ -893,3 +893,79 @@ incremental de-risking, not a large unknown).
 
 *Ref: docs/reports/MM11_ARCHITECTURE_REVIEW_AND_PROPOSAL.md Part 3 (§3.1–§3.4);
 ADR-002, ADR-006, ADR-MM7E-1, ADR-013; docs/PROJECT_STATE.md Planned #2, #3, #7.*
+
+---
+
+## ADR-015 — CaptureEngine / TLP Pipeline: REFACTOR Downgraded to REMOVE
+
+**Date:** 2026-07-02
+
+**Status:** ACCEPTED
+
+### Context
+
+ADR-014 scoped `docs/PROJECT_STATE.md` Planned #2 as "decouple `CaptureEngine`/`metrics_service`
+inputs from strategy-analytics tables" — the verb "decouple" implies a **refactor** in which the
+component survives, reshaped. When the MM11 implementation specification
+(`MM11_IMPLEMENTATION_SPECIFICATION.md` §0b) verified this scope against the live tree rather than
+inheriting the 2026-06-04 inventory's assumption, the "component stays" premise did not hold:
+
+- `scripts/fno_runner.py` — the **only** live composition root — contains zero references to
+  `CaptureEngine`, `capture_engine`, or `StructuralMetricsService`. The
+  `ExecutionHandler.capture_engine` constructor parameter is never supplied a real instance, so the
+  guard `if self.capture_engine and signal.signal_type != SignalType.EXIT` is **always false in
+  production** — dead code behind an unreachable branch, not optional infrastructure.
+- `TLPLogger` (`core/analytics/capture.py`) is never instantiated anywhere outside its own
+  definition (`init_tlp_logger`/`get_tlp_logger`/`TLPLogger(` — zero call sites).
+- The two tables `CaptureEngine.capture_context` reads (`regime_insights`,
+  `daily_structural_metrics`) have zero live writers; both reads fall through `except: pass` to
+  hardcoded defaults on every real invocation, and `_calculate_breadth`/`_get_index_trend` are
+  literal stub returns (`0.5` / `"NEUTRAL"`) that were never implemented.
+
+Net effect: even if `capture_engine` *were* wired at the composition root, `capture_context()`
+would return a `TradeStructuralContext` assembled entirely from stubs and fallbacks. The component
+has never produced a real structural snapshot in this repository's lifetime — it is fully dead
+code with no live path to becoming otherwise, not "strategy-coupled infrastructure worth
+decoupling."
+
+### Decision
+
+**MM11.1 removes `CaptureEngine`, `StructuralMetricsService`, `TLPLogger`, and the `capture_engine`
+seam from `ExecutionHandler` outright, rather than decoupling them.** This is a deliberate,
+signed-off deviation from ADR-014's literal "decouple" wording for Planned #2, recorded here per
+`MM11_IMPLEMENTATION_SPECIFICATION.md` §6 (deviation #1) and §2 (MM11.1 acceptance criterion 5,
+which conditions MM11.1 completion on this ADR existing).
+
+Decoupling code that is already unreachable in production adds no value over removing it, and
+leaving a "decoupled" but unwired component in place would itself violate CLAUDE.md's Development
+Convention "No backwards-compatibility shims — delete unused code completely." REMOVE is the
+disposition consistent with both the verified evidence and the platform's own conventions.
+
+### Alternatives Considered
+
+- **REFACTOR as literally scoped by ADR-014 (decouple, keep the component)** — rejected: it
+  preserves provably-dead code, produces no runtime behavior it did not already have (none), and
+  contradicts the "delete unused code completely" convention. Its only merit would be honoring the
+  ADR-014 wording verbatim, which §6 explicitly surfaces and overrides on evidence.
+- **Defer to a later milestone** — rejected: the code is unambiguously dead now; deferral would
+  carry a known-dead component across the Platform v1.0 line, which the v1.0 definition
+  ("free of verified-dead code") forbids.
+
+### Consequences
+
+- MM11.1 deleted `core/analytics/capture.py` and `core/analytics/metrics_service.py`, removed the
+  `capture_engine` constructor parameter/assignment/branch and the import from
+  `core/execution/handler.py`, and removed the unused analytics-persistence helpers from
+  `core/database/legacy_adapter.py`, `writers.py`, and `__init__.py`. Each removal is filed as a
+  Removal Ledger entry with the §1.5 four-part proof; behavior preservation is demonstrated by the
+  before/after full-suite diff (1055 passed, 4 skipped — identical).
+- The behavior-neutrality claim was **demonstrated, not asserted** (removing an always-false branch)
+  — this was the milestone's hardest §1.5 proof-#2 case and is discharged in the ledger.
+- ADR-014's sequencing decision is unaffected; this ADR corrects only *what specific work item*
+  Planned #2 resolves to (REMOVE, not REFACTOR), inside the boundary ADR-014 already drew.
+- The `docs/PROJECT_STATE.md` "Deferred — `CaptureEngine` full structural capture" item is now
+  obsolete (the component no longer exists) and is retired in the same MM11.7 close-out.
+
+*Ref: docs/reports/MM11_IMPLEMENTATION_SPECIFICATION.md §0b, §2 (MM11.1), §6 (deviation #1);
+docs/reports/MM11_REMOVAL_LEDGER.md (MM11.1 entries); ADR-002, ADR-014;
+CLAUDE.md (Development Conventions).*

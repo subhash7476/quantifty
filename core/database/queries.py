@@ -370,59 +370,6 @@ class TradingQuery:
             return row is not None
 
 
-class AnalyticsQuery:
-    """Read-only queries for confluence insights in SQLite."""
-
-    def __init__(self, db_manager: DatabaseManager):
-        self.db = db_manager
-
-    def get_latest_insight(self, symbol: str, as_of: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
-        query = "SELECT * FROM confluence_insights WHERE symbol = ?"
-        params = [symbol]
-        if as_of is not None:
-            query += " AND timestamp <= ?"
-            params.append(as_of)
-        query += " ORDER BY timestamp DESC LIMIT 1"
-
-        try:
-            with self.db.signals_reader() as conn:
-                row = conn.execute(query, params).fetchone()
-                if row:
-                    cols = [d[0] for d in conn.description]
-                    return dict(zip(cols, row))
-        except Exception:
-            pass
-        return None
-
-    def get_insights(self, symbol: str, start_time: datetime, end_time: datetime, limit: int = 100000) -> List[Dict[str, Any]]:
-        query = "SELECT * FROM confluence_insights WHERE symbol = ? AND timestamp >= ? AND timestamp <= ? ORDER BY timestamp ASC LIMIT ?"
-        try:
-            with self.db.signals_reader() as conn:
-                rows = conn.execute(query, [symbol, start_time, end_time, limit]).fetchall()
-                cols = [d[0] for d in conn.description]
-                return [dict(zip(cols, r)) for r in rows]
-        except Exception:
-            return []
-
-    def get_market_regime(self, symbol: str, as_of: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
-        query = "SELECT * FROM regime_insights WHERE symbol = ?"
-        params = [symbol]
-        if as_of is not None:
-            query += " AND timestamp <= ?"
-            params.append(as_of)
-        query += " ORDER BY timestamp DESC LIMIT 1"
-
-        try:
-            with self.db.signals_reader() as conn:
-                row = conn.execute(query, params).fetchone()
-                if row:
-                    cols = [d[0] for d in conn.description]
-                    return dict(zip(cols, row))
-        except Exception:
-            pass
-        return None
-
-
 
 
 

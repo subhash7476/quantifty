@@ -6,6 +6,21 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-02 — Platform Infrastructure Version 1.0 — CERTIFIED (MM11.7 close-out)
+
+Declared **Platform Infrastructure Version 1.0 Complete**. v1.0 certifies the deterministic execution substrate — `LoopDriver` runtime (Phases A–H), `ExecutionHandler` OMS/EMS, the SPAN + `NseMarginEngine` + ELM risk/margin engine, canonical instrument architecture, SQLite-truth persistence + DuckDB audit projection, ZMQ telemetry, and the Paper/Upstox broker adapters — as import-clean, fully tested, free of verified-dead code, and internally consistent. It explicitly does **not** cover live-capital trading, any strategy/alpha, or live broker reconciliation (deferred to MM12/MM13/MM14 by design). Certification rests on an independent full-suite reproduction (**1055 passed, 4 skipped**) and the Removal Ledger reconciling exactly against the `2b3c050`→HEAD tree diff. The six MM11.7 governance close-out items (ADR-015, ledger metadata, AnalyticsQuery disposal, PROJECT_REVIEW_SUMMARY relocation, this rollup, PROJECT_STATE reconciliation) are complete.
+*(docs/reports/MM11_7_PLATFORM_V1.0_CERTIFICATION.md; docs/reports/MM11_REMOVAL_LEDGER.md)*
+
+## 2026-07-02 — MM11.7 — Milestone Close-Out & Platform v1.0 Declaration
+
+Closed MM11 (Platform Consolidation / Infrastructure Freeze). Authored **ADR-015** recording the `CaptureEngine` REFACTOR→REMOVE correction (spec §6 deviation #1; MM11.1 acceptance criterion 5). Removed the dead `AnalyticsQuery` class from `core/database/queries.py` (zero importers; queried `confluence_insights`/`regime_insights` tables removed in MM11.4) — honoring the MM11.1 RETAINED-WITH-JUSTIFICATION evaluation promise. Corrected the Removal Ledger's stale "empty/not committed" metadata (backfilled MM11.1–MM11.5 commit hashes) and closed its MM11.7 Reconciliation Record (**PASSES**). No runtime behavior change. **1055 passed, 4 skipped** (re-run 2026-07-02).
+*(core/database/queries.py; docs/ARCHITECTURE_DECISIONS.md ADR-015; docs/reports/MM11_REMOVAL_LEDGER.md)*
+
+## 2026-07-01 — MM11.6 — Information Architecture Audit & Documentation Synchronization
+
+Documentation-only synchronization pass (no runtime code changed). Rewrote `README.md` to describe the trading platform (was "Nifty Market Data Repository"); added the MM11.1–MM11.5 rollup to `CHANGELOG_PLATFORM.md`; updated `PROJECT_STATE.md` (Planned #2/#3/#7 → Completed, MM11 slices added to Completed); added an ADR-002 resolution note for the MM11.1 `CaptureEngine`/`metrics_service` removal; extended `PLATFORM_INVENTORY.md` supersession notes for MM11.4/MM11.5. 12 documents audited, 8 issues fixed; all directory paths verified against the live tree. **1055 passed, 4 skipped** (unchanged). Commit `08d465f`.
+*(README.md; docs/CHANGELOG_PLATFORM.md; docs/PROJECT_STATE.md; docs/ARCHITECTURE_DECISIONS.md; docs/PLATFORM_INVENTORY.md)*
+
 ## 2026-07-01 — MM11.5 — Remove dead AnalyticsProvider abstraction
 
 Removed the `AnalyticsProvider` ABC from `core/database/providers/base.py` — a strategy-coupled abstraction with zero implementations, zero consumers, and zero tests. The three docstring-named implementers (`DuckDBAnalyticsProvider`, `CachedAnalyticsProvider`, `MockAnalyticsProvider`) and `ConfluenceInsight` type never existed as real classes. The live `MarketDataProvider` interface in the same file was retained unchanged. Removal Ledger updated. **1055 passing, 4 skipped.**
