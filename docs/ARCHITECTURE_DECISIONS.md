@@ -1232,3 +1232,186 @@ MM12.4 requires the first concrete `SignalSource` implementation to validate the
 - A named limitation exists: shadow-state recovery across a process restart while a position is open is out of scope for this strategy — `on_start(context)` position projection remains reserved (ADR-017).
 
 *Ref: docs/reports/MM12_4_REFERENCE_STRATEGY_ARCHITECTURE.md; ADR-002; ADR-016; ADR-017; ADR-018; ADR-019.*
+
+---
+
+## ADR-021 — Strategy Promotion Is Evidence-Gated, Ledgered, and Revocable
+
+**Date:** 2026-07-02
+
+**Status:** ACCEPTED
+
+### Context
+
+MM12 (External Strategy Integration Contract, ADR-014) establishes the `SignalSource` seam, the
+conformance suite, the runtime guard, and the reference strategy through MM12.1–MM12.4. What does
+not yet exist is the permanent governance process that every future strategy must follow from
+creation through live deployment — the promotion pipeline. Without this, the seam, conformance,
+guard, and reference are individually complete but have no binding lifecycle, no evidence
+standards, no grant authority, and no revocation mechanism — and the Platform v1.0 freeze means
+this governance must be purely documentary, consuming certified components without modifying them.
+
+`docs/reports/MM12_5_STRATEGY_PROMOTION_PIPELINE_ARCHITECTURE.md` designs the pipeline and was
+reviewed and approved by the Technical Lead. This ADR records MM12.5's core architectural
+decisions as binding records, carrying MM12.1 §14.1's two fixed rules (no PAPER without
+CONFORMANT; contract-relevant change restarts at CONFORMANT) into permanent governance.
+
+### Decision
+
+The platform adopts a five-stage promotion ladder, two non-ladder states, a fixed certification
+identity triple, a dual-role authority model, and a permanent record scheme — all as documented:
+
+1. **Five-stage ladder:** DEVELOPMENT → CONFORMANT → PAPER VALIDATED → LIVE CANDIDATE →
+   LIVE APPROVED. No stage may be skipped (MM12.1 §14.1 fixed rule preserved). Each stage has
+   defined purpose, entry criteria, required evidence, exit criteria, failure criteria, and
+   rollback criteria exactly as specified in `docs/reports/MM12_5_STRATEGY_PROMOTION_PIPELINE_ARCHITECTURE.md` §4.
+
+2. **Two non-ladder states:** SUSPENDED (trading halted, license in abeyance, re-entry via the
+   strategy-attributable vs. external fork) and RETIRED (terminal, `strategy_id` never reused).
+
+3. **Certification identity triple:** `(strategy_id, code_ref, config_hash) @ STRATEGY_CONTRACT_VERSION`.
+   Any change to the triple creates a new identity entering at Stage 0 (§2). A major contract
+   version bump voids all standing certifications (§3.1).
+
+4. **Authority model:** Technical Lead grants on evidence (P1–P4); Account Owner commits capital
+   (the capital half of P4, cap raises, retirement of live strategy). Demotion is permissionless
+   by any party or automatic trigger (§8).
+
+5. **Permanent records:** The append-only `docs/STRATEGY_PROMOTION_LEDGER.md` records every
+   transition; per-strategy dossiers at `docs/strategies/<strategy_id>/` hold the permanent
+   evidence corpus (§9).
+
+6. **The pipeline consumes certified systems and never modifies them** (§0.1). All evidence is
+   mechanical output of existing platform instruments. A promotion requirement that would need a
+   change to a frozen component is, by definition, mis-specified.
+
+### Alternatives Considered
+
+- **Additional stages (BACKTESTED before CONFORMANT, LIVE RAMP between 3 and 4, RE-CERTIFICATION)** —
+  rejected: each was evaluated in the architecture (§3.2) and found to add no new kind of evidence
+  or to create pressure for a shortcut path. The existing five stages cover all distinct evidence
+  gates.
+- **Three-gate ladder (MM12.1 §14.1's original sketch)** — superseded: MM12.1 §15's exit criterion
+  required the Stage 3/4 split (architectural completion vs. funded-account operational
+  prerequisite) which the five-stage ladder executes.
+- **Platform code enforcement (runtime `PromotionState` object)** — rejected as premature and
+  architecture-violating: the pipeline lives in governance documents and the ledger, not in
+  platform code. A runtime enforcement object would modify frozen components without a concrete
+  need from a strategy in the pipeline.
+
+### Consequences
+
+- Every future strategy (including ports of historical designs) must follow the full ladder.
+- Promotion without a ledger entry does not exist (§1.6).
+- All evidence is pointer-chained: ledger → dossier → corpus/code ref, fully reconstructable
+  offline (§9.3). A grant is audited by re-running its evidence.
+- The two-authority model (ADR-013) is unaffected: the pipeline consumes sizing/admission
+  outputs; it does not review the authority split.
+- ADR-016 (strategy seam), ADR-017 (shadow state), ADR-018 (boundary validation), ADR-019
+  (quarantine), and ADR-020 (reference strategy) are unaffected.
+- `docs/reports/MM12_5_STRATEGY_PROMOTION_PIPELINE_ARCHITECTURE.md` is the governing reference
+  for all stage definitions, cross-cutting requirements, and promotion procedures.
+
+*Ref: docs/reports/MM12_5_STRATEGY_PROMOTION_PIPELINE_ARCHITECTURE.md §§0–§4, §8, §9;
+docs/reports/MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md §14.1, §14.2, §15;
+ADR-002, ADR-005, ADR-013, ADR-016, ADR-017, ADR-018, ADR-019, ADR-020.*
+
+---
+
+## ADR-022 — Automatic Revocation Triggers and the Suspension Fork
+
+**Date:** 2026-07-02
+
+**Status:** ACCEPTED
+
+### Context
+
+ADR-021 establishes the promotion ladder and the principle that promotion is a revocable license,
+not a diploma. It does not enumerate *what* triggers revocation — leaving each stage's failure
+criteria implicit and creating two risks: (1) a guard event in LIVE may be treated differently
+across strategies or stages; (2) the suspension fork (strategy-attributable vs. external cause)
+has no binding rule, so every suspension requires a discretionary decision before re-entry —
+defeating the "demotion is permissionless" principle.
+
+`docs/reports/MM12_5_STRATEGY_PROMOTION_PIPELINE_ARCHITECTURE.md` §7.6 defines a fixed trigger
+table that resolves these risks. This ADR records that table and the suspension forks as binding,
+and records the resolution of MM12.1 open question #3 (escalating contract-violation counts to
+quarantine) for promotion purposes without any guard code change.
+
+### Decision
+
+1. **Fixed revocation trigger table.** The following events are binary failures at the stated
+   stages — one occurrence voids the stage's evidence (PAPER) or triggers automatic suspension
+   (LIVE):
+
+| Event | In PAPER window | In LIVE |
+|---|---|---|
+| `STRATEGY_ERROR` / `STRATEGY_QUARANTINED` | Stage 2 failure | automatic suspension |
+| `SIGNAL_CONTRACT_REJECTED` (even one) | Stage 2 failure | automatic suspension |
+| Kill switch, strategy-attributable cause | Stage 2 failure | automatic suspension |
+| Declared-max-DD breach (drawdown gate trip) | Stage 2 failure | automatic suspension |
+| Reconciliation divergence, strategy-attributable | n/a (PAPER book is empty) | automatic suspension |
+| Live trade not replay-explainable | n/a | automatic suspension |
+
+2. **Zero-tolerance for post-certification guard events.** A CONFORMANT strategy has mechanically
+   proven it never emits contract-violating signals on the certification corpus. Therefore the
+   *first* post-certification guard event (any type) voids the certification. This resolves MM12.1
+   open question #3 (escalation to quarantine) for promotion purposes: the guard's runtime policy
+   (drop-and-journal, no escalation) is unchanged; the *pipeline* treats the first journaled
+   rejection as certification-voiding. No guard code change — the journal already records the
+   evidence (§7.6 note).
+
+3. **The suspension fork.** Any suspension receives a ledger entry with trigger, timestamp, and
+   open-position disposition. Within 5 trading days, an investigation report classifies the root
+   cause as *strategy-attributable* or *external*. That classification governs re-entry (§3.1):
+   - **External cause** (broker outage, platform defect, ops error) → grantor sign-off → resume
+     at the prior stage (Stage 4 or Stage 2/3).
+   - **Strategy-attributable cause** → the strategy has a defect → fix produces a new identity →
+     re-enter at Stage 0.
+   - **Unclassified within 5 days** → default to strategy-attributable (the default is the safe
+     fork: the strategy does not resume until the operator proves the cause was external).
+
+4. **Operator discretion is always preserved.** The fixed trigger list is the *minimum* suspension
+   set. An operator may suspend at any time for any reason, with a justification recorded in the
+   suspension ledger entry within 5 trading days.
+
+5. **Kill-switch-and-journal is the mechanism.** The platform already has `activate_kill_switch`,
+   journal events, and the *kill-switched-but-running* idiom (ADR-019). Suspension uses these
+   existing instruments — no new runtime code.
+
+### Alternatives Considered
+
+- **Escalating violations (N-strike then quarantine in the guard)** — rejected for promotion
+  purposes: a certified strategy has zero excuses for a contract violation, and the guard's v1.0
+  runtime policy is frozen. The pipeline's zero-tolerance stance uses the existing journal as the
+  evidence source, not a new guard code path.
+- **Grace periods / warnings before suspension** — rejected: a certified deterministic strategy
+  emitting a contract-violating signal has a defect; a grace period risks a second defective trade
+  before the operator acts.
+- **Auto-flatten on suspension** — rejected (consistent with ADR-019's decision): the platform
+  never auto-flattens; the operator manages open positions manually via the broker.
+- **Suspension as a promotion-rung (downgradable, upgradable without restart)** — rejected: the
+  only re-entry path without ladder restart is the external-cause fork (§3.1). Any strategy-caused
+  suspension exits through Stage 0.
+
+### Consequences
+
+- The trigger table is the **only** automatic revocation policy in the pipeline. It is not
+  extensible by adding new triggers without a ledgered amendment to the architecture document.
+- The MM12.1 open question #3 resolution means the pipeline treats a single `SIGNAL_CONTRACT_REJECTED`
+  identically to a quarantine — both are certification-voiding. No guard code was changed to
+  achieve this.
+- Every LIVE session's `strategy_id` must map to a then-current LIVE APPROVED entry in the ledger
+  at all times (§9.3). A mechanical scan of journal records against the ledger is the audit
+  procedure.
+- Demotion velocity is unconstrained: any party can suspend without waiting for a ledger entry.
+  The investigation report requirement (within 5 trading days) is the backstop that prevents
+  indefinite suspension without record.
+- ADR-004 (no trading on stale data), ADR-019 (quarantine-and-continue), and the existing
+  kill-switch mechanism are unchanged — this ADR only declares *what the pipeline does* when these
+  events occur.
+- `docs/STRATEGY_PROMOTION_LEDGER.md` gains suspension entry format requirements.
+
+*Ref: docs/reports/MM12_5_STRATEGY_PROMOTION_PIPELINE_ARCHITECTURE.md §§3.1, §5.1, §7.4.3, §7.6;
+docs/reports/MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md §8.5 (open question #3);
+ADR-019, ADR-021; PLATFORM_CONSTITUTION.md §6; core/execution/handler.py (kill-switch).*

@@ -6,6 +6,15 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-02 — MM12.5 — Strategy Promotion Pipeline (COMPLETE)
+
+Implemented the approved MM12.5 architecture — the permanent governance model every future strategy must follow before trading live. Deliverables (MM12.5a slice):
+1. **ADR-021** (promotion is evidence-gated, ledgered, revocable) and **ADR-022** (automatic revocation triggers + suspension fork) authored and accepted in `docs/ARCHITECTURE_DECISIONS.md`. ADR-021 binds MM12.1 §14.1's two fixed rules into permanent governance; ADR-022 records the fixed revocation trigger table and resolves MM12.1 open question #3 for promotion purposes with zero guard changes.
+2. **`docs/STRATEGY_PROMOTION_LEDGER.md`** created — append-only, commit-hash-pinned, 5 governing rules, 9-field entry format, three exhibit entries for the reference strategy.
+3. **Dossier convention** at `docs/strategies/<strategy_id>/` with four templates (Strategy Datasheet, PAPER Validation Report, Go-Live Checklist explicitly separating Stage 3/4 per MM12.1 §15, Runbook Skeleton with kill-switch + fixed 7-step rollback). Reference strategy dossier populated.
+4. Zero code changes; frozen components unmodified. **1125 passed, 4 skipped** (unchanged).
+*(docs/reports/MM12_5_STRATEGY_PROMOTION_PIPELINE_ARCHITECTURE.md; docs/ARCHITECTURE_DECISIONS.md ADR-021/022; docs/STRATEGY_PROMOTION_LEDGER.md; docs/strategies/; ADR-020)*
+
 ## 2026-07-02 — MM12.4 — Reference Strategy Implementation (COMPLETE)
 
 Implemented the approved Reference Strategy Architecture end-to-end. Deliverables:
