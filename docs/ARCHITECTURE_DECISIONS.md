@@ -969,3 +969,230 @@ disposition consistent with both the verified evidence and the platform's own co
 *Ref: docs/reports/MM11_IMPLEMENTATION_SPECIFICATION.md §0b, §2 (MM11.1), §6 (deviation #1);
 docs/reports/MM11_REMOVAL_LEDGER.md (MM11.1 entries); ADR-002, ADR-014;
 CLAUDE.md (Development Conventions).*
+
+---
+
+## ADR-016 — `SignalSource` Is The Strategy Interface; External Packaging Via Factory
+
+**Date:** 2026-07-02
+
+**Status:** ACCEPTED
+
+### Context
+
+MM12 (External Strategy Integration Contract, ADR-014) must name the interface an external
+strategy implements. The candidate answers ranged from "reuse the existing `SignalSource` ABC
+as-is" to "introduce a richer `Strategy` ABC with lifecycle/feedback hooks (`on_fill`,
+`on_reject`, `on_pause`)". Relevant verified facts: `core/runtime/signal_source.py` has exactly
+one commit (`c1d833a`, re-verified 2026-07-02 per ADR-014's standing instruction) and survived
+MM7–MM11 unmodified while the entire execution stack was built against it; the driver's pull
+model is the deterministic backbone (ADR-003/ADR-006); Platform v1.0 is certified and its
+components frozen.
+
+### Decision
+
+**The `SignalSource` ABC is the complete strategy interface.** No new ABC, no additional hooks,
+no feedback channels from platform to strategy. An external strategy is a separate
+repository/package that imports only the sanctioned surface (`core.runtime.signal_source`,
+`core.events`) and exports a single factory:
+
+```
+build_signal_source(config: dict) -> SignalSource
+```
+
+The composition root (`scripts/fno_runner.py`) injects — never constructs — the source
+(ADR-MM7E-1), wrapping it in the platform-owned `GuardedSignalSource` (ADR-018) before handing it
+to the driver. One strategy process = one strategy; multi-strategy composition is deferred until a
+second real strategy exists.
+
+### Alternatives Considered
+
+- **Richer `Strategy` ABC with `on_fill`/`on_reject` callbacks** — rejected: every feedback
+  channel makes strategy output a function of execution outcomes, which differ PAPER vs LIVE by
+  construction, destroying replay-equivalence (the property that makes external backtests valid
+  promotion evidence) and requiring frozen-driver changes.
+- **In-repo strategy directory (`core/strategies/`)** — rejected: violates ADR-002 / Constitution
+  §5 (platform must not grow strategy logic inward); the strategy layer is intentionally
+  greenfield and external.
+- **Plugin registry / multi-strategy loader** — rejected as premature abstraction with no second
+  consumer (the same reasoning that rejected `MarginProvider`, ADR-013).
+
+### Consequences
+
+- Strategies cannot observe their own fills; the shadow-state model (ADR-017) is the mandated
+  state discipline.
+- The conformance suite (MM12.2, `core/runtime/conformance.py`) certifies implementations of this
+  interface; its import-surface check enforces the sanctioned-surface rule mechanically.
+- Contract evolution is additive-only within a major version, anchored on the frozen ABC and
+  `SignalEvent` dataclass; the seam's single-commit status is re-verified at each dependent
+  milestone (ADR-014 practice, adopted as standing).
+
+*Ref: docs/reports/MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md §3, §13; ADR-002, ADR-003,
+ADR-006, ADR-013, ADR-014, ADR-MM7E-1; core/runtime/signal_source.py (c1d833a).*
+
+---
+
+## ADR-017 — Strategy State Is Shadow State; Divergence Is Fail-Safe
+
+**Date:** 2026-07-02
+
+**Status:** ACCEPTED
+
+### Context
+
+A stateful strategy needs position awareness (am I long?) to emit exits, but the seam forbids any
+ledger/broker/handler handle (DRIVER_SPECIFICATION §5.4) and the platform gives no fill/reject
+feedback (ADR-016). Six handler gates (kill switch, daily limit, drawdown, stacking, risk, Greek,
+margin/priceability) can silently drop an entry signal (`process_signal` returns `None`), so any
+strategy-side belief about its positions can be wrong.
+
+### Decision
+
+**Strategy state is shadow state: `state = f(bar_history, own_signal_history, config)`.** The
+strategy tracks the positions it *believes* it opened from its own emitted signals and never reads
+platform truth. This is accepted because divergence is provably **one-directional and fail-safe**:
+the strategy can only believe in a position that does not exist (rejected entry), never the
+reverse (the platform opens no position unsignalled). Every consequence is absorbed by existing
+frozen guards: EXIT on FLAT is a no-op (`handler.py:699-701`); duplicate entries hit the stacking
+guard (`handler.py:633-636`); replayed ids hit the idempotency lock (`handler.py:550-554`). The
+strategy may waste signals; it cannot bypass a guard or double a position.
+
+**Named extension point, deliberately not built:** a read-only position projection passed via the
+existing `on_start(context=...)` parameter — the one injection point the frozen contract already
+permits. It is deferred until the first real strategy demonstrates a concrete need (e.g.,
+shadow-state recovery after process restart with open positions). Until then, building it would be
+an abstraction ahead of need (CLAUDE.md convention).
+
+### Alternatives Considered
+
+- **Fill/reject feedback hooks** — rejected (ADR-016; determinism).
+- **Read-only ledger projection now** — rejected: no consumer exists; the extension point is
+  reserved and requires no ABC change when needed.
+- **Platform-managed strategy state** — rejected: moves strategy state across the boundary,
+  inverting ADR-002's dependency direction.
+
+### Consequences
+
+- The conformance suite need not (and cannot) verify shadow-state *correctness* — only that the
+  source holds no forbidden platform handles; shadow-state divergence review is a named
+  PAPER-validation gate item in the promotion path (MM12.5).
+- MM13's PAPER validation must include a journal audit comparing emitted intent vs. executed
+  reality to quantify real-world divergence rates.
+
+*Ref: docs/reports/MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md §3.3–§3.4, §16.2; ADR-016;
+DRIVER_SPECIFICATION.md §5.4; core/execution/handler.py:550-554, 633-636, 699-701.*
+
+---
+
+## ADR-018 — Boundary Validation Is Reject-And-Journal, Enforced By A Platform-Owned Guard
+
+**Date:** 2026-07-02
+
+**Status:** ACCEPTED
+
+### Context
+
+`ExecutionHandler.process_signal` tolerates missing mandatory risk metadata
+(`sl_distance`/`risk_r`) by logging a WARNING and default-filling conservative values
+(`handler.py:575-581`) — a legacy tolerance from when every caller was in-repo. For an external
+contract this is the wrong posture: a certified strategy missing its risk definition has a defect,
+and trading it on synthetic values makes the trade unexplainable by the strategy's facts
+(Audit-First). The handler is frozen (v1.0), so hardening cannot go there.
+
+### Decision
+
+**A platform-owned `GuardedSignalSource` wrapper — itself a conforming `SignalSource` — is
+composed around every external source at the composition root.** Per bar it: (1) short-circuits
+`[]` if quarantined (ADR-019); (2) invokes the inner source inside a fault boundary; (3) validates
+the returned value's shape and each signal against the contract (mandatory entry metadata,
+bar-equal timestamp, universe membership); (4) **drops violators and journals
+`SIGNAL_CONTRACT_REJECTED`** — never default-fills — passing only contract-clean signals to the
+driver. Validation is per-signal: one bad signal does not suppress clean siblings (mirrors the
+driver's §8.4 per-signal isolation). The handler's legacy default path remains untouched but
+becomes unreachable for guarded external sources.
+
+### Alternatives Considered
+
+- **Harden `process_signal` itself** — rejected: modifies a frozen v1.0 component, and boundary
+  concerns belong at the boundary layer, not inside execution.
+- **Default-fill at the guard (preserve legacy semantics)** — rejected: violates Audit-First; a
+  synthetic `sl_distance` is not the strategy's fact.
+- **Validate only in the conformance suite (offline)** — rejected: certification proves the
+  strategy *can* behave; the guard proves it *is* behaving, on every bar, in production.
+
+### Consequences
+
+- New journal `EventType` members: `SIGNAL_CONTRACT_REJECTED` (WARNING), plus ADR-019's
+  `STRATEGY_ERROR`/`STRATEGY_QUARANTINED`; matching `RuntimeMetric` counters keep the
+  "observable without broker login" surface complete (Constitution §6). Additive, non-breaking.
+- Zero diffs in `core/runtime/driver.py` and `core/execution/handler.py` — the MM12.3 slice's
+  acceptance criterion.
+- The guard must itself pass the conformance suite (it is a `SignalSource`).
+
+*Ref: docs/reports/MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md §4.3, §7.3, §8; ADR-016, ADR-019;
+core/execution/handler.py:556-581; PLATFORM_CONSTITUTION.md §6.*
+
+---
+
+## ADR-019 — Strategy Fault Policy: Quarantine-And-Continue
+
+**Date:** 2026-07-02
+
+**Status:** ACCEPTED
+
+### Context
+
+Today an uncaught exception in `SignalSource.on_bar` propagates out of `LoopDriver._tick()` and
+terminates the run through the `finally` shutdown — a strategy bug stops the whole process. Live,
+that is the worst failure mode: the process dies with positions open, taking telemetry, watchdog,
+heartbeat, and the operator's observability down exactly when they are most needed (Constitution
+§6: failures must be observable without broker login; silent failure is unacceptable).
+
+### Decision
+
+**On the first uncaught `on_bar` fault (or malformed return value), the `GuardedSignalSource`
+quarantines the strategy and the loop continues.** Concretely: journal `STRATEGY_ERROR` (durable,
+traceback digest, `strategy_id`) → `alerter.critical(...)` → latch QUARANTINED and journal
+`STRATEGY_QUARANTINED` (edge-triggered, once) → return `[]` for this and every subsequent bar; the
+inner source is never invoked again. Loop, watchdog, telemetry, heartbeat, and journal all
+survive; the account freezes (no signals to route) and the operator intervenes with full
+observability — the platform's existing *kill-switched-but-running* idiom applied to the strategy
+seam. **No automatic retry** (a deterministic strategy that threw on bar N throws on bar N again;
+success on retry would prove nondeterminism). **No auto-flatten** (closing positions is a trading
+decision; taking it inside an error handler would put alpha-adjacent authority in the platform).
+`on_start` faults are a startup refusal; `on_stop` faults are logged and swallowed so shutdown
+completes. Root-level wiring of quarantine to `activate_kill_switch` is an optional belt-and-braces
+MM12.3 implementation choice, not required — `[]`-forever already stops all strategy-driven trading.
+
+**Non-blocking note (Technical Lead, 2026-07-02, recorded at MM12.1 approval):** the quarantine
+mechanism deliberately combines **validation** (per-signal contract enforcement, ADR-018) and
+**operational policy** (fault response, this ADR) in one component, by design. With exactly one
+fault policy in existence, extracting a separate policy object would be speculative abstraction.
+Extraction is deferred until there is evidence of a **second policy** (e.g., a PAPER-only
+"log-and-keep-invoking" diagnostic mode, or per-strategy policy selection under multi-strategy
+composition).
+
+### Alternatives Considered
+
+- **Fail-fast process stop (status quo)** — rejected: destroys observability with positions open;
+  contradicts Constitution §6.
+- **Retry / N-strike escalation** — rejected: incompatible with the determinism contract
+  (MM12.1 architecture §6); adds policy surface with no evidence it is needed.
+- **Auto-flatten open positions on quarantine** — rejected: a trading decision inside an error
+  handler; the alert-and-operator loop is the correct authority. The unmanaged-positions residual
+  equals the existing kill-switch posture (`handler.py:606` blocks everything including EXITs and
+  does not auto-flatten), so no new risk class is introduced.
+
+### Consequences
+
+- Strategy program defects (exceptions, malformed returns) and strategy data defects (individual
+  contract-violating signals, ADR-018) are treated at different severities: quarantine vs.
+  per-signal drop. Escalating repeated data defects to quarantine is an open question deferred to
+  MM13 PAPER evidence.
+- MM12.3's fault-injection tests must exercise validation and quarantine as one surface (a
+  contract-violating signal and an `on_bar` raise in the same bar), since they are one component
+  by decision.
+- Operator recovery from quarantine is process restart after a fix — deliberately not automated.
+
+*Ref: docs/reports/MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md §8, §12, §16.3–§16.4; ADR-018;
+PLATFORM_CONSTITUTION.md §6; DRIVER_SPECIFICATION.md §3.2 (kill-switched-but-running), §8.4.*
