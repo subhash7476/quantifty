@@ -399,10 +399,10 @@ ledger reconciliation at the time of the review; the six governance/documentatio
 review imposed are now closed with the evidence above. The declaration is one this board stands
 behind. No architectural, runtime, or test remediation was required at any point.
 
-> **Note:** one honesty caveat carries forward — the MM11.7 close-out working-tree changes
-> (AnalyticsQuery removal, PROJECT_REVIEW_SUMMARY relocation, and the six doc edits) are **not yet
-> committed** as of this addendum. The ledger and this addendum mark those Change references
-> "not yet committed" accordingly; committing them is the final mechanical step.
+> **Provenance:** the MM11.7 close-out (AnalyticsQuery removal, PROJECT_REVIEW_SUMMARY relocation,
+> and the six governance edits) is committed as `85e73d3` on branch `mm11.7-v1.0-certification`; the
+> Removal Ledger Change references and Reconciliation Record are backfilled with that hash in a
+> follow-up commit (the same later-backfill pattern used for the MM11.1–11.5 hashes).
 
 ---
 

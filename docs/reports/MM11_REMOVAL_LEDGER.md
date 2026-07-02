@@ -5,7 +5,7 @@
 
 **Rule:** an entry is added *at the time* an item is removed, not reconstructed afterward. A slice is not complete if code was deleted but no entry exists here for it, regardless of test status. See spec §1.5 for the four-part proof each entry must satisfy before it is written.
 
-**Status:** COMPLETE — MM11.1–MM11.6 committed (`85780da`…`08d465f`); MM11.7 close-out executed, pending commit. All slice entries are filed below; the MM11.7 Reconciliation Record (end of file) is closed and PASSES, covering the committed range `2b3c050`→HEAD **plus** the uncommitted MM11.7 working-tree changes.
+**Status:** COMPLETE — MM11.1–MM11.6 committed (`85780da`…`08d465f`); MM11.7 close-out committed (`85e73d3`, on branch `mm11.7-v1.0-certification`). All slice entries are filed below; the MM11.7 Reconciliation Record (end of file) is closed and PASSES, covering the full `2b3c050`→`85e73d3` tree diff.
 
 ---
 
@@ -577,7 +577,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
   - Characterization test: N/A — provably dead class, zero importers, no runtime path
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped (re-run 2026-07-02, 87.9s)
 - **Gate 4 — why:** honors the MM11.1 RETAINED-WITH-JUSTIFICATION promise to formally evaluate at a later slice; the class is dead (zero importers) and queries tables removed in MM11.4. REMOVE is the disposition (vs a formal RETAINED entry), per certification remediation M-6.
-- **Change reference:** MM11.7 close-out (2026-07-02; not yet committed)
+- **Change reference:** `85e73d3` (MM11.7: Platform Infrastructure v1.0 certification close-out)
 - **Slice:** MM11.7
 - **Date:** 2026-07-02
 
@@ -591,7 +591,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 - **Gate 2 — proof of behavior preservation:** N/A — docs-only; no runtime surface. Suite unchanged (1055 passed, 4 skipped).
 - **Gate 3 — full suite passes:** 1055 passed, 4 skipped (re-run 2026-07-02).
 - **Gate 4 — why:** DoD item 6; the stale root-level document actively misled a reader about current repository state. Relocation + supersession header preserves the historical record without misrepresenting the present.
-- **Change reference:** MM11.7 close-out (2026-07-02; `git mv` + header; not yet committed)
+- **Change reference:** `85e73d3` (MM11.7 close-out; `git mv` + supersession header)
 - **Slice:** MM11.7
 - **Date:** 2026-07-02
 
@@ -602,7 +602,7 @@ For a **RETAINED-WITH-JUSTIFICATION** outcome (e.g. MM11.5 finding a live caller
 Line-for-line cross-check of the full pre-MM11 → post-MM11 tree diff against the entries above (spec §2, MM11.7, acceptance criterion 2). Every deletion in the diff must have an entry; every entry must correspond to an actual change in the diff.
 
 - **Reconciliation performed:** 2026-07-02 (MM11.7 close-out; independently re-verified in the v1.0 certification, Readiness Checklist item 4).
-- **Scope:** `2b3c050` (pre-MM11 baseline) → HEAD, plus the uncommitted MM11.7 close-out working-tree changes (AnalyticsQuery removal, PROJECT_REVIEW_SUMMARY relocation).
+- **Scope:** `2b3c050` (pre-MM11 baseline) → `85e73d3` (MM11.7 close-out), inclusive of the AnalyticsQuery removal and PROJECT_REVIEW_SUMMARY relocation.
 - **Committed slices (`2b3c050`→`08d465f`):** 14 file deletions (2 analytics + 12 `core/data/*`) each matched to a ledger entry, both directions; symbol/DDL removals in modified files covered by entries and confirmed by a zero-dangling-reference grep for every removed symbol. `queries.py` correctly retained (its live classes) at that point.
-- **MM11.7 close-out (working tree):** `AnalyticsQuery` class removal ↔ `MM11.7 — AnalyticsQuery` entry; `PROJECT_REVIEW_SUMMARY.md` relocation ↔ `MM11.7 — PROJECT_REVIEW_SUMMARY.md` entry. No unmatched change in either direction.
+- **MM11.7 close-out (`85e73d3`):** `AnalyticsQuery` class removal ↔ `MM11.7 — AnalyticsQuery` entry; `PROJECT_REVIEW_SUMMARY.md` relocation ↔ `MM11.7 — PROJECT_REVIEW_SUMMARY.md` entry. No unmatched change in either direction.
 - **Result:** **PASSES** — every diff change has a ledger entry and every entry maps to an actual change. No mismatch blocks the Platform v1.0 declaration.
