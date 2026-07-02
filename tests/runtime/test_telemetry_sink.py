@@ -5,8 +5,9 @@ Validates the small, inert-by-default metrics interface that gives visibility
 into runtime behavior WITHOUT becoming a source of truth or affecting runtime
 decisions:
 
-- RuntimeMetric enumerates exactly the 12 in-scope counters (4 lifecycle,
-  4 runtime, 3 watchdog, 1 execution) — no broker/PnL/portfolio metrics;
+- RuntimeMetric enumerates exactly the documented in-scope counters (4
+  lifecycle, 4 runtime, 3 watchdog, 1 execution, 3 strategy guard — MM12.3)
+  — no broker/PnL/portfolio metrics;
 - TelemetrySink is the injected interface; NullTelemetrySink is the inert
   default (every increment is a no-op);
 - InMemoryTelemetrySink accumulates counts and exposes a read-only snapshot;
@@ -22,9 +23,9 @@ from core.runtime.metrics import (InMemoryTelemetrySink, NullTelemetrySink,
 
 
 # --------------------------------------------------------------------------- #
-# Scope: exactly the 12 documented metrics, grouped as specified
+# Scope: exactly the documented metrics, grouped as specified
 # --------------------------------------------------------------------------- #
-def test_runtime_metric_has_exactly_the_twelve_in_scope_counters():
+def test_runtime_metric_has_exactly_the_documented_counters():
     assert {m.name for m in RuntimeMetric} == {
         # Lifecycle
         "STARTUP_COUNT", "RECOVERY_COUNT", "RECONCILIATION_COUNT", "STOP_COUNT",
@@ -34,6 +35,9 @@ def test_runtime_metric_has_exactly_the_twelve_in_scope_counters():
         "HEARTBEATS_EMITTED", "STALE_DATA_EVENTS", "KILL_SWITCH_EVENTS",
         # Execution
         "EXECUTION_CALLS",
+        # Strategy guard (MM12.3 — GuardedSignalSource, ADR-018/ADR-019)
+        "STRATEGY_ERRORS", "STRATEGY_QUARANTINE_EVENTS",
+        "SIGNAL_CONTRACT_REJECTIONS",
     }
 
 

@@ -122,9 +122,11 @@ def test_all_event_types_present():
         "INSTRUMENT_MASTER_UNAVAILABLE", "INSTRUMENT_MASTER_STALE",
         # MM9.2-S3-S3: per-symbol price-cache unavailability at execution layer.
         "PORTFOLIO_UNPRICEABLE",
+        # MM12.3: GuardedSignalSource boundary guard (ADR-018, ADR-019).
+        "STRATEGY_ERROR", "STRATEGY_QUARANTINED", "SIGNAL_CONTRACT_REJECTED",
     }
     assert {e.value for e in EventType} == expected
-    assert len(EventType) == 17
+    assert len(EventType) == 20
 
 
 def test_default_severity_defined_for_every_event_type():
@@ -144,6 +146,9 @@ def test_default_severity_defined_for_every_event_type():
     (EventType.STOPPED, "INFO"),
     (EventType.INSTRUMENT_MASTER_UNAVAILABLE, "CRITICAL"),
     (EventType.INSTRUMENT_MASTER_STALE, "WARNING"),
+    (EventType.STRATEGY_ERROR, "WARNING"),
+    (EventType.STRATEGY_QUARANTINED, "CRITICAL"),
+    (EventType.SIGNAL_CONTRACT_REJECTED, "WARNING"),
 ])
 def test_normative_default_severities(tmp_path, event_type, expected):
     assert _journal(tmp_path).record(event_type, "msg")["severity"] == expected

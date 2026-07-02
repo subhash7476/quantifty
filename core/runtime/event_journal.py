@@ -77,6 +77,15 @@ class EventType(Enum):
     # Distinct from WATCHDOG_STALE_DATA (aggregate, live-only, wall-clock, CRITICAL):
     # this is per-signal/per-held-position, all-mode, deterministic-clock, WARNING.
     PORTFOLIO_UNPRICEABLE = "PORTFOLIO_UNPRICEABLE"
+    # MM12.3 — GuardedSignalSource boundary guard (ADR-018, ADR-019). Additive,
+    # non-breaking (architecture §8.3). Severity note: the architecture's fault
+    # matrix (§8.3) lists STRATEGY_ERROR at "ERROR", a level this journal does
+    # not define (INFO/WARNING/CRITICAL only). It is mapped to WARNING here —
+    # the same severity as BROKER_ERROR, the platform's existing precedent for
+    # a survivable program fault that does not itself halt the loop.
+    STRATEGY_ERROR = "STRATEGY_ERROR"
+    STRATEGY_QUARANTINED = "STRATEGY_QUARANTINED"
+    SIGNAL_CONTRACT_REJECTED = "SIGNAL_CONTRACT_REJECTED"
 
 
 # Normative default severity per event type (section 15.4). BROKER_ERROR is
@@ -100,6 +109,9 @@ _DEFAULT_SEVERITY: Dict["EventType", "Severity"] = {
     EventType.INSTRUMENT_MASTER_UNAVAILABLE: Severity.CRITICAL,
     EventType.INSTRUMENT_MASTER_STALE: Severity.WARNING,
     EventType.PORTFOLIO_UNPRICEABLE: Severity.WARNING,
+    EventType.STRATEGY_ERROR: Severity.WARNING,
+    EventType.STRATEGY_QUARANTINED: Severity.CRITICAL,
+    EventType.SIGNAL_CONTRACT_REJECTED: Severity.WARNING,
 }
 
 

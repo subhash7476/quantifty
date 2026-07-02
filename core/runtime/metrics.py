@@ -33,9 +33,9 @@ from typing import Dict
 
 class RuntimeMetric(Enum):
     """
-    The runtime counters the LoopDriver exposes (Phase H scope). Exactly twelve,
-    grouped: lifecycle, runtime, watchdog, execution. Deliberately excludes
-    broker, PnL, and portfolio metrics — out of scope for this phase.
+    The runtime counters the LoopDriver (and MM12.3's GuardedSignalSource)
+    expose, grouped: lifecycle, runtime, watchdog, execution, strategy guard.
+    Deliberately excludes broker, PnL, and portfolio metrics — out of scope.
     """
     # Lifecycle
     STARTUP_COUNT = "startup_count"
@@ -53,6 +53,10 @@ class RuntimeMetric(Enum):
     KILL_SWITCH_EVENTS = "kill_switch_events"
     # Execution
     EXECUTION_CALLS = "execution_calls"
+    # Strategy guard (MM12.3 — GuardedSignalSource, ADR-018/ADR-019)
+    STRATEGY_ERRORS = "strategy_errors"
+    STRATEGY_QUARANTINE_EVENTS = "strategy_quarantine_events"
+    SIGNAL_CONTRACT_REJECTIONS = "signal_contract_rejections"
 
 
 class TelemetrySink(ABC):
