@@ -6,6 +6,16 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-03 — MSI Architecture Review — Roadmap v1.2 (ADR-023)
+
+Architecture-level review of the MSI governing series before freeze (`docs/reports/MSI_005_ARCHITECTURE_CHALLENGE.md`). Docs-only; no runtime code. Outcomes:
+1. **MSI-005 resolved to "State Inference Architecture" (owns-both)** — owns the research-facing inference contract and the runtime artifact-evaluation engine; Knowledge is its output object (the "Knowledge Production" layer is folded in, not a separate layer). Scalar `Confidence`/`Uncertainty` removed from the Knowledge Object (uncertainty lives on the Estimate per MSI-OD-005).
+2. **Published Artifact Specification introduced as MSI-007**, before Research Governance (the artifact is the Research→Runtime join point). Research Governance 007→008; Daily Regime Analyzer 008→009.
+3. **Two-pipeline model** (Research vs Runtime, sharing the Observation/Evidence spine) recorded in the roadmap.
+4. **Freeze cleared for MSI-001–MSI-004; MSI-005 held for rework.**
+Synced: MSI Roadmap (v1.2), README, Program Charter, MSI-002 dependency list; **ADR-023** authored and accepted. MSI-005 draft reworked to v0.2 (owns-both) and its file renamed `MSI_005_KNOWLEDGE_PRODUCTION_ARCHITECTURE.md` → `MSI_005_STATE_INFERENCE_ARCHITECTURE.md`.
+*(docs/reports/MSI_005_ARCHITECTURE_CHALLENGE.md; docs/architecture/market_state_intelligence/MSI_DOCUMENT_ROADMAP.md; docs/ARCHITECTURE_DECISIONS.md ADR-023)*
+
 ## 2026-07-02 — MM12.5 — Strategy Promotion Pipeline (COMPLETE)
 
 Implemented the approved MM12.5 architecture — the permanent governance model every future strategy must follow before trading live. Deliverables (MM12.5a slice):

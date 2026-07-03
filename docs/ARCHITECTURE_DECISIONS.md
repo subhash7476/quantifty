@@ -1415,3 +1415,65 @@ quarantine) for promotion purposes without any guard code change.
 *Ref: docs/reports/MM12_5_STRATEGY_PROMOTION_PIPELINE_ARCHITECTURE.md §§3.1, §5.1, §7.4.3, §7.6;
 docs/reports/MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md §8.5 (open question #3);
 ADR-019, ADR-021; PLATFORM_CONSTITUTION.md §6; core/execution/handler.py (kill-switch).*
+
+
+---
+
+## ADR-023 — MSI Program Structure: State Inference Owns-Both, Dedicated Artifact Spec (MSI-007), Renumber
+
+**Date:** 2026-07-03
+
+**Status:** ACCEPTED
+
+### Context
+
+The MSI governing series (MSI-001 through MSI-004 reviewed; MSI-005 drafted) was reviewed for
+architectural — not editorial — soundness before freezing anything downstream
+(`docs/reports/MSI_005_ARCHITECTURE_CHALLENGE.md`). The review surfaced that the drafted MSI-005
+("Knowledge Production Architecture") had (a) diverged in title/scope from the roadmap, README, and
+Program Charter (all of which name MSI-005 "State Inference Architecture"), (b) left the roadmap's
+inference deliverables homeless, (c) placed a scalar `Confidence`/`Uncertainty` on the Knowledge
+Object that duplicates a responsibility the reviewed MSI-002 ontology already assigned to the
+Estimate (MSI-OD-005), and (d) deferred the Published Artifact contract to an unnamed "later
+specification." The Published Artifact is the sole Research→Platform interface (MSI-OD-003), yet the
+series had no dedicated owner for it and scheduled it (implicitly) only after the DRA implementation.
+
+### Decision
+
+1. **MSI-005 is "State Inference Architecture" and owns both faces** — the research-facing inference
+   contract and the runtime artifact-evaluation engine. "Knowledge Production" does not become its
+   own architectural layer; **Knowledge is the output object of the inference architecture**, and the
+   Knowledge Object schema lives in MSI-005. The roadmap's inference deliverables return to MSI-005.
+
+2. **A dedicated Published Artifact Specification is introduced as MSI-007, before Research
+   Governance.** The artifact is the terminal output of the Research pipeline and the input to the
+   Runtime pipeline; everything after inference depends on it (progression: Validation → Artifact →
+   Governance → Implementation). Research Governance renumbers 007→008; Daily Regime Analyzer
+   renumbers 008→009.
+
+3. **Single-owner rule for shared concepts.** The `ValidationIdentifier` is owned by MSI-006
+   (Validation); MSI-007 (Artifact) references it; MSI-005 treats it as an opaque binding field.
+
+4. **Confidence/Uncertainty removed from the Knowledge Object.** Uncertainty lives on the Estimate
+   (MSI-OD-005) and reaches strategies by the Knowledge Object *containing* Market State. No scalar
+   `Confidence` field is minted; any future aggregate must be defined in MSI-002 first as a derived
+   projection (MSI-OP-004).
+
+5. **Two pipelines made explicit.** Research (`Observation → Evidence → Inference → Validation →
+   Artifact`) and Runtime (`Observation → Evidence → Artifact Evaluation → Knowledge → Strategy`)
+   share the Observation/Evidence spine (MSI-003/004); the Artifact is the join. Later documents
+   shall state this structure explicitly.
+
+6. **Freeze decision.** MSI-001–MSI-004 are cleared to freeze; MSI-005 is held for rework to the
+   owns-both model before the renumbered chain proceeds.
+
+### Consequences
+
+- The MSI Roadmap advances to v1.2 (dependency graph, freeze order, status table, two-pipeline note).
+  README and Program Charter document tables renumbered. MSI-002 dependency list extended to MSI-009.
+- MSI-005 must be reworked (title, scope, Knowledge Object) before it can be frozen. Its runtime
+  binding metadata is reconciled against the new MSI-007 artifact contract.
+- No parallel governance body is introduced; this is an ADR-tracked roadmap amendment. No runtime
+  code changes — MSI remains architecture-only until a production strategy requires Runtime MSI.
+
+*Ref: docs/reports/MSI_005_ARCHITECTURE_CHALLENGE.md; docs/architecture/market_state_intelligence/MSI_DOCUMENT_ROADMAP.md (v1.2); MSI-002 MSI-OD-003, MSI-OD-005, MSI-OP-002, MSI-OP-004.*
