@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA M3 CERTIFIED (Observation Reader — PASS via fix-verification addendum)
+
+M3 delivers the production `DuckDBObservationReader` — the first runtime interaction with historical market data. Reads immutable observations from DuckDB candles table, producing point-in-time correct, chronologically ordered Observation DTOs (MSI-003 §4). Candle-to-observation decomposition: each candle row yields 5 observations (open, high, low, close, volume). Deterministic SHA-256 observation IDs (`symbol|observable_type|timestamp`). Symbol-existence pre-check (raises `ObservationReadError` if missing), empty-result handling for no-data dates. Ordering contract: symbols in request order, timestamps ascending within each symbol. Independent technical review: **PASS WITH MINOR FIXES** (3 findings: 2 mandatory, 1 recommended). Fixes applied: docstring corrected to match implementation, test assertion added for ordering regression protection, context manager for DuckDB connections. Fix verified by execution: **183/183 passing** (24 M3 + 34 M2 + 83 M1 + 42 M0). Deterministic IDs, ordering, immutability, API, point-in-time correctness all verified unchanged. **M3 CERTIFIED — PASS**, M4 (EvidenceBuilder) authorized. Ledger events #19–#22, tag `dra-m3`.
+
+*(core/msi/dra/duckdb_observation_reader.py; tests/msi/test_observation_reader.py; tests/msi/fixtures/test_data.duckdb; docs/implementation/dra/reports/M3_IMPLEMENTATION_REPORT.md; docs/implementation/dra/reports/M3_REVIEW.md; docs/implementation/dra/reports/M3_FIX_VERIFICATION_ADDENDUM.md; docs/implementation/dra/reports/M3_CERTIFICATION.md)*
+
+---
+
 ## 2026-07-04 — DRA M2 CERTIFIED (Artifact Loader — PASS via fix-verification addendum)
 
 M2 delivers the first production DRA runtime component: `FilesystemArtifactLoader` — a deterministic, filesystem-based implementation of the `ArtifactLoader` ABC. Validation pipeline: required file presence (5 files), metadata structure (8 MSI-007 §7 fields), compatibility (MSI-007 §8 — fail-closed for runtime/ontology/contract), lifecycle state, validation status, checksum integrity (per-file SHA-256 + combined hash), safe model import via `importlib.util`, and PublishedArtifact subclass verification. Complete DRA error hierarchy established (`core/msi/dra/errors.py`, 12 classes per MSI-009 §16). Independent technical review identified 4 findings (2 mandatory, 1 minor, 1 documentation). All resolved and verified by execution: **162/162 passing** (37 M2 + 83 M1 + 42 M0). **M2 CERTIFIED — PASS**, M3 (ObservationReader) authorized. Ledger events #14–#18, tag `dra-m2`.

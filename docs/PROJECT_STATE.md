@@ -2,11 +2,13 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-04 (DRA M2 certified; 162 tests passing — 37 M2 + 83 M1 + 42 M0)
+**Last updated:** 2026-07-04 (DRA M3 certified; 183 tests passing — 24 M3 + 34 M2 + 83 M1 + 42 M0)
 
 ---
 
 ## Completed
+
+- **DRA M3 — Observation Reader — CERTIFIED (2026-07-04).** Production `DuckDBObservationReader` implementing the `ObservationReader` ABC (MSI-003 §4). Reads immutable market observations from DuckDB candles table, producing point-in-time correct, chronologically ordered Observation DTOs. Candle-to-observation decomposition (5 observables per row: open, high, low, close, volume), deterministic SHA-256 observation IDs, symbol-existence pre-check, empty-result handling for no-data dates. Ordering contract: symbols in request order, timestamps ascending within each symbol. Independent technical review: **PASS WITH MINOR FIXES** (3 findings: 2 mandatory, 1 recommended). Fixes applied: docstring corrected to match implementation, test assertion added for ordering regression protection, context manager for DuckDB connections. Fix verified by execution (183/183 passing, zero regressions). **M3 CERTIFIED — PASS**, M4 authorized. *(core/msi/dra/duckdb_observation_reader.py; tests/msi/test_observation_reader.py; tests/msi/fixtures/test_data.duckdb; docs/implementation/dra/reports/M3_*)*
 
 - **DRA M2 — Artifact Loader — CERTIFIED (2026-07-04).** First production runtime component: `FilesystemArtifactLoader` implementing the `ArtifactLoader` ABC. Loads, validates, and returns opaque `PublishedArtifact` handles from the filesystem. Validation pipeline: required file presence, metadata structure (8 MSI-007 §7 fields), compatibility (MSI-007 §8 — fail-closed policy for all 3 dimensions), lifecycle state, validation status, checksum integrity (per-file SHA-256 + combined hash), safe model import, PublishedArtifact subclass verification. Complete DRA error hierarchy established (12 classes, MSI-009 §16). Independent technical review: **PASS WITH MINOR FIXES** (4 findings: 2 mandatory, 1 minor, 1 documentation). Fixes applied and verified by execution (162/162 passing, zero regressions). **M2 CERTIFIED — PASS**, M3 authorized. *(core/msi/dra/; tests/msi/test_artifact_loader.py; docs/implementation/dra/reports/M2_*)*
 
