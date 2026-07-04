@@ -2,11 +2,13 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-04 (DRA M8 certified; 283 tests passing — 5 M8 + 10 M7 + 26 M6 + 37 M5 + 22 M4 + 21 M3 + 37 M2 + 83 M1 + 42 M0)
+**Last updated:** 2026-07-04 — **DRA v1.0 COMPLETE** (all 10 milestones M0–M9 certified; 283 tests passing)
 
 ---
 
 ## Completed
+
+- **DRA M9 — Documentation + Package Finalization — CERTIFIED (2026-07-04).** Documentation milestone. `core/msi/__init__.py` exports 22 public symbols. `core/msi/dra/__init__.py` exports 9 DRA implementations. `DRA_DEVELOPER_GUIDE.md` covers setup, artifact creation, running the DRA, testing (283 tests), replay verification, provenance, deterministic IDs, governance. No `import *` or `type: ignore`. **M9 CERTIFIED — PASS. DRA v1.0 (M0–M9) fully certified and complete.** *(core/msi/__init__.py; core/msi/dra/__init__.py; docs/implementation/dra/DRA_DEVELOPER_GUIDE.md)*
 
 - **DRA M8 — Replay Verification — CERTIFIED (2026-07-04).** Test-only milestone proving deterministic DRA pipeline replay: 3 consecutive runs produce identical knowledge_id; roundtrip (publish/re-read/re-run) consistent; different inputs → different outputs; point-in-time (T vs T+1) isolated; subset data preserves MarketState. No production code created. Independent technical review: **PASS WITH MINOR FIXES** (1 Low-severity finding: unused imports). Fix applied and verified by execution (283/283 passing). **M8 CERTIFIED — PASS**, M9 authorized. *(tests/msi/test_replay.py; docs/implementation/dra/reports/M8_*)*
 

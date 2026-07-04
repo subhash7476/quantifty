@@ -77,6 +77,9 @@ It is the single source of truth for:
 | 45 | 2026-07-04 | M8 | Review fix applied: removed 6 unused contract imports. Fix-verification addendum filed — verified by execution: 283/283 tests pass, no regressions. Finding 1 RESOLVED | `reports/M8_FIX_VERIFICATION_ADDENDUM.md` |
 | 46 | 2026-07-04 | M8 | **M8 CERTIFIED — PASS** (via fix-verification addendum). All replay guarantees verified; deterministic pipeline proven; no production code; M9 authorized | `reports/M8_CERTIFICATION.md` |
 | 47 | 2026-07-04 | M8 | Certification commit recorded: `b8b9677`, tag `dra-m8` | git: `b8b9677`, tag `dra-m8` |
+| 48 | 2026-07-04 | M9 | Implementation complete — Documentation + Package Finalization (2 init files updated, 1 developer guide, 1 report). Public API exports (22 symbols from core.msi, 9 from core.msi.dra). No runtime code changes. 283/283 tests unchanged | `reports/M9_IMPLEMENTATION_REPORT.md` |
+| 49 | 2026-07-04 | M9 | **M9 CERTIFIED — PASS** (documentation milestone — no technical review required per plan). All acceptance criteria met: public API exports complete, MSI-traceable docstrings, developer guide covers setup/artifact-creation/DRA-execution/testing/replay. No import *, no type: ignore. DRA v1.0 COMPLETE | `reports/M9_CERTIFICATION.md`; `DRA_DEVELOPER_GUIDE.md` |
+| 50 | 2026-07-04 | M9 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m9` | git: tag `dra-m9` |
 
 ---
 
@@ -93,7 +96,8 @@ It is the single source of truth for:
 | M6 | **Certified — PASS** | #36 | PASS (via fix-verification addendum) |
 | M7 | **Certified — PASS** | #41 | PASS (via fix-verification addendum) |
 | M8 | **Certified — PASS** | #46 | PASS (via fix-verification addendum) |
-| M9 | Authorized — not started | #46 | — |
+| M9 | **Certified — PASS** | #49 | PASS |
+| **DRA v1.0** | **COMPLETE** | **#50** | **All 10 milestones certified** |
 
 ---
 

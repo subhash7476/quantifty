@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA v1.0 COMPLETE (M9 Documentation + Package Finalization CERTIFIED)
+
+M9 is the final DRA milestone — documentation and package finalization. No runtime code changes. `core/msi/__init__.py` now exports all 22 public symbols (7 contracts + 6 interfaces + 9 DRA implementations). `core/msi/dra/__init__.py` exports the full DRA public API. `DRA_DEVELOPER_GUIDE.md` covers setup, artifact creation, pipeline execution, testing (283 tests across 13 test files), replay verification, provenance, deterministic IDs, and governance. No `import *`, no `type: ignore` anywhere in the DRA codebase. **M9 CERTIFIED — PASS. DRA v1.0 is fully certified (M0–M9).** Tags: `dra-m0` through `dra-m9`. 283 tests passing.
+
+*(core/msi/__init__.py; core/msi/dra/__init__.py; docs/implementation/dra/DRA_DEVELOPER_GUIDE.md)*
+
+---
+
 ## 2026-07-04 — DRA M8 CERTIFIED (Replay Verification — PASS via fix-verification addendum)
 
 M8 is a test-only milestone proving deterministic DRA pipeline replay. 5 tests verify: 3 consecutive runs produce identical knowledge_id; roundtrip consistency across orchestrator instances; different data produces different (valid) output; point-in-time boundaries (T vs T+1 data isolated); subset data preserves MarketState. No production code created. One Low-severity finding (unused imports) resolved. **283/283 passing** (5 M8 + 10 M7 + 26 M6 + 37 M5 + 22 M4 + 21 M3 + 37 M2 + 83 M1 + 42 M0). **M8 CERTIFIED — PASS**, M9 (Documentation) authorized. Ledger events #43–#47, tag `dra-m8`.
