@@ -37,6 +37,7 @@ It is the single source of truth for:
 | 5 | 2026-07-04 | M0 | Deviation recorded: M0 delivered the six `core/msi/interfaces/` ABCs in addition to the contracts listed in plan v1.0 M0 deliverables. The interfaces were always part of the plan §2 package layout; plan v1.1 amends the M0 deliverable list to match what was built. No architectural impact | `DRA_IMPLEMENTATION_PLAN.md` §18 M0 |
 | 6 | 2026-07-04 | M0 | Finding 1 fix applied (Resolution Option 1: exception names retained, annotated "defined in M2 — Plan §16" in all six interface docstrings) and **fix-verification addendum filed** — verified by execution: 42/42 tests pass, imports execute, all 6 files annotated. Finding 1 RESOLVED, no new issues | `reports/M0_REVIEW.md` §Fix-Verification Addendum |
 | 7 | 2026-07-04 | M0 | **M0 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed. M1 authorized | `reports/M0_REVIEW.md`; `reports/M0_IMPLEMENTATION_REPORT.md` |
+| 8 | 2026-07-04 | M0 | Certification commit recorded: `60426a3`, tag `dra-m0` (M0 implementation itself landed in `4123ea9`; Finding 1 fix + addendum + certification in `60426a3`) | git: `60426a3`, `4123ea9`, tag `dra-m0` |
 
 ---
 
