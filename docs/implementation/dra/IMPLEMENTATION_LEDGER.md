@@ -47,7 +47,7 @@ It is the single source of truth for:
 | 15 | 2026-07-04 | M2 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, High/Mandatory: inconsistent compatibility defaults; Finding 2, Medium/Mandatory: missing absent-field regression tests; Finding 3, Low/Minor: misleading test name; Finding 4, Low/Documentation: loading sequence incomplete). Review independently executed: 159/159 tests pass, compatibility/checksum/determinism verified | `reports/M2_REVIEW.md` |
 | 16 | 2026-07-04 | M2 | Review fixes applied: `_validate_compatibility` unified to fail-closed for all 3 dimensions (Finding 1); 3 regression tests for absent-field rejection added (Finding 2); misleading test renamed (Finding 3); implementation report §3 updated with fail-closed policy (Finding 4). Fix-verification addendum filed — verified by execution: 162/162 tests pass, no regressions. All 4 findings RESOLVED | `reports/M2_FIX_VERIFICATION_ADDENDUM.md` |
 | 17 | 2026-07-04 | M2 | **M2 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (162/162); fail-closed compatibility policy verified; no architectural violations; no scope creep. M3 authorized | `reports/M2_REVIEW.md`; `reports/M2_CERTIFICATION.md` |
-| 18 | 2026-07-04 | M2 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m2` | git: tag `dra-m2` |
+| 18 | 2026-07-04 | M2 | Certification commit recorded: `0034734`, tag `dra-m2` | git: `0034734`, tag `dra-m2` |
 
 ---
 
