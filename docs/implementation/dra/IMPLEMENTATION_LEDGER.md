@@ -81,7 +81,7 @@ It is the single source of truth for:
 | 49 | 2026-07-04 | M9 | **M9 CERTIFIED — PASS** (documentation milestone — no technical review required per plan). All acceptance criteria met: public API exports complete, MSI-traceable docstrings, developer guide covers setup/artifact-creation/DRA-execution/testing/replay. No import *, no type: ignore. DRA v1.0 COMPLETE | `reports/M9_CERTIFICATION.md`; `DRA_DEVELOPER_GUIDE.md` |
 | 50 | 2026-07-04 | M9 | Certification commit recorded: `1580010`, tag `dra-m9` | git: `1580010`, tag `dra-m9` |
 | 51 | 2026-07-04 | — | **MSI v1.0 PLATFORM CERTIFIED.** Architecture frozen (MSI-001 through MSI-009). Reference implementation certified (DRA M0–M9, 283 tests). Developer resources published: Engine Development Guide, Engine Certification Checklist, Engine Authoring Template. Platform is the permanent certified target for all future Market State Engines. Release tag: `msi-v1.0-certified` | `reports/MSI_V1_0_CERTIFICATION.md`; `ENGINE_DEVELOPMENT_GUIDE.md`; `ENGINE_CERTIFICATION_CHECKLIST.md`; `ENGINE_AUTHORING_TEMPLATE.md` |
-| 52 | 2026-07-04 | — | MSI v1.0 certification commit recorded (commit hash TBD — will be backfilled), tag `msi-v1.0-certified` | git: tag `msi-v1.0-certified` |
+| 52 | 2026-07-04 | — | MSI v1.0 certification commit recorded: `5079097`, tag `msi-v1.0-certified` | git: `5079097`, tag `msi-v1.0-certified` |
 
 ---
 
