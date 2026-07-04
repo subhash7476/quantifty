@@ -66,7 +66,7 @@ It is the single source of truth for:
 | 34 | 2026-07-04 | M6 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: unused FrozenInstanceError import in test_knowledge_repository.py). Review independently executed: 268/268 tests pass, ownership/determinism/roundtrip/ABC conformance verified | `reports/M6_REVIEW.md` |
 | 35 | 2026-07-04 | M6 | Review fix applied: removed unused FrozenInstanceError import. Fix-verification addendum filed — verified by execution: 268/268 tests pass, no regressions. Finding 1 RESOLVED | `reports/M6_FIX_VERIFICATION_ADDENDUM.md` |
 | 36 | 2026-07-04 | M6 | **M6 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (268/268); deterministic roundtrip verified; error hierarchy correctly extended; no architectural violations; no scope creep. M7 authorized | `reports/M6_REVIEW.md`; `reports/M6_CERTIFICATION.md` |
-| 37 | 2026-07-04 | M6 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m6` | git: tag `dra-m6` |
+| 37 | 2026-07-04 | M6 | Certification commit recorded: `fcfceed`, tag `dra-m6` | git: `fcfceed`, tag `dra-m6` |
 
 ---
 
