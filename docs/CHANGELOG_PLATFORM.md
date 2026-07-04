@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA M8 CERTIFIED (Replay Verification — PASS via fix-verification addendum)
+
+M8 is a test-only milestone proving deterministic DRA pipeline replay. 5 tests verify: 3 consecutive runs produce identical knowledge_id; roundtrip consistency across orchestrator instances; different data produces different (valid) output; point-in-time boundaries (T vs T+1 data isolated); subset data preserves MarketState. No production code created. One Low-severity finding (unused imports) resolved. **283/283 passing** (5 M8 + 10 M7 + 26 M6 + 37 M5 + 22 M4 + 21 M3 + 37 M2 + 83 M1 + 42 M0). **M8 CERTIFIED — PASS**, M9 (Documentation) authorized. Ledger events #43–#47, tag `dra-m8`.
+
+*(tests/msi/test_replay.py; docs/implementation/dra/reports/M8_*)*
+
+---
+
 ## 2026-07-04 — DRA M7 CERTIFIED (DRAOrchestrator — PASS via fix-verification addendum)
 
 M7 delivers the `DRAOrchestrator` — a stateless pipeline coordinator wiring all certified M2–M6 components into a complete DRA pipeline: ArtifactLoader → symbol discovery → ObservationReader → EvidenceBuilder → ArtifactEvaluator → ProvenanceChain → KnowledgeBuilder → KnowledgePublisher → return KnowledgeObject. Deterministic across orchestrator instances. Natural error propagation — no swallowing, no partial state. Independent technical review: 1 Low-severity finding (unused import). Resolved and verified by execution: **278/278 passing** (10 M7 + 26 M6 + 37 M5 + 22 M4 + 21 M3 + 37 M2 + 83 M1 + 42 M0). Pipeline order, error propagation, determinism independently verified. **M7 CERTIFIED — PASS**, M8 (Replay Verification) authorized. Ledger events #38–#42, tag `dra-m7`.

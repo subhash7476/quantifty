@@ -72,6 +72,11 @@ It is the single source of truth for:
 | 40 | 2026-07-04 | M7 | Review fix applied: removed unused EvidenceConstructionError import. Fix-verification addendum filed — verified by execution: 278/278 tests pass, no regressions. Finding 1 RESOLVED | `reports/M7_FIX_VERIFICATION_ADDENDUM.md` |
 | 41 | 2026-07-04 | M7 | **M7 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (278/278); pipeline order verified; deterministic across instances; no partial state; no architectural violations; no scope creep. M8 authorized | `reports/M7_REVIEW.md`; `reports/M7_CERTIFICATION.md` |
 | 42 | 2026-07-04 | M7 | Certification commit recorded: `3d252bc`, tag `dra-m7` | git: `3d252bc`, tag `dra-m7` |
+| 43 | 2026-07-04 | M8 | Implementation complete — Replay Verification (1 test file, 1 report, 283/283 tests passing). Test-only milestone: deterministic replay across runs, roundtrip, different data, point-in-time boundaries, subset equivalence | `reports/M8_IMPLEMENTATION_REPORT.md` |
+| 44 | 2026-07-04 | M8 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: 6 unused contract imports in test_replay.py). Review independently executed: 283/283 tests pass, all 5 replay guarantees verified | `reports/M8_REVIEW.md` |
+| 45 | 2026-07-04 | M8 | Review fix applied: removed 6 unused contract imports. Fix-verification addendum filed — verified by execution: 283/283 tests pass, no regressions. Finding 1 RESOLVED | `reports/M8_FIX_VERIFICATION_ADDENDUM.md` |
+| 46 | 2026-07-04 | M8 | **M8 CERTIFIED — PASS** (via fix-verification addendum). All replay guarantees verified; deterministic pipeline proven; no production code; M9 authorized | `reports/M8_CERTIFICATION.md` |
+| 47 | 2026-07-04 | M8 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m8` | git: tag `dra-m8` |
 
 ---
 
@@ -87,16 +92,8 @@ It is the single source of truth for:
 | M5 | **Certified — PASS** | #31 | PASS |
 | M6 | **Certified — PASS** | #36 | PASS (via fix-verification addendum) |
 | M7 | **Certified — PASS** | #41 | PASS (via fix-verification addendum) |
-| M8 | Authorized — not started | #41 | — |
-| M9 | Not started | — | — |
-| M7 | Authorized — not started | #36 | — |
-| M8 | Not started | — | — |
-| M9 | Not started | — | — |
-| M9 | Not started | — | — |
-| M8 | Not started | — | — |
-| M9 | Not started | — | — |
-| M8 | Not started | — | — |
-| M9 | Not started | — | — |
+| M8 | **Certified — PASS** | #46 | PASS (via fix-verification addendum) |
+| M9 | Authorized — not started | #46 | — |
 
 ---
 
