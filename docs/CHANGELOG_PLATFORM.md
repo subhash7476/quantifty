@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA M0 (Contracts & Runtime Interfaces) + Governance Documents Review
+
+First MSI runtime code committed, plus a governance-documents review with fixes applied:
+1. **DRA M0 delivered** (implemented 2026-07-03): `core/msi/` — 7 frozen DTO contracts (Observation, Evidence, Estimate, MarketState, KnowledgeObject, ArtifactMetadata + PublishedArtifact protocol) and 6 component interface ABCs, per DRA Implementation Plan. Tests: `tests/msi/` (42 tests). Independent technical review filed: **PASS WITH MINOR FIXES** (Finding 1: forward exception-type references in interface docstrings; fix-verification addendum outstanding — M0 not yet certified).
+2. **Governance documents review** (`docs/reports/DRA_GOVERNANCE_DOCS_REVIEW.md`): Implementation Ledger restructured to a true append-only **event log** (v1.1 — the v1.0 mutable status table contradicted its own append-only invariant, and was already out of sync with the filed M0 review); **PASS WITH MINOR FIXES** verdict semantics defined (fix-verification addendum, no full re-review); review template gained traceability fields (commit, implementation report, ledger event) with usage guidance extracted to `TECHNICAL_REVIEW_GUIDELINES.md`; Implementation Plan amended to **v1.1** (editorial: file naming reconciled to §2 strategy-named scheme, all test paths → `tests/msi/`, M0 scope aligned to what was built with deviation recorded as ledger event #5, `KnowledgeBuildError` added to error hierarchy, M1→M2 forward dependency removed, knowledge store unified to `data/msi/knowledge.duckdb`).
+3. **docs/ reorganization**: `docs/Migrated Docs/` → `docs/archive/` (space-free, convention-consistent; CLAUDE.md pointer fixed); `docs/reports/README.md` index added grouping the 121-file flat archive by program, with a freeze policy — new program reports go to `docs/implementation/<program>/reports/`; DRA README refreshed (real document list, live milestone status).
+*(docs/reports/DRA_GOVERNANCE_DOCS_REVIEW.md; docs/implementation/dra/; core/msi/; tests/msi/)*
+
 ## 2026-07-03 — MSI Architecture Review — Roadmap v1.2 (ADR-023)
 
 Architecture-level review of the MSI governing series before freeze (`docs/reports/MSI_005_ARCHITECTURE_CHALLENGE.md`). Docs-only; no runtime code. Outcomes:

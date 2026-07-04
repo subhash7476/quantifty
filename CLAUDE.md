@@ -137,7 +137,7 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 - **Expiry logic**: Nifty=Tuesday, BankNifty=Wednesday weekly; `get_weekly_expiry()` + `get_expiry_list()` (instrument DB)
 - **Instrument DB**: `data/instruments/nse_fo_instruments.duckdb` — strikes, expiries, lot sizes
 - **Tests**: `tests/analytics/test_options.py` — 17 tests (provider, analytics, integration), all passing
-- **Full plan**: `docs/OPTIONS_ANALYSIS_DASHBOARD_PLAN.md`
+- **Full plan**: `docs/archive/OPTIONS_ANALYSIS_DASHBOARD_PLAN.md`
 
 ---
 

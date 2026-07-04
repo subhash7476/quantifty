@@ -651,7 +651,7 @@ No other DRA diagrams exist in either repository.
 
 | File | Location | Relevance |
 |---|---|---|
-| `CODEBASE_OVERVIEW.md` §3.5 | both (`docs\Migrated Docs\` in F:) | Generation-1 regime table + signals.db schema |
+| `CODEBASE_OVERVIEW.md` §3.5 | both (`docs/archive/` in F:) | Generation-1 regime table + signals.db schema |
 | `DATA_PIPELINE.md` | both | `regime_insights` DDL |
 | `DEVELOPER_GUIDE.md` | both | `regime_insights` schema line |
 | `STRATEGY_RESEARCH_LOG.md` | D: only | v1–v9 history; the no-regime-filter and non-stationarity problems that motivated DRA |
