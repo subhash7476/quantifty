@@ -57,7 +57,7 @@ It is the single source of truth for:
 | 25 | 2026-07-04 | M4 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: unused module-level ArtifactMetadata import; Finding 2, Low: unused inline ArtifactMetadata/Tuple imports in 3 test functions). Review independently executed: 205/205 tests pass, determinism/point-in-time/ownership/immutability verified | `reports/M4_REVIEW.md` |
 | 26 | 2026-07-04 | M4 | Review fixes applied: removed unused module-level ArtifactMetadata import (Finding 1); removed 6 unused inline imports (ArtifactMetadata × 3, Tuple × 3) from 3 test functions (Finding 2). Fix-verification addendum filed — verified by execution: 205/205 tests pass, no regressions. All 2 findings RESOLVED | `reports/M4_FIX_VERIFICATION_ADDENDUM.md` |
 | 27 | 2026-07-04 | M4 | **M4 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (205/205); point-in-time boundary verified; deterministic evidence IDs verified; no architectural violations; no scope creep. M5 authorized | `reports/M4_REVIEW.md`; `reports/M4_CERTIFICATION.md` |
-| 28 | 2026-07-04 | M4 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m4` | git: tag `dra-m4` |
+| 28 | 2026-07-04 | M4 | Certification commit recorded: `d45f44e`, tag `dra-m4` | git: `d45f44e`, tag `dra-m4` |
 
 ---
 
