@@ -53,6 +53,11 @@ It is the single source of truth for:
 | 21 | 2026-07-04 | M3 | Review fixes applied: docstring corrected to match implementation (Finding 1); test assertion added for ordering regression protection (Finding 2); context manager for DuckDB connections (Finding 4). Fix-verification addendum filed — verified by execution: 183/183 tests pass, no regressions. All 3 findings RESOLVED | `reports/M3_FIX_VERIFICATION_ADDENDUM.md` |
 | 22 | 2026-07-04 | M3 | **M3 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (183/183); ordering contract verified and regression-protected; no architectural violations; no scope creep. M4 authorized | `reports/M3_CERTIFICATION.md` |
 | 23 | 2026-07-04 | M3 | Certification commit recorded: `7b545c7`, tag `dra-m3` | git: `7b545c7`, tag `dra-m3` |
+| 24 | 2026-07-04 | M4 | Implementation complete — DefaultEvidenceBuilder (1 implementation file, 1 test file, 1 report, 205/205 tests passing per implementation report). Deterministic evidence construction, point-in-time enforcement, SHA-256 evidence IDs | `reports/M4_IMPLEMENTATION_REPORT.md` |
+| 25 | 2026-07-04 | M4 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: unused module-level ArtifactMetadata import; Finding 2, Low: unused inline ArtifactMetadata/Tuple imports in 3 test functions). Review independently executed: 205/205 tests pass, determinism/point-in-time/ownership/immutability verified | `reports/M4_REVIEW.md` |
+| 26 | 2026-07-04 | M4 | Review fixes applied: removed unused module-level ArtifactMetadata import (Finding 1); removed 6 unused inline imports (ArtifactMetadata × 3, Tuple × 3) from 3 test functions (Finding 2). Fix-verification addendum filed — verified by execution: 205/205 tests pass, no regressions. All 2 findings RESOLVED | `reports/M4_FIX_VERIFICATION_ADDENDUM.md` |
+| 27 | 2026-07-04 | M4 | **M4 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (205/205); point-in-time boundary verified; deterministic evidence IDs verified; no architectural violations; no scope creep. M5 authorized | `reports/M4_REVIEW.md`; `reports/M4_CERTIFICATION.md` |
+| 28 | 2026-07-04 | M4 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m4` | git: tag `dra-m4` |
 
 ---
 
@@ -64,10 +69,12 @@ It is the single source of truth for:
 | M1 | **Certified — PASS** | #12 | PASS (via fix-verification addendum) |
 | M2 | **Certified — PASS** | #17 | PASS (via fix-verification addendum) |
 | M3 | **Certified — PASS** | #22 | PASS (via fix-verification addendum) |
-| M4 | Authorized | #22 | — |
-| M5 | Not started | — | — |
+| M4 | **Certified — PASS** | #27 | PASS (via fix-verification addendum) |
+| M5 | Authorized — not started | #27 | — |
 | M6 | Not started | — | — |
 | M7 | Not started | — | — |
+| M8 | Not started | — | — |
+| M9 | Not started | — | — |
 | M8 | Not started | — | — |
 | M9 | Not started | — | — |
 

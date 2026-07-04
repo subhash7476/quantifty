@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA M4 CERTIFIED (Evidence Builder — PASS via fix-verification addendum)
+
+M4 delivers `DefaultEvidenceBuilder` — a deterministic implementation of the `EvidenceBuilder` ABC (MSI-004 §2/§5). Converts immutable Observations into immutable Evidence using artifact-carried rules. Point-in-time correctness via `min(max_ts_per_required_symbol)` evaluation boundary — prevents look-ahead. Deterministic SHA-256 evidence IDs (`artifact_version|evidence_type|source_ids|value`). Identity transform execution with configurable field-name-to-observable_type mapping. All errors are typed `EvidenceConstructionError` — no bare exceptions. Independent technical review identified 2 Low-severity findings (unused imports). Both resolved and verified by execution: **205/205 passing** (22 M4 + 24 M3 + 34 M2 + 83 M1 + 42 M0). Determinism, point-in-time, ownership boundaries independently verified. **M4 CERTIFIED — PASS**, M5 (ArtifactEvaluator + KnowledgeBuilder) authorized. Ledger events #24–#28, tag `dra-m4`.
+
+*(core/msi/dra/default_evidence_builder.py; tests/msi/test_evidence_builder.py; docs/implementation/dra/reports/M4_IMPLEMENTATION_REPORT.md; docs/implementation/dra/reports/M4_REVIEW.md; docs/implementation/dra/reports/M4_FIX_VERIFICATION_ADDENDUM.md; docs/implementation/dra/reports/M4_CERTIFICATION.md)*
+
+---
+
 ## 2026-07-04 — DRA M3 CERTIFIED (Observation Reader — PASS via fix-verification addendum)
 
 M3 delivers the production `DuckDBObservationReader` — the first runtime interaction with historical market data. Reads immutable observations from DuckDB candles table, producing point-in-time correct, chronologically ordered Observation DTOs (MSI-003 §4). Candle-to-observation decomposition: each candle row yields 5 observations (open, high, low, close, volume). Deterministic SHA-256 observation IDs (`symbol|observable_type|timestamp`). Symbol-existence pre-check (raises `ObservationReadError` if missing), empty-result handling for no-data dates. Ordering contract: symbols in request order, timestamps ascending within each symbol. Independent technical review: **PASS WITH MINOR FIXES** (3 findings: 2 mandatory, 1 recommended). Fixes applied: docstring corrected to match implementation, test assertion added for ordering regression protection, context manager for DuckDB connections. Fix verified by execution: **183/183 passing** (24 M3 + 34 M2 + 83 M1 + 42 M0). Deterministic IDs, ordering, immutability, API, point-in-time correctness all verified unchanged. **M3 CERTIFIED — PASS**, M4 (EvidenceBuilder) authorized. Ledger events #19–#22, tag `dra-m3`.
