@@ -2,11 +2,13 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-04 (DRA M0 committed + governance documents review; docs + first MSI runtime code)
+**Last updated:** 2026-07-04 (DRA M1 certified; 83 M1 + 42 M0 tests, total 125 passing)
 
 ---
 
 ## Completed
+
+- **DRA M1 — Reference Test Artifact — CERTIFIED (2026-07-04).** First deterministic Published MSI Artifact created: VIX-based threshold classifier exercising the complete MSI runtime contracts (artifact loading, evidence rules, metadata, evaluate() interface). Deliverables: `tests/msi/fixtures/test_artifact/` (metadata.json, evidence_rules.json, model.py, provenance.json, checksum.sha256), `tests/msi/conftest.py` (13 reusable fixtures), `tests/msi/test_m1_artifact.py` (83 tests, 9 test classes). Independent technical review: **PASS WITH MINOR FIXES** (Findings 1–2, Low: unused imports). Fixes applied and verified by execution (125/125 passing, zero regressions). **M1 CERTIFIED — PASS**, M2 authorized. *(tests/msi/fixtures/test_artifact/; tests/msi/conftest.py; tests/msi/test_m1_artifact.py; docs/implementation/dra/reports/M1_*)*
 
 - **DRA M0 — Contracts & Runtime Interfaces + Governance Documents Review — 2026-07-04.** First MSI runtime code: `core/msi/` (7 frozen DTO contracts + 6 interface ABCs per DRA Implementation Plan; MSI-002/003/004/005/007 traceable), `tests/msi/` (42 tests). Independent technical review: PASS WITH MINOR FIXES, then Finding 1 (forward exception references in interface docstrings) fixed and verified by execution — fix-verification addendum filed, **M0 CERTIFIED — PASS** (ledger event #7, tag `dra-m0`), M1 authorized. Governance documents review (`docs/reports/DRA_GOVERNANCE_DOCS_REVIEW.md`) applied: Implementation Ledger restructured to a true append-only event log (v1.1), PASS WITH MINOR FIXES semantics defined, review template gained traceability fields (guidance extracted to `TECHNICAL_REVIEW_GUIDELINES.md`), Implementation Plan amended to v1.1 (naming/test-path reconciliation, M0 scope alignment recorded as ledger event #5, `KnowledgeBuildError` added, M1→M2 forward dependency removed, knowledge store unified to `data/msi/knowledge.duckdb`). docs/ reorganized: `docs/Migrated Docs/` → `docs/archive/`, `docs/reports/README.md` index added with a freeze policy (new program reports → `docs/implementation/<program>/reports/`), DRA README refreshed. *(docs/implementation/dra/; docs/reports/DRA_GOVERNANCE_DOCS_REVIEW.md; core/msi/; tests/msi/)*
 

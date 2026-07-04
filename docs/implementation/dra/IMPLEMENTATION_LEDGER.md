@@ -38,6 +38,11 @@ It is the single source of truth for:
 | 6 | 2026-07-04 | M0 | Finding 1 fix applied (Resolution Option 1: exception names retained, annotated "defined in M2 — Plan §16" in all six interface docstrings) and **fix-verification addendum filed** — verified by execution: 42/42 tests pass, imports execute, all 6 files annotated. Finding 1 RESOLVED, no new issues | `reports/M0_REVIEW.md` §Fix-Verification Addendum |
 | 7 | 2026-07-04 | M0 | **M0 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed. M1 authorized | `reports/M0_REVIEW.md`; `reports/M0_IMPLEMENTATION_REPORT.md` |
 | 8 | 2026-07-04 | M0 | Certification commit recorded: `60426a3`, tag `dra-m0` (M0 implementation itself landed in `4123ea9`; Finding 1 fix + addendum + certification in `60426a3`) | git: `60426a3`, `4123ea9`, tag `dra-m0` |
+| 9 | 2026-07-04 | M1 | Implementation complete — Reference Test Artifact (5 artifact files, 2 test/fixture files, 1 report, 83/83 M1 tests passing per implementation report) | `reports/M1_IMPLEMENTATION_REPORT.md` |
+| 10 | 2026-07-04 | M1 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: 4 unused imports in conftest.py; Finding 2, Low: 1 unused import in test_m1_artifact.py; Observation 1: minor test-count inaccuracies in implementation report §7.2). Review independently executed: 125/125 tests pass, checksum recomputed and matched, import + evaluate verified | `reports/M1_REVIEW.md` |
+| 11 | 2026-07-04 | M1 | Review fixes applied: removed 5 unused imports (conftest.py 4, test_m1_artifact.py 1), corrected implementation report test counts. Fix-verification addendum filed — verified by execution: 125/125 tests pass, no regressions. Finding 1 RESOLVED, Finding 2 RESOLVED, Observation 1 RESOLVED | `reports/M1_FIX_VERIFICATION_ADDENDUM.md` |
+| 12 | 2026-07-04 | M1 | **M1 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (125/125); no architectural violations; no scope creep. M2 authorized | `reports/M1_REVIEW.md`; `reports/M1_CERTIFICATION.md` |
+| 13 | 2026-07-04 | M1 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m1` | git: tag `dra-m1` |
 
 ---
 
@@ -46,8 +51,8 @@ It is the single source of truth for:
 | Milestone | Status | Latest Event | Certification |
 |-----------|--------|--------------|---------------|
 | M0 | **Certified — PASS** | #7 | PASS (via fix-verification addendum) |
-| M1 | Authorized — not started | #7 | — |
-| M2 | Not started | — | — |
+| M1 | **Certified — PASS** | #12 | PASS (via fix-verification addendum) |
+| M2 | Authorized — not started | #12 | — |
 | M3 | Not started | — | — |
 | M4 | Not started | — | — |
 | M5 | Not started | — | — |

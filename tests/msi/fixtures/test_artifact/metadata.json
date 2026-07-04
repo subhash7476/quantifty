@@ -1,0 +1,16 @@
+{
+  "artifact_id": "ref-test-001",
+  "artifact_version": "v1.0.0",
+  "schema_version": "1.0",
+  "validation_id": "val-ref-test-001-v1",
+  "publication_timestamp": "2026-07-04T12:00:00",
+  "compatibility_version": "1.0",
+  "runtime_compatibility": "msi-v1.0",
+  "provenance_reference": "prov-ref-test-001",
+  "supported_runtime_versions": ["msi-v1.0"],
+  "supported_ontology_versions": ["1.0"],
+  "supported_contract_versions": ["1.0"],
+  "description": "Reference test artifact for M1 pipeline validation. Minimal deterministic threshold classifier based on VIX level.",
+  "created_by": "DRA M1 Implementation Engineer",
+  "engine": "python"
+}

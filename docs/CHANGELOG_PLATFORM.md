@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA M1 CERTIFIED (Reference Test Artifact — PASS via fix-verification addendum)
+
+M1 delivers the first deterministic Published MSI Artifact — a VIX-based threshold classifier exercising the complete MSI runtime contracts. Deliverables: `tests/msi/fixtures/test_artifact/` (metadata.json, evidence_rules.json, model.py, provenance.json, checksum.sha256) — conformance verified against MSI-002 §4.7–4.8, MSI-004 §2, MSI-005 §7/§13, MSI-007 §6/§7/§8/§9/§11, MSI-AP-701/705. `tests/msi/conftest.py` (13 reusable fixtures, session + function scoped). `tests/msi/test_m1_artifact.py` (83 tests in 9 classes: structure, metadata, checksum, evidence rules, contract implementation, deterministic evaluation, fixture correctness, provenance, immutability). Independent technical review identified 2 Low-severity findings (unused imports) + 1 observation (test-count inaccuracies). All 3 resolved and verified by execution: **125/125 passing** (83 M1 + 42 M0), checksum independently recomputed and matched, import + evaluate independently verified. **M1 CERTIFIED — PASS**, M2 (ArtifactLoader) authorized. Ledger events #9–#13, tag `dra-m1`.
+
+*(tests/msi/fixtures/test_artifact/; tests/msi/conftest.py; tests/msi/test_m1_artifact.py; docs/implementation/dra/reports/M1_IMPLEMENTATION_REPORT.md; docs/implementation/dra/reports/M1_REVIEW.md; docs/implementation/dra/reports/M1_FIX_VERIFICATION_ADDENDUM.md; docs/implementation/dra/reports/M1_CERTIFICATION.md)*
+
+---
+
 ## 2026-07-04 — DRA M0 CERTIFIED (PASS via fix-verification addendum)
 
 M0 review Finding 1 resolved: all six `core/msi/interfaces/` docstrings annotated with "(Exception type defined in M2 — DRA Implementation Plan §16.)" (Resolution Option 1; docstring-only, no contract change). Fix-verification addendum filed in `reports/M0_REVIEW.md` — verified **by execution** this time: 42/42 tests pass, package imports execute, all 6 annotations present. Ledger events #6 (fix verified) and #7 (**M0 CERTIFIED — PASS**; M1 authorized) appended. Tag: `dra-m0`.
