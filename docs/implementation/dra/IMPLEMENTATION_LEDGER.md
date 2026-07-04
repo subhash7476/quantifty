@@ -52,7 +52,7 @@ It is the single source of truth for:
 | 20 | 2026-07-04 | M3 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Mandatory: ordering contract docstring mismatch; Finding 2, Mandatory: test without assertions; Finding 4, Recommended: DuckDB connection handling). Review independently executed: 183/183 tests pass, determinism/ordering/immutability/API/point-in-time correctness verified | `reports/M3_REVIEW.md` |
 | 21 | 2026-07-04 | M3 | Review fixes applied: docstring corrected to match implementation (Finding 1); test assertion added for ordering regression protection (Finding 2); context manager for DuckDB connections (Finding 4). Fix-verification addendum filed — verified by execution: 183/183 tests pass, no regressions. All 3 findings RESOLVED | `reports/M3_FIX_VERIFICATION_ADDENDUM.md` |
 | 22 | 2026-07-04 | M3 | **M3 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (183/183); ordering contract verified and regression-protected; no architectural violations; no scope creep. M4 authorized | `reports/M3_CERTIFICATION.md` |
-| 23 | 2026-07-04 | M3 | Certification commit recorded: `7194b04`, tag `dra-m3` | git: `7194b04`, tag `dra-m3` |
+| 23 | 2026-07-04 | M3 | Certification commit recorded: `7b545c7`, tag `dra-m3` | git: `7b545c7`, tag `dra-m3` |
 
 ---
 
