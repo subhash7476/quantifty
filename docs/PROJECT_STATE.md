@@ -2,11 +2,13 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-04 (DRA M1 certified; 83 M1 + 42 M0 tests, total 125 passing)
+**Last updated:** 2026-07-04 (DRA M2 certified; 162 tests passing — 37 M2 + 83 M1 + 42 M0)
 
 ---
 
 ## Completed
+
+- **DRA M2 — Artifact Loader — CERTIFIED (2026-07-04).** First production runtime component: `FilesystemArtifactLoader` implementing the `ArtifactLoader` ABC. Loads, validates, and returns opaque `PublishedArtifact` handles from the filesystem. Validation pipeline: required file presence, metadata structure (8 MSI-007 §7 fields), compatibility (MSI-007 §8 — fail-closed policy for all 3 dimensions), lifecycle state, validation status, checksum integrity (per-file SHA-256 + combined hash), safe model import, PublishedArtifact subclass verification. Complete DRA error hierarchy established (12 classes, MSI-009 §16). Independent technical review: **PASS WITH MINOR FIXES** (4 findings: 2 mandatory, 1 minor, 1 documentation). Fixes applied and verified by execution (162/162 passing, zero regressions). **M2 CERTIFIED — PASS**, M3 authorized. *(core/msi/dra/; tests/msi/test_artifact_loader.py; docs/implementation/dra/reports/M2_*)*
 
 - **DRA M1 — Reference Test Artifact — CERTIFIED (2026-07-04).** First deterministic Published MSI Artifact created: VIX-based threshold classifier exercising the complete MSI runtime contracts (artifact loading, evidence rules, metadata, evaluate() interface). Deliverables: `tests/msi/fixtures/test_artifact/` (metadata.json, evidence_rules.json, model.py, provenance.json, checksum.sha256), `tests/msi/conftest.py` (13 reusable fixtures), `tests/msi/test_m1_artifact.py` (83 tests, 9 test classes). Independent technical review: **PASS WITH MINOR FIXES** (Findings 1–2, Low: unused imports). Fixes applied and verified by execution (125/125 passing, zero regressions). **M1 CERTIFIED — PASS**, M2 authorized. *(tests/msi/fixtures/test_artifact/; tests/msi/conftest.py; tests/msi/test_m1_artifact.py; docs/implementation/dra/reports/M1_*)*
 

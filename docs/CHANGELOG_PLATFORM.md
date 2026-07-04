@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA M2 CERTIFIED (Artifact Loader — PASS via fix-verification addendum)
+
+M2 delivers the first production DRA runtime component: `FilesystemArtifactLoader` — a deterministic, filesystem-based implementation of the `ArtifactLoader` ABC. Validation pipeline: required file presence (5 files), metadata structure (8 MSI-007 §7 fields), compatibility (MSI-007 §8 — fail-closed for runtime/ontology/contract), lifecycle state, validation status, checksum integrity (per-file SHA-256 + combined hash), safe model import via `importlib.util`, and PublishedArtifact subclass verification. Complete DRA error hierarchy established (`core/msi/dra/errors.py`, 12 classes per MSI-009 §16). Independent technical review identified 4 findings (2 mandatory, 1 minor, 1 documentation). All resolved and verified by execution: **162/162 passing** (37 M2 + 83 M1 + 42 M0). **M2 CERTIFIED — PASS**, M3 (ObservationReader) authorized. Ledger events #14–#18, tag `dra-m2`.
+
+*(core/msi/dra/; tests/msi/test_artifact_loader.py; docs/implementation/dra/reports/M2_IMPLEMENTATION_REPORT.md; docs/implementation/dra/reports/M2_REVIEW.md; docs/implementation/dra/reports/M2_FIX_VERIFICATION_ADDENDUM.md; docs/implementation/dra/reports/M2_CERTIFICATION.md)*
+
+---
+
 ## 2026-07-04 — DRA M1 CERTIFIED (Reference Test Artifact — PASS via fix-verification addendum)
 
 M1 delivers the first deterministic Published MSI Artifact — a VIX-based threshold classifier exercising the complete MSI runtime contracts. Deliverables: `tests/msi/fixtures/test_artifact/` (metadata.json, evidence_rules.json, model.py, provenance.json, checksum.sha256) — conformance verified against MSI-002 §4.7–4.8, MSI-004 §2, MSI-005 §7/§13, MSI-007 §6/§7/§8/§9/§11, MSI-AP-701/705. `tests/msi/conftest.py` (13 reusable fixtures, session + function scoped). `tests/msi/test_m1_artifact.py` (83 tests in 9 classes: structure, metadata, checksum, evidence rules, contract implementation, deterministic evaluation, fixture correctness, provenance, immutability). Independent technical review identified 2 Low-severity findings (unused imports) + 1 observation (test-count inaccuracies). All 3 resolved and verified by execution: **125/125 passing** (83 M1 + 42 M0), checksum independently recomputed and matched, import + evaluate independently verified. **M1 CERTIFIED — PASS**, M2 (ArtifactLoader) authorized. Ledger events #9–#13, tag `dra-m1`.

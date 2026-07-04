@@ -43,6 +43,11 @@ It is the single source of truth for:
 | 11 | 2026-07-04 | M1 | Review fixes applied: removed 5 unused imports (conftest.py 4, test_m1_artifact.py 1), corrected implementation report test counts. Fix-verification addendum filed — verified by execution: 125/125 tests pass, no regressions. Finding 1 RESOLVED, Finding 2 RESOLVED, Observation 1 RESOLVED | `reports/M1_FIX_VERIFICATION_ADDENDUM.md` |
 | 12 | 2026-07-04 | M1 | **M1 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (125/125); no architectural violations; no scope creep. M2 authorized | `reports/M1_REVIEW.md`; `reports/M1_CERTIFICATION.md` |
 | 13 | 2026-07-04 | M1 | Certification commit recorded: `148c314`, tag `dra-m1` | git: `148c314`, tag `dra-m1` |
+| 14 | 2026-07-04 | M2 | Implementation complete — FilesystemArtifactLoader (3 implementation files, 1 test file, 1 report, 159/159 tests passing per implementation report). DRA error hierarchy established (12 classes, MSI-009 §16) | `reports/M2_IMPLEMENTATION_REPORT.md` |
+| 15 | 2026-07-04 | M2 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, High/Mandatory: inconsistent compatibility defaults; Finding 2, Medium/Mandatory: missing absent-field regression tests; Finding 3, Low/Minor: misleading test name; Finding 4, Low/Documentation: loading sequence incomplete). Review independently executed: 159/159 tests pass, compatibility/checksum/determinism verified | `reports/M2_REVIEW.md` |
+| 16 | 2026-07-04 | M2 | Review fixes applied: `_validate_compatibility` unified to fail-closed for all 3 dimensions (Finding 1); 3 regression tests for absent-field rejection added (Finding 2); misleading test renamed (Finding 3); implementation report §3 updated with fail-closed policy (Finding 4). Fix-verification addendum filed — verified by execution: 162/162 tests pass, no regressions. All 4 findings RESOLVED | `reports/M2_FIX_VERIFICATION_ADDENDUM.md` |
+| 17 | 2026-07-04 | M2 | **M2 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (162/162); fail-closed compatibility policy verified; no architectural violations; no scope creep. M3 authorized | `reports/M2_REVIEW.md`; `reports/M2_CERTIFICATION.md` |
+| 18 | 2026-07-04 | M2 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m2` | git: tag `dra-m2` |
 
 ---
 
@@ -52,8 +57,8 @@ It is the single source of truth for:
 |-----------|--------|--------------|---------------|
 | M0 | **Certified — PASS** | #7 | PASS (via fix-verification addendum) |
 | M1 | **Certified — PASS** | #12 | PASS (via fix-verification addendum) |
-| M2 | Authorized — not started | #12 | — |
-| M3 | Not started | — | — |
+| M2 | **Certified — PASS** | #17 | PASS (via fix-verification addendum) |
+| M3 | Authorized — not started | #17 | — |
 | M4 | Not started | — | — |
 | M5 | Not started | — | — |
 | M6 | Not started | — | — |
