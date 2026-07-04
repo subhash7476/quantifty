@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA M6 CERTIFIED (Knowledge Publisher — PASS via fix-verification addendum)
+
+M6 delivers the MSI-005 §6 publication stage. `KnowledgeRepository` (in-memory store with store/load/exists/get_by_date/get_latest) — deterministic, duplicate-detecting, immutable. `DefaultKnowledgePublisher` wrapping the repository, implementing the certified KnowledgePublisher ABC (`publish`, `get_knowledge`, `get_latest`). `KnowledgeRepositoryError` added to the DRA error hierarchy. Independent technical review identified 1 Low-severity finding (unused import). Resolved and verified by execution: **268/268 passing** (26 M6 + 37 M5 + 22 M4 + 21 M3 + 37 M2 + 83 M1 + 42 M0). Deterministic roundtrip, ownership boundaries independently verified. **M6 CERTIFIED — PASS**, M7 (DRA Orchestrator) authorized. Ledger events #33–#37, tag `dra-m6`.
+
+*(core/msi/dra/knowledge_repository.py; core/msi/dra/default_knowledge_publisher.py; core/msi/dra/errors.py; tests/msi/test_knowledge_repository.py; tests/msi/test_knowledge_publisher.py; docs/implementation/dra/reports/M6_IMPLEMENTATION_REPORT.md; docs/implementation/dra/reports/M6_REVIEW.md; docs/implementation/dra/reports/M6_FIX_VERIFICATION_ADDENDUM.md; docs/implementation/dra/reports/M6_CERTIFICATION.md)*
+
+---
+
 ## 2026-07-04 — DRA M5 CERTIFIED (Artifact Evaluator & Knowledge Builder — PASS)
 
 M5 delivers the MSI-005 runtime evaluation stage — three components transforming Evidence into Knowledge. `DefaultArtifactEvaluator` invokes `artifact.evaluate(evidence)` with contract validation: ensures every Estimate carries latent_variable, value, uncertainty ≥ 0, dimension; rejects empty estimates, negative uncertainty, non-MarketState returns. `DefaultKnowledgeBuilder` constructs immutable KnowledgeObject with deterministic SHA-256 knowledge IDs (hash of `artifact_version|eval_timestamp|estimate fields`). `ProvenanceChain` immutable frozen dataclass tracking Observation → Evidence → Artifact → Knowledge with `reconstruct()` and `verify()`. All errors are typed `EvaluationError` / `KnowledgeBuildError`. Zero review findings identified — **PASS directly** (no fix-verification addendum required). **M5 CERTIFIED — PASS**, M6 (KnowledgePublisher) authorized. Ledger events #29–#32, tag `dra-m5`.

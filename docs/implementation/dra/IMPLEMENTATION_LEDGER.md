@@ -62,6 +62,11 @@ It is the single source of truth for:
 | 30 | 2026-07-04 | M5 | Technical review filed — **PASS** (0 findings: architecturally correct, deterministic, ownership boundaries preserved, all contracts satisfied). Review independently executed: 242/242 tests pass, imports/ownership/determinism verified | `reports/M5_REVIEW.md` |
 | 31 | 2026-07-04 | M5 | **M5 CERTIFIED — PASS** (directly, as review was PASS with zero findings — no fix-verification addendum required per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (242/242); deterministic knowledge IDs verified; provenance chain validated; no architectural violations; no scope creep. M6 authorized | `reports/M5_REVIEW.md`; `reports/M5_CERTIFICATION.md` |
 | 32 | 2026-07-04 | M5 | Certification commit recorded: `793f99b`, tag `dra-m5` | git: `793f99b`, tag `dra-m5` |
+| 33 | 2026-07-04 | M6 | Implementation complete — DefaultKnowledgePublisher + KnowledgeRepository (2 implementation files, 1 modified errors.py addition, 2 test files, 1 report, 268/268 tests passing). Deterministic in-memory KnowledgeObject store, KnowledgePublisher ABC implementation, KnowledgeRepositoryError added to error hierarchy | `reports/M6_IMPLEMENTATION_REPORT.md` |
+| 34 | 2026-07-04 | M6 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: unused FrozenInstanceError import in test_knowledge_repository.py). Review independently executed: 268/268 tests pass, ownership/determinism/roundtrip/ABC conformance verified | `reports/M6_REVIEW.md` |
+| 35 | 2026-07-04 | M6 | Review fix applied: removed unused FrozenInstanceError import. Fix-verification addendum filed — verified by execution: 268/268 tests pass, no regressions. Finding 1 RESOLVED | `reports/M6_FIX_VERIFICATION_ADDENDUM.md` |
+| 36 | 2026-07-04 | M6 | **M6 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (268/268); deterministic roundtrip verified; error hierarchy correctly extended; no architectural violations; no scope creep. M7 authorized | `reports/M6_REVIEW.md`; `reports/M6_CERTIFICATION.md` |
+| 37 | 2026-07-04 | M6 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m6` | git: tag `dra-m6` |
 
 ---
 
@@ -75,9 +80,10 @@ It is the single source of truth for:
 | M3 | **Certified — PASS** | #22 | PASS (via fix-verification addendum) |
 | M4 | **Certified — PASS** | #27 | PASS (via fix-verification addendum) |
 | M5 | **Certified — PASS** | #31 | PASS |
-| M6 | Authorized — not started | #31 | — |
-| M7 | Not started | — | — |
+| M6 | **Certified — PASS** | #36 | PASS (via fix-verification addendum) |
+| M7 | Authorized — not started | #36 | — |
 | M8 | Not started | — | — |
+| M9 | Not started | — | — |
 | M9 | Not started | — | — |
 | M8 | Not started | — | — |
 | M9 | Not started | — | — |

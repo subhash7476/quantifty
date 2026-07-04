@@ -47,3 +47,7 @@ class KnowledgeBuildError(DRAError):
 
 class KnowledgePublishError(DRAError):
     """DuckDB write failed during knowledge publication."""
+
+
+class KnowledgeRepositoryError(DRAError):
+    """Knowledge repository operation failed."""
