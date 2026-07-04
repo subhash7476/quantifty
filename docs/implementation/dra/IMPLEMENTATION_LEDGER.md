@@ -61,7 +61,7 @@ It is the single source of truth for:
 | 29 | 2026-07-04 | M5 | Implementation complete — DefaultArtifactEvaluator + DefaultKnowledgeBuilder + ProvenanceChain (3 implementation files, 3 test files, 1 report, 242/242 tests passing per implementation report). Deterministic evaluation, SHA-256 knowledge IDs, immutable provenance, contract validation | `reports/M5_IMPLEMENTATION_REPORT.md` |
 | 30 | 2026-07-04 | M5 | Technical review filed — **PASS** (0 findings: architecturally correct, deterministic, ownership boundaries preserved, all contracts satisfied). Review independently executed: 242/242 tests pass, imports/ownership/determinism verified | `reports/M5_REVIEW.md` |
 | 31 | 2026-07-04 | M5 | **M5 CERTIFIED — PASS** (directly, as review was PASS with zero findings — no fix-verification addendum required per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (242/242); deterministic knowledge IDs verified; provenance chain validated; no architectural violations; no scope creep. M6 authorized | `reports/M5_REVIEW.md`; `reports/M5_CERTIFICATION.md` |
-| 32 | 2026-07-04 | M5 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m5` | git: tag `dra-m5` |
+| 32 | 2026-07-04 | M5 | Certification commit recorded: `793f99b`, tag `dra-m5` | git: `793f99b`, tag `dra-m5` |
 
 ---
 
