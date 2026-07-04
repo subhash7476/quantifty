@@ -28,5 +28,6 @@ class EvidenceBuilder(ABC):
 
         Raises:
             EvidenceConstructionError: Rules cannot be applied.
+                (Exception type defined in M2 — DRA Implementation Plan §16.)
         """
         ...

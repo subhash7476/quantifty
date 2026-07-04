@@ -28,5 +28,6 @@ class ArtifactEvaluator(ABC):
 
         Raises:
             EvaluationError: Artifact evaluation failed or contract violation.
+                (Exception type defined in M2 — DRA Implementation Plan §16.)
         """
         ...

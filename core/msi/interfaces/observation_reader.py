@@ -25,5 +25,6 @@ class ObservationReader(ABC):
 
         Raises:
             ObservationReadError: Required data unavailable or insufficient lookback.
+                (Exception type defined in M2 — DRA Implementation Plan §16.)
         """
         ...

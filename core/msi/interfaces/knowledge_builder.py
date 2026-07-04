@@ -28,5 +28,6 @@ class KnowledgeBuilder(ABC):
 
         Raises:
             KnowledgeBuildError: Construction failed or schema violation.
+                (Exception type defined in M2 — DRA Implementation Plan §16.)
         """
         ...

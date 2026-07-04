@@ -21,6 +21,7 @@ class KnowledgePublisher(ABC):
 
         Raises:
             KnowledgePublishError: DuckDB write failed.
+                (Exception type defined in M2 — DRA Implementation Plan §16.)
         """
         ...
 

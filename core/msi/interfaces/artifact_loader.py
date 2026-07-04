@@ -28,5 +28,6 @@ class ArtifactLoader(ABC):
 
         Raises:
             ArtifactLoadError: Artifact not found, incompatible, not Active, or invalid.
+                (Exception type defined in M2 — DRA Implementation Plan §16.)
         """
         ...

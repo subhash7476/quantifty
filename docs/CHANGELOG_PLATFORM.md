@@ -6,6 +6,11 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA M0 CERTIFIED (PASS via fix-verification addendum)
+
+M0 review Finding 1 resolved: all six `core/msi/interfaces/` docstrings annotated with "(Exception type defined in M2 — DRA Implementation Plan §16.)" (Resolution Option 1; docstring-only, no contract change). Fix-verification addendum filed in `reports/M0_REVIEW.md` — verified **by execution** this time: 42/42 tests pass, package imports execute, all 6 annotations present. Ledger events #6 (fix verified) and #7 (**M0 CERTIFIED — PASS**; M1 authorized) appended. Tag: `dra-m0`.
+*(docs/implementation/dra/reports/M0_REVIEW.md §Fix-Verification Addendum; docs/implementation/dra/IMPLEMENTATION_LEDGER.md events #6–#8)*
+
 ## 2026-07-04 — DRA M0 (Contracts & Runtime Interfaces) + Governance Documents Review
 
 First MSI runtime code committed, plus a governance-documents review with fixes applied:

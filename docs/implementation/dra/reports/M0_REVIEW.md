@@ -462,3 +462,53 @@ M0 will be ready for certification immediately after resolving the identified fi
 ---
 
 **End of Review Report**
+---
+
+## Fix-Verification Addendum
+
+**Date:** 2026-07-04
+
+**Filed by:** Claude (session agent), per IMPLEMENTATION_LEDGER.md §Certification Verdicts (PASS WITH MINOR FIXES process)
+
+**Scope:** Verification of the correction for Finding 1 (Medium — inconsistent exception references in interface docstrings)
+
+### Correction Applied
+
+Resolution Path Option 1 from Finding 1 was applied: exception type names are retained, annotated with their defining milestone. Each of the six interface `Raises:` docstring entries now reads:
+
+```
+(Exception type defined in M2 — DRA Implementation Plan §16.)
+```
+
+Files corrected:
+
+- `core/msi/interfaces/observation_reader.py`
+- `core/msi/interfaces/evidence_builder.py`
+- `core/msi/interfaces/artifact_loader.py`
+- `core/msi/interfaces/artifact_evaluator.py`
+- `core/msi/interfaces/knowledge_builder.py`
+- `core/msi/interfaces/knowledge_publisher.py`
+
+Supporting change (plan side): `KnowledgeBuildError` — referenced by `knowledge_builder.py` but absent from the v1.0 error hierarchy — was added to DRA Implementation Plan §16 in the v1.1 amendment, so every referenced exception type now has a defined home in M2.
+
+### Verification Performed (this addendum)
+
+**Verified by execution:**
+
+- **Test suite execution:** `python -m pytest tests/msi/` — **42 passed** (independently executed; note the original review only observed these results — this addendum closes that gap)
+- **Import verification:** `import core.msi` + all six interface ABCs imported successfully (executed)
+- **Fix presence check:** `grep "defined in M2" core/msi/interfaces/*.py` — all 6 source files annotated (executed)
+
+**Inspected:**
+
+- All six docstring diffs — annotation only; no signature, contract, or behavioral change
+
+### Disposition
+
+Finding 1 is **RESOLVED**. No new issues surfaced during fix verification.
+
+**Certification recommendation:** M0 certified **PASS** (via fix-verification addendum per ledger process step 4–5).
+
+---
+
+**End of Addendum**

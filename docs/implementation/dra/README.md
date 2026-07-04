@@ -2,7 +2,7 @@
 
 **Program:** DRA Implementation
 **Architecture Reference:** MSI-009 (Frozen v1.0)
-**Status:** Implementation Phase — M0 reviewed, fixes pending
+**Status:** Implementation Phase — M0 certified, M1 authorized
 
 ---
 
@@ -38,8 +38,8 @@ Status below is a snapshot; the authoritative record is the ledger's event log.
 
 | ID | Milestone | Status |
 |----|-----------|--------|
-| M0 | Contracts & Runtime Interfaces | Reviewed — PASS WITH MINOR FIXES (fix-verification addendum outstanding) |
-| M1 | Reference Test Artifact | Not started |
+| M0 | Contracts & Runtime Interfaces | **Certified — PASS** (fix-verification addendum, ledger event #7) |
+| M1 | Reference Test Artifact | Authorized — not started |
 | M2 | ArtifactLoader | Not started |
 | M3 | ObservationReader | Not started |
 | M4 | EvidenceBuilder | Not started |
