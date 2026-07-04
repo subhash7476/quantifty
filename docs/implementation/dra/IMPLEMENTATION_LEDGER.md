@@ -76,7 +76,7 @@ It is the single source of truth for:
 | 44 | 2026-07-04 | M8 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: 6 unused contract imports in test_replay.py). Review independently executed: 283/283 tests pass, all 5 replay guarantees verified | `reports/M8_REVIEW.md` |
 | 45 | 2026-07-04 | M8 | Review fix applied: removed 6 unused contract imports. Fix-verification addendum filed — verified by execution: 283/283 tests pass, no regressions. Finding 1 RESOLVED | `reports/M8_FIX_VERIFICATION_ADDENDUM.md` |
 | 46 | 2026-07-04 | M8 | **M8 CERTIFIED — PASS** (via fix-verification addendum). All replay guarantees verified; deterministic pipeline proven; no production code; M9 authorized | `reports/M8_CERTIFICATION.md` |
-| 47 | 2026-07-04 | M8 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m8` | git: tag `dra-m8` |
+| 47 | 2026-07-04 | M8 | Certification commit recorded: `b8b9677`, tag `dra-m8` | git: `b8b9677`, tag `dra-m8` |
 
 ---
 
