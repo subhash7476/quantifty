@@ -2,11 +2,13 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-04 — **DRA v1.0 COMPLETE** (all 10 milestones M0–M9 certified; 283 tests passing)
+**Last updated:** 2026-07-04 — **MSI v1.0 PLATFORM CERTIFIED** (tag `msi-v1.0-certified`; 283 tests passing; DRA M0–M9 certified)
 
 ---
 
 ## Completed
+
+- **MSI v1.0 Platform Certification — CERTIFIED (2026-07-04).** Permanent platform release. Architecture frozen (MSI-001 through MSI-009). Reference implementation certified (DRA M0–M9). Developer resources: `MSI_V1_0_CERTIFICATION.md`, `ENGINE_DEVELOPMENT_GUIDE.md`, `ENGINE_CERTIFICATION_CHECKLIST.md`, `ENGINE_AUTHORING_TEMPLATE.md`, `DRA_DEVELOPER_GUIDE.md`. Release tag: `msi-v1.0-certified`. All future Market State Engines and strategies target this release. *(docs/implementation/dra/reports/MSI_V1_0_CERTIFICATION.md; docs/implementation/dra/ENGINE_*.md)*
 
 - **DRA M9 — Documentation + Package Finalization — CERTIFIED (2026-07-04).** Documentation milestone. `core/msi/__init__.py` exports 22 public symbols. `core/msi/dra/__init__.py` exports 9 DRA implementations. `DRA_DEVELOPER_GUIDE.md` covers setup, artifact creation, running the DRA, testing (283 tests), replay verification, provenance, deterministic IDs, governance. No `import *` or `type: ignore`. **M9 CERTIFIED — PASS. DRA v1.0 (M0–M9) fully certified and complete.** *(core/msi/__init__.py; core/msi/dra/__init__.py; docs/implementation/dra/DRA_DEVELOPER_GUIDE.md)*
 

@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — MSI v1.0 PLATFORM CERTIFIED (permanent release, tag `msi-v1.0-certified`)
+
+MSI v1.0 Platform is certified as the permanent architectural substrate for Market State Intelligence within the Quantifty Platform. Architecture: MSI-001 through MSI-009 (frozen v1.0). Reference implementation: DRA M0–M9 (283 tests, 50 ledger events). Developer resources published: `ENGINE_DEVELOPMENT_GUIDE.md` (how to build a new MSI engine), `ENGINE_CERTIFICATION_CHECKLIST.md` (what a new engine must pass), `ENGINE_AUTHORING_TEMPLATE.md` (directory template for new engines), `DRA_DEVELOPER_GUIDE.md`. All future Market State Engines and strategies target this release.
+
+*(docs/implementation/dra/reports/MSI_V1_0_CERTIFICATION.md; docs/implementation/dra/ENGINE_DEVELOPMENT_GUIDE.md; docs/implementation/dra/ENGINE_CERTIFICATION_CHECKLIST.md; docs/implementation/dra/ENGINE_AUTHORING_TEMPLATE.md)*
+
+---
+
 ## 2026-07-04 — DRA v1.0 COMPLETE (M9 Documentation + Package Finalization CERTIFIED)
 
 M9 is the final DRA milestone — documentation and package finalization. No runtime code changes. `core/msi/__init__.py` now exports all 22 public symbols (7 contracts + 6 interfaces + 9 DRA implementations). `core/msi/dra/__init__.py` exports the full DRA public API. `DRA_DEVELOPER_GUIDE.md` covers setup, artifact creation, pipeline execution, testing (283 tests across 13 test files), replay verification, provenance, deterministic IDs, and governance. No `import *`, no `type: ignore` anywhere in the DRA codebase. **M9 CERTIFIED — PASS. DRA v1.0 is fully certified (M0–M9).** Tags: `dra-m0` through `dra-m9`. 283 tests passing.
