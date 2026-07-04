@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-04 — DRA M5 CERTIFIED (Artifact Evaluator & Knowledge Builder — PASS)
+
+M5 delivers the MSI-005 runtime evaluation stage — three components transforming Evidence into Knowledge. `DefaultArtifactEvaluator` invokes `artifact.evaluate(evidence)` with contract validation: ensures every Estimate carries latent_variable, value, uncertainty ≥ 0, dimension; rejects empty estimates, negative uncertainty, non-MarketState returns. `DefaultKnowledgeBuilder` constructs immutable KnowledgeObject with deterministic SHA-256 knowledge IDs (hash of `artifact_version|eval_timestamp|estimate fields`). `ProvenanceChain` immutable frozen dataclass tracking Observation → Evidence → Artifact → Knowledge with `reconstruct()` and `verify()`. All errors are typed `EvaluationError` / `KnowledgeBuildError`. Zero review findings identified — **PASS directly** (no fix-verification addendum required). **M5 CERTIFIED — PASS**, M6 (KnowledgePublisher) authorized. Ledger events #29–#32, tag `dra-m5`.
+
+*(core/msi/dra/default_artifact_evaluator.py; core/msi/dra/default_knowledge_builder.py; core/msi/dra/provenance.py; tests/msi/test_artifact_evaluator.py; tests/msi/test_knowledge_builder.py; tests/msi/test_provenance.py; docs/implementation/dra/reports/M5_IMPLEMENTATION_REPORT.md; docs/implementation/dra/reports/M5_REVIEW.md; docs/implementation/dra/reports/M5_CERTIFICATION.md)*
+
+---
+
 ## 2026-07-04 — DRA M4 CERTIFIED (Evidence Builder — PASS via fix-verification addendum)
 
 M4 delivers `DefaultEvidenceBuilder` — a deterministic implementation of the `EvidenceBuilder` ABC (MSI-004 §2/§5). Converts immutable Observations into immutable Evidence using artifact-carried rules. Point-in-time correctness via `min(max_ts_per_required_symbol)` evaluation boundary — prevents look-ahead. Deterministic SHA-256 evidence IDs (`artifact_version|evidence_type|source_ids|value`). Identity transform execution with configurable field-name-to-observable_type mapping. All errors are typed `EvidenceConstructionError` — no bare exceptions. Independent technical review identified 2 Low-severity findings (unused imports). Both resolved and verified by execution: **205/205 passing** (22 M4 + 24 M3 + 34 M2 + 83 M1 + 42 M0). Determinism, point-in-time, ownership boundaries independently verified. **M4 CERTIFIED — PASS**, M5 (ArtifactEvaluator + KnowledgeBuilder) authorized. Ledger events #24–#28, tag `dra-m4`.

@@ -58,6 +58,10 @@ It is the single source of truth for:
 | 26 | 2026-07-04 | M4 | Review fixes applied: removed unused module-level ArtifactMetadata import (Finding 1); removed 6 unused inline imports (ArtifactMetadata × 3, Tuple × 3) from 3 test functions (Finding 2). Fix-verification addendum filed — verified by execution: 205/205 tests pass, no regressions. All 2 findings RESOLVED | `reports/M4_FIX_VERIFICATION_ADDENDUM.md` |
 | 27 | 2026-07-04 | M4 | **M4 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (205/205); point-in-time boundary verified; deterministic evidence IDs verified; no architectural violations; no scope creep. M5 authorized | `reports/M4_REVIEW.md`; `reports/M4_CERTIFICATION.md` |
 | 28 | 2026-07-04 | M4 | Certification commit recorded: `d45f44e`, tag `dra-m4` | git: `d45f44e`, tag `dra-m4` |
+| 29 | 2026-07-04 | M5 | Implementation complete — DefaultArtifactEvaluator + DefaultKnowledgeBuilder + ProvenanceChain (3 implementation files, 3 test files, 1 report, 242/242 tests passing per implementation report). Deterministic evaluation, SHA-256 knowledge IDs, immutable provenance, contract validation | `reports/M5_IMPLEMENTATION_REPORT.md` |
+| 30 | 2026-07-04 | M5 | Technical review filed — **PASS** (0 findings: architecturally correct, deterministic, ownership boundaries preserved, all contracts satisfied). Review independently executed: 242/242 tests pass, imports/ownership/determinism verified | `reports/M5_REVIEW.md` |
+| 31 | 2026-07-04 | M5 | **M5 CERTIFIED — PASS** (directly, as review was PASS with zero findings — no fix-verification addendum required per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (242/242); deterministic knowledge IDs verified; provenance chain validated; no architectural violations; no scope creep. M6 authorized | `reports/M5_REVIEW.md`; `reports/M5_CERTIFICATION.md` |
+| 32 | 2026-07-04 | M5 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m5` | git: tag `dra-m5` |
 
 ---
 
@@ -70,9 +74,11 @@ It is the single source of truth for:
 | M2 | **Certified — PASS** | #17 | PASS (via fix-verification addendum) |
 | M3 | **Certified — PASS** | #22 | PASS (via fix-verification addendum) |
 | M4 | **Certified — PASS** | #27 | PASS (via fix-verification addendum) |
-| M5 | Authorized — not started | #27 | — |
-| M6 | Not started | — | — |
+| M5 | **Certified — PASS** | #31 | PASS |
+| M6 | Authorized — not started | #31 | — |
 | M7 | Not started | — | — |
+| M8 | Not started | — | — |
+| M9 | Not started | — | — |
 | M8 | Not started | — | — |
 | M9 | Not started | — | — |
 | M8 | Not started | — | — |

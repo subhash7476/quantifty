@@ -2,11 +2,13 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-04 (DRA M4 certified; 205 tests passing — 22 M4 + 24 M3 + 34 M2 + 83 M1 + 42 M0)
+**Last updated:** 2026-07-04 (DRA M5 certified; 242 tests passing — 37 M5 + 22 M4 + 24 M3 + 34 M2 + 83 M1 + 42 M0)
 
 ---
 
 ## Completed
+
+- **DRA M5 — Artifact Evaluator & Knowledge Builder — CERTIFIED (2026-07-04).** MSI-005 runtime evaluation stage: `DefaultArtifactEvaluator` invokes `artifact.evaluate(evidence)` with MarketState contract validation (every Estimate has latent_variable, value, uncertainty ≥ 0, dimension; no empty estimates; no bool uncertainty). `DefaultKnowledgeBuilder` constructs immutable KnowledgeObject with deterministic SHA-256 knowledge IDs (via `artifact_version|eval_timestamp|estimate fields`). `ProvenanceChain` immutable frozen dataclass tracking `Observation → Evidence → Artifact → Knowledge`, with `reconstruct()` and `verify()` methods. Zero review findings identified. No fix-verification addendum required. **M5 CERTIFIED — PASS**, M6 authorized. *(core/msi/dra/default_artifact_evaluator.py; core/msi/dra/default_knowledge_builder.py; core/msi/dra/provenance.py; tests/msi/test_artifact_evaluator.py; tests/msi/test_knowledge_builder.py; tests/msi/test_provenance.py; docs/implementation/dra/reports/M5_*)*
 
 - **DRA M4 — Evidence Builder — CERTIFIED (2026-07-04).** `DefaultEvidenceBuilder` implementing the `EvidenceBuilder` ABC (MSI-004 §2/§5). Converts immutable Observation DTOs into immutable Evidence DTOs using artifact-carried construction rules. Deterministic SHA-256 evidence IDs, point-in-time correctness via `min(max_ts_per_required_symbol)` evaluation boundary, field-name-to-observable_type mapping, identity transform execution. Only `EvidenceConstructionError` typed exceptions raised — no bare exceptions. Independent technical review: **PASS WITH MINOR FIXES** (2 Low-severity findings: unused imports). Fixes applied and verified by execution (205/205 passing, zero regressions). **M4 CERTIFIED — PASS**, M5 authorized. *(core/msi/dra/default_evidence_builder.py; tests/msi/test_evidence_builder.py; docs/implementation/dra/reports/M4_*)*
 
