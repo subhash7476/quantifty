@@ -2,11 +2,13 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-04 (DRA M6 certified; 268 tests passing — 26 M6 + 37 M5 + 22 M4 + 21 M3 + 37 M2 + 83 M1 + 42 M0)
+**Last updated:** 2026-07-04 (DRA M7 certified; 278 tests passing — 10 M7 + 26 M6 + 37 M5 + 22 M4 + 21 M3 + 37 M2 + 83 M1 + 42 M0)
 
 ---
 
 ## Completed
+
+- **DRA M7 — DRAOrchestrator + Integration — CERTIFIED (2026-07-04).** `DRAOrchestrator` — stateless pipeline coordinator wiring all M2–M6 components into a complete DRA pipeline: ArtifactLoader → symbol discovery → ObservationReader → EvidenceBuilder → ArtifactEvaluator → ProvenanceChain → KnowledgeBuilder → KnowledgePublisher → return KnowledgeObject. Deterministic across orchestrator instances; natural error propagation; no partial state on failure. Independent technical review: **PASS WITH MINOR FIXES** (1 Low-severity finding: unused import). Fix applied and verified by execution (278/278 passing). **M7 CERTIFIED — PASS**, M8 authorized. *(core/msi/dra/orchestrator.py; tests/msi/test_orchestrator.py; docs/implementation/dra/reports/M7_*)*
 
 - **DRA M6 — Knowledge Publisher — CERTIFIED (2026-07-04).** MSI-005 §6 publication stage: `KnowledgeRepository` (in-memory store with store/load/exists/get_by_date/get_latest), `DefaultKnowledgePublisher` (implements the KnowledgePublisher ABC, wraps repository). `KnowledgeRepositoryError` added to DRA error hierarchy. Deterministic roundtrip: publish → load → bit-identical KnowledgeObject. Duplicate knowledge_id rejection. Independent technical review: **PASS WITH MINOR FIXES** (1 Low-severity finding: unused import). Fix applied and verified by execution (268/268 passing, zero regressions). **M6 CERTIFIED — PASS**, M7 authorized. *(core/msi/dra/knowledge_repository.py; core/msi/dra/default_knowledge_publisher.py; core/msi/dra/errors.py; tests/msi/test_knowledge_repository.py; tests/msi/test_knowledge_publisher.py; docs/implementation/dra/reports/M6_*)*
 
