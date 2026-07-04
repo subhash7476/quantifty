@@ -42,7 +42,7 @@ It is the single source of truth for:
 | 10 | 2026-07-04 | M1 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: 4 unused imports in conftest.py; Finding 2, Low: 1 unused import in test_m1_artifact.py; Observation 1: minor test-count inaccuracies in implementation report §7.2). Review independently executed: 125/125 tests pass, checksum recomputed and matched, import + evaluate verified | `reports/M1_REVIEW.md` |
 | 11 | 2026-07-04 | M1 | Review fixes applied: removed 5 unused imports (conftest.py 4, test_m1_artifact.py 1), corrected implementation report test counts. Fix-verification addendum filed — verified by execution: 125/125 tests pass, no regressions. Finding 1 RESOLVED, Finding 2 RESOLVED, Observation 1 RESOLVED | `reports/M1_FIX_VERIFICATION_ADDENDUM.md` |
 | 12 | 2026-07-04 | M1 | **M1 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (125/125); no architectural violations; no scope creep. M2 authorized | `reports/M1_REVIEW.md`; `reports/M1_CERTIFICATION.md` |
-| 13 | 2026-07-04 | M1 | Certification commit recorded (commit hash TBD — will be backfilled), tag `dra-m1` | git: tag `dra-m1` |
+| 13 | 2026-07-04 | M1 | Certification commit recorded: `148c314`, tag `dra-m1` | git: `148c314`, tag `dra-m1` |
 
 ---
 
