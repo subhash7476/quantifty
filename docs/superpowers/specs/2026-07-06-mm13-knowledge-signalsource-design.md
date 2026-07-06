@@ -45,20 +45,29 @@ harness, first Approved artifact).
 Three new files. **No changes to any frozen file, to `fno_runner.py`, or to
 `GuardedSignalSource`** — MM13 only *consumes* existing seams.
 
-### 3.1 `core/strategies/regime_reader_source.py` — `RegimeReaderSource(SignalSource)`
+### 3.1 `core/strategies/knowledge_signal_source.py` — `KnowledgeSignalSource(SignalSource)`
 
 The first concrete `SignalSource`. Implements the `core/runtime/signal_source.py`
 contract and stays dumb (Principle 1: emit `SignalEvent` only; no broker/sizing/
-risk logic inside).
+risk logic inside). The name is deliberately general — it reads a
+`KnowledgeObject`, not specifically a regime — so the same seam serves any
+latent variable a later strategy chooses to act on.
 
+- **Construction** — takes the injected `DRAOrchestrator`, the fixed
+  `evaluation_date`, the `artifact_ref`, and a `latent_variable` selector
+  (default `"market_regime"`). The latent variable to act on is a **parameter,
+  not a hard-coded literal** — the source selects the matching `Estimate` from
+  `market_state.estimates` by this field. This keeps the selection out of the
+  code body without expanding scope (one constructor argument).
 - **`on_start(context)`** — runs the DRA **once** for the fixed `evaluation_date`
   via the injected `DRAOrchestrator`, and caches the returned `KnowledgeObject`
   in an instance field. No persistence — the KnowledgeObject lives in-process for
   the run's duration. This is the one lifecycle hook a source may receive inputs
   through (signal_source.py §5.2/5.4); the DRA collaborators are injected into
   the source at construction, not pulled from the driver context.
-- **`on_bar(bar)`** — reads the regime `Estimate` (`latent_variable ==
-  "market_regime"`) from the cached `market_state.estimates`. Emission policy:
+- **`on_bar(bar)`** — reads the selected `Estimate` (`latent_variable ==`
+  the configured selector, default `"market_regime"`) from the cached
+  `market_state.estimates`. Emission policy:
   - Emit **one** `SignalEvent` (BUY) on the first bar after Knowledge is known.
   - Emit EXIT if the regime value changes from the value last acted on (won't
     fire in the single-day/one-regime scope, but the branch is defined so the
@@ -82,8 +91,9 @@ The production entry point that does not exist today. Responsibilities:
    artifact directory), `DefaultArtifactEvaluator`, `DefaultKnowledgeBuilder`,
    `DefaultKnowledgePublisher` (over the in-memory `KnowledgeRepository`) — and
    wire them into a `DRAOrchestrator`.
-2. **Construct the source.** Build `RegimeReaderSource` around the orchestrator
-   and the fixed `evaluation_date`.
+2. **Construct the source.** Build `KnowledgeSignalSource` around the
+   orchestrator, the fixed `evaluation_date`, the `artifact_ref`, and the
+   `latent_variable` selector (default `"market_regime"`).
 3. **Inject into the runner.** Call
    `fno_runner.build_runner(source=..., symbols=[...],
    execution_mode=ExecutionMode.PAPER, provider=..., clock=..., max_bars=...)`.
@@ -111,11 +121,11 @@ Integration test asserting the end-to-end arrow (see §5).
    → ReferenceTestArtifact.evaluate()          [fixture threshold classifier]
    → MarketState
    → DefaultKnowledgeBuilder.build()
-   → KnowledgeObject                            [cached in RegimeReaderSource.on_start]
+   → KnowledgeObject                            [cached in KnowledgeSignalSource.on_start]
 
 1m bars (DuckDBMarketDataProvider, replay clock, bounded max_bars)
    → LoopDriver.on_bar
-   → RegimeReaderSource.on_bar → SignalEvent (BUY, once)
+   → KnowledgeSignalSource.on_bar → SignalEvent (BUY, once)
    → GuardedSignalSource        [ADR-018 boundary validation — shape passes]
    → ExecutionHandler.process_signal
    → PaperBroker                 [synthetic fill, no capital]
@@ -128,9 +138,9 @@ Integration test asserting the end-to-end arrow (see §5).
 produces an observable PaperBroker fill and a journal entry**, asserted by the
 integration test. Concretely, the test verifies:
 
-1. The DRA run yields a `KnowledgeObject` with a `market_regime` estimate over
-   the real 1d data.
-2. `RegimeReaderSource.on_bar` emits exactly one BUY `SignalEvent` for the run.
+1. The DRA run yields a `KnowledgeObject` with the selected estimate (default
+   `market_regime`) over the real 1d data.
+2. `KnowledgeSignalSource.on_bar` emits exactly one BUY `SignalEvent` for the run.
 3. That signal traverses `GuardedSignalSource` without being rejected or
    quarantined (right shape).
 4. `ExecutionHandler` routes it to `PaperBroker` and a fill is produced,
