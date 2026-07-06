@@ -124,27 +124,47 @@ Integration test asserting the end-to-end arrow (see §5).
    → KnowledgeObject                            [cached in KnowledgeSignalSource.on_start]
 
 1m bars (DuckDBMarketDataProvider, replay clock, bounded max_bars)
-   → LoopDriver.on_bar
+   → LoopDriver._dispatch_signals   [SIGNALS_RECEIVED counter++]
    → KnowledgeSignalSource.on_bar → SignalEvent (BUY, once)
-   → GuardedSignalSource        [ADR-018 boundary validation — shape passes]
-   → ExecutionHandler.process_signal
-   → PaperBroker                 [synthetic fill, no capital]
-   → Fill + journal entry        ✅ observable
+   → GuardedSignalSource        [ADR-018 boundary validation — shape passes, not quarantined]
+   → LoopDriver routes           [SIGNALS_ROUTED counter++]
+   → ExecutionHandler.process_signal → non-None NormalizedOrder  [EXECUTION_CALLS counter++]
+   → PaperBroker.place_order     [order accepted, broker_id returned]
+   → telemetry counters + journal entry   ✅ observable
 ```
+
+**PaperBroker fill semantics (why the proof keys off order acceptance, not a
+position fill):** `PaperBroker.place_order()` returns a broker_id but does **not**
+invoke the fill callback (`paper_broker.py:26-43`). No `FillEvent` is emitted, so
+`process_signal` does not populate the position tracker (the documented CLAUDE.md
+pitfall "position tracker must update on paper fills"). Wiring `FillEvent` →
+`position_tracker.update_from_fill()` is execution-layer work outside MM13's scope
+fence (§6). MM13 therefore proves the arrow by the **observable, real** effect:
+the Knowledge-derived signal is *accepted and routed* to the broker (telemetry
+counters + journal), not by a synthetic position fill.
 
 ## 5. Success criterion
 
-**Not "it runs."** MM13 succeeds when a **Knowledge-derived `SignalEvent`
-produces an observable PaperBroker fill and a journal entry**, asserted by the
+**Not "it runs."** MM13 succeeds when a **Knowledge-derived `SignalEvent` is
+accepted and routed through the full runtime stack to the broker** — observable
+via telemetry counters and the runtime event journal — asserted by the
 integration test. Concretely, the test verifies:
 
 1. The DRA run yields a `KnowledgeObject` with the selected estimate (default
    `market_regime`) over the real 1d data.
 2. `KnowledgeSignalSource.on_bar` emits exactly one BUY `SignalEvent` for the run.
 3. That signal traverses `GuardedSignalSource` without being rejected or
-   quarantined (right shape).
-4. `ExecutionHandler` routes it to `PaperBroker` and a fill is produced,
-   recorded in the position tracker and the runtime event journal.
+   quarantined (`guarded_source.quarantined is False`; no `STRATEGY_ERROR`/
+   `STRATEGY_QUARANTINED` journal record).
+4. The `LoopDriver` routes it to `ExecutionHandler.process_signal`, which returns
+   a non-None `NormalizedOrder` and places the order on `PaperBroker`. Observable
+   as `InMemoryTelemetrySink` counters: `SIGNALS_RECEIVED >= 1`,
+   `SIGNALS_ROUTED >= 1`, `EXECUTION_CALLS >= 1`, plus the routed-order journal
+   entry.
+
+**Note:** the proof keys off *order acceptance*, not a position-tracker fill —
+see the PaperBroker fill-semantics note in §4. A position fill would require
+`FillEvent` wiring that §6 fences out of MM13.
 
 ## 6. Explicit exclusions (scope fence — do NOT build these in MM13)
 
@@ -185,6 +205,7 @@ integration test. Concretely, the test verifies:
 | 90-day lookback not satisfied by single-file reader | Not needed — fixture artifact uses point-in-time `vix_close` only; `lookback_days` is declarative on this path. Verified `read()` returns rows from the real 1d file. |
 | Trivial signal filtered by the guard | Guard enforces *shape* (ADR-018), not rate. Emit a well-formed `SignalEvent`; single-emit avoids position-stacking masking. Verified guard responsibilities in `guarded_signal_source.py`. |
 | Scope creep into Axis 2 | §6 fences persistence, spanning reader, validation, and real-artifact authoring out of MM13 explicitly. |
+| PaperBroker emits no `FillEvent` → no position-tracker fill | Success criterion (§5) keys off order *acceptance* (telemetry counters `SIGNALS_ROUTED`/`EXECUTION_CALLS` + journal), not a position fill. `FillEvent` wiring is out of scope (§6). Verified against `paper_broker.py:26-43` and `tests/integration/test_portfolio_view_driver.py`. |
 
 ## 9. Verified facts underpinning this design
 
