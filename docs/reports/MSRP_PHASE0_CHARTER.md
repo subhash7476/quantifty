@@ -2,7 +2,8 @@
 
 **Document type:** Program charter (Phase 0 — scoping & the decisions that gate the program)
 
-**Status:** Proposed — awaiting the operator's §2 decision
+**Status:** Phase 0 CLOSED (2026-07-06) — all §8 decisions locked; see the
+"Phase 0 Decisions (LOCKED)" section below. Phase 1 (Research Dossier) unblocked.
 
 **Date:** 2026-07-06
 
@@ -160,6 +161,62 @@ The richer framework and additional latent variables are increment 2+.
 
 On those three answers, Phase 1 (the Research Dossier) begins and MSRP gets a full
 program plan + a PROJECT_STATE entry. Nothing below Phase 0 is committed until then.
+
+---
+
+## Phase 0 Decisions (LOCKED — 2026-07-06)
+
+All three §8 decisions are made. Phase 0 is closed; Phase 1 is unblocked.
+
+### D1 — §2 validation scope: **(ii) minimal-but-conformant**
+
+Cover all seven mandatory MSI-006 domains with the lightest defensible method,
+producing one real immutable validation record. Heavier robustness/calibration
+*tooling* deferred to a later artifact. Conjunctive — every domain covered, none
+skipped.
+
+### D2 — First hypothesis: **Forward volatility regime**
+
+- **Latent variable:** `expected_next_day_realized_vol` — a single named estimate
+  with quantified `uncertainty` (conforms to the §4 consumer contract).
+- **Economic rationale:** volatility clusters and mean-reverts; next-day realized
+  vol is partially predictable from trailing realized vol, India VIX, overnight
+  gap, and prior-day range. It competes with the reference fixture on the
+  fixture's own turf (the fixture is a VIX-threshold vol classifier).
+- **Availability:** daily, point-in-time clean (§5.2 satisfied by construction —
+  single-date as-of reads; no spanning-reader engineering).
+
+### D3 — Pre-registered metric (the decision rule that gates "Approved")
+
+- **Common binary target `Y`:** `Y = 1` if the next-trading-day realized
+  volatility of `NSE_INDEX|Nifty 50` — computed from that day's 1m log-returns
+  (index has volume=0; realized vol, never VWAP) — exceeds its **trailing
+  20-trading-day median**, else `Y = 0`. One label per date, fully point-in-time.
+- **Fixture → target mapping:** the reference fixture's discrete `market_regime`
+  value (0/1/2) is used directly as its discriminant **score** for `Y`; the
+  candidate's continuous `E[next-day RV]` is its score. Both are rankings of
+  "how high-vol is tomorrow."
+- **Primary metric: ROC-AUC** of each score against `Y`. Rank-based — compares a
+  3-level discrete score and a continuous estimate without requiring probability
+  calibration (which the discrete fixture cannot honestly provide). **Brier is
+  secondary** (needs a calibration map; recorded, not decisive).
+- **Held-out window:** `2026-01-01 → 2026-07-03`, pre-registered. The artifact's
+  features and thresholds may touch **none** of it — development uses 2023–2025
+  only. No feature/threshold selection may see the held-out window.
+- **Success bar (Approved iff both hold):** `AUC_candidate − AUC_fixture ≥ 0.03`
+  on the held-out window **AND** the 95% paired-bootstrap CI of the difference
+  excludes zero. Rejects lucky point wins; exercises the required uncertainty.
+
+### Precondition status
+
+- **§5.1 data freshness — DONE.** Candle store (1m + 1d) tops up through
+  `2026-07-03`. Data scope (§8.3) confirmed: the daily hypothesis is served by the
+  existing 1m equity/index + 1d intermarket (Nifty 50, India VIX) coverage.
+- **§5.2 point-in-time — SATISFIED** by choosing a daily, as-of-clean hypothesis.
+- **§5.3 reproducibility substrate — OPEN (the one remaining precondition).** RNG
+  seed, library versions, and the data-snapshot hash of the candle store
+  @ 2026-07-03 are pinned when the Phase-1 dossier is built, cited against the
+  held-out window above.
 
 ---
 
