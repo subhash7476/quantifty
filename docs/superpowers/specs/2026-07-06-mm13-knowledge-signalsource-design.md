@@ -68,18 +68,30 @@ latent variable a later strategy chooses to act on.
 - **`on_bar(bar)`** — reads the selected `Estimate` (`latent_variable ==`
   the configured selector, default `"market_regime"`) from the cached
   `market_state.estimates`. Emission policy:
-  - Emit **one** `SignalEvent` (BUY) on the first bar after Knowledge is known.
-  - Emit EXIT if the regime value changes from the value last acted on (won't
-    fire in the single-day/one-regime scope, but the branch is defined so the
-    contract is complete and honest).
-  - Otherwise return `[]` (the normal do-nothing case).
+  - Emit **one** `SignalEvent` (BUY) on the first bar after Knowledge is known;
+    return `[]` on every subsequent bar (single-emit).
   - Single-emit is deliberate: emitting every bar would be masked by the
     position-stacking guard and make the proof unreadable.
-- The emitted `SignalEvent` carries a well-formed shape (valid `strategy_id`,
-  `symbol`, `timestamp`, `signal_type`, `confidence`) so it passes
-  `GuardedSignalSource`'s per-signal boundary validation (ADR-018 / conformance
-  §4). The guard enforces *shape*, not rate — a correctly-shaped mechanical
-  signal is not filtered away.
+  - **No EXIT branch.** Knowledge is computed once in `on_start` and never
+    re-evaluated during the run, so the regime cannot change mid-run — an
+    EXIT-on-regime-change branch would be dead code in the single-day/one-regime
+    scope (YAGNI). Regime transitions + EXIT belong to the deferred multi-day
+    scope, not MM13.
+- **Mandatory signal shape (guard contract, verified against
+  `guarded_signal_source.py` / `conformance.py`).** For the emitted BUY to pass
+  `GuardedSignalSource` (ADR-018) rather than be dropped as a
+  `SIGNAL_CONTRACT_REJECTED`, it MUST satisfy:
+  - `signal.timestamp == bar.timestamp` (time comes from the bar, never
+    wall-clock — architecture §4.1);
+  - `metadata["sl_distance"]` numeric and `> 0`;
+  - `metadata["risk_r"]` numeric and `> 0`
+    (the §4.2 mandatory reserved keys — the strategy *declares* its intended
+    stop distance and risk unit; the execution layer sizes from them. This is a
+    declaration, not sizing, so Principle 1 holds).
+  MM13 emits a trivial-but-valid declaration: `sl_distance = round(bar.close *
+  sl_frac, 2)` (default `sl_frac = 0.01`) and `risk_r = 1.0` — both constructor
+  parameters. The regime value and `knowledge_id` are also stamped into
+  `metadata` so the test can prove Knowledge actually flowed into the signal.
 
 ### 3.2 `scripts/msi_paper_runner.py` — the composition root
 
@@ -95,18 +107,35 @@ The production entry point that does not exist today. Responsibilities:
    orchestrator, the fixed `evaluation_date`, the `artifact_ref`, and the
    `latent_variable` selector (default `"market_regime"`).
 3. **Inject into the runner.** Call
-   `fno_runner.build_runner(source=..., symbols=[...],
-   execution_mode=ExecutionMode.PAPER, provider=..., clock=..., max_bars=...)`.
-   `build_runner` wraps the source in `GuardedSignalSource` and builds the
-   `LoopDriver` (no change to `fno_runner` required — it already accepts these
-   injection points).
-4. **Drive bars deterministically.** Inject a `DuckDBMarketDataProvider` +
-   a replay `Clock` + a bounded `max_bars` over the copied candle store.
-   **Not** the default `LiveDuckDBMarketDataProvider` + `RealTimeClock`: the
-   copied data ends 2026-05-11 and a live run today (2026-07-06) would receive
-   zero bars and stall — a vacuous "proof". Deterministic replay is Principle 4's
-   sanctioned path ("live and backtest data treated identically") and is exactly
-   the isolation the `fno_runner` docstring calls the characterization net.
+   `fno_runner.build_runner(source=..., symbols=[traded_symbol],
+   execution_mode=ExecutionMode.PAPER, provider=..., clock=..., telemetry=...,
+   db_manager=..., max_bars=...)`. `build_runner` wraps the source in
+   `GuardedSignalSource` and builds the `LoopDriver` (no change to `fno_runner`
+   required — it already accepts these injection points). Verified: the
+   `build_runner` `Mode.LIVE` startup gate (startup/recovery/reconciliation)
+   **passes** for an equity PAPER universe (no derivatives → no
+   underlyings/SPAN required); reconciliation is vacuous-but-warned.
+4. **Traded universe vs. regime inputs are separate.** The DRA reads the
+   *regime inputs* (`NSE_INDEX|Nifty 50` + `NSE_INDEX|India VIX`) from the 1d
+   file inside `on_start`. The *traded symbol* is a separate liquid equity
+   (`NSE_EQ|INE139A01034`, which has full 1m coverage on 2026-02-27) whose bars
+   drive the loop; the BUY is emitted on that equity. Regime gates an equity
+   trade — index symbols are not order-routable and carry `volume=0`.
+5. **Drive bars deterministically — `FakeMarketDataProvider` fed real bars.**
+   The composition-root *factory* accepts an injected `provider` + `clock` +
+   `max_bars`. The MM13 proof drives a bounded list of **real** `OHLCVBar`s read
+   directly from `data/market_data/nse/candles/1m/2026-02-27.duckdb` through
+   `tests/runtime/_doubles.py::FakeMarketDataProvider` + a `ReplayClock`.
+   **Rationale (verified):** `DuckDBMarketDataProvider`'s historical read path
+   returns empty for the copied per-date store (`MarketDataQuery.get_ohlcv`
+   yields 0 rows — a historical-reader/partition-resolution gap), so it would
+   silently stall the loop. `FakeMarketDataProvider` is the sanctioned
+   driver-test provider (`base.py` names it "MockDataProvider: Test data"),
+   keeps the proof hermetic and deterministic, and still drives the real
+   Knowledge→execution arrow with real price bars. A live/real-provider CLI
+   entrypoint for operator runs is **deferred** (it needs either the
+   historical-reader fix or the live feed — rung-1 LIVE+PAPER, same status as
+   `fno_runner` itself) and is out of MM13's proof scope.
 
 ### 3.3 `tests/msi/test_mm13_integration.py` — the proof
 
@@ -182,6 +211,12 @@ see the PaperBroker fill-semantics note in §4. A position fill would require
 - **No changes to frozen components, `fno_runner.py`, or `GuardedSignalSource`.**
   MM13 consumes seams; it does not modify them.
 - **No LIVE execution mode.** PAPER only.
+- **No live/real-provider CLI entrypoint.** MM13 ships the composition-root
+  *factory* (`build_msi_paper_runner`) with an injected provider; the proof
+  drives it with `FakeMarketDataProvider`. A runnable operator entrypoint needs
+  the historical-reader fix or the live feed (rung-1) and is deferred.
+- **No EXIT / regime-transition logic** (see §3.1 — dead code in the single-day
+  scope; deferred to multi-day).
 
 ## 7. Governance reconciliation
 
@@ -222,3 +257,19 @@ see the PaperBroker fill-semantics note in §4. A position fill would require
   on raise; it does not rate-limit well-shaped signals.
 - No script currently imports `core.msi` (`grep` over `scripts/`, `app_facade/`,
   `flask_app/` returns nothing) — MM13 is the first.
+- **End-to-end prototype (proven).** A throwaway prototype wired the real DRA →
+  `KnowledgeSignalSource` (with `sl_distance`/`risk_r` metadata) →
+  `build_runner(execution_mode=PAPER, provider=FakeMarketDataProvider(real 1m
+  bars), clock=ReplayClock, max_bars=5)` → `driver.run()`. Result:
+  `SIGNALS_RECEIVED=1, SIGNALS_ROUTED=1, EXECUTION_CALLS=1`, log line "Order
+  placed with broker" — the full arrow works. The `build_runner` `Mode.LIVE`
+  startup gate passed for the equity PAPER universe.
+- **Guard contract (proven by rejection then acceptance).** A BUY missing
+  `sl_distance`/`risk_r` was dropped as `SIGNAL_CONTRACT_REJECTIONS=1`; adding
+  both (numeric, > 0) plus `timestamp == bar.timestamp` cleared the guard.
+- **Execution store init.** The integration test must supply a fresh
+  `ExecutionStore` (tmp path) — pointing the handler at the real data-root
+  without schema init raised "no such table: trades" during fill processing.
+  Use the `tests/integration/test_portfolio_view_driver.py` monkeypatch pattern
+  (`ExecutionStore(str(tmp_path / "execution.db"))` + `DatabaseManager(
+  data_root=tmp_path)`).
