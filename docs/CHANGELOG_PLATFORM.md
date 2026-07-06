@@ -6,6 +6,22 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-06 — MM13 — Knowledge Integration Proof CERTIFIED (tag `mm13-certified`)
+
+First Knowledge-consuming SignalSource (`KnowledgeSignalSource`) proven end-to-end through the certified execution platform, closing the `Knowledge → [Strategy]` integration gap. Technical review: **PASS** (zero findings). Certification: **PASS** (all 11 acceptance criteria met). Zero frozen-component changes. Full suite: 1414 passed, 4 skipped. `KnowledgeSignalSource` runs DRA once at `on_start()`, caches `KnowledgeObject`, emits a single contract-valid BUY. `scripts/msi_paper_runner.py` is the first script to import `core.msi` and run `DRAOrchestrator` outside a test. Integration test asserts SIGNALS_RECEIVED=1, SIGNALS_ROUTED=1, EXECUTION_CALLS=1, SIGNAL_CONTRACT_REJECTIONS=0, not quarantined. Tag: `mm13-certified`.
+
+*(core/strategies/knowledge_signal_source.py; scripts/msi_paper_runner.py; tests/strategies/test_knowledge_signal_source.py; tests/msi/test_mm13_integration.py; docs/implementation/mm13/reports/MM13_IMPLEMENTATION_REPORT.md; docs/implementation/mm13/reports/MM13_REVIEW.md; docs/implementation/mm13/reports/MM13_CERTIFICATION.md)*
+
+---
+
+## 2026-07-06 — MM13 — Knowledge Integration Proof COMPLETE
+
+First Knowledge-consuming SignalSource (`KnowledgeSignalSource`) proven end-to-end through the certified execution platform. `KnowledgeObject` from `DRAOrchestrator` drives `KnowledgeSignalSource → GuardedSignalSource → ExecutionHandler → PaperBroker`, closing the `Knowledge → [Strategy]` integration gap. MM13 is a platform integration proof — not a profitable strategy. `scripts/msi_paper_runner.py` is the first script to import `core.msi` and run `DRAOrchestrator` outside a test. Integration test (`tests/msi/test_mm13_integration.py`) asserts telemetry counters: SIGNALS_RECEIVED=1, SIGNALS_ROUTED=1, EXECUTION_CALLS=1, SIGNAL_CONTRACT_REJECTIONS=0, not quarantined. **Zero frozen-component changes.** All regression tests pass.
+
+*(core/strategies/knowledge_signal_source.py; scripts/msi_paper_runner.py; tests/strategies/test_knowledge_signal_source.py; tests/msi/test_mm13_integration.py)*
+
+---
+
 ## 2026-07-04 — MSI v1.0 PLATFORM CERTIFIED (permanent release, tag `msi-v1.0-certified`)
 
 MSI v1.0 Platform is certified as the permanent architectural substrate for Market State Intelligence within the Quantifty Platform. Architecture: MSI-001 through MSI-009 (frozen v1.0). Reference implementation: DRA M0–M9 (283 tests, 50 ledger events). Developer resources published: `ENGINE_DEVELOPMENT_GUIDE.md` (how to build a new MSI engine), `ENGINE_CERTIFICATION_CHECKLIST.md` (what a new engine must pass), `ENGINE_AUTHORING_TEMPLATE.md` (directory template for new engines), `DRA_DEVELOPER_GUIDE.md`. All future Market State Engines and strategies target this release.
