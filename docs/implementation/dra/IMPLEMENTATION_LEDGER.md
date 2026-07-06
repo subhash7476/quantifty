@@ -6,7 +6,7 @@
 
 **Status:** Active — Append-Only Event Log
 
-**Last Updated:** 2026-07-06
+**Last Updated:** 2026-07-06 — MSRP Phase 5A CERTIFIED
 
 ---
 
@@ -86,6 +86,11 @@ It is the single source of truth for:
 | 54 | 2026-07-06 | MM13 | Technical review filed — **PASS** (0 findings: architecturally clean, ownership boundaries verified, integration proof traceably correct, deterministic, regression-safe). Review independently executed: 1414/1414 tests pass, imports executed, git diff confirms zero frozen-file modifications, telemetry counter chain traced from increment site to assertion | `../mm13/reports/MM13_REVIEW.md` |
 | 55 | 2026-07-06 | MM13 | **MM13 CERTIFIED — PASS** (directly, as review was PASS with zero findings — no fix-verification addendum required per §Certification Verdicts). All 11 acceptance criteria met; architecture compliance verified; tests independently executed (1414/1414); `Knowledge → [Strategy]` integration gap closed; zero frozen-component modifications; no constitutional violations; no scope creep | `../mm13/reports/MM13_REVIEW.md`; `../mm13/reports/MM13_CERTIFICATION.md` |
 | 56 | 2026-07-06 | MM13 | Certification commit recorded: `0f8a2a6`, tag `mm13-certified` | git: `0f8a2a6`, tag `mm13-certified` |
+| 57 | 2026-07-06 | MSRP 5A | Implementation complete — `ForwardVolatilityArtifact` PublishedArtifact v2 (frozen HAR-RV+VIX log spec, OLS on dev window 2023-01-02 → 2025-12-31, n_obs=700, coefficients frozen; MSI-007 shape; deterministic `evaluate()`; state-dependent Mo2 uncertainty; 42 tests) | `../msrp/reports/MSRP_PHASE5A_IMPLEMENTATION_REPORT.md` |
+| 58 | 2026-07-06 | MSRP 5A | Technical review filed — **PASS WITH REQUIRED FIXES** (F1 Major/architectural: evidence rules declare non-identity transforms the certified identity-only `DefaultEvidenceBuilder` rejects — loadable + evaluatable on pre-built Evidence but not end-to-end evidence-buildable; F2 Moderate: `evaluate()` mis-stamped `evaluation_timestamp` via a future sentinel floor; F3 Minor: no test covered F1/F2). Math cleared as faithful to the frozen dossier; no coefficient defect | `../msrp/reports/MSRP_PHASE5A_TECHNICAL_REVIEW.md` |
+| 59 | 2026-07-06 | MSRP 5A | Review fixes applied (F1: no transform change — documented Phase-6 offline evidence-construction strategy + boundary test; F2: removed sentinel floor, `evaluation_timestamp = max(evidence ts)`, regenerated `model.py` with coefficients bit-identical; F3: added timestamp + boundary tests). Fix-verification recorded in addendum; 44/44 Phase-5A tests pass, 328/328 MSI suite green | `../msrp/reports/MSRP_Phase5A_implementation_addendum.md` |
+| 60 | 2026-07-06 | MSRP 5A | Fix verification **APPROVED** — all three findings resolved; coefficients unchanged (n_obs=700, σ=0.272552, b0=−3.762284, b1=0.312252, b2=0.129720, b3=0.082761, b4=0.475815); regression PASS (additive-only change set, 284 existing MSI tests green) | `../msrp/reports/MSRP_PHASE5A_CERTIFICATION.md` |
+| 61 | 2026-07-06 | MSRP 5A | **MSRP PHASE 5A CERTIFIED — PASS.** ForwardVolatility PublishedArtifact v2 certified; conforms to frozen dossier `d9233b1`; MSI-007 shape; deterministic + replayable; MSI-v1.0 KnowledgeObject emission on pre-built Evidence; F1 evidence-construction strategy documented for Phase 5B/6 (offline research tooling, not a platform change). Phase 5B authorized | `../msrp/reports/MSRP_PHASE5A_CERTIFICATION.md` |
 
 ---
 
@@ -105,6 +110,7 @@ It is the single source of truth for:
 | M9 | **Certified — PASS** | #49 | PASS |
 | **MSI v1.0** | **PLATFORM CERTIFIED** | **#51** | **Permanent release** |
 | **MM13** | **Certified — PASS** | **#55** | **PASS** |
+| **MSRP Phase 5A** | **Certified — PASS** | **#61** | **PASS (via fix verification)** |
 
 ---
 

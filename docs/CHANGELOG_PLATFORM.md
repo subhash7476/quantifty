@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-06 — MSRP Phase 5A — PublishedArtifact v2 CERTIFIED (tag `msrp-phase5a-certified`)
+
+First real `PublishedArtifact v2` authored from the frozen MSRP Phase-1 Research Dossier (commit `d9233b1`). `ForwardVolatilityArtifact` faithfully implements the forward-volatility-regime hypothesis: HAR-RV+VIX log specification (`log RV_{t+1} = b0 + b1·log RV^d + b2·log RV^w(5) + b3·log RV^m(22) + b4·log VIX + ε`), fitted by OLS on the development window only (2023-01-02 → 2025-12-31, n_obs=700), coefficients frozen into an immutable MSI-007-shaped artifact. Deterministic `evaluate()` emits the named estimate `expected_next_day_realized_vol` with state-dependent uncertainty (Phase-2 finding Mo2). Held-out window sealed (target clamped). MSI-v1.0-compatible KnowledgeObjects via the certified runtime. Technical review: **PASS WITH REQUIRED FIXES** (3 findings — all resolved; coefficients unchanged). Certification: **PASS.** Additive only — zero frozen-component / runtime / contract modifications. 44 Phase-5A tests; full MSI suite 328 passed, 0 failed. Next: Phase 5B (MSI-006 A2 Validation Harness).
+
+*(core/msi/artifacts/forward_vol_v2/; core/msi/msrp/forward_vol.py; scripts/msrp/build_forward_vol_artifact.py; tests/msi/msrp/test_forward_vol_artifact.py; docs/implementation/msrp/reports/MSRP_PHASE5A_*)*
+
+---
+
 ## 2026-07-06 — MM13 — Knowledge Integration Proof CERTIFIED (tag `mm13-certified`)
 
 First Knowledge-consuming SignalSource (`KnowledgeSignalSource`) proven end-to-end through the certified execution platform, closing the `Knowledge → [Strategy]` integration gap. Technical review: **PASS** (zero findings). Certification: **PASS** (all 11 acceptance criteria met). Zero frozen-component changes. Full suite: 1414 passed, 4 skipped. `KnowledgeSignalSource` runs DRA once at `on_start()`, caches `KnowledgeObject`, emits a single contract-valid BUY. `scripts/msi_paper_runner.py` is the first script to import `core.msi` and run `DRAOrchestrator` outside a test. Integration test asserts SIGNALS_RECEIVED=1, SIGNALS_ROUTED=1, EXECUTION_CALLS=1, SIGNAL_CONTRACT_REJECTIONS=0, not quarantined. Tag: `mm13-certified`.

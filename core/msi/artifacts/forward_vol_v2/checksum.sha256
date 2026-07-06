@@ -1,0 +1,10 @@
+{
+  "algorithm": "sha256",
+  "files": {
+    "metadata.json": "ad4844ce54f191edc3699ce5319455c19a9bad25ae7a9975b27ff2049fa986de",
+    "evidence_rules.json": "add1d65b0d7b76a73a4056ec85c48c364f46fad056f83a8144d96a8009afde78",
+    "model.py": "40f5dcba52d9989863ad566f797579fe07ff2b5bac5a7b3a4853f32de93e4783",
+    "provenance.json": "d53f9dd340c7ab27e2d0cbef1328972861dd46a7a86ae695cb0e4cdccff9b7e9"
+  },
+  "combined_hash": "e61856832e6bd0303f0699bf8603d2de113bbd8bec2a4ee353a32f53d585756c"
+}
