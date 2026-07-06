@@ -2,11 +2,13 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-04 — **MSI v1.0 PLATFORM CERTIFIED** (tag `msi-v1.0-certified`; 283 tests passing; DRA M0–M9 certified)
+**Last updated:** 2026-07-06 — **MM13 CERTIFIED — PASS** (Knowledge→Strategy arrow closed; `KnowledgeSignalSource` + end-to-end PAPER proof; zero frozen-component changes; tag `mm13-certified`)
 
 ---
 
 ## Completed
+
+- **MM13 — Knowledge-Consuming SignalSource (PAPER Integration Proof) — CERTIFIED (2026-07-06).** First Knowledge-consuming SignalSource delivered and proven end-to-end through the certified execution platform. `KnowledgeSignalSource` runs the DRA once at `on_start()`, caches the returned `KnowledgeObject`, and emits a single contract-valid BUY `SignalEvent`. `scripts/msi_paper_runner.py` is the first composition root to import `core.msi` — wiring all six real DRA collaborators into `fno_runner.build_runner` in PAPER mode. Integration test (`tests/msi/test_mm13_integration.py`) proves the complete `KnowledgeObject → KnowledgeSignalSource → GuardedSignalSource → ExecutionHandler → PaperBroker` path with real 1m bars. `Knowledge → [Strategy]` integration gap closed. **Zero frozen-component changes.** Technical review: **PASS** (zero findings). Certification: **PASS** (all 11 acceptance criteria met). Tag: `mm13-certified`. `tests/strategies/` (5 tests) + `tests/msi/test_mm13_integration.py` (1 test) — all green; full suite 1414 passed, 4 skipped. *(docs/superpowers/plans/2026-07-06-mm13-knowledge-signalsource.md; core/strategies/knowledge_signal_source.py; scripts/msi_paper_runner.py; docs/implementation/mm13/reports/MM13_IMPLEMENTATION_REPORT.md; docs/implementation/mm13/reports/MM13_REVIEW.md; docs/implementation/mm13/reports/MM13_CERTIFICATION.md)*
 
 - **MSI v1.0 Platform Certification — CERTIFIED (2026-07-04).** Permanent platform release. Architecture frozen (MSI-001 through MSI-009). Reference implementation certified (DRA M0–M9). Developer resources: `MSI_V1_0_CERTIFICATION.md`, `ENGINE_DEVELOPMENT_GUIDE.md`, `ENGINE_CERTIFICATION_CHECKLIST.md`, `ENGINE_AUTHORING_TEMPLATE.md`, `DRA_DEVELOPER_GUIDE.md`. Release tag: `msi-v1.0-certified`. All future Market State Engines and strategies target this release. *(docs/implementation/dra/reports/MSI_V1_0_CERTIFICATION.md; docs/implementation/dra/ENGINE_*.md)*
 
