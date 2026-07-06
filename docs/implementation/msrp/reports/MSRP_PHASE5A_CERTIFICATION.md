@@ -153,12 +153,12 @@ authoring was the scope) but gates how Phase 5B/6 operates.
 
 ## 9. Next Phase
 
-**Phase 5B — MSI-006 A2 Validation Harness.** Build the minimal-but-conformant (charter
+**Phase 5B — MSI-006 A2 Validation Harness.** ~~Build the minimal-but-conformant (charter
 decision D1) validation harness covering all seven mandatory MSI-006 domains, producing
 one immutable validation record and a resolvable `validation_id`. This includes the
 Phase-6 offline evidence-construction tooling (F1 resolution) and the §3.4 head-to-head
 against the reference fixture on the sealed held-out window. Phase 5B begins in a separate
-governed implementation cycle.
+governed implementation cycle.~~ **Completed 2026-07-06 — CERTIFIED PASS.** Implemented and verified off-window (dev/synthetic). The held-out scoring run is Phase 6.
 
 ---
 

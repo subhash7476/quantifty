@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-06 — MSRP Phase 5B — A2 Validation Harness CERTIFIED (tag `msrp-phase5b-certified`)
+
+Deterministic MSI-006 A2 Validation Harness built and certified against the certified `ForwardVolatilityArtifact`. Seven-domain `ValidationHarness` class: Architectural, Scientific (ΔAUC_gate ≥ 0.03 ∧ 95% MBB CI excludes 0), Temporal (point-in-time + no-leak audit), Robustness (MBB CI + base rate + chronological half-split), Reproducibility (byte-identical `results_digest` on double-run), Operational (`evaluate()` determinism), Calibration (empirical coverage of log-normal PI at nominal=0.90, tolerance=0.05). `validation_id` content-addressed over inputs only (excludes results; includes `harness_version`). `results_digest` 6dp canonical JSON. `checksum.sha256` per-file + combined seal. Phase-6 duplicate guardrail. VIX gate thresholds hardcoded (15/25). Sub-period split `(n + 1) // 2`. Implementation review: 4 findings (3 fixed, 1 acknowledged). **Certification: PASS.** Zero frozen-component changes. 353 tests (25 new + 328 existing), 0 failures. Phase 6 held-out scoring authorized.
+
+*(core/msi/msrp/validation_stats.py; core/msi/msrp/validation_scoring.py; core/msi/msrp/validation.py; scripts/msrp/run_forward_vol_validation.py; tests/msi/msrp/test_validation_stats.py; tests/msi/msrp/test_validation_scoring.py; tests/msi/msrp/test_forward_vol_validation.py; docs/implementation/msrp/reports/MSRP_PHASE5B_*)*
+
+---
+
 ## 2026-07-06 — MSRP Phase 5A — PublishedArtifact v2 CERTIFIED (tag `msrp-phase5a-certified`)
 
 First real `PublishedArtifact v2` authored from the frozen MSRP Phase-1 Research Dossier (commit `d9233b1`). `ForwardVolatilityArtifact` faithfully implements the forward-volatility-regime hypothesis: HAR-RV+VIX log specification (`log RV_{t+1} = b0 + b1·log RV^d + b2·log RV^w(5) + b3·log RV^m(22) + b4·log VIX + ε`), fitted by OLS on the development window only (2023-01-02 → 2025-12-31, n_obs=700), coefficients frozen into an immutable MSI-007-shaped artifact. Deterministic `evaluate()` emits the named estimate `expected_next_day_realized_vol` with state-dependent uncertainty (Phase-2 finding Mo2). Held-out window sealed (target clamped). MSI-v1.0-compatible KnowledgeObjects via the certified runtime. Technical review: **PASS WITH REQUIRED FIXES** (3 findings — all resolved; coefficients unchanged). Certification: **PASS.** Additive only — zero frozen-component / runtime / contract modifications. 44 Phase-5A tests; full MSI suite 328 passed, 0 failed. Next: Phase 5B (MSI-006 A2 Validation Harness).

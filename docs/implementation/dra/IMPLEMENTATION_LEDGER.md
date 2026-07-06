@@ -6,7 +6,7 @@
 
 **Status:** Active — Append-Only Event Log
 
-**Last Updated:** 2026-07-06 — MSRP Phase 5A CERTIFIED
+**Last Updated:** 2026-07-06 — MSRP Phase 5B CERTIFIED
 
 ---
 
@@ -91,6 +91,11 @@ It is the single source of truth for:
 | 59 | 2026-07-06 | MSRP 5A | Review fixes applied (F1: no transform change — documented Phase-6 offline evidence-construction strategy + boundary test; F2: removed sentinel floor, `evaluation_timestamp = max(evidence ts)`, regenerated `model.py` with coefficients bit-identical; F3: added timestamp + boundary tests). Fix-verification recorded in addendum; 44/44 Phase-5A tests pass, 328/328 MSI suite green | `../msrp/reports/MSRP_Phase5A_implementation_addendum.md` |
 | 60 | 2026-07-06 | MSRP 5A | Fix verification **APPROVED** — all three findings resolved; coefficients unchanged (n_obs=700, σ=0.272552, b0=−3.762284, b1=0.312252, b2=0.129720, b3=0.082761, b4=0.475815); regression PASS (additive-only change set, 284 existing MSI tests green) | `../msrp/reports/MSRP_PHASE5A_CERTIFICATION.md` |
 | 61 | 2026-07-06 | MSRP 5A | **MSRP PHASE 5A CERTIFIED — PASS.** ForwardVolatility PublishedArtifact v2 certified; conforms to frozen dossier `d9233b1`; MSI-007 shape; deterministic + replayable; MSI-v1.0 KnowledgeObject emission on pre-built Evidence; F1 evidence-construction strategy documented for Phase 5B/6 (offline research tooling, not a platform change). Phase 5B authorized | `../msrp/reports/MSRP_PHASE5A_CERTIFICATION.md` |
+| 62 | 2026-07-06 | MSRP 5B | Implementation complete — A2 Validation Harness (7 implementation files, 3 test files, 1 report, 353/353 tests passing). Seven-domain `ValidationHarness`, direct `evaluate()` scoring, MBB CI, sealed-record I/O, phase-6 duplicate guardrail. Zero frozen-component changes | `../msrp/reports/MSRP_PHASE5B_A2_DESIGN_SPEC.md`; `../msrp/reports/MSRP_PHASE5B_A2_IMPLEMENTATION_REVIEW.md` |
+| 63 | 2026-07-06 | MSRP 5B | Technical review filed — **PASS WITH MINOR FIXES** (F1: methodology.json missing calibration params; F2: warmup_days dead code; F3: calibration returns REPORTED for zero valid days; F4: architectural domain artifact=None test gap — acknowledged). Review independently verified: 353/353 tests pass, zero frozen-component diffs, `validation_id`/`results_digest`/`checksum.sha256` determinism confirmed | `../msrp/reports/MSRP_PHASE5B_A2_IMPLEMENTATION_REVIEW.md` |
+| 64 | 2026-07-06 | MSRP 5B | Review fixes applied: added `calibration_nominal`/`calibration_tolerance` to methodology dict (F1); removed unused `warmup_days` parameter (F2); changed calibration zero-valid-days guard from REPORTED to FAIL (F3); F4 acknowledged as coverage gap. Fix-verification recorded in addendum; 353/353 tests pass | `../msrp/reports/MSRP_PHASE5B_IMPLEMENTATION_ADDENDUM.md` |
+| 65 | 2026-07-06 | MSRP 5B | Fix verification **APPROVED** — all three findings resolved; F4 acknowledged; regression PASS (353/353 tests green, zero frozen-component changes) | `../msrp/reports/MSRP_PHASE5B_IMPLEMENTATION_ADDENDUM.md` |
+| 66 | 2026-07-06 | MSRP 5B | **MSRP PHASE 5B CERTIFIED — PASS.** A2 Validation Harness certified; seven MSI-006 domains implemented; identity/integrity/reproducibility mechanisms separated; `validation_id` content-addressed over inputs only; `results_digest` 6dp canonical JSON; `checksum.sha256` per-file + combined seal; VIX gate hardcoded 15/25; sub-period split `(n+1)//2`; calibration parameters pinned. Phase 6 held-out scoring authorized | `../msrp/reports/MSRP_PHASE5B_CERTIFICATION.md` |
 
 ---
 
@@ -111,6 +116,7 @@ It is the single source of truth for:
 | **MSI v1.0** | **PLATFORM CERTIFIED** | **#51** | **Permanent release** |
 | **MM13** | **Certified — PASS** | **#55** | **PASS** |
 | **MSRP Phase 5A** | **Certified — PASS** | **#61** | **PASS (via fix verification)** |
+| **MSRP Phase 5B** | **Certified — PASS** | **#66** | **PASS (via fix verification)** |
 
 ---
 

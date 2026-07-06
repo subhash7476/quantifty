@@ -243,7 +243,7 @@ specification.
 Per the Phase-5A brief, the following were **not** performed and remain for their
 separate governed phases:
 
-- MSI-006 A2 validation harness — not built.
+- MSI-006 A2 validation harness — now built and certified as Phase 5B (2026-07-06).
 - Held-out evaluation — not run; held-out window untouched.
 - Technical review, review fixes, certification, governance updates, commit, tag — not
   performed.
