@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-07 — MSRP Phase 6 — Single Held-Out Scoring Run CERTIFIED (tag `msrp-phase6-complete`)
+
+The certified A2 Validation Harness executed once on the sealed held-out window (2026-01-01 → 2026-07-03). Pinned substrate: L=28 (dev-window RV ACF, k=28), B=10000, seed=42. Results: ΔAUC_gate=0.090767, 95% MBB CI=(0.019941, 0.212755), n=119, base_rate=0.537815. ΔAUC_vix=0.066193 > 0 (beats raw VIX, §2.1 substantiated). Seven domains: Architectural/Scientific/Temporal/Operational/Calibration/Reproducibility PASS, Robustness REPORTED. Calibration coverage 94.12% (nominal 90% ±5%). Sub-period: H1 Δ=0.065185, H2 Δ=0.0125. §10 verdict: Approved. Execution attestation PASS (six checks). Sealed record: `47fe3272...`, attested `approved`. Zero frozen-component changes. Next: Phase 7 (first alpha strategy consuming this Knowledge).
+
+*(scripts/msrp/derive_block_length.py; scripts/msrp/seal_phase6_attestation.py; core/msi/validations/47fe3272.../; docs/implementation/msrp/reports/MSRP_PHASE6_*)*
+
+---
+
 ## 2026-07-06 — MSRP Phase 5B — A2 Validation Harness CERTIFIED (tag `msrp-phase5b-certified`)
 
 Deterministic MSI-006 A2 Validation Harness built and certified against the certified `ForwardVolatilityArtifact`. Seven-domain `ValidationHarness` class: Architectural, Scientific (ΔAUC_gate ≥ 0.03 ∧ 95% MBB CI excludes 0), Temporal (point-in-time + no-leak audit), Robustness (MBB CI + base rate + chronological half-split), Reproducibility (byte-identical `results_digest` on double-run), Operational (`evaluate()` determinism), Calibration (empirical coverage of log-normal PI at nominal=0.90, tolerance=0.05). `validation_id` content-addressed over inputs only (excludes results; includes `harness_version`). `results_digest` 6dp canonical JSON. `checksum.sha256` per-file + combined seal. Phase-6 duplicate guardrail. VIX gate thresholds hardcoded (15/25). Sub-period split `(n + 1) // 2`. Implementation review: 4 findings (3 fixed, 1 acknowledged). **Certification: PASS.** Zero frozen-component changes. 353 tests (25 new + 328 existing), 0 failures. Phase 6 held-out scoring authorized.

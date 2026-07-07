@@ -6,7 +6,7 @@
 
 **Status:** Active — Append-Only Event Log
 
-**Last Updated:** 2026-07-06 — MSRP Phase 5B CERTIFIED
+**Last Updated:** 2026-07-07 — MSRP Phase 6 COMPLETE
 
 ---
 
@@ -96,6 +96,11 @@ It is the single source of truth for:
 | 64 | 2026-07-06 | MSRP 5B | Review fixes applied: added `calibration_nominal`/`calibration_tolerance` to methodology dict (F1); removed unused `warmup_days` parameter (F2); changed calibration zero-valid-days guard from REPORTED to FAIL (F3); F4 acknowledged as coverage gap. Fix-verification recorded in addendum; 353/353 tests pass | `../msrp/reports/MSRP_PHASE5B_IMPLEMENTATION_ADDENDUM.md` |
 | 65 | 2026-07-06 | MSRP 5B | Fix verification **APPROVED** — all three findings resolved; F4 acknowledged; regression PASS (353/353 tests green, zero frozen-component changes) | `../msrp/reports/MSRP_PHASE5B_IMPLEMENTATION_ADDENDUM.md` |
 | 66 | 2026-07-06 | MSRP 5B | **MSRP PHASE 5B CERTIFIED — PASS.** A2 Validation Harness certified; seven MSI-006 domains implemented; identity/integrity/reproducibility mechanisms separated; `validation_id` content-addressed over inputs only; `results_digest` 6dp canonical JSON; `checksum.sha256` per-file + combined seal; VIX gate hardcoded 15/25; sub-period split `(n+1)//2`; calibration parameters pinned. Phase 6 held-out scoring authorized | `../msrp/reports/MSRP_PHASE5B_CERTIFICATION.md` |
+| 67 | 2026-07-07 | MSRP 6 | Pre-flight complete — L=28 derived and pinned (dev-window RV ACF, k=28, no override), B=10000, seed=42; seal-integrity verified (no prior Phase-6 record, artifact checksum OK, snapshot present); dev-window rehearsal passed (wiring confirmed, numbers deterministic) | `../msrp/reports/MSRP_PHASE6_PREFLIGHT.md` |
+| 68 | 2026-07-07 | MSRP 6 | **OFFICIAL HELD-OUT SCORING RUN EXECUTED.** Single `--phase 6` run on window [2026-01-01, 2026-07-03] with L=28, B=10000, seed=42. Sealed record: `47fe32723aa9da163aee5b32e72934609187fec79f254c7b95d64629e75a6c42`. ΔAUC_gate=0.090767, CI=(0.019941, 0.212755), base_rate=0.537815, n=119. Candidate AUC≈0.585, ΔAUC_vix=0.066193. calibration coverage 94.12%. §10 row 1 → Approved (candidate). Runner byte-identical to Phase-5B-certified `6e10142`. Zero frozen-component changes | `core/msi/validations/47fe3272.../` |
+| 69 | 2026-07-07 | MSRP 6 | Execution attestation filed — **PASS** (all six checks: window match, single-touch upheld, substrate pinned, seven domains resolved, §10 mapping correct, results_digest reproducibility confirmed). Record re-sealed with `reviewer="Phase-6 attestation"`, `approval_status="approved"`. validation_id + results_digest invariant under re-seal | `../msrp/reports/MSRP_PHASE6_REVIEW.md` |
+| 70 | 2026-07-07 | MSRP 6 | Phase-6 report authored — certified PASS. Verdict: Approved (§10 row 1); §2.1 substantiated (ΔAUC_vix>0). Caveats recorded: modest edge on single ~120-day window, sub-period fade, non-stationarity not ruled out. Next: Phase 7 (first alpha strategy). KB synced (PROJECT_STATE + CHANGELOG + IMPLEMENTATION_LEDGER) | `../msrp/reports/MSRP_PHASE6_REPORT.md` |
+| 71 | 2026-07-07 | MSRP 6 | **MSRP PHASE 6 COMPLETE.** Tag `msrp-phase6-complete`. Phase 7 authorized | — |
 
 ---
 
@@ -117,6 +122,7 @@ It is the single source of truth for:
 | **MM13** | **Certified — PASS** | **#55** | **PASS** |
 | **MSRP Phase 5A** | **Certified — PASS** | **#61** | **PASS (via fix verification)** |
 | **MSRP Phase 5B** | **Certified — PASS** | **#66** | **PASS (via fix verification)** |
+| **MSRP Phase 6** | **Complete — PASS** | **#71** | **PASS (execution attestation)** |
 
 ---
 
