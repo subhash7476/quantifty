@@ -26,7 +26,7 @@
 - **Create:** `docs/implementation/msrp/reports/MSRP_PHASE6_PREFLIGHT.md` — records the `L` derivation (full ACF table), seal-integrity, and provenance checks (Tasks 1–2).
 - **Create:** `docs/implementation/msrp/reports/MSRP_PHASE6_REVIEW.md` — execution attestation (Task 6).
 - **Create:** `docs/implementation/msrp/reports/MSRP_PHASE6_REPORT.md` — verdict, numbers, §10 mapping, certification (Task 7).
-- **Modify:** `docs/PROJECT_STATE.md`, `docs/CHANGELOG_PLATFORM.md` (Task 8).
+- **Modify:** `docs/PROJECT_STATE.md`, `docs/CHANGELOG_PLATFORM.md`, `docs/implementation/dra/IMPLEMENTATION_LEDGER.md` (Task 8).
 - **Generated (not hand-edited):** `core/msi/validations/<validation_id>/` — the sealed record (Task 5), re-sealed in Task 6.
 
 ---
@@ -359,12 +359,12 @@ if __name__ == "__main__":
 
 - [ ] **Step 3: Run the re-seal (only if the six checks PASS)**
 
-Run (substitute the `<validation_id>` from Task 5):
+Run (substitute the `<validation_id>` from Task 5 and `<reviewer-name>` — the **actual** reviewer who signed `MSRP_PHASE6_REVIEW.md` in Step 1, not a placeholder string; `<approval-status>` is the verdict recorded there, e.g. `attested`):
 ```bash
 python scripts/msrp/seal_phase6_attestation.py \
-  --validation-id <validation_id> --reviewer "Phase-6 attestation" --approval-status attested
+  --validation-id <validation_id> --reviewer "<reviewer-name>" --approval-status <approval-status>
 ```
-Expected: prints `re-sealed core/msi/validations/<validation_id> reviewer=Phase-6 attestation status=attested`; the internal asserts confirm `validation_id` + `results_digest` unchanged.
+Expected: prints `re-sealed core/msi/validations/<validation_id> reviewer=<reviewer-name> status=<approval-status>`; the internal asserts confirm `validation_id` + `results_digest` unchanged. The stamped `reviewer`/`approval_status` must match what the review doc records.
 
 - [ ] **Step 4: Confirm the re-sealed record is checksum-valid**
 
@@ -404,7 +404,7 @@ git commit -m "docs(msrp): Phase 6 Task 7 — held-out scoring report + certific
 ### Task 8: KB sync + tag
 
 **Files:**
-- Modify: `docs/PROJECT_STATE.md`, `docs/CHANGELOG_PLATFORM.md`
+- Modify: `docs/PROJECT_STATE.md`, `docs/CHANGELOG_PLATFORM.md`, `docs/implementation/dra/IMPLEMENTATION_LEDGER.md`
 
 - [ ] **Step 1: Update PROJECT_STATE.md**
 
@@ -414,11 +414,22 @@ Add a new top `## Completed` entry dated 2026-07-07 summarizing Phase 6: pinned 
 
 Add a Phase-6 entry mirroring the PROJECT_STATE summary.
 
-- [ ] **Step 3: Commit and tag**
+- [ ] **Step 3: Append the Phase-6 events to IMPLEMENTATION_LEDGER.md**
+
+The append-only ledger table currently ends at event **#66** (Phase 5B certified) and has a status-summary table. Append events continuing from #66 (one row each, same table format `| # | date | phase | description | ref |`), covering the phase's milestones:
+- `L` pinned (dev-window ACF) + pre-flight seal-integrity/provenance complete → ref `../msrp/reports/MSRP_PHASE6_PREFLIGHT.md`
+- Official held-out `--phase 6` run executed; sealed record `<validation_id>` written → ref `../msrp/reports/MSRP_PHASE6_REPORT.md`
+- Execution-attestation review PASS + record re-sealed with reviewer/approval_status → ref `../msrp/reports/MSRP_PHASE6_REVIEW.md`
+- Phase-6 report authored (verdict + §10 mapping) → ref `../msrp/reports/MSRP_PHASE6_REPORT.md`
+- **MSRP PHASE 6 COMPLETE** — verdict recorded, KB synced → ref `../msrp/reports/MSRP_PHASE6_REPORT.md`
+
+Then add a `MSRP Phase 6` row to the status-summary table. Update the ledger's `**Last Updated:**` line to 2026-07-07.
+
+- [ ] **Step 4: Commit and tag**
 
 ```bash
-git add docs/PROJECT_STATE.md docs/CHANGELOG_PLATFORM.md
-git commit -m "docs(msrp): Phase 6 — KB sync (PROJECT_STATE + CHANGELOG)"
+git add docs/PROJECT_STATE.md docs/CHANGELOG_PLATFORM.md docs/implementation/dra/IMPLEMENTATION_LEDGER.md
+git commit -m "docs(msrp): Phase 6 — KB sync (PROJECT_STATE + CHANGELOG + IMPLEMENTATION_LEDGER)"
 git tag msrp-phase6-complete
 ```
 
@@ -431,7 +442,7 @@ git tag msrp-phase6-complete
 - Design §3 Stage 1 (pre-flight 1.1–1.5) → Tasks 1 (`L`), 2 (seal/provenance), 3 (rehearsal), 4 (go/no-go gate).
 - Design §4 Stage 2 (one-shot official run) → Task 5.
 - Design §5.1 (attestation review + re-seal mechanism) → Task 6 (six checks + `seal_phase6_attestation.py`, re-invoking `write_sealed_record`, `validation_id`/`results_digest` invariant asserted).
-- Design §5.2 (report + certification) → Task 7. Design §5.3 (KB sync + tag) → Task 8.
+- Design §5.2 (report + certification) → Task 7. Design §5.3 (KB sync + tag) → Task 8 (PROJECT_STATE + CHANGELOG + append-only IMPLEMENTATION_LEDGER events + status row, matching Phase 5B events #62–66).
 - Design §6 (all four §10 outcomes) → Task 6 Step 1 check 5 + Task 7 Step 1.
 - Design §9 risks (early seal read, `L` hindsight, duplicate, favorable reinterpretation, silent domain skip) → dev-only loader (Task 1), fixed rule (Task 1), duplicate guard + check 2 (Tasks 5/6), §10 mapping check (Task 6), seven-domain check (Task 6).
 
