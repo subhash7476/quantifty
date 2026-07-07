@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-07 — MSRP Phase 7 — Precondition gates complete: (a) PASS, (b) PASS, (c) STOP CONDITION TRIGGERED
+
+The three Phase-7 precondition gates (research doc §6.1) ran in order. **Gate (a) bhavcopy ingestion:** first pass stopped at 2024-07-05 (43% coverage) — Lead Reviewer verdict NOT PASSED (F1 missing UDiFF era, F2 NIFTYNXT50 contamination, F3 misleading audit sections, F4 expiry-weekday regime shift); remediated same day (UDiFF backfill + purge + audit corrections, commit `b4cd12e`) — full span 2023-01-02 → 2026-07-06, 1,351,214 rows, 862 trade dates, ATM liquidity PASS. **Gate (b) options fee model:** `core/execution/options/fees.py` — effective-dated statutory schedules (STT on sell premium 0.05/0.0625/0.1/0.15%; NSE txn 0.0495/0.03503%; SEBI, GST, buy-side stamp; Rs 20/order), 12 unit tests green. **Gate (c) fee-impact triage:** D1 next-day ATM straddle rule over dev window (695 days) — fees are NOT binding (~6% drag); the construct transmission is: Spearman(E[RV], realized RV)=0.65 but Spearman(realized RV, straddle return)=0.09; Knowledge-gated D1 net NEGATIVE (−Rs 120K combined) while the no-Knowledge unconditional short baseline is net positive (+Rs 110K). Per the pre-committed stop-rule: **D1 not pre-registered**; how to proceed is an operator decision.
+
+*(scripts/msrp/ingest_option_bhavcopy.py; scripts/msrp/triage_fee_impact.py; core/execution/options/fees.py; tests/execution/test_options_fees.py; docs/reports/MSRP_PHASE7_STRATEGY_RESEARCH.md; docs/reports/MSRP_PHASE7_BHAVCOPY_AUDIT*.md; docs/reports/MSRP_PHASE7_FEE_TRIAGE.md)*
+
+---
+
 ## 2026-07-07 — MSRP Phase 6 — Single Held-Out Scoring Run CERTIFIED (tag `msrp-phase6-complete`)
 
 The certified A2 Validation Harness executed once on the sealed held-out window (2026-01-01 → 2026-07-03). Pinned substrate: L=28 (dev-window RV ACF, k=28), B=10000, seed=42. Results: ΔAUC_gate=0.090767, 95% MBB CI=(0.019941, 0.212755), n=119, base_rate=0.537815. ΔAUC_vix=0.066193 > 0 (beats raw VIX, §2.1 substantiated). Seven domains: Architectural/Scientific/Temporal/Operational/Calibration/Reproducibility PASS, Robustness REPORTED. Calibration coverage 94.12% (nominal 90% ±5%). Sub-period: H1 Δ=0.065185, H2 Δ=0.0125. §10 verdict: Approved. Execution attestation PASS (six checks). Sealed record: `47fe3272...`, attested `approved`. Zero frozen-component changes. Next: Phase 7 (first alpha strategy consuming this Knowledge).

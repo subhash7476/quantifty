@@ -93,3 +93,16 @@ Gates (b) options fee model and (c) fee-impact triage remain queued behind (a).
 `data/market_data/options_bhavcopy.duckdb` (symbol census, per-year coverage, nearest-DTE
 distribution, ATM straddle-leg completeness, zero-open census) and curl probes of the
 UDiFF endpoint, 2026-07-07.*
+
+---
+
+## Addendum — GATE (a) CLOSED (2026-07-07, same day)
+
+Remediation delivered in commit `b4cd12e` (UDiFF ingestion path + NIFTYNXT50 purge +
+audit corrections) and independently re-verified: the database now spans 2023-01-02 →
+2026-07-06 (1,351,214 rows, 862 distinct trade dates), `SELECT DISTINCT symbol` returns
+only `NIFTY`, and the regenerated audit reports per-era ATM liquidity (Thursday regime
+738/739 days with ATM contracts, Tuesday regime 122/122). Findings F1–F3 resolved; F4
+(weekday-agnostic contract selection) carried forward — honoured by the gate-(c) triage
+(`MIN_DTE = 2`) and required in any future pre-registration. **Verdict revised: GATE (a)
+PASSED.** Gates (b) and (c) results: `docs/reports/MSRP_PHASE7_FEE_TRIAGE.md`.
