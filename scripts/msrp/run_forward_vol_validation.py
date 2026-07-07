@@ -123,19 +123,15 @@ def phase6_guard(out_root, held_out_window: Tuple[str, str]) -> None:
 
 
 def _lib_versions() -> dict:
+    import statsmodels
     import sklearn
-    vers = {
+    return {
         "python": platform.python_version(),
         "numpy": np.__version__,
         "pandas": pd.__version__,
+        "statsmodels": statsmodels.__version__,
         "scikit-learn": sklearn.__version__,
     }
-    try:
-        import statsmodels
-        vers["statsmodels"] = statsmodels.__version__
-    except ImportError:
-        vers["statsmodels"] = "n/a"
-    return vers
 
 
 def _git_commit() -> str:
