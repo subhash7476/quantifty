@@ -1,0 +1,21 @@
+{
+  "approval_status": null,
+  "artifact_checksum": "e61856832e6bd0303f0699bf8603d2de113bbd8bec2a4ee353a32f53d585756c",
+  "artifact_version": "v1.0.0",
+  "candidate_verdict": "Approved (candidate)",
+  "dataset_snapshot_hash": "e2a9a603b354aa7a721127bb8c582439544ad617170a95f251acfbbcc33876c9",
+  "domain_verdicts": {
+    "architectural": "PASS",
+    "calibration": "PASS",
+    "operational": "PASS",
+    "reproducibility": "PASS",
+    "robustness": "REPORTED",
+    "scientific": "PASS",
+    "temporal": "PASS"
+  },
+  "phase": "6",
+  "results_digest": "2a944f974109ba98580563542df32eb7df8dada149fef1f149ade728d8643bc0",
+  "reviewer": null,
+  "timestamp": "2026-07-07T13:36:30",
+  "validation_id": "47fe32723aa9da163aee5b32e72934609187fec79f254c7b95d64629e75a6c42"
+}

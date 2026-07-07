@@ -1,0 +1,22 @@
+{
+  "calibration_nominal": 0.9,
+  "calibration_tolerance": 0.05,
+  "delta_auc_bar": 0.03,
+  "dossier_commit": "d9233b1",
+  "harness_version": "1.0.0",
+  "median_window": 20,
+  "methodology_fingerprint": "a02cb1a44e6f0b6b3f8507b25b20f2f47f01510612e93b7af61a14a0943e625d",
+  "substrate": {
+    "block_length": 28,
+    "commit": "ce7d4eb9c7b67635eba2b506e479eab9fe1f8114",
+    "lib_versions": {
+      "numpy": "2.4.4",
+      "pandas": "2.3.3",
+      "python": "3.13.5",
+      "scikit-learn": "1.8.0",
+      "statsmodels": "0.14.6"
+    },
+    "n_replicates": 10000,
+    "seed": 42
+  }
+}

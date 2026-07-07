@@ -1,0 +1,109 @@
+{
+  "domains": [
+    {
+      "evidence": {
+        "artifact_version": "v1.0.0",
+        "feature_names": [
+          "rv_daily",
+          "rv_weekly",
+          "rv_monthly",
+          "vix_close"
+        ]
+      },
+      "name": "architectural",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "auc_candidate": 0.584943,
+        "auc_fixture": 0.494176,
+        "auc_vix": 0.51875,
+        "base_rate": 0.537815,
+        "ci_lower": 0.019941,
+        "ci_upper": 0.212755,
+        "delta_auc_gate": 0.090767,
+        "delta_auc_vix": 0.066193
+      },
+      "name": "scientific",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "evaluation_window": [
+          "2026-01-01",
+          "2026-07-03"
+        ],
+        "n_dropped_boundary": 1,
+        "n_scored": 119,
+        "note": "features as-of close of t; label uses RV_{t+1}; boundary drop recorded"
+      },
+      "name": "temporal",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "base_rate": 0.537815,
+        "ci_lower": 0.019941,
+        "ci_upper": 0.212755,
+        "subperiod_first_half_delta_auc_gate": 0.065185,
+        "subperiod_second_half_delta_auc_gate": 0.0125
+      },
+      "name": "robustness",
+      "status": "REPORTED"
+    },
+    {
+      "evidence": {
+        "score_repeatable": true
+      },
+      "name": "operational",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "empirical_coverage": 0.941176,
+        "n_valid": 119,
+        "nominal": 0.9,
+        "tolerance": 0.05
+      },
+      "name": "calibration",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "block_length": 28,
+        "in_domain_double_run_equal": true,
+        "n_replicates": 10000,
+        "seed": 42
+      },
+      "name": "reproducibility",
+      "status": "PASS"
+    }
+  ],
+  "results": {
+    "auc_candidate": 0.584943,
+    "auc_fixture": 0.494176,
+    "auc_vix": 0.51875,
+    "base_rate": 0.537815,
+    "ci_lower": 0.019941,
+    "ci_upper": 0.212755,
+    "delta_auc_gate": 0.090767,
+    "delta_auc_vix": 0.066193,
+    "domain_verdicts": {
+      "architectural": "PASS",
+      "calibration": "PASS",
+      "operational": "PASS",
+      "reproducibility": "PASS",
+      "robustness": "REPORTED",
+      "scientific": "PASS",
+      "temporal": "PASS"
+    },
+    "evaluation_window": [
+      "2026-01-01",
+      "2026-07-03"
+    ],
+    "n_dropped_boundary": 1,
+    "n_scored": 119,
+    "subperiod_first_half_delta_auc_gate": 0.065185,
+    "subperiod_second_half_delta_auc_gate": 0.0125
+  }
+}
