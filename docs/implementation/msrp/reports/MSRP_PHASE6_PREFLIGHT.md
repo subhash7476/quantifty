@@ -70,7 +70,7 @@ PINNED L=28  override=False
 | No prior Phase-6 record for held-out window | CLEAN — no record with `evaluation_window == ["2026-01-01","2026-07-03"]` found in `core/msi/validations/` |
 | Artifact checksum integrity | OK — `combined_hash` matches all per-file SHA-256 hashes |
 | Data snapshot present | `data/market_data/nse/candles/1m/2026-07-03.duckdb` and `data/market_data/nse/candles/1d/2026-07-03.duckdb` both present |
-| Code commit | `38a3386` |
+| Code commit | `13156a3` (runner byte-identical to Phase-5B-certified `6e10142`) |
 
 ---
 
