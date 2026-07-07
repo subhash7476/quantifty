@@ -57,8 +57,14 @@ value."** So `L` is **not yet pinned**. Closing this is the first Phase-6 act.
 3. **`L` = the smallest lag `k ≥ 1` at which `|ACF(k)|` first falls below the
    significance band `1.96 / sqrt(n_dev)`** (the standard white-noise band). Pin that
    `k`.
-4. Record the full ACF table and the derivation in the pre-flight note. Pin
-   `B = 10000`, `seed = 42`.
+4. **Fallback (bounded, records an override):** if *no* lag `k` within the computed
+   ACF satisfies the condition — possible for a long-memory series, though unlikely at
+   `n_dev ≈ 740` — pin `L = floor(n_dev / 20)` (≈ 37, ~5% of the sample) and record the
+   override in the pre-flight note. This fallback is conservative in the safe
+   direction: a longer block yields fewer effective blocks → a *wider* CI → a *harder*
+   approval bar, so it cannot manufacture a false Approved verdict.
+5. Record the full ACF table and the derivation (or the fallback override) in the
+   pre-flight note. Pin `B = 10000`, `seed = 42`.
 
 The **derivation is the pre-registered act, not the number**: whatever `k` the dev
 data yields is pinned as-is (the dossier's "e.g. 10" is illustrative). If the ACF
@@ -125,19 +131,31 @@ No code changed, no harness altered, no research freedom exercised — so the re
 
 1. The sealed record's `evaluation_window` is exactly `[2026-01-01, 2026-07-03]`.
 2. The Phase-6 duplicate guard was in force (single-touch upheld); exactly one Phase-6
-   record exists.
+   record exists **for the window `[2026-01-01, 2026-07-03]`**. (The guard is
+   window-scoped: a future Phase-6 run on a *different* window — e.g. an extended
+   held-out per §10 row 2 — is legitimate and does not violate this criterion.)
 3. The pinned substrate in `methodology.json` matches the §2 pinned values (`L`, `B`,
    `seed`) and the derivation note.
 4. All **seven** domains resolved, and each resolved *faithfully* (values consistent
    with the harness contract; no domain silently skipped or defaulted).
 5. The machine `candidate_verdict` maps correctly to the dossier **§10 decision
    table** row for the observed `ΔAUC_gate` + CI.
-6. Determinism spot-check: the sealed `results_digest` is the byte-identical value the
+6. Determinism spot-check: the record's `results_digest` is the byte-identical value the
    harness's own reproducibility domain asserts (no separate held-out re-run — the
    harness already carries the reproducibility guarantee).
 
-On PASS, stamp `reviewer` + `approval_status` into the sealed record (the fields the
-runner left `None`).
+**Re-sealing on PASS.** The runner already sealed the record at Stage 2 with
+`reviewer=None, approval_status=None` — the `checksum.sha256` combined hash covers
+`record.json`, which carries those two fields. Hand-editing them would break the seal.
+So attestation is applied by **re-invoking `write_sealed_record(record, VALIDATIONS_DIR,
+reviewer=<name>, approval_status="approved"|..., timestamp_iso=<run timestamp>)`**,
+which overwrites all four files and recomputes the checksum consistently. Because
+`validation_id` is content-addressed over inputs (excluding results and attestation)
+and `results_digest` is over results only, **both are invariant under the re-seal** —
+the record's identity and its scientific numbers are unchanged; only `reviewer`,
+`approval_status`, and the combined hash update. The original run `timestamp` is
+preserved by passing it back in. This is a *re-seal after attestation*, not a first
+seal.
 
 ### 5.2 Phase-6 report + certification
 Author `docs/implementation/msrp/reports/MSRP_PHASE6_*` recording: the pinned substrate
