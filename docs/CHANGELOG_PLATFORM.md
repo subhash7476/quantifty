@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-08 — CSMP Phase 0 — Cross-Sectional Momentum Program charter DRAFTED (§8 decisions open)
+
+Charter for the platform's second Knowledge program (`docs/reports/CSMP_PHASE0_CHARTER.md`), executing the locked Phase-7 decision. Core framing: choose the Knowledge construct so the forecast and the trade are the same object — the ranking *is* the portfolio, so the D1 construct-gap failure mode cannot occur. Structure mirrors the MSRP Phase-0 charter: thin vertical slice, consumer-contract note (N estimates via `dimension` per symbol — no runtime change; the portfolio SignalSource is the Phase-7 deliverable), five precondition gates (equity bhavcopy ingestion, corporate actions, survivorship, delivery-fee model, transmission triage with pre-committed stop rule), phase map through held-out scoring and the First Production Knowledge Consumer, scope fence (no multi-factor, no short leg, no LIVE, no vol-artifact combination). §8 operator decisions OPEN with recommendations: D1 universe = NIFTY 200; D2 = classic 12-1 momentum, monthly rebalance, top-quintile/top-30 equal-weight; D3 = monthly rank IC (block-bootstrap CI) + net-of-fee top bucket vs equal-weight universe (gating) and NIFTY200 Momentum 30 (reference); D4 = long-only; D5 = dev 2012–2022, sealed 2023-01→2026-06, forward accumulation (gate (a) ingests 2010→present).
+
+*(docs/reports/CSMP_PHASE0_CHARTER.md)*
+
+---
+
 ## 2026-07-08 — MSRP Phase 7 — Operator decision LOCKED: H adopted; direction = cross-sectional momentum
 
 Both research-reset parties' recommendations were put to the operator, who locked two decisions: **(1) Candidate H adopted** — Phase 7 redefined from "First Alpha Strategy" to "First Production Knowledge Consumer," completion gated on a pre-registered metric beating the strongest free no-Knowledge baseline. **(2) Direction: cross-sectional relative strength (momentum) on NSE equities** — the platform's second Knowledge program and Phase 7's deliverable path; the E triage is bypassed (E remains FUTURE behind Revival-2). The program starts with a Phase-0-style charter and five precondition gates before any pre-registration: (a) equity daily bhavcopy ingestion + audit, (b) corporate-action adjustment + audit, (c) survivorship/universe-membership handling + audit, (d) delivery-equity fee model, (e) transmission triage (cross-sectional rank IC, pre-committed stop rule). MSRP shelving protocol in force: artifact certified/immutable, quarterly forward scoring, Revival-1 (≥12 months captured intraday chains) / Revival-2 (validated host portfolio). Open item: intraday options snapshot capture job (recommended, awaiting explicit go). Decision recorded in `docs/reports/MSRP_PHASE7_RESEARCH_RESET_REVIEW.md` §Operator decision.

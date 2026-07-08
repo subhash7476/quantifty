@@ -2,7 +2,7 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-08 — **MSRP Phase 7 operator decision LOCKED: H adopted (Phase 7 = "First Production Knowledge Consumer"); direction = cross-sectional momentum on NSE equities.** Next: momentum program Phase-0 charter, then five precondition gates.
+**Last updated:** 2026-07-08 — **CSMP Phase-0 charter DRAFTED** (`docs/reports/CSMP_PHASE0_CHARTER.md`) — Cross-Sectional Momentum Program, the second Knowledge program per the locked Phase-7 decision. §8 operator decisions OPEN: D1 universe (NIFTY 200 recommended), D2 signal shape (12-1 monthly recommended), D3 metric/baselines (rank IC + equal-weight-universe gate, NIFTY200 Momentum 30 reference arm), D4 long-only (recommended), D5 windows (dev 2012–2022, sealed 2023-01→2026-06). Phase 0 closes when locked; then gates (a)–(e).
 
 ---
 
