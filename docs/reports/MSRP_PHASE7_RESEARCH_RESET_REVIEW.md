@@ -263,6 +263,38 @@ pre-committed stop rule make the choice mechanically, exactly as gate (c) did fo
 
 ---
 
+## Operator decision — 2026-07-08 (LOCKED)
+
+Recorded after both the dossier and this review were on the record:
+
+1. **H adopted.** MSRP Phase 7 is redefined from "First Alpha Strategy" to **"First
+   Production Knowledge Consumer"** — a `core/strategies/` source consuming certified
+   v2 Knowledge, completion gated on a pre-registered metric beating the **strongest
+   free no-Knowledge baseline**, named explicitly in the pre-registration (F6).
+2. **Direction: cross-sectional relative strength (momentum) on NSE equities** (F3).
+   The E triage is bypassed — E is not pursued as Phase 7 (it remains FUTURE behind
+   Revival-2). The momentum program is the platform's second Knowledge program and
+   Phase 7's deliverable path. It begins with a Phase-0-style charter and runs behind
+   five precondition gates, in order, before any pre-registration:
+   (a) equity daily bhavcopy ingestion + quality audit; (b) corporate-action
+   adjustment + audit; (c) survivorship / universe-membership handling + audit;
+   (d) delivery-equity fee model; (e) transmission triage — measured cross-sectional
+   rank IC with a pre-committed stop rule.
+3. **MSRP shelving protocol in force** (F6): the `ForwardVolatilityArtifact` remains
+   certified and immutable; quarterly forward scoring (observational only); revival
+   conditions — **Revival-1:** ≥ 12 months of captured intraday option chains unblocks
+   the delta-hedged construct (A1/A4); **Revival-2:** a validated host portfolio
+   exists → risk-consumer A/B vs persistence sizing (E/C/D).
+4. **Open operator item (not yet decided):** the intraday options snapshot capture job
+   (F5) — standing background action, recommended, awaiting an explicit go.
+
+**Next step:** author the momentum program's Phase-0 charter (program name, scope
+fence, §8-style operator decision points: universe and liquidity filter,
+formation/holding windows, rebalance cadence, long-only vs long-short, pre-registered
+metric and held-out policy), then independent review, then gate (a).
+
+---
+
 ## Sources
 
 - `docs/reports/MSRP_PHASE7_RESEARCH_RESET.md` (commit `9821932`) — dossier under review
