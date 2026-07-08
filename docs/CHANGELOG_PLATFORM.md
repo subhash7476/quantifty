@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-08 — CSMP Phase 0 CLOSED — §8 decisions locked; DeepSeek V4 implementation prompts issued (gate a)
+
+Operator locked all five charter decisions as recommended (D1 NIFTY 200; D2 12-1 momentum, monthly, equal-weight top bucket; D3 rank-IC gate + net-of-fee top bucket vs equal-weight universe with NIFTY200 Momentum 30 reference arm; D4 long-only; D5 dev 2012–2022 / sealed 2023-01→2026-06 / forward), and locked the role split: **DeepSeek V4 implements; Claude is Lead Reviewer only** (prompts + PASS/NOT PASSED verdicts between gates). `docs/reports/CSMP_IMPLEMENTATION_PROMPTS.md` created: standing constraints (no frozen-component changes, deterministic scripts, script-generated audit reports, failures-reported-as-failures, one gate per prompt), full gate-(a) brief ISSUED (equity daily bhavcopy 2010→present, era-aware NSE source handling, EQ+BE series, dedicated DuckDB store, six-section audit, ≥3-month-hole stop condition), prompts 2–5 HELD pending sequential reviews.
+
+*(docs/reports/CSMP_PHASE0_CHARTER.md; docs/reports/CSMP_IMPLEMENTATION_PROMPTS.md)*
+
+---
+
 ## 2026-07-08 — CSMP Phase 0 — Cross-Sectional Momentum Program charter DRAFTED (§8 decisions open)
 
 Charter for the platform's second Knowledge program (`docs/reports/CSMP_PHASE0_CHARTER.md`), executing the locked Phase-7 decision. Core framing: choose the Knowledge construct so the forecast and the trade are the same object — the ranking *is* the portfolio, so the D1 construct-gap failure mode cannot occur. Structure mirrors the MSRP Phase-0 charter: thin vertical slice, consumer-contract note (N estimates via `dimension` per symbol — no runtime change; the portfolio SignalSource is the Phase-7 deliverable), five precondition gates (equity bhavcopy ingestion, corporate actions, survivorship, delivery-fee model, transmission triage with pre-committed stop rule), phase map through held-out scoring and the First Production Knowledge Consumer, scope fence (no multi-factor, no short leg, no LIVE, no vol-artifact combination). §8 operator decisions OPEN with recommendations: D1 universe = NIFTY 200; D2 = classic 12-1 momentum, monthly rebalance, top-quintile/top-30 equal-weight; D3 = monthly rank IC (block-bootstrap CI) + net-of-fee top bucket vs equal-weight universe (gating) and NIFTY200 Momentum 30 (reference); D4 = long-only; D5 = dev 2012–2022, sealed 2023-01→2026-06, forward accumulation (gate (a) ingests 2010→present).

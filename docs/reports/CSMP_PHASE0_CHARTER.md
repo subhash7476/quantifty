@@ -2,7 +2,10 @@
 
 **Document type:** Program charter (Phase 0 — scoping & the decisions that gate the program)
 
-**Status:** DRAFT — §8 decisions OPEN. Phase 0 closes when the operator locks them.
+**Status:** Phase 0 CLOSED (2026-07-08) — all §8 decisions locked as recommended; see
+the "Phase 0 Decisions (LOCKED)" section below. Gates (a)–(e) unblocked.
+**Implementation party: DeepSeek V4. Lead Reviewer: Claude** (prompts and reviews only —
+does not implement). Implementation prompts: `docs/reports/CSMP_IMPLEMENTATION_PROMPTS.md`.
 
 **Date:** 2026-07-08
 
@@ -202,6 +205,35 @@ to give the 12-month formation window runway before dev starts.
 
 On these five locks, the gates begin — gate (a) first. Nothing below Phase 0 is
 committed until then.
+
+---
+
+## Phase 0 Decisions (LOCKED — 2026-07-08)
+
+All five §8 decisions locked by the operator as recommended. Phase 0 is closed; the
+gates begin at (a).
+
+- **D1 — Universe: NIFTY 200** constituents, point-in-time membership (gate (c)
+  determines the source; fallback if membership history is unobtainable: mechanical
+  top-200-by-6-month-median-turnover computed from ingested data only).
+- **D2 — Signal: classic 12-1 cross-sectional momentum**, monthly rebalance,
+  equal-weight top bucket. The exact holding rule (top-quintile ≈ 40 vs top-30) is
+  frozen in the Phase-1 pre-registration; gate (e)'s triage uses top-quintile
+  provisionally.
+- **D3 — Metric & baselines:** monthly cross-sectional Spearman rank IC (primary gate:
+  mean IC > 0, block-bootstrap 95% CI excluding zero on the sealed window); economic
+  qualifier: net-of-fee top-bucket portfolio vs (1) equal-weight universe (gating
+  baseline) and (2) NIFTY200 Momentum 30 TRI (reported reference arm). Decision table
+  pre-fixed in the Phase-1 dossier.
+- **D4 — Long-only.** No short leg in increment 1.
+- **D5 — Windows:** dev = 2012-01 → 2022-12; sealed held-out = 2023-01 → 2026-06
+  (untouched by any dev choice); forward accumulation thereafter. Gate (a) ingests
+  2010-01 → present for formation runway.
+
+**Role split (locked):** DeepSeek V4 implements every gate deliverable from the written
+prompts; Claude acts as Lead Reviewer only — writes the prompts, audits each gate
+report, and issues PASS / NOT PASSED verdicts before the next gate begins. Claude does
+not implement gate deliverables.
 
 ---
 
