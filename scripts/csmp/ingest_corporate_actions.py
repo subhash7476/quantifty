@@ -55,7 +55,56 @@ ETF_SPLITS = [
     ("IVZINGOLD", date(2026, 4, 30), 100, 1, "AMC notice; implied_close 0.01019"),
 ]
 
+# Moves the audit flags as CA-shaped that gate (b) does not undertake to explain.
+# Each is carried forward: gate (c)'s universe construction must honour them.
+#
+# The charter scopes gate (b) to "splits/bonuses (and rights, where material)".
+# For the rows below the NSE CF-CA feed carries only AGM/dividend records — no
+# split, no bonus, no special dividend — so no factor is derivable from the source
+# this gate uses. Every one has the shape of a demerger, but that is a *suspicion*
+# recorded as such: nothing in this repository corroborates it, and the resulting
+# entities' relative values on the ex-date would be needed to derive a factor.
+SCOPE_EXCLUSIONS = [
+    ("SURANAT&P", date(2010, 8, 17), "out_of_scope_corporate_action"),
+    ("TEXMACOLTD", date(2010, 11, 1), "out_of_scope_corporate_action"),
+    ("WEIZMANIND", date(2010, 12, 8), "out_of_scope_corporate_action"),
+    ("TRIVENI", date(2011, 5, 3), "out_of_scope_corporate_action"),
+    ("ORIENTABRA", date(2011, 11, 11), "out_of_scope_corporate_action"),
+    ("ORIENTPPR", date(2013, 3, 7), "out_of_scope_corporate_action"),
+    ("FOURSOFT", date(2013, 10, 17), "out_of_scope_corporate_action"),
+    ("SINTEX", date(2017, 5, 25), "out_of_scope_corporate_action"),
+    ("DCM", date(2019, 5, 30), "out_of_scope_corporate_action"),
+    ("QUESS", date(2025, 4, 15), "out_of_scope_corporate_action"),
+    ("ABFRL", date(2025, 5, 22), "out_of_scope_corporate_action"),
+    ("AHLEAST", date(2022, 10, 6), "disputed_ratio"),
+    ("ICICIMOM30", date(2022, 8, 12), "unidentified_instrument"),
+]
+
+EXCLUSION_DETAIL = {
+    "out_of_scope_corporate_action":
+        "CA-shaped move with no split, bonus or special dividend in the NSE CF-CA "
+        "feed. Charter scopes gate (b) to splits/bonuses/rights. Shape suggests a "
+        "demerger — unverified; deriving a factor needs the resulting entities' "
+        "relative values on the ex-date. Carried to gate (c).",
+    "disputed_ratio":
+        "NSE CF-CA publishes 'Bonus 1:2' (factor 0.666667); the market repriced by "
+        "0.5016, i.e. a 1:1 bonus. Exchange text and market disagree. Needs "
+        "adjudication against the company filing. Factor stored as published.",
+    "unidentified_instrument":
+        "No ISIN in any raw bhavcopy payload and no match to gate (a) H2's name "
+        "pattern, so the non-equity exclusion cannot reach it. A -89.9% move on an "
+        "ICICI momentum ETF. Needs an NSE instrument master, which gate (c) "
+        "requires regardless.",
+}
+
 SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS ca_scope_exclusions (
+    symbol     VARCHAR,
+    move_date  DATE,
+    reason     VARCHAR,
+    detail     VARCHAR,
+    carried_to VARCHAR
+);
 CREATE TABLE IF NOT EXISTS corporate_actions (
     symbol       VARCHAR,
     ex_date      DATE,
@@ -314,6 +363,15 @@ def purge_and_rebuild(con):
     con.execute("DELETE FROM adjustment_factors")
     con.execute("DELETE FROM ca_parse_rejects")
     con.execute("DELETE FROM ca_evidence_exceptions")
+
+    con.execute("DELETE FROM ca_scope_exclusions")
+    df_excl = pd.DataFrame([
+        {"symbol": s, "move_date": d, "reason": r,
+         "detail": EXCLUSION_DETAIL[r], "carried_to": "gate_c"}
+        for s, d, r in SCOPE_EXCLUSIONS])
+    con.execute("INSERT INTO ca_scope_exclusions SELECT symbol, move_date, reason, "
+                "detail, carried_to FROM df_excl")
+    print(f"Scope exclusions       : {len(SCOPE_EXCLUSIONS)} moves carried to gate (c)")
 
     store_syms = {r[0] for r in con.execute(
         "SELECT DISTINCT symbol FROM equity_bhavcopy WHERE series='EQ'").fetchall()}

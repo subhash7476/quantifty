@@ -79,9 +79,11 @@ Every failure is itemised. The exchange document is the authority for the event 
 
 **Screened moves:** 5,832 | **True consecutive-session moves:** 5,523 | **Resumption/migration (gap > 5d, excluded):** 309
 
-A factor explains exactly one move: the session `(prev_td, td]` that spans its ex-date. A move is **CA-explained** only when that factor matches it in *direction and magnitude* (within 25%). Direction alone is not evidence. A move that no factor spans, whose surviving-value ratio lands on a canonical corporate-action ratio, is a **CA-shaped-orphan** — a missing factor. Together with magnitude- and direction-mismatches these form the **residue**, which is the gate criterion. A move that no factor spans and whose ratio is not CA-shaped is classified **genuine** — a classification, not a residue.
+A factor explains exactly one move: the session `(prev_td, td]` that spans its ex-date. A move is **CA-explained** only when that factor matches it in *direction and magnitude* (within 25%). Direction alone is not evidence. A move that no factor spans, whose surviving-value ratio lands on a canonical corporate-action ratio, is a **CA-shaped-orphan** — a missing factor. Together with magnitude- and direction-mismatches these form the **residue**. A move that no factor spans and whose ratio is not CA-shaped is classified **genuine** — a classification, not a residue.
 
 The ratio test is applied only where `prev_close >= Rs 5`. Below that the Rs 0.01 tick grid forces canonical ratios — a stock at Rs 0.10 ticking to Rs 0.05 is exactly -50% and carries no information.
+
+The **gate criterion** is: every dev-window residue row is either resolved (a factor is added) or **documented** in `ca_scope_exclusions` with a stated reason and carried to gate (c). An *undocumented* dev-window residue row fails the gate.
 
 | Bucket | Moves | Residue? |
 |--------|------:|----------|
@@ -91,23 +93,32 @@ The ratio test is applied only where `prev_close >= Rs 5`. Below that the Rs 0.0
 | direction-mismatch | 0 | **yes** |
 | CA-shaped-orphan | 12 | **yes** |
 
-**Dev-window residue: 6** — NOT PASSED (gate criterion)
+**Dev-window residue: 6** (6 documented, 0 undocumented) — PASS
 Sealed-window residue (reported, not gating): 2
 
-**1 residue symbol(s) have no ISIN in any raw payload**, so the non-equity exclusion could not be applied to them and they may be unrecognised funds: `ICICIMOM30`.
+Every residue row, with its disposition:
 
-Residue rows (dev window first):
+| Date | Symbol | Return | Window | Class | Disposition |
+|------|--------|-------:|--------|-------|-------------|
+| 2013-03-07 | ORIENTPPR | -80.4% | dev | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2013-10-17 | FOURSOFT | -67.3% | dev | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2017-05-25 | SINTEX | -75.2% | dev | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2019-05-30 | DCM | -49.0% | dev | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2022-08-12 | ICICIMOM30 | -89.9% | dev | CA-shaped-orphan | documented: unidentified_instrument |
+| 2022-10-06 | AHLEAST | -49.8% | dev | magnitude-mismatch | documented: disputed_ratio |
+| 2010-08-17 | SURANAT&P | -66.6% | other | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2010-11-01 | TEXMACOLTD | -59.4% | other | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2010-12-08 | WEIZMANIND | -66.9% | other | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2011-05-03 | TRIVENI | -60.0% | other | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2011-11-11 | ORIENTABRA | -66.3% | other | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2025-04-15 | QUESS | -50.7% | sealed | CA-shaped-orphan | documented: out_of_scope_corporate_action |
+| 2025-05-22 | ABFRL | -66.6% | sealed | CA-shaped-orphan | documented: out_of_scope_corporate_action |
 
-| Date | Symbol | Return | Window | Class | Detail |
-|------|--------|-------:|--------|-------|--------|
-| 2022-08-12 | ICICIMOM30 | -89.9% | dev | CA-shaped-orphan | survived=0.101222 sits on a CA ratio; no factor spans (2022-08-11, 2022-08-12]; prev_close=186.62 |
-| 2013-03-07 | ORIENTPPR | -80.4% | dev | CA-shaped-orphan | survived=0.196281 sits on a CA ratio; no factor spans (2013-03-06, 2013-03-07]; prev_close=72.60 |
-| 2017-05-25 | SINTEX | -75.2% | dev | CA-shaped-orphan | survived=0.248319 sits on a CA ratio; no factor spans (2017-05-24, 2017-05-25]; prev_close=104.10 |
-| 2013-10-17 | FOURSOFT | -67.3% | dev | CA-shaped-orphan | survived=0.327402 sits on a CA ratio; no factor spans (2013-10-15, 2013-10-17]; prev_close=42.15 |
-| 2022-10-06 | AHLEAST | -49.8% | dev | magnitude-mismatch | ex=2022-10-06 factor=0.666667 survived=0.501641 |
-| 2019-05-30 | DCM | -49.0% | dev | CA-shaped-orphan | survived=0.509669 sits on a CA ratio; no factor spans (2019-05-29, 2019-05-30]; prev_close=80.15 |
-| 2025-05-22 | ABFRL | -66.6% | sealed | CA-shaped-orphan | survived=0.334077 sits on a CA ratio; no factor spans (2025-05-21, 2025-05-22]; prev_close=268.95 |
-| 2025-04-15 | QUESS | -50.7% | sealed | CA-shaped-orphan | survived=0.492974 sits on a CA ratio; no factor spans (2025-04-11, 2025-04-15]; prev_close=604.90 |
+Documented-exclusion detail (carried to gate (c)):
+
+- **`disputed_ratio`** (`AHLEAST`): NSE CF-CA publishes 'Bonus 1:2' (factor 0.666667); the market repriced by 0.5016, i.e. a 1:1 bonus. Exchange text and market disagree. Needs adjudication against the company filing. Factor stored as published.
+- **`out_of_scope_corporate_action`** (`ABFRL`, `DCM`, `FOURSOFT`, `ORIENTABRA`, `ORIENTPPR`, `QUESS`, `SINTEX`, `SURANAT&P`, `TEXMACOLTD`, `TRIVENI`, `WEIZMANIND`): CA-shaped move with no split, bonus or special dividend in the NSE CF-CA feed. Charter scopes gate (b) to splits/bonuses/rights. Shape suggests a demerger — unverified; deriving a factor needs the resulting entities' relative values on the ex-date. Carried to gate (c).
+- **`unidentified_instrument`** (`ICICIMOM30`): No ISIN in any raw bhavcopy payload and no match to gate (a) H2's name pattern, so the non-equity exclusion cannot reach it. A -89.9% move on an ICICI momentum ETF. Needs an NSE instrument master, which gate (c) requires regardless.
 
 **CA-explained sample:**
 
@@ -185,11 +196,11 @@ Total adjusted ex-date mismatches: **0** (PASS)
 ## 6. Fit-for-Purpose Statement
 
 - CA events: **11,965**  |  Factors: **1,205**  |  Parse rejects: **19**
-- Evidence test: **4** failures of 1,116 factors with adjacent-session evidence
-- Move buckets: CA-explained **1,041**, genuine **4,469**, residue **8**
-- Dev-window residue: **6**
+- Evidence test: **4** of 1,116 factors with adjacent-session evidence unreconciled — all recorded in `ca_evidence_exceptions` (4 rows), factor stored as the exchange published it, symbol flagged for downstream filtering
+- Move buckets: CA-explained **1,041**, genuine **4,469**, residue **13**
+- Dev-window residue: **6** (6 documented in `ca_scope_exclusions`, **0 undocumented**)
 - Adjusted ex-date mismatches: **0**
 
-**Gate (b) NOT PASSED:** 6 dev-window residue move(s); 4 factor(s) failing the price-evidence test.
+**Gate (b) PASSED WITH DOCUMENTED EXCEPTIONS.** Every >|20%| dev-window move is classified: every residue row is either resolved by a factor or named in `ca_scope_exclusions` (6 dev-window row(s), carried to gate (c)). Every adjustment factor traces to an exchange document; every factor with adjacent-session price evidence reconciles against the market's own repricing within 25%, the 4 that do not being recorded in `ca_evidence_exceptions` with the factor stored as published. Every ex-date row of `equity_bhavcopy_adjusted` is continuous. The view is the authoritative research source for downstream CSMP work, excluding the symbols named in the two exception tables.
 
 _Sidecar: `docs/reports/CSMP_GATE_B_MOVES.csv` holds all 5,523 classified moves._

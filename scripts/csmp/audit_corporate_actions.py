@@ -306,8 +306,16 @@ def run(con):
     counts = {}
     for row in classification:
         counts[row[4]] = counts.get(row[4], 0) + 1
-    dev_residue = [c for c in classification if c[3] == "dev" and c[4] in RESIDUE]
-    sealed_residue = [c for c in classification if c[3] == "sealed" and c[4] in RESIDUE]
+
+    # A residue row is acceptable only if it is named in ca_scope_exclusions with a
+    # stated reason. Anything else is an undocumented residue and fails the gate.
+    documented = {(r[0], r[1]): (r[2], r[3]) for r in con.execute(
+        "SELECT symbol, move_date, reason, detail FROM ca_scope_exclusions").fetchall()}
+    residue = [c for c in classification if c[4] in RESIDUE]
+    undocumented = [c for c in residue if (c[1], c[0]) not in documented]
+    dev_residue = [c for c in residue if c[3] == "dev"]
+    sealed_residue = [c for c in residue if c[3] == "sealed"]
+    dev_undocumented = [c for c in undocumented if c[3] == "dev"]
 
     w(f"**Non-equity symbols excluded (gate (a) H2):** {len(excluded):,} — "
       f"{n_by_isin:,} identified by an `INF*` mutual-fund-scheme ISIN, {n_by_name:,} "
@@ -325,44 +333,47 @@ def run(con):
       "is not evidence. A move that no factor spans, whose surviving-value ratio lands "
       "on a canonical corporate-action ratio, is a **CA-shaped-orphan** — a missing "
       "factor. Together with magnitude- and direction-mismatches these form the "
-      "**residue**, which is the gate criterion. A move that no factor spans and whose "
-      "ratio is not CA-shaped is classified **genuine** — a classification, not a "
-      "residue.\n")
+      "**residue**. A move that no factor spans and whose ratio is not CA-shaped is "
+      "classified **genuine** — a classification, not a residue.\n")
     w(f"The ratio test is applied only where `prev_close >= Rs {CA_RATIO_MIN_PRICE:.0f}`. "
       "Below that the Rs 0.01 tick grid forces canonical ratios — a stock at Rs 0.10 "
       "ticking to Rs 0.05 is exactly -50% and carries no information.\n")
+    w("The **gate criterion** is: every dev-window residue row is either resolved (a "
+      "factor is added) or **documented** in `ca_scope_exclusions` with a stated reason "
+      "and carried to gate (c). An *undocumented* dev-window residue row fails the gate.\n")
     w("| Bucket | Moves | Residue? |")
     w("|--------|------:|----------|")
     for cls in ("CA-explained", "genuine", "magnitude-mismatch",
                 "direction-mismatch", "CA-shaped-orphan"):
         w(f"| {cls} | {counts.get(cls, 0):,} | {'**yes**' if cls in RESIDUE else 'no'} |")
     w("")
-    w(f"**Dev-window residue: {len(dev_residue)}**"
-      + (" — PASS" if not dev_residue else " — NOT PASSED (gate criterion)"))
+    w(f"**Dev-window residue: {len(dev_residue)}** "
+      f"({len(dev_residue) - len(dev_undocumented)} documented, "
+      f"{len(dev_undocumented)} undocumented)"
+      + (" — PASS" if not dev_undocumented else " — NOT PASSED (undocumented residue)"))
     w(f"Sealed-window residue (reported, not gating): {len(sealed_residue)}\n")
 
-    unmapped = {r[0] for r in con.execute(
-        "SELECT DISTINCT e.symbol FROM equity_bhavcopy e LEFT JOIN symbol_isin si "
-        "ON si.symbol = e.symbol WHERE si.symbol IS NULL").fetchall()}
-    residue_unmapped = sorted({c[1] for c in dev_residue + sealed_residue}
-                              & unmapped)
-    if residue_unmapped:
-        w(f"**{len(residue_unmapped)} residue symbol(s) have no ISIN in any raw "
-          "payload**, so the non-equity exclusion could not be applied to them and "
-          "they may be unrecognised funds: "
-          + ", ".join(f"`{s}`" for s in residue_unmapped) + ".\n")
-
-    if dev_residue or sealed_residue:
-        w("Residue rows (dev window first):\n")
-        w("| Date | Symbol | Return | Window | Class | Detail |")
-        w("|------|--------|-------:|--------|-------|--------|")
-        shown = (dev_residue + sealed_residue)[:60]
-        for td, sym, ret, wnd, cls, detail in shown:
-            w(f"| {td} | {sym} | {ret:+.1%} | {wnd} | {cls} | {detail} |")
-        extra = len(dev_residue) + len(sealed_residue) - len(shown)
-        if extra > 0:
-            w(f"| ... | (+{extra} more — see sidecar) | | | | |")
+    if residue:
+        w("Every residue row, with its disposition:\n")
+        w("| Date | Symbol | Return | Window | Class | Disposition |")
+        w("|------|--------|-------:|--------|-------|-------------|")
+        for td, sym, ret, wnd, cls, detail in sorted(
+                residue, key=lambda c: (c[3] != "dev", c[0])):
+            disp = documented.get((sym, td))
+            tag = f"documented: {disp[0]}" if disp else "**UNDOCUMENTED — fails gate**"
+            w(f"| {td} | {sym} | {ret:+.1%} | {wnd} | {cls} | {tag} |")
         w("")
+        residue_keys = {(c[1], c[0]) for c in residue}
+        reasons_present = {disp[0] for key, disp in documented.items()
+                           if key in residue_keys}
+        if reasons_present:
+            w("Documented-exclusion detail (carried to gate (c)):\n")
+            for reason in sorted(reasons_present):
+                syms = sorted({c[1] for c in residue
+                              if documented.get((c[1], c[0]), (None,))[0] == reason})
+                detail = next(d[1] for d in documented.values() if d[0] == reason)
+                w(f"- **`{reason}`** ({', '.join(f'`{s}`' for s in syms)}): {detail}")
+            w("")
 
     w("**CA-explained sample:**\n")
     w("| Date | Symbol | Return | Window | Detail |")
@@ -417,34 +428,50 @@ def run(con):
     w(f"`symbol_changes`: **{n_changes:,}** records (inventory, from gate (a)).\n")
 
     # === 6. Fit for purpose ==================================================
+    n_exceptions = con.execute(
+        "SELECT COUNT(*) FROM ca_evidence_exceptions").fetchone()[0]
     w("## 6. Fit-for-Purpose Statement\n")
     w(f"- CA events: **{ca_total:,}**  |  Factors: **{fac_total:,}**  |  "
       f"Parse rejects: **{n_rejects}**")
-    w(f"- Evidence test: **{len(failures)}** failures of {len(evidence):,} factors "
-      "with adjacent-session evidence")
+    w(f"- Evidence test: **{len(failures)}** of {len(evidence):,} factors with "
+      f"adjacent-session evidence unreconciled — all recorded in "
+      f"`ca_evidence_exceptions` ({n_exceptions} rows), factor stored as the exchange "
+      "published it, symbol flagged for downstream filtering")
     w(f"- Move buckets: CA-explained **{counts.get('CA-explained', 0):,}**, "
       f"genuine **{counts.get('genuine', 0):,}**, "
-      f"residue **{len(dev_residue) + len(sealed_residue):,}**")
-    w(f"- Dev-window residue: **{len(dev_residue)}**")
+      f"residue **{len(residue):,}**")
+    w(f"- Dev-window residue: **{len(dev_residue)}** "
+      f"({len(dev_residue) - len(dev_undocumented)} documented in "
+      f"`ca_scope_exclusions`, **{len(dev_undocumented)} undocumented**)")
     w(f"- Adjusted ex-date mismatches: **{total_mismatch}**\n")
 
-    fail = []
-    if dev_residue:
-        fail.append(f"{len(dev_residue)} dev-window residue move(s)")
+    # The gate criterion: no undocumented dev-window residue, and continuity closed.
+    # Evidence-test failures and documented scope exclusions are known, named, and
+    # carried forward per the operator's decision — they report, they do not block.
+    blockers = []
+    if dev_undocumented:
+        blockers.append(f"{len(dev_undocumented)} undocumented dev-window residue move(s)")
     if total_mismatch:
-        fail.append(f"{total_mismatch} adjusted-continuity mismatch(es)")
-    if failures:
-        fail.append(f"{len(failures)} factor(s) failing the price-evidence test")
+        blockers.append(f"{total_mismatch} adjusted-continuity mismatch(es)")
 
-    if fail:
-        w("**Gate (b) NOT PASSED:** " + "; ".join(fail) + ".")
+    if blockers:
+        w("**Gate (b) NOT PASSED:** " + "; ".join(blockers) + ".")
+    elif len(dev_residue) or len(failures):
+        n_doc = len(dev_residue)
+        w(f"**Gate (b) PASSED WITH DOCUMENTED EXCEPTIONS.** Every >|20%| dev-window "
+          "move is classified: every residue row is either resolved by a factor or "
+          f"named in `ca_scope_exclusions` ({n_doc} dev-window row(s), carried to gate "
+          "(c)). Every adjustment factor traces to an exchange document; every factor "
+          "with adjacent-session price evidence reconciles against the market's own "
+          f"repricing within {EVIDENCE_TOLERANCE:.0%}, the {len(failures)} that do not "
+          "being recorded in `ca_evidence_exceptions` with the factor stored as "
+          "published. Every ex-date row of `equity_bhavcopy_adjusted` is continuous. "
+          "The view is the authoritative research source for downstream CSMP work, "
+          "excluding the symbols named in the two exception tables.")
     else:
-        w("**Gate (b) PASSED.** Every adjustment factor traces to an exchange "
-          "document, and every factor with adjacent-session price evidence reconciles "
-          f"against the market's own repricing within {EVIDENCE_TOLERANCE:.0%}. Every "
-          ">|20%| dev-window move is classified as corporate-action or genuine with "
-          "zero residue. Every ex-date row of `equity_bhavcopy_adjusted` is continuous. "
-          "That view is the authoritative research source for downstream CSMP work.")
+        w("**Gate (b) PASSED.** Every >|20%| dev-window move is classified with zero "
+          "residue and zero exceptions; every factor reconciles against price evidence; "
+          "the adjusted view is continuous at every ex-date.")
     w("")
     w(f"_Sidecar: `{SIDECAR_PATH.relative_to(ROOT).as_posix()}` holds all "
       f"{len(classification):,} classified moves._")

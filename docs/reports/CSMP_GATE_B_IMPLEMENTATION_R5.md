@@ -19,16 +19,20 @@ simply wrong. A genuine review of this commit is still owed.
 
 ---
 
-## Verdict: **NOT PASSED**, but the failure is now finite and named
+## Verdict: **PASSED WITH DOCUMENTED EXCEPTIONS**
 
-> **Addendum (same day).** After this record was first written, the operator ruled that the move
-> screen inherits gate (a)'s H2 non-equity exclusion now rather than at gate (c). Implemented via a
-> new `symbol_isin` table (`scripts/csmp/build_symbol_isin.py`) — see §10. **Dev-window residue
-> 23 → 6.** Blocker 1 is closed with no inferred factor. The table below reflects the final state.
+> **Addenda (same day), in order.**
+> 1. The operator ruled the move screen inherits gate (a)'s H2 non-equity exclusion now rather
+>    than at gate (c). Implemented by ISIN via a new `symbol_isin` table
+>    (`scripts/csmp/build_symbol_isin.py`) — §10. **Dev-window residue 23 → 6**, no inferred factor.
+> 2. The operator ruled (i) demergers are carried as a documented exclusion into gate (c), and
+>    (ii) the gate records **PASS WITH DOCUMENTED EXCEPTIONS** once every residue row is either
+>    resolved or named in `ca_scope_exclusions`. Implemented — §11. All 6 dev-window residue rows
+>    are documented; **0 undocumented**; continuity 0. The audit prints the pass.
 
 | | Before (`91e7963`) | After |
 |---|---|---|
-| Dev-window residue | 4,141 (opaque "genuine") | **6** (each named, each with a cause) |
+| Dev-window residue | 4,141 (opaque "genuine") | **6, all documented** (0 undocumented) |
 | Adjusted ex-date continuity mismatches | 31 | **0** |
 | Factors failing price evidence | not measured in code | **4 of 1,039** |
 | Split factors with `factor = 1.0` (silent no-op) | 1 | **0** |
@@ -185,7 +189,7 @@ equities. No ETF can ever enter it. If the operator rules that gate (b)'s move s
 exclusion now rather than at gate (c), this blocker disappears **without a single inferred factor**,
 and the dev residue drops from 23 to 5. That is an operator call, not mine.
 
-### Blocker 2 — 4 demergers (dev window) and 1 disputed bonus
+### Blocker 2 — 4 demergers (dev window) and 1 disputed bonus — **DOCUMENTED, see §11**
 
 `ORIENTPPR` 2013-03-07 (−80.4%) · `FOURSOFT` 2013-10-17 (−67.3%) · `SINTEX` 2017-05-25 (−75.2%) ·
 `DCM` 2019-05-30 (−49.0%). Also outside the dev window: `QUESS` 2025-04-15, `ABFRL` 2025-05-22,
@@ -274,10 +278,46 @@ The audit regenerates byte-identically on re-run.
 
 ---
 
+## 11. Documented exceptions and the PASS criterion (operator decision)
+
+The operator ruled: demergers are carried as a documented exclusion into gate (c), and the gate
+records **PASS WITH DOCUMENTED EXCEPTIONS** once every residue row is either resolved by a factor or
+named, with a reason, in a register that gate (c) inherits.
+
+`ca_scope_exclusions` (written by the ingest) holds 13 moves in three reasons:
+
+- **`out_of_scope_corporate_action`** (11 rows; 4 in the dev window: `ORIENTPPR`, `FOURSOFT`,
+  `SINTEX`, `DCM`). A CA-shaped move with **no split, bonus or special dividend in the NSE CF-CA
+  feed**. The charter scopes gate (b) to splits/bonuses/rights. Each has the shape of a demerger,
+  but that is recorded as a **suspicion, not a finding** — nothing in this repository corroborates
+  it, and a factor would need the resulting entities' relative values on the ex-date. Carried to
+  gate (c).
+- **`disputed_ratio`** (1 row: `AHLEAST`). NSE publishes `Bonus 1:2`; the market repriced 1:1.
+  Factor stored as published; flagged in `ca_evidence_exceptions`; needs the company filing.
+- **`unidentified_instrument`** (1 row: `ICICIMOM30`). No ISIN in any payload and no name match, so
+  the non-equity screen cannot reach it. Needs an NSE instrument master — a gate (c) prerequisite.
+
+**The gate criterion is now precise and mechanical:** an *undocumented* dev-window residue row fails
+the gate; a documented one does not. The audit computes `undocumented = residue − ca_scope_exclusions`
+and the register is keyed `(symbol, move_date)` so a symbol excluded for one event is not excluded
+for another. Today: **6 dev-window residue rows, 6 documented, 0 undocumented.** The four
+evidence-test failures are documented by construction in `ca_evidence_exceptions` (factor stored as
+the exchange published it); per the operator's earlier decision they report, they do not block.
+
+Guardrail against silent scope creep: `tests/csmp/test_scope_exclusions.py` (6 tests) asserts every
+listed move carries a reason, every reason has detail text, there are no orphan detail entries or
+duplicate keys, and the four named dev-window demergers plus the two distinct non-demerger reasons
+are present. If a future run drops a factor for one of these symbols, the move leaves the residue and
+the exclusion simply goes unused — it can never mask a *new* undocumented move, because the audit
+subtracts the register from the residue rather than the reverse.
+
+---
+
 ## Quarantine status
 
-`equity_bhavcopy_adjusted` remains **quarantined for the 23 dev-window residue symbols and the 4
-evidence-exception symbols**. For every other symbol the view is now continuous at every ex-date,
+`equity_bhavcopy_adjusted` is the authoritative research source for downstream CSMP work, **excluding
+the symbols named in the two exception tables** — `ca_scope_exclusions` (13 moves) and
+`ca_evidence_exceptions` (4 factors). For every other symbol the view is continuous at every ex-date,
 every factor traces to an exchange document, and every factor with adjacent-session evidence
-reconciles against the market's own repricing. That is a materially different claim from the one
-this gate could make before this round — but it is not a PASS.
+reconciles against the market's own repricing within 25%. Gate (b) is **PASSED WITH DOCUMENTED
+EXCEPTIONS**; the gate-(a) store is unaffected throughout.
