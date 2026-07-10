@@ -6,6 +6,22 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-10 — CSMP Gate (b) Round-1 review: NOT PASSED — REJECTED (structural); adjusted view quarantined
+
+Lead review of DeepSeek V4's corporate-action deliverable (`docs/reports/CSMP_GATE_B_LEAD_REVIEW.md`). The audit's own "14 unexplained moves" framing understated the failure: BSE's `CorporateAction/w` `Table` is the dividend table but was parsed as SPLIT — all 9,004 "split" events are dividends and 8,840 rupee dividend amounts became multiplicative price factors, distorting `equity_bhavcopy_adjusted` by up to 5,940× (RELIANCE 2012); no real split source was ingested at all; and 51% of the move screen compared against stale prev-closes across BE-series/suspension gaps. The 14 dev-window unexplained moves fully resolved: 7 gold-ETF unit splits missing from the source, 1 MAJESCO ₹974/share special dividend, 6 screen artifacts — zero true anomalies, gate-(a) store unimpeached. Bonus pipeline (900 events → all 423 CA-explained moves) verified correct. Findings F1–F9 issued with a path to PASS (re-parse cached raw JSON, add split source + ETF patch list, operator decision on special dividends, fix screen + continuity check, re-audit).
+
+*(docs/reports/CSMP_GATE_B_LEAD_REVIEW.md; docs/reports/CSMP_GATE_B_CORPORATE_ACTIONS_AUDIT.md)*
+
+---
+
+## 2026-07-10 — CSMP Gate (a) PASS (final) — equity bhavcopy store certified after 8 review rounds
+
+Gate (a) closed PASS (`docs/reports/CSMP_GATE_A_LEAD_REVIEW.md`): `data/market_data/equity_bhavcopy.duckdb` certified — 7,030,920 rows · 4,099 calendar days (4,097 full-session + 2 restricted gold-ETF Sunday sessions disclosed via `trading_calendar.n_symbols`) · 4,132 symbols · 2010-01-04 → 2026-07-09 · 0 coverage holes · 0 unresolved oracle probes. Review rounds institutionalized an independent F&O-bhavcopy trading-day oracle, 7-day-week ingest reach (Muhurat/budget Sundays), a payload-identity guard against NSE wrong-content 200s, and an interior-gap hard-fail. Inheritances: H2 → gate (c) (ETF exclusion); full-session day-pair discipline → gates (b)–(e). Gate-(b) prompt issued to DeepSeek V4 the same day.
+
+*(docs/reports/CSMP_GATE_A_LEAD_REVIEW.md; docs/reports/CSMP_GATE_A_EQUITY_BHAVCOPY_AUDIT.md; scripts/csmp/ingest_equity_bhavcopy.py; scripts/csmp/audit_equity_bhavcopy.py)*
+
+---
+
 ## 2026-07-08 — CSMP Phase 0 CLOSED — §8 decisions locked; DeepSeek V4 implementation prompts issued (gate a)
 
 Operator locked all five charter decisions as recommended (D1 NIFTY 200; D2 12-1 momentum, monthly, equal-weight top bucket; D3 rank-IC gate + net-of-fee top bucket vs equal-weight universe with NIFTY200 Momentum 30 reference arm; D4 long-only; D5 dev 2012–2022 / sealed 2023-01→2026-06 / forward), and locked the role split: **DeepSeek V4 implements; Claude is Lead Reviewer only** (prompts + PASS/NOT PASSED verdicts between gates). `docs/reports/CSMP_IMPLEMENTATION_PROMPTS.md` created: standing constraints (no frozen-component changes, deterministic scripts, script-generated audit reports, failures-reported-as-failures, one gate per prompt), full gate-(a) brief ISSUED (equity daily bhavcopy 2010→present, era-aware NSE source handling, EQ+BE series, dedicated DuckDB store, six-section audit, ≥3-month-hole stop condition), prompts 2–5 HELD pending sequential reviews.

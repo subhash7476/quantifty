@@ -236,7 +236,14 @@ Reviewer signs off on the regenerated report.
 
 ---
 
-## Prompt 2 — Gate (b): Corporate-action adjustment + audit  **(ISSUED 2026-07-10)**
+## Prompt 2 — Gate (b): Corporate-action adjustment + audit  **(ROUND 1 NOT PASSED 2026-07-10)**
+
+> **Status:** Round 1 NOT PASSED — REJECTED (structural), `CSMP_GATE_B_LEAD_REVIEW.md`.
+> The BSE response tables were misidentified (all 9,004 "SPLIT" events are dividends; 8,840
+> rupee amounts became price factors; adjusted view distorted up to 5,940×), no real split
+> source was ingested, and 51% of the move screen compared against stale prev-closes.
+> Remediation brief: **Prompt 2R** below. This prompt's objective, constraints, and audit
+> sections remain binding; 2R narrows the work to the findings.
 
 **Objective.** Source split / bonus / face-value-change (and material rights) events for
 every symbol in the gate-(a) store, build a traceable `adjustment_factors` table, expose a
@@ -363,6 +370,185 @@ a threshold to be quietly widened.
 gate-(a) store; the six audit sections are present; all seven acceptance criteria hold; the
 audit's fit-for-purpose statement is PASS-eligible on its own numbers; no next-gate work
 started. Gate (c) stays HELD until the Lead Reviewer signs off.
+
+---
+
+## Prompt 2R — Gate (b) remediation: F1–F9  **(ISSUED 2026-07-10)**
+
+**Context.** Gate (b) Round 1 is NOT PASSED — REJECTED (`CSMP_GATE_B_LEAD_REVIEW.md`). The
+failure is structural: BSE's `CorporateAction/w` response tables were misidentified, so the
+entire SPLIT inventory is dividends and the adjusted view is unusable (RELIANCE Jan-2012
+adjusted close = 5,940× raw). One component is verified sound and must be preserved: the
+**bonus pipeline** (`Table1` → `issue B:E` → factor `E/(E+B)`), which correctly explains all
+423 CA-explained moves. The raw JSON cache under `data/market_data/corporate_actions_raw/`
+is intact — **F1/F4/F6/F8/F9 need no re-download**; only the new split source (F2) and the
+ETF patch list fetch anything. All Prompt-2 standing constraints remain binding.
+
+**Operator decision — LOCKED (2026-07-10): special dividends adjust above a 20% threshold.**
+A cash dividend whose amount is ≥ 20% of the close on the last full session before its
+ex-date is price-affecting and receives an adjustment factor; below the threshold no factor
+(ordinary-dividend rule unchanged). Details in R6.
+
+Fix exactly the findings below; do not redesign what passed review (bonus parsing, the raw
+cache discipline, the report-generated-by-script pattern).
+
+---
+
+### R1 (F1, CRITICAL) — reclassify the BSE tables; purge the fake splits
+
+Empirical table identity (verified from `raw_json` in review):
+`Table` = **dividends keyed by record date** (`BCRD_FROM`, `Amount`);
+`Table1` = **bonuses** (`XTYPE: 'Bonus'`, `VALUE: 'issue B:E'`);
+`Table2` = **dividends keyed by ex-date** (`Ex_date`, `Details`, `purpose`).
+
+1. Delete every `action_type='SPLIT'` row from `corporate_actions` and `adjustment_factors`
+   (all 9,004 / 8,840 are misparsed dividends).
+2. Re-parse the cached `bse_ca_*.json` with the corrected mapping. Use `Table2` as the
+   dividend inventory of record (it carries the true ex-date); keep `Table` rows only if
+   they add events absent from `Table2` after dedupe (R5).
+3. In `derive_factor()`, **delete the plain-float fallback entirely** — a bare number can
+   never safely define a split ratio; it is how ₹974 became a 974× price factor. An
+   unparseable ratio is a reported parse failure, not a guess.
+
+### R2 (F2, CRITICAL) — source real splits (none were ingested)
+
+The `CorporateAction/w` endpoint has no sub-division table; 16 years of real splits are
+missing and their −50%..−90% gaps sit in the raw panel unadjusted (~880 tight-gap
+−40%..−85% single-session drops were counted in review). Source them from an official feed;
+candidates in order of structure:
+
+1. BSE's corporate-actions listing API backing
+   `bseindia.com/corporates/corporates_act.html` (accepts purpose filters incl.
+   sub-division and date ranges).
+2. NSE's CF-CA corporate-actions archive CSV (nsearchives), rename-chain-aware join.
+3. Bhavcopy reconstruction as **cross-check only** (a symbol-day where
+   `prev_close/close(t−1)` clusters at 2/5/10/25 with volume scaling) — it validates a
+   source, it is not a source (standing constraint: official provenance per event).
+
+Also ingest the **ETF unit-split patch list** — the review-identified events (GOLDBEES
+2019-12-19, AXISGOLD 2020-07-23, HDFCMFGETF 2021-02-17, GOLDSHARE 2021-03-25, BSLGOLDETF
+2021-11-25, QGOLDHALF 2021-12-16, SETFGOLD 2022-01-06, plus sealed-window LICMFGOLD
+2026-03-06 and IVZINGOLD 2026-04-30, and any others the fixed screen surfaces). Derive each
+ratio from the exchange/AMC notice, cite it in `source`, and confirm it against the raw
+price step (all reviewed cases are ~1:100). ETFs stay in the adjusted panel (H2/exclusion
+is gate (c)).
+
+### R3 (F8 + F5, MAJOR) — correct the split factor convention; make hand-verification assert
+
+Backward adjustment scales **pre-event prices down** for a sub-division: FV `old → new`
+multiplies shares by `old/new` and divides price by `old/new`, so the factor applied to
+pre-ex prices is `new/old` (FV 10→1 ⇒ 0.1) — the current `derive_factor` returns the
+inverse. The bonus branch (`E/(E+B)`) and the volume treatment (`volume / cum_factor`) are
+correct; leave them. Fix the §2 prose (it currently contradicts itself within one
+sentence).
+
+The §2 hand-verify section must **assert, not display**: for each of the ≥ 10 events,
+`adjusted_before ≈ raw_close_after` within a tolerance that allows the day's genuine market
+move (±10%); any violation fails the audit run loudly. Round 1 printed RELIANCE
+"SPLIT 6.0" with no raw gap and a fabricated 6× adjusted discontinuity under the heading
+"hand-verified" — the assertion makes that structurally impossible.
+
+### R4 (F6, MAJOR) — ex-date, not record date
+
+`BCRD_FROM`/`BCRD` are record dates; pre-2023 the ex-date precedes the record date by ≥ 1
+session. Rules: dividends take `Table2.Ex_date` directly; bonuses (and splits, if the R2
+source gives record dates) derive the effective ex-date by locating the raw price gap
+within `[record_date − 5, record_date]` in the bhavcopy — deterministic and self-auditing.
+Report the offset distribution and every event where no gap could be located (those events
+carry no factor and are listed, not guessed).
+
+### R5 (F7, MEDIUM) — dedupe the dividend inventory
+
+`Table` and `Table2` carry the same dividend events (1,013 exact same-date mirrors; more
+offset by record-vs-ex date). Dedupe on `(symbol, amount, date within ±7d)`, preferring the
+`Table2` record. The special-dividend rule (R6) runs on the deduped inventory only.
+
+### R6 (operator decision, LOCKED) — special-dividend adjustment at the 20% threshold
+
+For each deduped dividend event: let `P` = close on the last **full session** strictly
+before the ex-date, `D` = dividend amount.
+
+- **If `D ≥ 0.20 × P`:** price-affecting. Insert an `adjustment_factors` row with
+  `action_type='SPECIAL_DIVIDEND'`, `factor = (P − D) / P`, applied to pre-ex prices like
+  any backward factor. If `D ≥ P` (data error), no factor — flag the event in the audit.
+- **If `D < 0.20 × P`:** no factor (unchanged ordinary-dividend rule; raw-price momentum is
+  the charter construct).
+- **Volume is NOT adjusted for dividends** — share count is unchanged. The adjusted view
+  must therefore maintain **separate cumulative factors for price and volume** (volume
+  factor = 1.0 for SPECIAL_DIVIDEND rows, `factor` for share-count-changing rows). This is
+  a required change to the `equity_bhavcopy_adjusted` view definition.
+- Disclose in the audit: threshold, count of SPECIAL_DIVIDEND factors by year, and the full
+  payload for the 10 largest. **MAJESCO 2020-12-23 must appear** (P=985.65, D=974,
+  factor ≈ 0.0118).
+
+### R7 (F3, CRITICAL) — fix the move screen: no stale prev-closes
+
+The Round-1 `LAG` over EQ-only rows spanned BE-series migrations and suspensions: 3,314 of
+6,486 screened "moves" (51%) used a prev close > 7 days old (KOVAI: 3,909 days). Fix:
+
+1. Compute prev close over the symbol's **EQ+BE union** (series migration is not a price
+   event).
+2. A row enters the move screen **only if** its lagged `trade_date` is the immediately
+   preceding full session (gap ≤ 5 calendar days covers long weekends).
+3. Rows failing the gap rule are reported in a separate **resumption/migration section**
+   (counts + the 20 largest, payloads shown) — they are not returns and must not appear in
+   the classification counts.
+
+### R8 (F4, MAJOR) — make the adjusted-continuity check test the factors
+
+Round 1 skipped ex-date rows — the only rows where adjustment acts — so its "0 residual"
+was vacuous truth. Fix: at every ex-date row `t` of each sampled symbol, assert
+`adj_prev_close(t) ≈ adj_close(t−1)` within 0.1% — the adjustment must *close* the raw gap.
+Off-ex-date rows remain the trivial case. Every surviving mismatch is named with payload.
+Run it on all 20 continuity symbols **plus** every symbol carrying a SPECIAL_DIVIDEND or
+split factor (full population, not a sample — this is the factor-correctness gate).
+
+### R9 (F9, MINOR) — report hygiene
+
+(a) Move the full classification table to a sidecar
+`docs/reports/CSMP_GATE_B_MOVES.csv`; the MD keeps residue rows, the 10 largest per class,
+and the resumption section — target well under 100 KB (Round 1 was 560 KB).
+(b) Replace the `len([l for l in L if str(td) in l]) < 200` row cap with a plain counter.
+(c) Reconcile prose with code: the classification window is one value used everywhere
+("7 calendar days" or tighter — pick and state it).
+(d) Compute the unmapped-symbol count; delete the stale "~967" from the scope note.
+(e) Fix the §3 preamble variable (`RESTRICTED_THRESHOLD`, not `MOVE_LO` — it currently
+renders "< -20% symbols").
+(f) Delete dead code (`full_set`, unused `timedelta`, unused `--start`/`--end` args).
+
+---
+
+### Acceptance criteria (falsifiable — the review will check these exact claims)
+
+1. `equity_bhavcopy` bit-unmodified: 7,030,920 rows, content identical to gate-(a) PASS.
+2. `adjustment_factors` contains **zero** rows derived from a bare-float ratio or a
+   dividend `Amount`; every factor's `purpose_raw` is split/bonus/special-dividend
+   evidence. `action_type` ∈ {BONUS, SPLIT, SPECIAL_DIVIDEND} (FV-change-without-split
+   events carry no factor row or factor = 1.0, disclosed either way).
+3. **Factor-vs-gap concordance table in the audit:** for every factor (full population),
+   the raw ex-date gap vs `factor`; ≥ 95% within ±15% (genuine same-day market moves
+   explain the tail); every miss named with payload. Round 1's equivalent was 0/200.
+4. The R8 continuity check visits every ex-date row and reports **0 unresolved residuals**;
+   the §2 hand-verify assertions pass in-run.
+5. The move screen pairs only consecutive full sessions; the resumption/migration section
+   exists; **dev-window unexplained residue = 0** — specifically, the Round-1 fourteen
+   resolve as: 7 ETF rows CA-explained (patch list), MAJESCO CA-explained
+   (SPECIAL_DIVIDEND), and SBC / UVSL / LCCINFOTEC / KOVAI / RUCHI / VISESHINFO out of the
+   classification counts and into the resumption section. Sealed-window residue reported
+   as a count, unexamined.
+6. The audit MD is regenerated byte-identically on re-run against an unchanged store, cites
+   the sidecar CSV, and is < 100 KB.
+7. No diffs outside `scripts/csmp/`, `docs/reports/`, and `data/market_data/` (new
+   files/tables/view changes only). No writes to `data/market_data/nse/candles/1m/`. No
+   frozen-component diffs. No gate-(c) work.
+
+**Definition of done.** All seven criteria hold; the regenerated audit's fit-for-purpose
+statement is PASS-eligible on its own numbers (or renders the stop language per standing
+constraint 4 if the R2 split source proves unobtainable for the dev window — that is an
+operator report, not a threshold widening); no next-gate work started. Gate (c) stays HELD
+until the Lead Reviewer signs off on the regenerated report.
+
+---
 
 ## Prompt 3 — Gate (c): Survivorship / universe membership + audit  **(HELD)**
 
