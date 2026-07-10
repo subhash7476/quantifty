@@ -1,22 +1,22 @@
-"""CSMP Gate (b) remediation R1–R6 — corporate-action adjustment.
+"""CSMP Gate (b) — NSE CF-CA CSV split ingestion (replaces bhavcopy-gap inference).
 
-R1: Table=dividends(record-date), Table1=bonuses, Table2=dividends(ex-date).
-     All SPLIT rows purged; plain-float fallback deleted.
-R2: Real splits reconstructed from bhavcopy close-to-close gaps clustered
-     at 2/5/10/25 with volume scaling (official feed unobtainable; R2 option 3).
-     ETF unit-split patch list hardcoded with AMC-notice citations.
-R4: Ex-date derived from the raw price gap, not the record date.
-R5: Dividend inventory deduped (symbol, amount, +/-7d).
-R6: Special dividend >=20% of prior close gets adjustment factor (P-D)/P.
+Parses NSE's structured corporate-actions CSV files (CF-CA-equities-*.csv)
+for stock split / sub-division / face-value change records, derives adjustment
+factors from the exchange-published old/new face values, and ingests them as
+primary-source SPLIT events. No price-gap inference — every factor is derived
+from the exchange's own Purpose text (e.g. 'Fv Splt Frm Rs 10 To Re 1').
 
-No re-download needed (bonus/div cache intact; splits from store).
+Also handles ETF unit-splits from a hardcoded patch list (not in NSE feed).
 
 Usage:
     python scripts/csmp/ingest_corporate_actions.py
 """
 
+import csv
+import io
 import json
 import os
+import re
 import sys
 import time
 from datetime import date, datetime, timedelta
@@ -37,27 +37,17 @@ RAW_DIR = ROOT / "data" / "market_data" / "corporate_actions_raw"
 SESSION = None
 SPECIAL_DIV_THRESHOLD = 0.20
 
-# ETF unit-split events not present in BSE equity CA feeds.
-# Each entry: (symbol, ex_date, old_fv, new_fv, source_citation)
 ETF_SPLITS = [
     ("GOLDBEES", date(2019, 12, 19), 100, 1,
-     "AMC notice — NSE circular; close 3359.60->33.55, volume 4386->1664422"),
-    ("AXISGOLD", date(2020, 7, 23), 100, 1,
-     "AMC notice; close ~3398->~34"),
-    ("HDFCMFGETF", date(2021, 2, 17), 100, 1,
-     "AMC notice; close ~2620->~26"),
-    ("GOLDSHARE", date(2021, 3, 25), 100, 1,
-     "AMC notice; close ~3675->~37"),
-    ("BSLGOLDETF", date(2021, 11, 25), 100, 1,
-     "AMC notice; close ~4350->~43"),
-    ("QGOLDHALF", date(2021, 12, 16), 100, 1,
-     "AMC notice; close ~1830->~18"),
-    ("SETFGOLD", date(2022, 1, 6), 100, 1,
-     "AMC notice; close ~5280->~53"),
-    ("LICMFGOLD", date(2026, 3, 6), 100, 1,
-     "AMC notice; sealed-window counterpart"),
-    ("IVZINGOLD", date(2026, 4, 30), 100, 1,
-     "AMC notice; sealed-window counterpart"),
+     "AMC notice; NSE equity CA feed has no ETF unit-split records"),
+    ("AXISGOLD", date(2020, 7, 23), 100, 1, "AMC notice"),
+    ("HDFCMFGETF", date(2021, 2, 17), 100, 1, "AMC notice"),
+    ("GOLDSHARE", date(2021, 3, 25), 100, 1, "AMC notice"),
+    ("BSLGOLDETF", date(2021, 11, 25), 100, 1, "AMC notice"),
+    ("QGOLDHALF", date(2021, 12, 16), 100, 1, "AMC notice"),
+    ("SETFGOLD", date(2022, 1, 6), 100, 1, "AMC notice"),
+    ("LICMFGOLD", date(2026, 3, 6), 100, 1, "AMC notice"),
+    ("IVZINGOLD", date(2026, 4, 30), 100, 1, "AMC notice"),
 ]
 
 
@@ -73,8 +63,6 @@ def get_session():
         s.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                           "AppleWebKit/537.36",
-            "Accept": "application/json, text/plain, */*",
-            "Referer": "https://www.bseindia.com/",
         })
         SESSION = s
     return SESSION
@@ -120,8 +108,57 @@ def _to_str(*args):
     return ""
 
 
+def parse_nse_cf_ca_splits():
+    """Extract split/sub-division/consolidation records from NSE CF-CA CSVs."""
+    splits = []
+    for fp in sorted(RAW_DIR.glob("CF-CA-equities-*.csv")):
+        txt = fp.read_bytes().decode("utf-8-sig")
+        for row in csv.DictReader(io.StringIO(txt)):
+            purpose = (row.get("PURPOSE") or "").strip().lower()
+            p_upper = purpose.upper()
+            if not any(w in p_upper for w in ["SPLIT", "SPLT", "SUB-DIVISION",
+                       "DIVISION OF", "CONSOLIDATION", "FV ", "FACE VALUE"]):
+                continue
+            sym = (row.get("SYMBOL") or "").strip().upper()
+            ex_str = (row.get("EX-DATE") or "").strip()
+            fv_str = (row.get("FACE VALUE") or "").strip()
+            try:
+                ex_date = datetime.strptime(ex_str, "%d-%b-%Y").date()
+            except ValueError:
+                continue
+            nums = [int(s) for s in re.findall(r"\d+", purpose)]
+            old_fv, new_fv = None, None
+            if len(nums) >= 2:
+                for i in range(len(nums) - 1):
+                    if nums[i] >= 10 and nums[i + 1] <= nums[i]:
+                        old_fv, new_fv = nums[i], nums[i + 1]
+                        break
+                if old_fv is None and nums[-2] >= 10:
+                    old_fv, new_fv = nums[-2], nums[-1]
+                if old_fv is None:
+                    old_fv = max(nums)
+                    remaining = [n for n in nums if n != old_fv]
+                    new_fv = min(remaining) if remaining else old_fv
+            if old_fv is None or old_fv == 0 or new_fv is None:
+                continue
+            source = f"NSE_CF-CA_{fp.name}"
+            ratio_str = f"{old_fv}/{new_fv}"
+            factor = new_fv / old_fv
+            splits.append({
+                "symbol": sym,
+                "ex_date": ex_date,
+                "action_type": "SPLIT",
+                "purpose_raw": (row.get("PURPOSE") or "").strip(),
+                "ratio_or_fv": ratio_str,
+                "source": source,
+                "scripcode": "",
+                "raw_json": json.dumps(row, default=str)[:4000],
+                "factor": factor,
+            })
+    return splits
+
+
 def parse_bse_to_events(scripcode, symbol, raw):
-    """R1: corrected mapping. Table=dividend(RD), Table1=bonus, Table2=dividend(ED)."""
     if raw is None:
         return []
     rows = []
@@ -150,10 +187,7 @@ def parse_bse_to_events(scripcode, symbol, raw):
             "scripcode": scripcode,
             "raw_json": json.dumps(d, default=str)[:4000],
         })
-    # Table = dividend (record-date variant) — only kept if not duplicated in Table2 (R5)
-    seen_by_purpose = {
-        (r["symbol"], r["ex_date"], r["purpose_raw"]) for r in rows
-    }
+    seen = {(r["symbol"], r["ex_date"], r["purpose_raw"]) for r in rows}
     for d in (raw.get("Table") or []):
         dt = _parse_bse_date(d.get("BCRD_from") or d.get("BCRD_FROM")
                              or d.get("Ex_date"))
@@ -161,7 +195,7 @@ def parse_bse_to_events(scripcode, symbol, raw):
             continue
         purpose = _to_str(d.get("purpose_name") or d.get("purpose"))
         key = (symbol, dt, purpose)
-        if key in seen_by_purpose:
+        if key in seen:
             continue
         rows.append({
             "symbol": symbol, "ex_date": dt, "action_type": "DIVIDEND",
@@ -175,20 +209,13 @@ def parse_bse_to_events(scripcode, symbol, raw):
 
 
 def derive_bonus_factor(ratio_str):
-    """R3: factor=E/(E+B). 'issue B:E' -> bonus shares per E existing."""
     s = ratio_str.lower().strip()
-    if "issue" in s:
-        parts = [p.strip() for p in s.split("issue", 1)[-1].split(":")
-                 if p.strip()]
-        if len(parts) == 2:
-            try:
-                bonus, existing = int(parts[0]), int(parts[1])
-                if existing > 0:
-                    return existing / (existing + bonus)
-            except ValueError:
-                pass
-    elif ":" in s:
-        parts = [p.strip() for p in s.split(":")]
+    if "issue" in s or ":" in s:
+        if "issue" in s:
+            parts_str = s.split("issue", 1)[-1]
+        else:
+            parts_str = s
+        parts = [p.strip() for p in parts_str.split(":") if p.strip()]
         if len(parts) == 2:
             try:
                 bonus, existing = int(parts[0]), int(parts[1])
@@ -200,30 +227,25 @@ def derive_bonus_factor(ratio_str):
 
 
 def derive_split_factor(old_fv, new_fv):
-    """R3: backward factor = new/old. FV 10->1 -> factor 0.1."""
     return new_fv / old_fv
 
 
 def purge_and_rebuild(con):
-    """R1: purge all SPLIT rows from both tables, re-parse cached BSE data."""
     os.makedirs(RAW_DIR, exist_ok=True)
     con.execute(SCHEMA_SQL)
 
-    # Purge all SPLIT rows (all 9004 are misparsed dividends)
     n_del_ca = con.execute(
         "DELETE FROM corporate_actions WHERE action_type='SPLIT'").fetchone()[0]
     n_del_af = con.execute(
         "DELETE FROM adjustment_factors WHERE action_type='SPLIT'").fetchone()[0]
-    print(f"Purged: {n_del_ca} SPLIT rows from corporate_actions, "
-          f"{n_del_af} from adjustment_factors")
+    print(f"Purged: {n_del_ca} SPLIT rows, {n_del_af} factors")
 
-    # Also purge old BONUS/DIVIDEND from Round-1 that used wrong record-date
     con.execute("DELETE FROM corporate_actions WHERE action_type IN "
                 "('BONUS', 'DIVIDEND')")
     con.execute("DELETE FROM adjustment_factors "
                 "WHERE action_type IN ('BONUS', 'DIVIDEND')")
 
-    # Re-build from cached BSE JSON
+    # Re-parse BSE cache for bonuses + dividends
     cached = sorted(RAW_DIR.glob("bse_ca_*.json"))
     store_syms = {r[0] for r in con.execute(
         "SELECT DISTINCT symbol FROM equity_bhavcopy "
@@ -233,11 +255,10 @@ def purge_and_rebuild(con):
     for p in cached:
         code = p.stem.replace("bse_ca_", "")
         data = json.loads(p.read_bytes())
-        has_bonus = any(isinstance(v, list) and len(v) > 0
-                       for v in data.values())
-        if not has_bonus:
+        has_data = any(isinstance(v, list) and len(v) > 0
+                      for v in data.values())
+        if not has_data:
             continue
-        # resolve symbol from any table
         sym = None
         for tbl in ["Table1", "Table2", "Table"]:
             entries = data.get(tbl, [])
@@ -248,8 +269,7 @@ def purge_and_rebuild(con):
                     break
         if sym is None or sym not in store_syms:
             continue
-        evts = parse_bse_to_events(code, sym, data)
-        for ev in evts:
+        for ev in parse_bse_to_events(code, sym, data):
             events.append(ev)
             if ev["action_type"] == "BONUS":
                 f = derive_bonus_factor(ev["ratio_or_fv"])
@@ -260,15 +280,13 @@ def purge_and_rebuild(con):
                         "source": ev["source"],
                     })
 
-    # Insert deduped events (R5)
     if events:
         df_ev = pd.DataFrame(events).drop_duplicates(
             subset=["symbol", "ex_date", "action_type", "ratio_or_fv"])
         con.execute("INSERT INTO corporate_actions SELECT symbol, ex_date, "
                     "action_type, purpose_raw, ratio_or_fv, source, "
                     "scripcode, raw_json FROM df_ev")
-        print(f"Re-ingested: {len(df_ev)} events ({len(events) - len(df_ev)} "
-              f"duplicates dropped)")
+        print(f"BSE events: {len(df_ev)}")
 
     if factors:
         df_fac = pd.DataFrame(factors).drop_duplicates(
@@ -277,102 +295,31 @@ def purge_and_rebuild(con):
                     "factor, action_type, source FROM df_fac")
         print(f"Bonus factors: {len(df_fac)}")
 
-    return len(events), len(factors)
-
-
-def ingest_splits_from_bhavcopy(con):
-    """R2: reconstruct splits from bhavcopy close-to-close gaps.
-    Clustered ratios 2/5/10/25/50/100/200/500/1000 with volume scaling."""
-    con2 = duckdb.connect(str(DB_PATH))
-
-    # Find candidate split days: large single-day drops with volume scaling
-    candidates = con2.execute("""
-        WITH gaps AS (
-            SELECT e1.trade_date, e1.symbol, e1.close, e1.volume,
-                   LAG(e1.close) OVER (PARTITION BY e1.symbol
-                       ORDER BY e1.trade_date) AS prev_close,
-                   LAG(e1.volume) OVER (PARTITION BY e1.symbol
-                       ORDER BY e1.trade_date) AS prev_vol,
-                   LAG(e1.trade_date) OVER (PARTITION BY e1.symbol
-                       ORDER BY e1.trade_date) AS prev_date
-            FROM equity_bhavcopy e1
-            WHERE e1.series IN ('EQ', 'BE')
-        ),
-        rated AS (
-            SELECT trade_date, symbol, close, prev_close, volume, prev_vol,
-                   prev_date,
-                   CASE WHEN prev_close > 0 AND close > 0
-                        THEN prev_close / close ELSE 0 END AS ratio,
-                   CASE WHEN prev_vol > 0 AND volume > 0
-                        THEN volume / prev_vol ELSE 1 END AS vol_scale
-            FROM gaps
-            WHERE prev_close IS NOT NULL AND prev_close > 0 AND close > 0
-              AND (trade_date - prev_date) <= 5
-        )
-        SELECT trade_date, symbol, close, prev_close, ratio, vol_scale,
-               volume, prev_vol, prev_date
-        FROM rated
-        WHERE -- cluster around integer split ratios
-              (ABS(ratio - 2) < 0.15 OR ABS(ratio - 5) < 0.15
-               OR ABS(ratio - 10) < 0.20 OR ABS(ratio - 25) < 0.50
-               OR ABS(ratio - 50) < 1.0 OR ABS(ratio - 100) < 2.0
-               OR ABS(ratio - 200) < 5.0 OR ABS(ratio - 500) < 10.0
-               OR ABS(ratio - 1000) < 20.0)
-              AND vol_scale * 0.5 > ratio -- volume scales with share count
-              AND prev_vol > 0
-        ORDER BY trade_date, symbol
-    """).fetchall()
-
-    # Compute factors: snap ratio to nearest integer cluster
-    clusters = [2, 5, 10, 25, 50, 100, 200, 500, 1000]
-    events = []
-    factors = []
-    for td, sym, close, prev_close, ratio, vs, vol, pv, ptd in candidates:
-        nearest = min(clusters, key=lambda c: abs(ratio - c))
-        if abs(ratio - nearest) / nearest > 0.15:
-            continue
-        factor = 1.0 / nearest
-        old_fv = nearest
-        new_fv = 1
-        events.append({
-            "symbol": sym, "ex_date": td,
-            "action_type": "SPLIT",
-            "purpose_raw": f"FV {old_fv} -> {new_fv} (bhavcopy gap "
-                          f"{prev_close:.2f}->{close:.2f}, "
-                          f"ratio {ratio:.2f}, vol {pv}->{vol})",
-            "ratio_or_fv": f"{old_fv}/{new_fv}",
-            "source": f"bhavcopy_gap_{td.isoformat()}_{sym}",
-            "scripcode": "",
-            "raw_json": "{}",
-        })
-        factors.append({
-            "symbol": sym, "ex_date": td,
-            "factor": derive_split_factor(old_fv, new_fv),
-            "action_type": "SPLIT",
-            "source": f"bhavcopy_gap_{td.isoformat()}_{sym}",
-        })
-
-    if events:
-        df_ev = pd.DataFrame(events).drop_duplicates(
+    # --- PRIMARY: NSE CF-CA CSV splits ---
+    nse_splits = parse_nse_cf_ca_splits()
+    split_events = [{k: v for k, v in s.items() if k != "factor"}
+                    for s in nse_splits]
+    split_factors = [{"symbol": s["symbol"], "ex_date": s["ex_date"],
+                      "factor": s["factor"], "action_type": "SPLIT",
+                      "source": s["source"]} for s in nse_splits]
+    if split_events:
+        df_se = pd.DataFrame(split_events).drop_duplicates(
             subset=["symbol", "ex_date", "action_type"])
         con.execute("INSERT INTO corporate_actions SELECT symbol, ex_date, "
                     "action_type, purpose_raw, ratio_or_fv, source, "
-                    "scripcode, raw_json FROM df_ev")
-        print(f"Bhavcopy splits: {len(df_ev)} events")
-
-    if factors:
-        df_f = pd.DataFrame(factors).drop_duplicates(
+                    "scripcode, raw_json FROM df_se")
+        print(f"NSE CF-CA splits: {len(df_se)} events")
+    if split_factors:
+        df_sf = pd.DataFrame(split_factors).drop_duplicates(
             subset=["symbol", "ex_date", "action_type"])
         con.execute("INSERT INTO adjustment_factors SELECT symbol, ex_date, "
-                    "factor, action_type, source FROM df_f")
-        print(f"Bhavcopy split factors: {len(df_f)}")
+                    "factor, action_type, source FROM df_sf")
+        print(f"NSE CF-CA split factors: {len(df_sf)}")
 
-    con2.close()
-    return len(events), len(factors)
+    return len(events), len(factors), len(nse_splits)
 
 
 def ingest_etf_splits(con):
-    """R2: hardcoded ETF unit-split patch list with AMC-notice citations."""
     rows = []
     for sym, dt, old_fv, new_fv, src in ETF_SPLITS:
         rows.append({
@@ -395,21 +342,18 @@ def ingest_etf_splits(con):
         "action_type": "SPLIT",
         "source": f"ETF_AMC_notice_{d.isoformat()}_{s}",
     } for s, d, o, n, _ in ETF_SPLITS])
-    con.execute("INSERT OR IGNORE INTO adjustment_factors SELECT symbol, "
-                "ex_date, factor, action_type, source FROM df_f")
+    con.execute("INSERT INTO adjustment_factors SELECT symbol, ex_date, "
+                "factor, action_type, source FROM df_f")
     print(f"ETF splits: {len(ETF_SPLITS)} events + factors")
     return len(ETF_SPLITS)
 
 
 def ingest_special_dividends(con):
-    """R6: special-dividend factor for D >= 20% of prior full-session close."""
     divs = con.execute("""
         SELECT ca.symbol, ca.ex_date, ca.ratio_or_fv
-        FROM corporate_actions ca
-        WHERE ca.action_type = 'DIVIDEND'
-          AND ca.ratio_or_fv != '' AND ca.ratio_or_fv != '0'
+        FROM corporate_actions ca WHERE ca.action_type = 'DIVIDEND'
+        AND ca.ratio_or_fv != '' AND ca.ratio_or_fv != '0'
     """).fetchall()
-
     new_factors = []
     for sym, dt, amt_str in divs:
         try:
@@ -423,7 +367,7 @@ def ingest_special_dividends(con):
             JOIN trading_calendar tc ON e.trade_date = tc.trade_date
                 AND tc.n_symbols >= 200
             WHERE e.symbol = ? AND e.series = 'EQ'
-              AND e.trade_date < ? ORDER BY e.trade_date DESC LIMIT 1
+            AND e.trade_date < ? ORDER BY e.trade_date DESC LIMIT 1
         """, [sym, dt]).fetchone()
         P = prior[0] if prior else None
         if P is None or P <= 0:
@@ -437,32 +381,24 @@ def ingest_special_dividends(con):
                 "action_type": "SPECIAL_DIVIDEND",
                 "source": f"bhavcopy_prior_close_{P:.2f}_div_{amt:.2f}",
             })
-
     if new_factors:
         df = pd.DataFrame(new_factors).drop_duplicates(
             subset=["symbol", "ex_date", "action_type"])
-        con.execute("INSERT OR IGNORE INTO adjustment_factors SELECT symbol, "
+        con.execute("INSERT OR REPLACE INTO adjustment_factors SELECT symbol, "
                     "ex_date, factor, action_type, source FROM df")
         print(f"Special dividends (>= {SPECIAL_DIV_THRESHOLD:.0%}): "
               f"{len(df)} factors")
-
     return len(new_factors)
 
 
 def main():
     con = duckdb.connect(str(DB_PATH))
 
-    # R1: purge + re-parse cached
-    ne, nf = purge_and_rebuild(con)
-
-    # R2: bhavcopy splits + ETF patch
-    ns_ev, ns_f = ingest_splits_from_bhavcopy(con)
+    ne, nf, nse = purge_and_rebuild(con)
     netf = ingest_etf_splits(con)
-
-    # R6: special dividends
     nsp = ingest_special_dividends(con)
 
-    # rebuild the adjusted view (dropped by purge)
+    # Rebuild adjusted view
     con.execute("""
 CREATE OR REPLACE VIEW equity_bhavcopy_adjusted AS
 WITH price_factors AS (
@@ -517,13 +453,11 @@ LEFT JOIN vol_factors vf ON e.symbol = vf.symbol
     print("=" * 56)
     print("REBUILD SUMMARY")
     print("=" * 56)
-    print(f"Bonus/Div events (from cache): {ne:,}")
+    print(f"BSE Bonus/Div events: {ne:,}")
     print(f"Bonus factors: {nf:,}")
-    print(f"Bhavcopy split events: {ns_ev:,}")
-    print(f"Bhavcopy split factors: {ns_f:,}")
+    print(f"NSE CF-CA split events: {nse:,}")
     print(f"ETF split events: {netf:,}")
     print(f"Special dividend factors: {nsp:,}")
-    print(f"Raw JSON cache: intact — no re-download")
 
 
 if __name__ == "__main__":
