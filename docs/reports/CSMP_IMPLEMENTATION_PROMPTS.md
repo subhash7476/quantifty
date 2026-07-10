@@ -236,8 +236,18 @@ Reviewer signs off on the regenerated report.
 
 ---
 
-## Prompt 2 — Gate (b): Corporate-action adjustment + audit  **(ROUND 2 NOT PASSED 2026-07-10)**
+## Prompt 2 — Gate (b): Corporate-action adjustment + audit  **(PASSED WITH DOCUMENTED EXCEPTIONS 2026-07-10)**
 
+> **Final status (2026-07-10): PASSED WITH DOCUMENTED EXCEPTIONS** after Round 5
+> (`CSMP_GATE_B_IMPLEMENTATION_R5.md`). The move screen inherits gate (a)'s H2 non-equity
+> exclusion now, implemented by ISIN (new `symbol_isin` table); dev-window residue is **6
+> documented, 0 undocumented** (gate criterion is mechanical: undocumented dev-window residue
+> must be 0); adjusted ex-date continuity 0; 4 evidence-test failures report, not block
+> (`ca_evidence_exceptions`); demergers carried into gate (c) via `ca_scope_exclusions`.
+> **Independence caveat: Claude wrote R4 and implemented R5 against it; operator waived review.**
+> Gate (c) inherits `symbol_isin`, `symbol_changes`, `ca_scope_exclusions`, and the residual
+> `ICICIMOM30` instrument-master gap. The Round-history blockquote below is retained as record.
+>
 > **Status:** Round 1 NOT PASSED — REJECTED (structural), `CSMP_GATE_B_LEAD_REVIEW.md`.
 > The BSE response tables were misidentified (all 9,004 "SPLIT" events are dividends; 8,840
 > rupee amounts became price factors; adjusted view distorted up to 5,940×), no real split
@@ -790,18 +800,178 @@ T3 and T6 land; do not tune it. Gate (c) stays HELD until the Lead Reviewer sign
 
 ---
 
-## Prompt 3 — Gate (c): Survivorship / universe membership + audit  **(HELD)**
+## Prompt 3 — Gate (c): Survivorship / point-in-time universe membership + audit  **(ISSUED 2026-07-10)**
 
-Preview: point-in-time NIFTY-200 membership table (symbol, entry_date, exit_date) from
-NSE index-change announcements if obtainable; else the charter's locked fallback — a
-mechanical top-200-by-6-month-median-turnover rule computed from the gate-(a) store
-only, reconstructable as-of any date. Audit: membership count through time, turnover of
-membership per rebalance, delisted-name retention proof (names that later delist must
-appear in the universe while listed).
-**Inherited from gate (a) — H2 (binding when issued):** 200 ETF symbols (matching
-`%BEES%`/`%ETF%`/`%GOLD%`) carry `series = EQ` in the store; the equity momentum universe
-must exclude ETFs (`LIQUIDBEES`, a near-constant-NAV cash proxy, would rank pathologically
-in any momentum sort).
+**Objective.** Produce a **point-in-time NIFTY-200 universe** for the CSMP dev and sealed
+windows: for every monthly rebalance date `t` in 2012-01 → present, the set of ~200 symbols
+that constitutes the tradeable momentum cross-section on `t`, **decidable using only
+information available at `t`** (no look-ahead, no survivor set), with delisted names retained
+in the panel for every rebalance they were still trading. Produce an audit proving the
+membership is point-in-time correct and survivorship-bias free.
+
+**Why this gate exists (charter §5-c, threat model).** Survivorship is where equity
+cross-section research quietly dies. If the universe on date `t` is drawn from today's index
+membership — or from any list that only contains names that survived to today — the backtest
+silently excludes every company that later delisted, merged, or was demoted, and the momentum
+result is a mirage. The charter (D1) locks the universe as NIFTY 200 with **point-in-time
+membership**, and a mechanical fallback if the membership history is unobtainable. This gate
+gets a Lead-Reviewer pass for exactly the reason gate (b) did: it is a place where a green
+report can hide a fatal bias.
+
+**Inherited from gates (a) and (b) (binding — do not re-derive, consume these artifacts):**
+
+- **`equity_bhavcopy`** (7,030,920 rows) — the raw store. Universe ranking uses **raw
+  `turnover`** (traded value), not adjusted prices: a split conserves price×quantity, so
+  turnover needs no CA adjustment, and gate (b)'s adjusted view is not required to build the
+  universe. Confirm turnover-field availability by era (gate (a) §2 era map) and disclose any
+  span where `turnover` is NULL/`-`; fall back to `close × volume` there, stated explicitly.
+- **`symbol_isin`** (3,628 symbols; `INE*` = company, `INF*` = mutual-fund scheme incl. every
+  ETF) — the **authoritative non-equity filter**. Exclude every `INF*` symbol from the
+  universe. Gate (b) §10 established this and the H2 `%BEES%`/`%ETF%`/`%GOLD%` name pattern as
+  fallback **only where no payload carries an ISIN**. `LIQUIDBEES` (a near-constant-NAV cash
+  proxy) must never enter a momentum sort. **Do not re-invent the name-pattern rule as the
+  primary filter — ISIN is the rule, name is the fallback.**
+- **`symbol_changes`** (1,050 rename records) — membership is **entity-continuous** across
+  renames. `INFOSYSTCH → INFY` is one entity: its turnover lookback spans the rename, and it
+  does not enter/exit the universe merely because its ticker changed. Apply the same
+  `resolve_symbol_at_ex_date`-style chain walk gate (b) used (`ingest_corporate_actions.py`).
+- **`ca_scope_exclusions`** (13 moves) and **`ca_evidence_exceptions`** (4 factors) — gate
+  (b)'s quarantine on the *adjusted view*. These are a **price-adjustment** concern, not a
+  membership concern: a demerged or disputed-bonus name still existed and traded. Do **not**
+  silently drop these symbols from the universe. Build the universe over the full equity
+  cross-section and **disclose the overlap** — how many member-cells fall on a quarantined
+  symbol — so gate (e) can decide how to treat them. Flag, do not drop.
+- **`trading_calendar.n_symbols`** — the rebalance calendar uses **full sessions only**
+  (`n_symbols ≥ 200`); the two restricted gold-ETF sessions must not become rebalance dates.
+- **The `ICICIMOM30` gap (gate (b) §10/§11, explicitly deferred here).** Gate (b) left one
+  symbol unresolvable — no ISIN in either payload era, no name match. Gate (c) is where the
+  **NSE instrument master** is needed. Obtain a security-master (ISIN ↔ symbol ↔
+  instrument-type / series) covering the store's symbols; use it to resolve every residual
+  unidentified instrument, or **name each residual as a hole** (standing constraint 4). This
+  closes `ca_scope_exclusions.unidentified_instrument`.
+
+**The universe rule (charter-locked — no tuning freedom).** D1 fixes it: **top-200 by
+6-month median daily turnover**, monthly rebalance, computed from the ingested store only.
+The parameters (200, 6-month median) are locked by the charter — do not grid-search them.
+Specify and **freeze in the prompt-satisfying code**, stating each choice in the audit:
+
+- **Rebalance date:** the last full session (`n_symbols ≥ 200`) of each calendar month,
+  2012-01 → present. State the rule; do not pick dates by hand.
+- **Formation/eligibility lookback:** the 6 calendar months strictly ≤ `t` (≈126 trading
+  sessions). **Median of daily turnover** over that window (median, not mean — robust to a
+  single block-deal spike). Runway: gate (a) ingests from 2010-01, so the 2012-01 rebalance
+  has a full lookback.
+- **Eligibility to be ranked on `t`:** series ∈ {EQ, BE}; equity (not `INF*`, not name-pattern
+  fallback); **traded on ≥ 60% of the lookback's full sessions** (a listing/liquidity floor —
+  a name listed for two weeks has no 6-month turnover and must not rank). Disclose the floor
+  and its effect count.
+- **Membership:** the top 200 eligible symbols by the metric are the members for
+  `[t, next rebalance)`. If fewer than 200 eligible equities exist on `t` (expected in early
+  years), **take all eligible and disclose the shortfall by year — never pad to 200.**
+
+**Official NIFTY-200 membership — attempt first, but beware the survivor trap.** The charter
+prefers true index membership if obtainable. If NSE's historical index-constituent **change
+history** (add/drop announcements with effective dates, back to the dev-window start) is
+obtainable and point-in-time, it may define membership instead of the mechanical rule. **But
+the current NSE constituent list is survivor-biased** — it contains only names in the index
+today. Using it as-of any past date is the exact bias this gate exists to prevent, and is
+forbidden: *a present-day constituent list validates a reconstruction, it is not a source of
+one* (the gate-(b) "a price gap is not a split source" discipline, applied to membership). To
+claim the official history is unobtainable and fall to the mechanical rule, **show it** in the
+audit: endpoints attempted, HTTP status/bodies, date ranges covered. The mechanical
+top-200-by-turnover rule is the charter-locked fallback and a legitimate terminal choice — but
+the choice must be evidenced, not asserted.
+
+**Deliverables.**
+
+1. `scripts/csmp/build_universe.py` — builds the membership into
+   `data/market_data/equity_bhavcopy.duckdb` (same store, **new tables only**):
+   - `universe_membership` — one row per `(rebalance_date, symbol)`:
+     `rebalance_date DATE, symbol VARCHAR, rank INTEGER, turnover_median DOUBLE,
+     method VARCHAR` (`method` ∈ {`nifty200_official`, `turnover_top200`}), unique on
+     `(rebalance_date, symbol)`. `symbol` is the entity's symbol in force on `rebalance_date`.
+   - `universe_intervals` — derived survivorship view: `symbol, entry_date, exit_date`
+     (first/last rebalance the entity held membership; open `exit_date` = still a member),
+     for the audit's retention proof.
+   - If an NSE instrument/security master is obtained: `instrument_master` (`symbol, isin,
+     instrument_type, series, source`), used to resolve residual unidentified instruments.
+   - Raw downloads (if any official source is fetched) cached under
+     `data/market_data/universe_raw/`, resumable, polite backoff, **body shape+identity
+     validated before caching** (gate (a) G4 lesson — NSE serves wrong-content 200s).
+2. `scripts/csmp/audit_universe.py` → writes
+   `docs/reports/CSMP_GATE_C_UNIVERSE_AUDIT.md` (generated by the script, deterministic,
+   byte-identical on re-run against an unchanged store).
+
+**The no-leak test is the gate's positive verdict — it must be code, and it must be
+demonstrated (process rule: a validator that has never returned its positive verdict has not
+been tested).** For a sample of rebalance dates spanning all years, recompute membership on
+`t` **from a store logically truncated at `t`** (every query filtered `trade_date ≤ t`) and
+assert it is **identical** to the membership computed from the full store. Any dependence on a
+future row — a symbol ranked using turnover it only earned after `t`, or admitted because it
+survived to today — makes the two differ and fails the run loudly. Show at least one member
+that the truncated build **keeps** (a name that later delisted, proving retention) and, if an
+official source is used, at least one past constituent absent from today's index that the
+build correctly **includes**.
+
+**Audit report must contain (minimum):**
+
+1. **Source decision:** official-membership obtainability with HTTP evidence and span covered;
+   the method chosen (`nifty200_official` / `turnover_top200`) and why; the frozen rule
+   (rebalance date, lookback, median, eligibility floor, 200) stated in full.
+2. **Membership through time:** member count per rebalance by year (disclose early-year
+   shortfalls, not padded); **membership turnover** (adds/drops per rebalance) — a plausibility
+   check (a top-200-by-turnover universe should churn a handful of names per month, not
+   half the book).
+3. **Point-in-time / no-leak proof:** the truncation test above, over the sampled dates, with
+   the identical-membership assertion result and the named retained/included examples.
+4. **Survivorship proof:** ≥ 10 named symbols that delisted or exited during 2012→present,
+   each shown as a member for the rebalances it was trading and absent only after its last
+   session; the count of members-per-rebalance that later delisted; an explicit statement that
+   **no present-day survivor list is a data input** (or, if official history is used, that only
+   its point-in-time change records are).
+5. **Eligibility & non-equity exclusion:** counts excluded by `INF*` ISIN, by name-pattern
+   fallback, and by the trading-history floor; the residual unidentified instruments
+   (`ICICIMOM30` and any others) each **resolved via the instrument master or named as a
+   hole**.
+6. **Rename-chain application:** entities linked across renames; membership continuity across a
+   named rename (e.g., an entity that held membership through `INFOSYSTCH → INFY`).
+7. **Overlap with gate (b) quarantine:** member-cells falling on `ca_scope_exclusions` /
+   `ca_evidence_exceptions` symbols — counted and listed, **flagged for gate (e), not dropped**.
+8. **Headline + fit-for-purpose statement** scoped to what gate (c) can honestly claim, with
+   gate (a)/(b) withholding discipline (the claim is withheld, not softened, if any criterion
+   is unmet).
+
+**Stop condition.** If neither an official point-in-time membership nor the ingested store can
+support a universe of adequate breadth over the dev window — e.g., a contiguous span where
+`turnover` is unavailable and `close × volume` cannot stand in, or fewer than a workable
+number of liquid equities existed — **stop and report**, quantifying the hole (standing
+constraint 4). Early-year breadth below 200 is **expected and disclosed, not a stop**; a
+silent shrink of the universe target or a padded 200 is an automatic NOT PASSED.
+
+**Acceptance criteria (falsifiable — the review will check these exact claims):**
+
+1. `equity_bhavcopy` is bit-unmodified: 7,030,920 rows, content identical to gate-(a)/(b) PASS.
+2. `universe_membership` exists, keyed to monthly rebalance dates 2012-01 → present, entity-
+   continuous across renames, `method` recorded per row; `universe_intervals` derives from it.
+3. **The no-leak truncation test is in code and passes:** as-of-`t` membership is identical
+   whether computed from the full store or a store truncated at `t`, over the sampled dates.
+   The test is adversarial (a future-information dependency would make it fail).
+4. Survivorship: ≥ 10 named delisted/exited dev-window symbols shown present while trading; the
+   audit states no present-day survivor list is an input (or proves only official change
+   history is used).
+5. Non-equity exclusion applied via `symbol_isin` (ISIN primary, name fallback); every residual
+   unidentified instrument (incl. `ICICIMOM30`) resolved via an instrument master or named as a
+   hole.
+6. Re-running the audit against an unchanged store reproduces the report byte-for-byte.
+7. No diffs outside `scripts/csmp/`, `docs/reports/`, and `data/market_data/` (new
+   files/tables only). No writes to `data/market_data/nse/candles/1m/`. No frozen-component
+   diffs. No gate-(d) work (fee model).
+
+**Definition of done.** Both scripts run clean end-to-end on a fresh checkout against the
+gate-(a)/(b) store; the eight audit sections are present; all seven acceptance criteria hold;
+the no-leak test returns its positive verdict in-run; the audit's fit-for-purpose statement is
+PASS-eligible on its own numbers (or renders the stop language per standing constraint 4); no
+next-gate work started. Gate (d) stays HELD until the Lead Reviewer signs off on the report.
 
 ## Prompt 4 — Gate (d): Delivery-equity fee model  **(HELD)**
 
@@ -826,6 +996,9 @@ gate.
 
 ---
 
-*Prompts 3–5 remain held deliberately: each is finalized only after the preceding gate's
+*Prompts 4–5 remain held deliberately: each is finalized only after the preceding gate's
 review, so findings propagate forward instead of being discovered twice. Prompt 2 was
-issued 2026-07-10 on gate (a)'s final PASS (`CSMP_GATE_A_LEAD_REVIEW.md` Round 8).*
+issued 2026-07-10 on gate (a)'s final PASS (`CSMP_GATE_A_LEAD_REVIEW.md` Round 8) and reached
+PASSED WITH DOCUMENTED EXCEPTIONS the same day (`CSMP_GATE_B_IMPLEMENTATION_R5.md`). Prompt 3
+was issued 2026-07-10 on that gate-(b) pass; gate (c) now inherits `symbol_isin`,
+`symbol_changes`, `ca_scope_exclusions`, and the residual `ICICIMOM30` instrument-master gap.*
