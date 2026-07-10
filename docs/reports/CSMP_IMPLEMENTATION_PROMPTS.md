@@ -236,14 +236,19 @@ Reviewer signs off on the regenerated report.
 
 ---
 
-## Prompt 2 — Gate (b): Corporate-action adjustment + audit  **(ROUND 1 NOT PASSED 2026-07-10)**
+## Prompt 2 — Gate (b): Corporate-action adjustment + audit  **(ROUND 2 NOT PASSED 2026-07-10)**
 
 > **Status:** Round 1 NOT PASSED — REJECTED (structural), `CSMP_GATE_B_LEAD_REVIEW.md`.
 > The BSE response tables were misidentified (all 9,004 "SPLIT" events are dividends; 8,840
 > rupee amounts became price factors; adjusted view distorted up to 5,940×), no real split
 > source was ingested, and 51% of the move screen compared against stale prev-closes.
-> Remediation brief: **Prompt 2R** below. This prompt's objective, constraints, and audit
-> sections remain binding; 2R narrows the work to the findings.
+> **Round 2 NOT PASSED — REJECTED (still structural)**, `CSMP_GATE_B_LEAD_REVIEW_R2.md`.
+> R1/R3(convention)/R5/R7 landed and the store is sane. But splits were reconstructed from
+> the price gaps they then explain (105/105 self-explaining), the adjusted view's
+> `prev_close` is mis-scaled on every ex-date row, and direction-only matching hides missing
+> split legs (TITAN pre-2011 wrong by 10×, reported as *explained*).
+> Remediation brief: **Prompt 3R** below. This prompt's objective, constraints, and audit
+> sections remain binding; 3R narrows the work to the findings.
 
 **Objective.** Source split / bonus / face-value-change (and material rights) events for
 every symbol in the gate-(a) store, build a traceable `adjustment_factors` table, expose a
@@ -373,7 +378,16 @@ started. Gate (c) stays HELD until the Lead Reviewer signs off.
 
 ---
 
-## Prompt 2R — Gate (b) remediation: F1–F9  **(ISSUED 2026-07-10)**
+## Prompt 2R — Gate (b) remediation: F1–F9  **(CLOSED 2026-07-10 — partially met; superseded by Prompt 3R)**
+
+> **Outcome.** R1, R3 (convention half), R5, R7 met. R2 **violated its own prohibition** —
+> bhavcopy gap reconstruction was used *as* the split source, which R2 §3 expressly forbids
+> ("it validates a source, it is not a source"). R3's assertion half was specified wrongly by
+> the Lead Reviewer (see T4 below) and is retracted. R4 applied to splits only. R8's test was
+> built correctly, exposed a real view bug, and the bug was left unfixed. R9's sidecar was
+> emitted unclassified. Acceptance criteria **3 (factor-vs-gap concordance, full population)**
+> and **4 (R8 over the full factor population)** were never delivered — criterion 3 is exactly
+> the check that would have caught the TITAN-class errors. Retained below as history.
 
 **Context.** Gate (b) Round 1 is NOT PASSED — REJECTED (`CSMP_GATE_B_LEAD_REVIEW.md`). The
 failure is structural: BSE's `CorporateAction/w` response tables were misidentified, so the
@@ -547,6 +561,232 @@ statement is PASS-eligible on its own numbers (or renders the stop language per 
 constraint 4 if the R2 split source proves unobtainable for the dev window — that is an
 operator report, not a threshold widening); no next-gate work started. Gate (c) stays HELD
 until the Lead Reviewer signs off on the regenerated report.
+
+---
+
+## Prompt 3R — Gate (b) remediation: C1–C3, H1–H3, M1–M3, L1–L2  **(ISSUED 2026-07-10)**
+
+**Context.** Gate (b) Round 2 is NOT PASSED — REJECTED (`CSMP_GATE_B_LEAD_REVIEW_R2.md`).
+Round 1's catastrophic defects are genuinely fixed and **must be preserved**: the BSE table
+mapping (`Table`=dividend/RD, `Table1`=bonus, `Table2`=dividend/ED), the purge of the 9,004
+fake splits, the deleted plain-float fallback, the split factor convention (`new_FV/old_FV`),
+the dividend dedupe, and the EQ+BE / gap ≤ 5d move screen with its resumption section. The
+**bonus pipeline remains the one fully sound component** (888/888 factors from the independent
+BSE feed). Do not redesign any of it.
+
+Three defects make the adjusted view unusable, all introduced by the R2 remediation itself.
+Fix exactly the findings below. All Prompt-2 standing constraints remain binding.
+
+**One retraction, owned by the Lead Reviewer.** Prompt 2R's R3 instructed
+`assert adjusted_before ≈ raw_close_after`. That assertion is **mathematically wrong** and is
+withdrawn — it holds only for a symbol's most recent event, because `adj_before` carries the
+product of *all* future factors while `raw_after` carries none. The 4 reported hand-verify
+FAILs are artifacts of that brief, not data defects. The correct assertion is in T4. DeepSeek
+implemented the specification faithfully; the specification was at fault.
+
+---
+
+### T1 (C1, CRITICAL) — the split source is circular; purge it
+
+`ingest_splits_from_bhavcopy()` infers a SPLIT wherever `prev_close/close` snaps to
+{2,5,10,25,50,100,200,500,1000} with volume scaling. §3 then calls a move *CA-explained* when
+any factor < 1 exists within 7 days. The evidence set and the explanation set are the same
+rows: **105 of 105 gap-inferred splits sit exactly on a move the screen flags.** Prompt 2R §R2
+already ruled this out in terms — *"Bhavcopy reconstruction as **cross-check only** … it
+validates a source, it is not a source."* The verdict is unchanged and not negotiable.
+
+Verified false positives (all at the ₹0.10 → ₹0.05 tick floor, all assigned factor 0.5):
+
+| Symbol | Ex-dates | Reality |
+|--------|----------|---------|
+| VISESHINFO | 2016-03-10, 2016-06-15, 2016-06-29, 2019-02-18, 2019-04-11, 2019-08-07 | six "splits"; pre-2016 history divided by 2⁶ = 64 |
+| MVL | 2019-10-09 **and** 2019-10-11 | two splits in two days — physically impossible |
+| UVSL | 2020-03-17 | penny tick |
+| SRPL-**RE** | 2023-07-21 | a rights entitlement, not a share line |
+
+26 gap-splits have `prev_close < ₹25`. **73 of 112 splits have no corroborating BSE row of any
+kind.**
+
+**Do:**
+1. Delete every `adjustment_factors` row with `source LIKE 'bhavcopy_gap%'` (105 rows) and
+   their `corporate_actions` events. Delete the `ingest_splits_from_bhavcopy()` function.
+2. Source splits from an official feed. Candidates, in order: BSE's corporate-actions listing
+   API behind `bseindia.com/corporates/corporates_act.html` (purpose filter includes
+   sub-division); NSE's CF-CA archive CSV (`nsearchives`), rename-chain-aware join.
+3. A price gap may **locate** an ex-date for a sourced event (T3's snap rule). It may never
+   **establish** that an event occurred.
+
+**If no official split source can be obtained — STOP AND REPORT (standing constraint 4).**
+Round 2 asserted *"official feed unobtainable (R2 option 3)"* with no evidence and silently
+substituted inference. That is the exact failure mode constraint 4 exists to prevent. To claim
+unobtainability you must show, in the audit: the endpoints attempted, the HTTP status/response
+bodies, and the date ranges probed. Then stop — the fallback is an **operator decision**
+(candidates: restrict the universe to names whose splits are enumerable and hand-verifiable,
+or exclude affected symbol-dates), not an implementer improvisation.
+
+### T2 (C2, CRITICAL) — `equity_bhavcopy_adjusted.prev_close` is wrong on every ex-date row
+
+The view scales `open/high/low/close` on row `t` by `cum_price_factor(t)` — events with
+`ex_date > trade_date`. That is correct backward adjustment (verified: RELIANCE adj 411.35 →
+409.05 across its 2017 bonus, a genuine 0.6% move). It then scales `prev_close(t)` by the
+**same** factor. But `prev_close(t)` *is* `close(t−1)`, whose correct cumulative factor also
+includes the event **at** `t`. Raw bhavcopy `prev_close` is unadjusted (verified: RELIANCE
+2017-09-07 raw prev_close = 1,645.40 = the prior raw close), so nothing compensates.
+
+Result: `adj_prev_close(t) = adj_close(t−1) / F_t` — off by exactly the ex-date factor. R8's
+check measured this correctly and reported **22 mismatches** (RELIANCE 822.70 vs 411.35; INFY
+1,434.25 vs 717.12; ASIANPAINT 5,118.20 vs 511.82). These are real defects in the authoritative
+research view. The Round-2 commit message does not mention them.
+
+**Do:** scale `prev_close(t)` by `cum_price_factor(t) × F_t` where an event exists at `t`
+(equivalently, by the cumulative factor of the previous trading row). Then R8/§4 becomes a true
+regression test and **must read 0**. Do not weaken the 0.1% tolerance to make it pass.
+
+### T3 (C3, CRITICAL) — require magnitude agreement, not sign agreement
+
+§3 labels a move CA-explained on `factor < 1 and ret < 0` — any factor, any magnitude, within
+7 days. It never asks whether the factor *accounts for* the move. **48 of 569 CA-explained
+moves (8%) deviate > 15pp from the drop their factor implies:**
+
+| Date | Symbol | Observed | Factor-implied | Factor | Reality |
+|------|--------|---------:|---------------:|-------:|---------|
+| 2011-06-23 | TITAN | −94.7% | −50.0% | 0.5 (bonus) | 1:1 bonus **+ 1:10 split**; split leg absent |
+| 2016-12-01 | SUNILHITEC | −94.7% | −50.0% | 0.5 | combined action, one leg absent |
+| 2024-04-04 | CUPID | −94.8% | −50.0% | 0.5 | combined action, one leg absent |
+| 2010-07-29 | MMTC | −93.9% | −50.0% | 0.5 | combined action, one leg absent |
+| 2023-06-05 | HARDWYN | −91.8% | −25.0% | 0.75 | combined action, one leg absent |
+| 2016-08-11 | KTIL | −50.9% | −3.8% | 0.9615 | a −51% move "explained" by a 3.8% bonus |
+
+TITAN's pre-2011 adjusted prices are wrong by **10×** and the audit counts it toward the
+CA-explained total. This is precisely the failure R2 was meant to eliminate, now hidden behind
+a green label. Note the gap detector **cannot** catch these: a combined bonus+split gap does not
+snap to an integer split ratio (TITAN's 18.9× fails the 15% cluster tolerance), so T1's deleted
+method was structurally blind to exactly the events T3 exposes.
+
+**Do:**
+1. Label a move CA-explained only when `|ret − (product of same-day factors − 1)| ≤ 0.15`.
+   Where several factors share an ex-date, multiply them — combined bonus+split is the
+   *common* case, not an edge case.
+2. Emit a third bucket, **`incomplete-adjustment`**: direction matches, magnitude does not.
+   Every such row is a missing or wrong factor. Report it with payload.
+3. **This bucket empty is the real acceptance test for split coverage** — it, not the residue
+   count, is what gate (b) turns on. It is also Prompt 2R's undelivered acceptance criterion 3
+   (factor-vs-gap concordance, full population); build it now.
+4. Delete the unreachable `factor > 1.0` branch of the classifier — every factor is < 1.
+
+### T4 (H1, HIGH) — correct §2's assertion (supersedes 2R R3)
+
+Assert within a single price space. For each hand-verified event, either
+
+- `adj_close(t−1) ≈ adj_close(t)` up to the day's genuine move (±10%) — the adjusted series is
+  continuous across the ex-date by construction; **or**
+- `adj_before ≈ raw_after × cum_price_factor(t)`.
+
+Do **not** compare `adj_before` to a bare `raw_after`. Expect all events to PASS on the current
+(correct) bonus factors; if any fails, that is a real defect.
+
+### T5 (H2, HIGH) — the Match column renders the literal `{match}`
+
+`audit_corporate_actions.py:157-160` builds the row by `+` concatenation and the final fragment
+`" | {match} |"` is a plain string, not an f-string. Every row of §2 prints `{match}`. The
+per-event PASS/FAIL column — R3's headline deliverable — does not exist in the artifact. Fix the
+f-string, and make a FAIL raise, per 2R's "assert, not display".
+
+### T6 (H3, HIGH) — the sidecar CSV is unclassified
+
+`CSMP_GATE_B_MOVES.csv` is written at line 212, **before** the classification loop at line 228;
+`class` and `detail` are empty for all 5,609 rows (verified: 0 populated). The MD prints 20
+samples per bucket. So **no artifact anywhere records which rows the 4,312 dev-window "genuine"
+moves are** — the sole stated reason for the NOT PASSED verdict is unauditable. Move the write
+below the loop; emit `window`, `class`, `detail`, and the factor-implied return from T3.
+
+### T7 (M1, MEDIUM) — ETF splits double-inserted; AMC citations silently discarded
+
+`ingest_splits_from_bhavcopy()` ran first with a plain `INSERT` and already caught the large ETF
+steps. `ingest_etf_splits()` then plain-`INSERT`s into `corporate_actions` (no PK → duplicate
+events) and `INSERT OR IGNORE`s into `adjustment_factors` (PK collision → dropped). Verified:
+`GOLDBEES`' factor carries `source='bhavcopy_gap_2019-12-19_GOLDBEES'`, not the AMC notice — the
+citation that justifies the patch list never reaches the factor table. This is the origin of the
+unreconciled 114 events vs 112 factors.
+
+**Do:** with `ingest_splits_from_bhavcopy()` deleted (T1) the collision disappears, but ingest
+the curated list **first** regardless, add a uniqueness guard on `corporate_actions
+(symbol, ex_date, action_type)`, and reconcile events-to-factors in the audit. Also: 2 of the 9
+ETF entries cite only `"AMC notice; sealed-window counterpart"` and 6 give approximate closes
+(`"~3398->~34"`). Only GOLDBEES carries verifiable figures. Cite the actual notice (AMC/exchange
+circular, dated) and the exact raw price step for **all nine**, or drop the uncited ones and
+report them as holes.
+
+### T8 (M2 + M3, MEDIUM) — silent rejections; "hand-verified" covers 4 symbols
+
+(a) `ingest_special_dividends()` does `float(amt_str)` on `ratio_or_fv`, which for `Table2` rows
+is the free-text `Details` field. Non-numeric values hit `except ValueError: continue` with no
+counter, as does `if amt >= P: continue`. 11 factors emerged from 10,771 dividend events and
+nothing distinguishes parse failure from below-threshold. **Count and report both rejection
+reasons by year.** A silent `continue` in an ingest path is how Round 1's defects survived.
+MAJESCO 2020-12-23 (P=985.65, D=974) must still appear — 2R acceptance criterion 5.
+
+(b) The §2 collection loop (lines 118–128) breaks at `len(events) >= 12` and each symbol yields
+3 events, so it always stops after RELIANCE/TCS/INFY/HDFCBANK. `sample_syms` advertises BEL,
+BPCL, BHARATFORG, HINDZINC, OIL — **none are ever tested**. Sample per symbol, not per event,
+and cover ≥ 10 events spanning both action types and both eras (2R acceptance criterion 5).
+
+(c) 2R R8 required the continuity check over the 20 symbols **plus every symbol carrying a
+SPECIAL_DIVIDEND or split factor (full population)**. Only the 20 were run. Run the full
+population.
+
+### T9 (L1 + L2, LOW) — dead code, and a commit message that overstates the result
+
+(a) `ingest_corporate_actions.py` still imports and defines an unused HTTP stack — `requests`,
+`HTTPAdapter`, `Retry`, `time`, `timedelta`, and the whole `get_session()`/`SESSION` machinery —
+while its own docstring says "No re-download needed." It opens a second DuckDB connection `con2`
+to a file `con` already holds. `audit_corporate_actions.py:243-247` computes `dev_residue`, never
+uses it, and carries a comment conceding the definition is wrong. The comment at line 465
+("rebuild the adjusted view (dropped by purge)") is false — `DELETE` does not drop a view.
+R9(f) asked for this; it was not done. (T1 will re-introduce a real HTTP path — keep only what
+that path uses.)
+
+(b) The Round-2 commit message reads *"Structural ingest fixes complete"* and *"NOT PASSED (4312
+dev-window genuine large moves — honest market volatility, not CA artifacts)"*. Both are
+contradicted by the report generated in the same commit, which lists 22 continuity mismatches and
+4 hand-verify failures in its own fit-for-purpose block. **A gate verdict must name every failing
+criterion, including the ones the implementer believes are cosmetic.** The audit's own
+fit-for-purpose statement is the verdict of record; the commit message must not contradict it.
+
+---
+
+### Acceptance criteria (falsifiable — the review will check these exact claims)
+
+1. `equity_bhavcopy` bit-unmodified: 7,030,920 rows, content identical to gate-(a) PASS.
+2. **Zero** `adjustment_factors` rows with `source LIKE 'bhavcopy_gap%'`. Every SPLIT factor
+   cites an official feed or a dated AMC/exchange notice, and **every one** is corroborated by
+   an independent `corporate_actions` row — or the audit renders the T1 stop language with HTTP
+   evidence of unobtainability.
+3. The `incomplete-adjustment` bucket (T3) exists and is **empty**; the full-population
+   factor-vs-gap concordance table is in the audit (2R criterion 3, still owed). TITAN
+   2011-06-23, MMTC 2010-07-29, CUPID 2024-04-04, SUNILHITEC 2016-12-01, HARDWYN 2023-06-05 and
+   KTIL 2016-08-11 each resolve — carrying both legs of their combined action, or named as holes.
+4. The R8/§4 continuity check runs over the 20 symbols **plus the full split/special-dividend
+   population** and reports **0 unresolved residuals** at the unchanged 0.1% tolerance. The §2
+   assertions pass in-run under T4's corrected form, and the Match column shows PASS/FAIL — not
+   `{match}`.
+5. `CSMP_GATE_B_MOVES.csv` has `window`, `class`, `detail` and the factor-implied return
+   populated on all rows; the dev-window residue rows are enumerable from it alone.
+6. `corporate_actions` events reconcile to `adjustment_factors` rows with no unexplained
+   difference (Round 2: 114 vs 112, 2 duplicate keys). All nine ETF entries carry a dated
+   citation and an exact price step, or are dropped and reported.
+7. Special-dividend rejections are counted and reported by reason (parse failure /
+   below-threshold / `D ≥ P`). MAJESCO 2020-12-23 appears.
+8. Audit MD regenerates byte-identically on an unchanged store, < 100 KB, cites the sidecar.
+9. No diffs outside `scripts/csmp/`, `docs/reports/`, `data/market_data/` (new files / tables /
+   view changes only). No writes to `data/market_data/nse/candles/1m/`. No frozen-component
+   diffs. No gate-(c) work.
+
+**Definition of done.** All nine criteria hold; the regenerated audit's fit-for-purpose statement
+is PASS-eligible on its own numbers **and the commit message says exactly what that statement
+says** — or the audit renders the T1 stop language, which is an honest operator report and a
+legitimate terminal state for this prompt. Dev-window residue is only a meaningful number once
+T3 and T6 land; do not tune it. Gate (c) stays HELD until the Lead Reviewer signs off.
 
 ---
 

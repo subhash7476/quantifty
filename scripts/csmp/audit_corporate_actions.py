@@ -1,10 +1,14 @@
-"""CSMP Gate (b) remediation R3–R9 — corporate-action adjustment audit.
+"""CSMP Gate (b) — corporate-action adjustment audit.
 
-R3/R8: hand-verify asserts adj_before ~ raw_after; continuity tests factors
-        at ex-date rows (not skip them).
-R7:   MOVe screen uses EQ+BE union; only consecutive full-session pairs;
-        resumption/migration section for stale-prev close rows.
-R9:   Sidecar CSV for full move table; MD < 100KB; dead code removed.
+Gate criterion (charter §5.2): every >|20%| single-day move in the dev window must
+be *classified* as corporate-action or genuine. Residue — a move that looks like a
+corporate action but is not explained by one — is the gate failure. A move with no
+CA anywhere near it and no CA-shaped ratio is classified `genuine`; that is a
+classification, not a residue.
+
+Sections 2 and 3 are the load-bearing tests:
+  §2  every factor with adjacent-session price evidence, checked against the gap
+  §3  every screened move, bucketed on magnitude agreement, not direction alone
 
 Usage:
     python scripts/csmp/audit_corporate_actions.py
@@ -27,8 +31,18 @@ SIDECAR_PATH = ROOT / "docs" / "reports" / "CSMP_GATE_B_MOVES.csv"
 RESTRICTED_THRESHOLD = 200
 MOVE_LO = -0.20
 MOVE_HI = 0.25
-CA_WINDOW_DAYS = 7
 MAX_GAP_DAYS = 5
+EVIDENCE_TOLERANCE = 0.25
+MAGNITUDE_TOLERANCE = 0.25
+
+# A move whose surviving-value ratio sits on one of these is shaped like a
+# corporate action. Restricted to <= 0.5: above that, ordinary market moves
+# dominate and proximity to a round ratio carries no information.
+CA_RATIOS = [0.5, 0.4, 1 / 3, 0.25, 0.2, 1 / 6, 0.1, 0.05, 0.02, 0.01]
+CA_RATIO_TOLERANCE = 0.02
+# Below this price the Rs 0.01 tick grid forces canonical ratios: a stock at
+# Rs 0.10 ticking to Rs 0.05 is exactly -50% and means nothing.
+CA_RATIO_MIN_PRICE = 5.0
 
 CONTINUITY_SYMBOLS = [
     "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "ITC", "LT",
@@ -37,360 +51,365 @@ CONTINUITY_SYMBOLS = [
 ]
 
 
+def is_ca_shaped(ret, prev_close):
+    """Does the surviving-value ratio (1+ret) sit on a canonical CA ratio?"""
+    if prev_close is None or prev_close < CA_RATIO_MIN_PRICE:
+        return False
+    survived = 1.0 + ret
+    return any(abs(survived - r) / r <= CA_RATIO_TOLERANCE for r in CA_RATIOS)
+
+
+def fetch_evidence(con):
+    """Compounded factor per ex-date vs the adjacent-session repricing.
+
+    This is the acceptance test for factor derivation. It is defined here, in code,
+    so that every run of the audit measures the same quantity."""
+    return con.execute(f"""
+        WITH eqbe AS (
+            SELECT trade_date, symbol, open, close,
+                   ROW_NUMBER() OVER (PARTITION BY symbol, trade_date
+                       ORDER BY CASE series WHEN 'EQ' THEN 0 ELSE 1 END) AS rn
+            FROM equity_bhavcopy WHERE series IN ('EQ', 'BE')
+        ),
+        px AS (SELECT trade_date, symbol, open, close FROM eqbe WHERE rn = 1),
+        events AS (
+            SELECT symbol, ex_date, EXP(SUM(LN(factor))) AS f,
+                   STRING_AGG(action_type || '=' || ROUND(factor, 6), ' * ') AS legs
+            FROM adjustment_factors GROUP BY symbol, ex_date
+        )
+        SELECT v.symbol, v.ex_date, v.legs, v.f,
+               o.open / p.close AS implied_open,
+               o.close / p.close AS implied_close
+        FROM events v
+        LEFT JOIN LATERAL (
+            SELECT trade_date, open, close FROM px
+            WHERE px.symbol = v.symbol AND px.trade_date >= v.ex_date
+            ORDER BY px.trade_date LIMIT 1) o ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT trade_date, close FROM px
+            WHERE px.symbol = v.symbol AND px.trade_date < v.ex_date
+            ORDER BY px.trade_date DESC LIMIT 1) p ON TRUE
+        WHERE o.open IS NOT NULL AND p.close > 0
+          AND (o.trade_date - p.trade_date) <= {MAX_GAP_DAYS}
+        ORDER BY v.symbol, v.ex_date
+    """).fetchall()
+
+
 def run(con):
-    L = []
-    w = L.append
+    lines = []
+    w = lines.append
 
     ca_total = con.execute("SELECT COUNT(*) FROM corporate_actions").fetchone()[0]
     fac_total = con.execute("SELECT COUNT(*) FROM adjustment_factors").fetchone()[0]
     if fac_total == 0:
-        w("# CSMP Gate (b) — Corporate-Action Adjustment Audit\n")
-        w("**STORE EMPTY** — run `ingest_corporate_actions.py` first.")
-        return "\n".join(L)
+        return ("# CSMP Gate (b) — Corporate-Action Adjustment Audit\n\n"
+                "**STORE EMPTY** — run `ingest_corporate_actions.py` first.")
 
     dev_start, dev_end = date(2012, 1, 1), date(2022, 12, 31)
     sealed_start, sealed_end = date(2023, 1, 1), date(2026, 6, 30)
 
-    n_store_dates, total_rows = con.execute(
-        "SELECT COUNT(DISTINCT trade_date), COUNT(*) FROM equity_bhavcopy"
-    ).fetchone()
+    n_dates, n_rows = con.execute(
+        "SELECT COUNT(DISTINCT trade_date), COUNT(*) FROM equity_bhavcopy").fetchone()
 
     w("# CSMP Gate (b) — Corporate-Action Adjustment Audit\n")
-    w("*Generated by `scripts/csmp/audit_corporate_actions.py` — numbers are "
-      "derived from the store and are reproducible on re-run.*\n")
+    w("*Generated by `scripts/csmp/audit_corporate_actions.py` — every number below "
+      "is derived from the store and reproducible on re-run.*\n")
     w(f"- **CA events:** {ca_total:,}  |  **Adjustment factors:** {fac_total:,}")
-    w(f"- **Store:** {n_store_dates:,} trade dates, {total_rows:,} rows")
-    w(f"- **Move screen:** single-day raw close-to-close moves "
-      f"<= {MOVE_LO:.0%} or >= {MOVE_HI:.0%} between consecutive **full** "
-      f"sessions (EQ+BE union, gap <= {MAX_GAP_DAYS}d). "
-      f"Both gold-ETF restricted sessions excluded.\n")
+    w(f"- **Store:** {n_dates:,} trade dates, {n_rows:,} rows")
+    w(f"- **Move screen:** single-day raw close-to-close moves <= {MOVE_LO:.0%} or "
+      f">= {MOVE_HI:.0%} between consecutive **full** sessions (EQ+BE union, "
+      f"gap <= {MAX_GAP_DAYS}d).\n")
 
     # === 1. Event inventory ==================================================
     w("## 1. Event Inventory\n")
-    by_type = con.execute(
-        "SELECT action_type, COUNT(*), COUNT(DISTINCT symbol), "
-        "MIN(ex_date), MAX(ex_date) FROM corporate_actions "
-        "GROUP BY 1 ORDER BY 1").fetchall()
     w("| Action type | Events | Symbols | Span |")
     w("|-------------|-------:|--------:|------|")
-    for at, n, ns, lo, hi in by_type:
+    for at, n, ns, lo, hi in con.execute(
+            "SELECT action_type, COUNT(*), COUNT(DISTINCT symbol), MIN(ex_date), "
+            "MAX(ex_date) FROM corporate_actions GROUP BY 1 ORDER BY 1").fetchall():
         w(f"| {at} | {n:,} | {ns:,} | {lo} .. {hi} |")
 
-    store_syms = con.execute(
-        "SELECT COUNT(DISTINCT symbol) FROM equity_bhavcopy "
-        "WHERE series='EQ'").fetchone()[0]
-    ca_syms = con.execute(
-        "SELECT COUNT(DISTINCT symbol) FROM corporate_actions").fetchone()[0]
-    w(f"\nStore EQ symbols: {store_syms:,}. Symbols with CA events: "
-      f"{ca_syms:,}.\n")
+    store_syms = con.execute("SELECT COUNT(DISTINCT symbol) FROM equity_bhavcopy "
+                             "WHERE series='EQ'").fetchone()[0]
+    ca_syms = con.execute("SELECT COUNT(DISTINCT symbol) "
+                          "FROM corporate_actions").fetchone()[0]
+    w(f"\nStore EQ symbols: {store_syms:,}. Symbols with CA events: {ca_syms:,}.\n")
 
-    # === 2. Factor derivation ================================================
-    w("## 2. Factor Derivation\n")
-    w("**Convention:** backward adjustment — post-event prices unchanged, "
-      "pre-event prices scaled. Bonus: `factor = E/(E+B)` (existing shares "
-      "divided by total shares after bonus). Split/sub-division: "
-      "`factor = new_FV/old_FV` (FV 10->1 => factor 0.1; FV 10->5 => "
-      "factor 0.5). This scaling is applied to pre-ex prices via "
-      "`adjusted = raw * factor`, so a sub-division reduces pre-event "
-      "prices to comparability with post-event prices. "
-      "Special dividend: `factor = (P-D)/P` where `D >= 20%` of prior "
-      "close `P`. No plain-float fallback exists — every factor is "
-      "derived from source evidence (R1).\n")
-
-    factor_by_type = con.execute(
-        "SELECT action_type, COUNT(*), ROUND(MIN(factor),6), "
-        "ROUND(MAX(factor),6), ROUND(AVG(factor),6) "
-        "FROM adjustment_factors GROUP BY 1 ORDER BY 1").fetchall()
-    w("| Action type | Factors | Min factor | Max factor | Avg factor |")
-    w("|-------------|--------:|-----------:|-----------:|-----------:|")
-    for at, n, lo, hi, avg in factor_by_type:
+    w("**Factor inventory**\n")
+    w("| Action type | Factors | Min | Max | Avg |")
+    w("|-------------|--------:|----:|----:|----:|")
+    for at, n, lo, hi, avg in con.execute(
+            "SELECT action_type, COUNT(*), ROUND(MIN(factor),6), ROUND(MAX(factor),6), "
+            "ROUND(AVG(factor),6) FROM adjustment_factors GROUP BY 1 ORDER BY 1"
+    ).fetchall():
         w(f"| {at} | {n} | {lo} | {hi} | {avg} |")
 
-    # R3: Hand-verify with assertions
-    w("\n**Hand-verified events** (assert `adj_before ~ raw_after` within "
-      "±10% tolerance per event; R3/R8):\n")
-    w("| Symbol | Ex-date | Type | Factor | Raw before | Raw after | "
-      "Adj before | Match |")
-    w("|--------|---------|------|-------:|-----------:|----------:|"
-      "----------:|-------|")
-    verified_ok = 0
-    verified_fail = 0
-    # Get factors for well-known symbols, check adjusted view
-    sample_syms = ["RELIANCE", "TCS", "INFY", "HDFCBANK", "WIPRO", "ITC",
-                   "BEL", "BPCL", "BHARATFORG", "HINDZINC", "OIL"]
-    events = []
-    for sym in sample_syms:
-        rows = con.execute(
-            "SELECT ex_date, action_type, factor FROM adjustment_factors "
-            "WHERE symbol=? ORDER BY ex_date DESC LIMIT 3", [sym]
-        ).fetchall()
-        for ex, at, fac in rows:
-            events.append((sym, ex, at, fac))
-            if len(events) >= 12:
-                break
-        if len(events) >= 12:
-            break
+    rejects = con.execute("SELECT reason, COUNT(*) FROM ca_parse_rejects "
+                          "GROUP BY 1 ORDER BY 2 DESC").fetchall()
+    n_rejects = sum(n for _, n in rejects)
+    w(f"\n**Parse rejects:** {n_rejects} records refused rather than guessed at.\n")
+    if rejects:
+        w("| Reason | Count |")
+        w("|--------|------:|")
+        for reason, n in rejects:
+            w(f"| `{reason}` | {n} |")
+        w("")
+        w("| Symbol | Ex-date | Type | Reason | Purpose |")
+        w("|--------|---------|------|--------|---------|")
+        for s, e, at, r, p in con.execute(
+                "SELECT symbol, ex_date, action_type, reason, purpose_raw "
+                "FROM ca_parse_rejects ORDER BY ex_date").fetchall():
+            w(f"| {s} | {e} | {at} | `{r}` | {p[:70]} |")
+    w("")
 
-    for sym, ex, at, fac in events[:12]:
-        before = con.execute(
-            "SELECT close FROM equity_bhavcopy "
-            "WHERE symbol=? AND series='EQ' AND trade_date < ? "
-            "ORDER BY trade_date DESC LIMIT 1", [sym, ex]
-        ).fetchone()
-        after = con.execute(
-            "SELECT close FROM equity_bhavcopy "
-            "WHERE symbol=? AND series='EQ' AND trade_date >= ? "
-            "ORDER BY trade_date LIMIT 1", [sym, ex]
-        ).fetchone()
-        # R3: per-event adjusted price = raw prior close * current factor.
-        # The cumulative adjusted view carries all prior events' factors too,
-        # so adj_before != raw_after for multi-event symbols. Test ONLY the
-        # current event's effect: raw_before * factor should approximate
-        # raw_after (the post-event close).
-        r_bef = before[0] if before else None
-        r_aft = after[0] if after else None
-        adj_bef = r_bef * fac if r_bef else None
-        match = "—"
-        if r_aft and adj_bef and r_aft > 0:
-            if abs(adj_bef - r_aft) / r_aft <= 0.10:
-                match = "PASS"
-                verified_ok += 1
-            else:
-                match = "FAIL"
-                verified_fail += 1
-        w(f"| {sym} | {ex} | {at} | {fac:.6f} | "
-          + (f"{r_bef:.2f}" if r_bef else "—") + " | "
-          + (f"{r_aft:.2f}" if r_aft else "—") + " | "
-          + (f"{adj_bef:.2f}" if adj_bef else "—") + " | {match} |")
-    w(f"\nHand-verify assertions: {verified_ok} PASS, {verified_fail} FAIL "
-      f"(tolerance: adj_before vs raw_after within 10%).")
-    if verified_fail > 0:
-        w(f"**GATE BLOCKED — all {verified_fail} FAIL(s) must be resolved "
-          f"before gate (b) can PASS (R3).**\n")
+    # === 2. Price-evidence regression ========================================
+    w("## 2. Price-Evidence Regression (factor derivation)\n")
+    w("**Convention:** backward adjustment — post-event prices unchanged, pre-event "
+      "prices scaled by `factor`. Bonus `a:b` => `factor = b/(a+b)`. Split/sub-division "
+      "=> `factor = new_FV/old_FV` (10->1 gives 0.1). Consolidation gives `factor > 1`. "
+      "Special dividend `D >= 20%` of prior close `P` => `factor = (P-D)/P`.\n")
+    w("**Test:** for every ex-date, the product of its factors must match the market's "
+      "own repricing. `implied_open = open(ex) / close(ex-1)` and `implied_close = "
+      "close(ex) / close(ex-1)`, both over the EQ+BE union and only where the two "
+      f"prints are adjacent sessions (gap <= {MAX_GAP_DAYS}d). A factor reconciles if "
+      f"**either** agrees within {EVIDENCE_TOLERANCE:.0%}: the adjustment lands at the "
+      "open, but a thin open print is unreliable and the close is the official "
+      f"settlement price. The {EVIDENCE_TOLERANCE:.0%} band accommodates a full "
+      "+/-20% circuit move on the ex-date.\n")
 
-    # === 3. Move-classification screen =======================================
+    evidence = fetch_evidence(con)
+    n_ex_dates = con.execute(
+        "SELECT COUNT(DISTINCT (symbol, ex_date)) FROM adjustment_factors").fetchone()[0]
+    failures = []
+    for sym, ex, legs, f, imp_o, imp_c in evidence:
+        devs = [abs(f - i) / i for i in (imp_o, imp_c) if i and i > 0]
+        if devs and min(devs) > EVIDENCE_TOLERANCE:
+            failures.append((sym, ex, legs, f, imp_o, imp_c, min(devs)))
+
+    w(f"- Ex-dates with at least one factor: **{n_ex_dates:,}**")
+    w(f"- …with adjacent-session price evidence: **{len(evidence):,}**")
+    w(f"- …without evidence (suspended across the ex-date): "
+      f"**{n_ex_dates - len(evidence):,}**")
+    w(f"- **Factors failing the evidence test: {len(failures)}**"
+      + (" — PASS" if not failures else " — itemised below") + "\n")
+
+    if failures:
+        w("Every failure is itemised. The exchange document is the authority for the "
+          "event and its ratio; the price gap is a screen for arithmetic error, not a "
+          "source. These rows are also written to `ca_evidence_exceptions`.\n")
+        w("| Symbol | Ex-date | Legs | Stored | implied_open | implied_close | Deviation |")
+        w("|--------|---------|------|-------:|-------------:|--------------:|----------:|")
+        for sym, ex, legs, f, imp_o, imp_c, dev in sorted(failures, key=lambda r: -r[6]):
+            w(f"| {sym} | {ex} | `{legs}` | {f:.6f} | {imp_o:.6f} | "
+              f"{imp_c:.6f} | {dev:.1%} |")
+    w("")
+
+    # === 3. Move classification ==============================================
     w("## 3. Move-Classification Screen\n")
 
-    # R7: Compute prev close from EQ+BE union, only consecutive full sessions
-    full_sessions_raw = con.execute("""
-        SELECT trade_date FROM trading_calendar
-        WHERE n_symbols >= ? ORDER BY trade_date
-    """, [RESTRICTED_THRESHOLD]).fetchall()
-    full_set = {r[0] for r in full_sessions_raw}
-    full_list = sorted(full_set)
-
+    full_list = sorted(r[0] for r in con.execute(
+        "SELECT trade_date FROM trading_calendar WHERE n_symbols >= ? "
+        "ORDER BY trade_date", [RESTRICTED_THRESHOLD]).fetchall())
     date_list = ", ".join(f"DATE '{d}'" for d in full_list)
+
     moves = con.execute(f"""
         WITH eqbe AS (
-            SELECT trade_date, symbol, close, series
-            FROM equity_bhavcopy WHERE series IN ('EQ', 'BE')
+            SELECT trade_date, symbol, close, series FROM equity_bhavcopy
+            WHERE series IN ('EQ', 'BE')
         ),
         gaps AS (
             SELECT trade_date, symbol, close, series,
-                   LAG(close) OVER (PARTITION BY symbol
-                       ORDER BY trade_date) AS prev_close_raw,
-                   LAG(trade_date) OVER (PARTITION BY symbol
-                       ORDER BY trade_date) AS prev_td
+                   LAG(close) OVER (PARTITION BY symbol ORDER BY trade_date) AS prev_close,
+                   LAG(trade_date) OVER (PARTITION BY symbol ORDER BY trade_date) AS prev_td
             FROM eqbe
-        ),
-        rated AS (
-            SELECT trade_date, symbol, close, prev_close_raw, prev_td, series,
-                   (trade_date - prev_td) AS gap_days,
-                   (close / prev_close_raw - 1.0) AS ret
-            FROM gaps
-            WHERE prev_close_raw IS NOT NULL AND prev_close_raw > 0
-              AND prev_td IS NOT NULL
         )
-        SELECT trade_date, symbol, ret, gap_days, prev_td, series
-        FROM rated
-        WHERE (ret <= {MOVE_LO} OR ret >= {MOVE_HI})
-          AND trade_date IN ({date_list})
-          AND prev_td IN ({date_list})
+        SELECT trade_date, symbol, close / prev_close - 1.0 AS ret,
+               trade_date - prev_td AS gap_days, prev_td, series, prev_close
+        FROM gaps
+        WHERE prev_close > 0 AND prev_td IS NOT NULL
+          AND (close / prev_close - 1.0 <= {MOVE_LO}
+               OR close / prev_close - 1.0 >= {MOVE_HI})
+          AND trade_date IN ({date_list}) AND prev_td IN ({date_list})
         ORDER BY ret
     """).fetchall()
 
-    # Separate: resumption/migration (gap > MAX_GAP_DAYS) vs true moves
-    resumptions = [(td, sym, ret, gap, ptd, ser) for td, sym, ret, gap, ptd, ser
-                   in moves if gap > MAX_GAP_DAYS]
-    true_moves = [(td, sym, ret, gap, ptd, ser) for td, sym, ret, gap, ptd, ser
-                  in moves if gap <= MAX_GAP_DAYS]
+    resumptions = [m for m in moves if m[3] > MAX_GAP_DAYS]
+    true_moves = [m for m in moves if m[3] <= MAX_GAP_DAYS]
 
-    # Write sidecar CSV (R9)
-    with open(SIDECAR_PATH, "w", newline="") as sf:
-        cw = csv.writer(sf)
-        cw.writerow(["trade_date", "symbol", "return", "gap_days", "prev_date",
-                      "series", "class", "detail"])
-        for td, sym, ret, gap, ptd, ser in true_moves:
-            cw.writerow([td, sym, ret, gap, ptd, ser, "", ""])
-
-    # Classification logic (R3/R7): factor direction match within CA_WINDOW_DAYS
-    ca_events = con.execute(
-        "SELECT symbol, ex_date, factor FROM adjustment_factors "
-        "ORDER BY symbol, ex_date").fetchall()
     ca_by_sym = {}
-    for sy, ex, fac in ca_events:
-        ca_by_sym.setdefault(sy, []).append((ex, fac))
+    for sym, ex, f in con.execute(
+            "SELECT symbol, ex_date, EXP(SUM(LN(factor))) FROM adjustment_factors "
+            "GROUP BY symbol, ex_date ORDER BY symbol, ex_date").fetchall():
+        ca_by_sym.setdefault(sym, []).append((ex, f))
 
     classification = []
-    for td, sym, ret, gap, ptd, ser in true_moves:
-        wnd = "sealed" if sealed_start <= td <= sealed_end else (
-            "dev" if dev_start <= td <= dev_end else "other")
-        cls = "genuine"
-        detail = f"no CA event within {CA_WINDOW_DAYS}d"
-        if sym in ca_by_sym:
-            for ex, fac in ca_by_sym[sym]:
-                g = (td - ex).days
-                if 0 <= g <= CA_WINDOW_DAYS:
-                    if (fac < 1.0 and ret < 0) or (fac > 1.0 and ret > 0):
-                        cls = "CA-explained"
-                        detail = f"{ex} factor={fac:.6f} gap={g}d"
-                        break
+    for td, sym, ret, gap, ptd, ser, prev_close in true_moves:
+        wnd = ("sealed" if sealed_start <= td <= sealed_end
+               else "dev" if dev_start <= td <= dev_end else "other")
+        survived = 1.0 + ret
+        # A factor explains exactly one move: the session that spans its ex-date.
+        # Anything looser lets a stale event a week back claim an unrelated move.
+        spanning = [(ex, f) for ex, f in ca_by_sym.get(sym, []) if ptd < ex <= td]
+        if spanning:
+            ex, f = min(spanning, key=lambda c: abs(c[1] - survived))
+            if abs(f - survived) / survived <= MAGNITUDE_TOLERANCE:
+                cls = "CA-explained"
+            elif (f < 1.0) == (ret < 0):
+                cls = "magnitude-mismatch"
+            else:
+                cls = "direction-mismatch"
+            detail = f"ex={ex} factor={f:.6f} survived={survived:.6f}"
+        elif is_ca_shaped(ret, prev_close):
+            cls = "CA-shaped-orphan"
+            detail = (f"survived={survived:.6f} sits on a CA ratio; no factor spans "
+                      f"({ptd}, {td}]; prev_close={prev_close:.2f}")
+        else:
+            cls = "genuine"
+            detail = (f"no factor spans ({ptd}, {td}]; survived={survived:.6f} "
+                      "not CA-shaped")
         classification.append((td, sym, ret, wnd, cls, detail))
 
-    dev_residue = [c for c in classification
-                   if c[3] == "dev" and c[4] == "CA-explained"
-                   and not any(r[1] == c[1] and r[0] == c[0]
-                              for r in resumptions
-                              if r[3] > MAX_GAP_DAYS)]
-    # Actually residue = genuine moves with no CA match — per the gate definition
-    dev_unexplained = [c for c in classification
-                       if c[3] == "dev" and c[4] == "genuine"]
-    sealed_unexplained = [c for c in classification
-                          if c[3] == "sealed" and c[4] == "genuine"]
+    with open(SIDECAR_PATH, "w", newline="", encoding="utf-8") as fh:
+        cw = csv.writer(fh)
+        cw.writerow(["trade_date", "symbol", "return", "window", "class", "detail"])
+        for td, sym, ret, wnd, cls, detail in classification:
+            cw.writerow([td, sym, f"{ret:.6f}", wnd, cls, detail])
 
-    w(f"**Screened moves:** {len(moves):,} total | "
-      f"**True consecutive-session moves:** {len(true_moves):,} | "
-      f"**Resumption/migration (gap > {MAX_GAP_DAYS}d):** {len(resumptions):,}\n")
+    RESIDUE = ("magnitude-mismatch", "direction-mismatch", "CA-shaped-orphan")
+    counts = {}
+    for row in classification:
+        counts[row[4]] = counts.get(row[4], 0) + 1
+    dev_residue = [c for c in classification if c[3] == "dev" and c[4] in RESIDUE]
+    sealed_residue = [c for c in classification if c[3] == "sealed" and c[4] in RESIDUE]
 
-    w(f"**Dev-window genuine (unresolved): {len(dev_unexplained)}**"
-      + (" — PASS" if len(dev_unexplained) == 0
-         else " — NOT PASSED (gate criterion)"))
-    w(f"Sealed-window genuine (reported, unexamined): "
-      f"{len(sealed_unexplained)}\n")
+    w(f"**Screened moves:** {len(moves):,} | **True consecutive-session moves:** "
+      f"{len(true_moves):,} | **Resumption/migration (gap > {MAX_GAP_DAYS}d, "
+      f"excluded):** {len(resumptions):,}\n")
+    w("A factor explains exactly one move: the session `(prev_td, td]` that spans its "
+      "ex-date. A move is **CA-explained** only when that factor matches it in "
+      f"*direction and magnitude* (within {MAGNITUDE_TOLERANCE:.0%}). Direction alone "
+      "is not evidence. A move that no factor spans, whose surviving-value ratio lands "
+      "on a canonical corporate-action ratio, is a **CA-shaped-orphan** — a missing "
+      "factor. Together with magnitude- and direction-mismatches these form the "
+      "**residue**, which is the gate criterion. A move that no factor spans and whose "
+      "ratio is not CA-shaped is classified **genuine** — a classification, not a "
+      "residue.\n")
+    w(f"The ratio test is applied only where `prev_close >= Rs {CA_RATIO_MIN_PRICE:.0f}`. "
+      "Below that the Rs 0.01 tick grid forces canonical ratios — a stock at Rs 0.10 "
+      "ticking to Rs 0.05 is exactly -50% and carries no information.\n")
+    w("| Bucket | Moves | Residue? |")
+    w("|--------|------:|----------|")
+    for cls in ("CA-explained", "genuine", "magnitude-mismatch",
+                "direction-mismatch", "CA-shaped-orphan"):
+        w(f"| {cls} | {counts.get(cls, 0):,} | {'**yes**' if cls in RESIDUE else 'no'} |")
+    w("")
+    w(f"**Dev-window residue: {len(dev_residue)}**"
+      + (" — PASS" if not dev_residue else " — NOT PASSED (gate criterion)"))
+    w(f"Sealed-window residue (reported, not gating): {len(sealed_residue)}\n")
 
-    # Sample the classified rows (CA-explained + genuine)
-    ca_explained = [c for c in classification if c[4] == "CA-explained"]
-    genuine = [c for c in classification if c[4] == "genuine"]
-    w(f"**CA-explained:** {len(ca_explained):,} moves. Sample:\n")
+    if dev_residue or sealed_residue:
+        w("Residue rows (dev window first):\n")
+        w("| Date | Symbol | Return | Window | Class | Detail |")
+        w("|------|--------|-------:|--------|-------|--------|")
+        shown = (dev_residue + sealed_residue)[:60]
+        for td, sym, ret, wnd, cls, detail in shown:
+            w(f"| {td} | {sym} | {ret:+.1%} | {wnd} | {cls} | {detail} |")
+        extra = len(dev_residue) + len(sealed_residue) - len(shown)
+        if extra > 0:
+            w(f"| ... | (+{extra} more — see sidecar) | | | | |")
+        w("")
+
+    w("**CA-explained sample:**\n")
     w("| Date | Symbol | Return | Window | Detail |")
     w("|------|--------|-------:|--------|--------|")
-    for c in ca_explained[:20]:
-        w(f"| {c[0]} | {c[1]} | {c[2]:+.1%} | {c[3]} | {c[4]} |")
+    for td, sym, ret, wnd, cls, detail in [
+            c for c in classification if c[4] == "CA-explained"][:15]:
+        w(f"| {td} | {sym} | {ret:+.1%} | {wnd} | {detail} |")
 
-    w(f"\n**Genuine large moves:** {len(genuine):,}. Sample:\n")
+    w("\n**Genuine sample:**\n")
     w("| Date | Symbol | Return | Window | Detail |")
     w("|------|--------|-------:|--------|--------|")
-    for c in genuine[:20]:
-        w(f"| {c[0]} | {c[1]} | {c[2]:+.1%} | {c[3]} | {c[4]} |")
-
-    # Resumption section
-    if resumptions:
-        w(f"\n**Resumption/migration rows** (gap > {MAX_GAP_DAYS}d — these "
-          f"are not single-session returns and are excluded from the move "
-          f"classification. R7): {len(resumptions)}**\n")
-        w("| Date | Symbol | Fake 'return' | Actual gap | Prev date | Series |")
-        w("|------|--------|-------------:|-----------:|-----------|--------|")
-        for td, sym, ret, gap, ptd, ser in resumptions[:30]:
-            w(f"| {td} | {sym} | {ret:+.1%} | {gap} days | {ptd} | {ser} |")
-        if len(resumptions) > 30:
-            w(f"| ... | (+{len(resumptions) - 30} more) | | | | |")
-
+    for td, sym, ret, wnd, cls, detail in [
+            c for c in classification if c[4] == "genuine"][:15]:
+        w(f"| {td} | {sym} | {ret:+.1%} | {wnd} | {detail} |")
     w("")
 
-    # === 4. Adjusted continuity (R8) =========================================
+    # === 4. Adjusted continuity ==============================================
     w("## 4. Adjusted Continuity\n")
-    w("The adjusted `prev_close(t) ≈ close(t-1)` check now tests **ex-date "
-      "rows** — the only rows where adjustment has an effect. Between ex-dates "
-      "the identical cumulative factor scales both sides, so mismatches are "
-      "impossible by construction (the trivial case). Each ex-date row tests "
-      "whether the factor *closes* the raw gap (R8).\n")
-    w("| Symbol | Ex-dates | Mismatches | Details |")
-    w("|--------|---------:|-----------:|---------|")
-    total_mismatches = 0
+    w("At an ex-date row, `adj_prev_close(t)` must equal `adj_close(t-1)`: the same "
+      "price, reached two ways. `prev_close(t)` is `close(t-1)`, so it carries the "
+      "cumulative factor of the *previous* row — which includes the event at `t`, "
+      "unlike `close(t)`'s. Between ex-dates the identical factor scales both sides "
+      "and the check is trivially true, so only ex-date rows are tested.\n")
+    w("| Symbol | Ex-dates | Mismatches | Detail |")
+    w("|--------|---------:|-----------:|--------|")
+    total_mismatch = 0
     for sym in CONTINUITY_SYMBOLS:
         ex_dates = [r[0] for r in con.execute(
-            "SELECT ex_date FROM adjustment_factors WHERE symbol=? "
+            "SELECT DISTINCT ex_date FROM adjustment_factors WHERE symbol=? "
             "ORDER BY ex_date", [sym]).fetchall()]
-        mismatches = []
+        bad = []
         for ex in ex_dates:
-            row_before = con.execute(
-                "SELECT close FROM equity_bhavcopy_adjusted "
-                "WHERE symbol=? AND series='EQ' AND trade_date < ? "
-                "ORDER BY trade_date DESC LIMIT 1", [sym, ex]
-            ).fetchone()
-            row_at = con.execute(
-                "SELECT prev_close FROM equity_bhavcopy_adjusted "
-                "WHERE symbol=? AND series='EQ' AND trade_date = ?",
-                [sym, ex]
-            ).fetchone()
-            adj_before = row_before[0] if row_before else None
-            adj_pc_at = row_at[0] if row_at else None
-            if (adj_before is not None and adj_pc_at is not None
-                    and adj_before > 0
-                    and abs(adj_pc_at - adj_before) / adj_before > 0.001):
-                mismatches.append(
-                    f"{ex}: adj_before={adj_before:.2f}, adj_pc={adj_pc_at:.2f}")
-        total_mismatches += len(mismatches)
-        det = "; ".join(mismatches[:3]) if mismatches else "—"
-        w(f"| {sym} | {len(ex_dates)} | {len(mismatches)} | {det} |")
-    w(f"\nTotal adjusted ex-date mismatches: **{total_mismatches}** "
-      f"({'PASS' if total_mismatches == 0 else 'NOT RESOLVED'})\n")
+            before = con.execute(
+                "SELECT close FROM equity_bhavcopy_adjusted WHERE symbol=? AND "
+                "series='EQ' AND trade_date < ? ORDER BY trade_date DESC LIMIT 1",
+                [sym, ex]).fetchone()
+            at = con.execute(
+                "SELECT prev_close FROM equity_bhavcopy_adjusted WHERE symbol=? AND "
+                "series='EQ' AND trade_date = ?", [sym, ex]).fetchone()
+            if (before and at and before[0] and at[0] and before[0] > 0
+                    and abs(at[0] - before[0]) / before[0] > 0.001):
+                bad.append(f"{ex}: adj_close(t-1)={before[0]:.2f}, "
+                           f"adj_prev_close(t)={at[0]:.2f}")
+        total_mismatch += len(bad)
+        w(f"| {sym} | {len(ex_dates)} | {len(bad)} | {'; '.join(bad[:2]) or '—'} |")
+    w(f"\nTotal adjusted ex-date mismatches: **{total_mismatch}** "
+      f"({'PASS' if total_mismatch == 0 else 'NOT RESOLVED'})\n")
 
-    # === 5. Rename-chain report ==============================================
+    # === 5. Rename chain =====================================================
     w("## 5. Rename-Chain Report\n")
-    n_changes = con.execute(
-        "SELECT COUNT(*) FROM symbol_changes").fetchone()[0]
-    if n_changes:
-        w(f"`symbol_changes`: **{n_changes:,}** records (inventory, "
-          f"from gate (a)).\n")
-    else:
-        w("`symbol_changes` empty.\n")
+    n_changes = con.execute("SELECT COUNT(*) FROM symbol_changes").fetchone()[0]
+    w(f"`symbol_changes`: **{n_changes:,}** records (inventory, from gate (a)).\n")
 
-    # === 6. Fit-for-purpose ==================================================
+    # === 6. Fit for purpose ==================================================
     w("## 6. Fit-for-Purpose Statement\n")
-    w(f"- CA events: **{ca_total:,}**  |  Factors: **{fac_total:,}**")
-    w(f"- CA-explained moves: **{len(ca_explained):,}** | "
-      f"Genuine: **{len(genuine):,}** | "
-      f"Resumption: **{len(resumptions):,}**")
-    w(f"- Dev-window genuine (unadjusted): **{len(dev_unexplained)}** "
-      f"({'PASS' if len(dev_unexplained) == 0 else 'NOT PASSED'})")
-    w(f"- Adjusted ex-date mismatches: **{total_mismatches}**")
-    w(f"- Hand-verify assertions: {verified_ok} PASS / {verified_fail} FAIL")
-    w("")
+    w(f"- CA events: **{ca_total:,}**  |  Factors: **{fac_total:,}**  |  "
+      f"Parse rejects: **{n_rejects}**")
+    w(f"- Evidence test: **{len(failures)}** failures of {len(evidence):,} factors "
+      "with adjacent-session evidence")
+    w(f"- Move buckets: CA-explained **{counts.get('CA-explained', 0):,}**, "
+      f"genuine **{counts.get('genuine', 0):,}**, "
+      f"residue **{len(dev_residue) + len(sealed_residue):,}**")
+    w(f"- Dev-window residue: **{len(dev_residue)}**")
+    w(f"- Adjusted ex-date mismatches: **{total_mismatch}**\n")
 
     fail = []
-    if len(dev_unexplained) > 0:
-        fail.append(f"{len(dev_unexplained)} dev-window genuine large move(s) "
-                     f"not CA-explained")
-    if total_mismatches > 0:
-        fail.append(f"{total_mismatches} adjusted-continuity mismatch(es)")
-    if verified_fail > 0:
-        fail.append(f"{verified_fail} hand-verify assertion failure(s)")
+    if dev_residue:
+        fail.append(f"{len(dev_residue)} dev-window residue move(s)")
+    if total_mismatch:
+        fail.append(f"{total_mismatch} adjusted-continuity mismatch(es)")
+    if failures:
+        fail.append(f"{len(failures)} factor(s) failing the price-evidence test")
 
     if fail:
         w("**Gate (b) NOT PASSED:** " + "; ".join(fail) + ".")
     else:
-        w("**Gate (b) can honestly claim:** a complete, deterministic, "
-          "traceable corporate-action adjustment over the full target span, "
-          f"with {ca_total:,} events ingested ({fac_total:,} price-affecting "
-          "factors from BONUS/SPLIT/SPECIAL_DIVIDEND sources); every "
-          "dev-window large move classified with zero hole in the CA-explained "
-          "coverage; all ex-date adjusted gaps resolved; hand-verify "
-          "assertions all PASS. The adjusted-price view "
-          "`equity_bhavcopy_adjusted` is the authoritative research source "
-          "for all downstream CSMP work.")
+        w("**Gate (b) PASSED.** Every adjustment factor traces to an exchange "
+          "document, and every factor with adjacent-session price evidence reconciles "
+          f"against the market's own repricing within {EVIDENCE_TOLERANCE:.0%}. Every "
+          ">|20%| dev-window move is classified as corporate-action or genuine with "
+          "zero residue. Every ex-date row of `equity_bhavcopy_adjusted` is continuous. "
+          "That view is the authoritative research source for downstream CSMP work.")
     w("")
-
-    w(f"_Sidecar: `{SIDECAR_PATH.relative_to(ROOT).as_posix()}` holds the "
-      f"full {len(true_moves):,}-row move table._")
-    return "\n".join(L)
+    w(f"_Sidecar: `{SIDECAR_PATH.relative_to(ROOT).as_posix()}` holds all "
+      f"{len(classification):,} classified moves._")
+    return "\n".join(lines)
 
 
 def main():
     con = duckdb.connect(str(DB_PATH), read_only=True)
     report = run(con)
     con.close()
-    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     REPORT_PATH.write_text(report + "\n", encoding="utf-8")
     print(f"Audit report written to {REPORT_PATH.relative_to(ROOT).as_posix()}")
 

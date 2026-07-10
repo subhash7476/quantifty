@@ -1,12 +1,18 @@
-"""CSMP Gate (b) — NSE CF-CA CSV split ingestion (replaces bhavcopy-gap inference).
+"""CSMP Gate (b) — corporate-action ingestion from the NSE CF-CA feed.
 
-Parses NSE's structured corporate-actions CSV files (CF-CA-equities-*.csv)
-for stock split / sub-division / face-value change records, derives adjustment
-factors from the exchange-published old/new face values, and ingests them as
-primary-source SPLIT events. No price-gap inference — every factor is derived
-from the exchange's own Purpose text (e.g. 'Fv Splt Frm Rs 10 To Re 1').
+NSE's CF-CA equities CSVs are the sole source for SPLIT and BONUS: they carry the
+true ex-date and name both legs of a combined action in one PURPOSE string. The
+BSE JSON cache supplies DIVIDEND only — it keys bonuses on the record date, which
+is not the ex-date, and it mislabels bonus debentures as equity bonuses.
 
-Also handles ETF unit-splits from a hardcoded patch list (not in NSE feed).
+Face values are read from the face-value clause of the PURPOSE text, never by
+scanning the whole string for integers. A record whose clause does not parse is
+rejected into `ca_parse_rejects` with a reason and never guessed at.
+
+Every factor is then screened against the market's own repricing at the ex-date;
+factors that cannot be reconciled land in `ca_evidence_exceptions`. The exchange
+document remains the authority for the event and its ratio — the price gap is a
+screen for arithmetic error, not a source.
 
 Usage:
     python scripts/csmp/ingest_corporate_actions.py
@@ -18,15 +24,11 @@ import json
 import os
 import re
 import sys
-import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 import duckdb
 import pandas as pd
-import requests
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -34,39 +36,24 @@ sys.path.insert(0, str(ROOT))
 DB_PATH = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
 RAW_DIR = ROOT / "data" / "market_data" / "corporate_actions_raw"
 
-SESSION = None
 SPECIAL_DIV_THRESHOLD = 0.20
+EVIDENCE_TOLERANCE = 0.25
+EVIDENCE_MAX_GAP_DAYS = 5
 
+# Gold-ETF unit sub-divisions. The NSE equity CA feed carries no ETF records, so
+# these come from the AMC notices. Each is corroborated against the ex-date gap;
+# QGOLDHALF is 1:50, not the 1:100 every other gold ETF used.
 ETF_SPLITS = [
-    ("GOLDBEES", date(2019, 12, 19), 100, 1,
-     "AMC notice; NSE equity CA feed has no ETF unit-split records"),
-    ("AXISGOLD", date(2020, 7, 23), 100, 1, "AMC notice"),
-    ("HDFCMFGETF", date(2021, 2, 17), 100, 1, "AMC notice"),
-    ("GOLDSHARE", date(2021, 3, 25), 100, 1, "AMC notice"),
-    ("BSLGOLDETF", date(2021, 11, 25), 100, 1, "AMC notice"),
-    ("QGOLDHALF", date(2021, 12, 16), 100, 1, "AMC notice"),
-    ("SETFGOLD", date(2022, 1, 6), 100, 1, "AMC notice"),
-    ("LICMFGOLD", date(2026, 3, 6), 100, 1, "AMC notice"),
-    ("IVZINGOLD", date(2026, 4, 30), 100, 1, "AMC notice"),
+    ("GOLDBEES", date(2019, 12, 19), 100, 1, "AMC notice; implied_close 0.00999"),
+    ("AXISGOLD", date(2020, 7, 23), 100, 1, "AMC notice; implied_open 0.01000"),
+    ("HDFCMFGETF", date(2021, 2, 17), 100, 1, "AMC notice; implied_close 0.00985"),
+    ("GOLDSHARE", date(2021, 3, 25), 100, 1, "AMC notice; implied_close 0.01001"),
+    ("BSLGOLDETF", date(2021, 11, 25), 100, 1, "AMC notice; implied_open 0.00997"),
+    ("QGOLDHALF", date(2021, 12, 16), 50, 1, "AMC notice; 1:50 — implied_close 0.02024"),
+    ("SETFGOLD", date(2022, 1, 6), 100, 1, "AMC notice; implied_close 0.00994"),
+    ("LICMFGOLD", date(2026, 3, 6), 100, 1, "AMC notice; implied_close 0.00994"),
+    ("IVZINGOLD", date(2026, 4, 30), 100, 1, "AMC notice; implied_close 0.01019"),
 ]
-
-
-def get_session():
-    global SESSION
-    if SESSION is None:
-        s = requests.Session()
-        retry = Retry(total=4, backoff_factor=2.0,
-                      status_forcelist=[429, 500, 502, 503, 504])
-        adapter = HTTPAdapter(max_retries=retry, pool_connections=4,
-                              pool_maxsize=4)
-        s.mount("https://", adapter)
-        s.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                          "AppleWebKit/537.36",
-        })
-        SESSION = s
-    return SESSION
-
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS corporate_actions (
@@ -87,7 +74,184 @@ CREATE TABLE IF NOT EXISTS adjustment_factors (
     source       VARCHAR,
     PRIMARY KEY (symbol, ex_date, action_type)
 );
+CREATE TABLE IF NOT EXISTS ca_parse_rejects (
+    symbol       VARCHAR,
+    ex_date      DATE,
+    action_type  VARCHAR,
+    reason       VARCHAR,
+    purpose_raw  VARCHAR,
+    source       VARCHAR
+);
+CREATE TABLE IF NOT EXISTS ca_evidence_exceptions (
+    symbol         VARCHAR,
+    ex_date        DATE,
+    legs           VARCHAR,
+    stored_factor  DOUBLE,
+    implied_open   DOUBLE,
+    implied_close  DOUBLE,
+    deviation      DOUBLE
+);
 """
+
+# The face-value clause begins at one of these words. Everything before it —
+# dividend amounts, bonus ratios, meeting notices — is not a face value. A bare
+# 'Spl' is not among them: in this feed it always abbreviates 'Special Dividend'
+# ('Agm/Spl Div- Rs.5/-'), never a split, which is always written 'Fv Spl'.
+SPLIT_KW = re.compile(
+    r"(?i)(?:FACE\s+VALUE\s+SP|F\.?V\.?\s*SP)(?:LIT|LT|L)\b"
+    r"|\bSPLIT\b|\bSPLT\b|SUB-?DIVISION|CONSOLIDATION")
+# 'Rs.10/- To Re.1/-', 'Rs 10/- Per Share To Rs 2/- Per Share', 'Rs.5tors.2'
+FV_RS = re.compile(
+    r"(?i)\bR[se]\.?\s*(\d+(?:\.\d+)?)\s*(?:/-)?\s*"
+    r"(?:per\s+share\s*)?(?:each\s*)?to\s*R[se]\.?\s*(\d+(?:\.\d+)?)")
+# 'From 10/- To Face Value 2/-' — no currency prefix on either side
+FV_FROM = re.compile(
+    r"(?i)\bFROM\b\s*(?:R[se]\.?\s*)?(\d+(?:\.\d+)?)\s*(?:/-)?"
+    r".{0,30}?\bTO\b\s*(?:FACE\s+VALUE\s*)?(?:R[se]\.?\s*)?(\d+(?:\.\d+)?)")
+
+BONUS_KW = re.compile(r"(?i)\bBON(?:US)?\b")
+BONUS_RATIO = re.compile(r"(?i)\bBON(?:US)?\b.{0,40}?(\d+)\s*:\s*(\d+)")
+# Bonus debentures, DVR shares, NCRPS and preference shares do not dilute equity.
+NON_EQUITY_BONUS = re.compile(
+    r"(?i)\b(deb|debentures?|dvr|preference|ncrps|ncd|rps)\b|DEB\d")
+# A capital reduction bundled with a consolidation has no single price factor.
+CAP_REDUCTION = re.compile(r"(?i)CAPITAL\s+REDUCTION")
+
+
+def parse_split_clause(purpose):
+    """(old_fv, new_fv) from the face-value clause, or (None, reason)."""
+    if CAP_REDUCTION.search(purpose):
+        return None, "capital_reduction_ambiguous"
+    kw = SPLIT_KW.search(purpose)
+    if not kw:
+        return None, "no_split_clause"
+    clause = purpose[kw.start():]
+    m = FV_RS.search(clause) or FV_FROM.search(clause)
+    if not m:
+        return None, "no_fv_pair_in_clause"
+    old_fv, new_fv = float(m.group(1)), float(m.group(2))
+    if old_fv <= 0 or new_fv <= 0:
+        return None, "zero_face_value"
+    if old_fv == new_fv:
+        return None, "degenerate_equal_face_value"
+    return (old_fv, new_fv), None
+
+
+def parse_bonus_clause(purpose):
+    """(new, held) from 'Bonus a:b', or (None, reason). (None, None) = no bonus."""
+    if not BONUS_KW.search(purpose):
+        return None, None
+    if NON_EQUITY_BONUS.search(purpose):
+        return None, "non_equity_bonus"
+    m = BONUS_RATIO.search(purpose)
+    if not m:
+        return None, "no_bonus_ratio"
+    new, held = int(m.group(1)), int(m.group(2))
+    if new <= 0 or held <= 0:
+        return None, "zero_bonus_ratio"
+    return (new, held), None
+
+
+def parse_nse_cf_ca():
+    """Split and bonus legs from every CF-CA record. Both legs of a combined
+    action come from the same PURPOSE string and share its ex-date."""
+    events, factors, rejects = [], [], []
+    for fp in sorted(RAW_DIR.glob("CF-CA-equities-*.csv")):
+        source = f"NSE_CF-CA_{fp.name}"
+        text = fp.read_bytes().decode("utf-8-sig")
+        for row in csv.DictReader(io.StringIO(text)):
+            purpose = (row.get("PURPOSE") or "").strip()
+            symbol = (row.get("SYMBOL") or "").strip().upper()
+            try:
+                ex_date = datetime.strptime(
+                    (row.get("EX-DATE") or "").strip(), "%d-%b-%Y").date()
+            except ValueError:
+                continue
+            raw_json = json.dumps(row, default=str)[:4000]
+
+            if SPLIT_KW.search(purpose) or CAP_REDUCTION.search(purpose):
+                fv, reason = parse_split_clause(purpose)
+                if fv:
+                    old_fv, new_fv = fv
+                    events.append({
+                        "symbol": symbol, "ex_date": ex_date,
+                        "action_type": "SPLIT", "purpose_raw": purpose,
+                        "ratio_or_fv": f"{old_fv:g}/{new_fv:g}",
+                        "source": source, "scripcode": "", "raw_json": raw_json,
+                    })
+                    factors.append({
+                        "symbol": symbol, "ex_date": ex_date,
+                        "factor": new_fv / old_fv,
+                        "action_type": "SPLIT", "source": source,
+                    })
+                elif reason != "no_split_clause":
+                    rejects.append({
+                        "symbol": symbol, "ex_date": ex_date,
+                        "action_type": "SPLIT", "reason": reason,
+                        "purpose_raw": purpose, "source": source,
+                    })
+
+            bonus, reason = parse_bonus_clause(purpose)
+            if bonus:
+                new, held = bonus
+                events.append({
+                    "symbol": symbol, "ex_date": ex_date,
+                    "action_type": "BONUS", "purpose_raw": purpose,
+                    "ratio_or_fv": f"{new}:{held}",
+                    "source": source, "scripcode": "", "raw_json": raw_json,
+                })
+                factors.append({
+                    "symbol": symbol, "ex_date": ex_date,
+                    "factor": held / (new + held),
+                    "action_type": "BONUS", "source": source,
+                })
+            elif reason:
+                rejects.append({
+                    "symbol": symbol, "ex_date": ex_date,
+                    "action_type": "BONUS", "reason": reason,
+                    "purpose_raw": purpose, "source": source,
+                })
+    return events, factors, rejects
+
+
+def build_rename_backmap(con):
+    """new_symbol -> [(old_symbol, effective_dt)], from gate (a)'s symbol_changes."""
+    back = {}
+    for old, new, eff in con.execute(
+            "SELECT old_symbol, new_symbol, effective_dt FROM symbol_changes "
+            "WHERE effective_dt IS NOT NULL").fetchall():
+        back.setdefault(new.upper(), []).append((old.upper(), eff))
+    return back
+
+
+def resolve_symbol_at_ex_date(con, symbol, ex_date, back, traded):
+    """The CF-CA feed files every historical event under the symbol's *current*
+    name: BAJAJCON carries BAJAJCORP's 2011 split. Walk the rename chain back to
+    the name in force on the ex-date, and pick the first candidate that actually
+    traded then."""
+    chain, cur, seen = [symbol], symbol, {symbol}
+    while True:
+        candidates = [(old, eff) for old, eff in back.get(cur, []) if eff > ex_date]
+        if not candidates:
+            break
+        old = min(candidates, key=lambda c: c[1])[0]
+        if old in seen:
+            break
+        seen.add(old)
+        chain.append(old)
+        cur = old
+    if len(chain) == 1:
+        return symbol
+    for candidate in reversed(chain):
+        key = (candidate, ex_date)
+        if key not in traded:
+            traded[key] = con.execute(
+                "SELECT 1 FROM equity_bhavcopy WHERE symbol = ? AND trade_date "
+                "BETWEEN ? - INTERVAL 10 DAY AND ? + INTERVAL 10 DAY LIMIT 1",
+                [candidate, ex_date, ex_date]).fetchone() is not None
+        if traded[key]:
+            return candidate
+    return symbol
 
 
 def _parse_bse_date(val):
@@ -108,73 +272,12 @@ def _to_str(*args):
     return ""
 
 
-def parse_nse_cf_ca_splits():
-    """Extract split/sub-division/consolidation records from NSE CF-CA CSVs."""
-    splits = []
-    for fp in sorted(RAW_DIR.glob("CF-CA-equities-*.csv")):
-        txt = fp.read_bytes().decode("utf-8-sig")
-        for row in csv.DictReader(io.StringIO(txt)):
-            purpose = (row.get("PURPOSE") or "").strip().lower()
-            p_upper = purpose.upper()
-            if not any(w in p_upper for w in ["SPLIT", "SPLT", "SUB-DIVISION",
-                       "DIVISION OF", "CONSOLIDATION", "FV ", "FACE VALUE"]):
-                continue
-            sym = (row.get("SYMBOL") or "").strip().upper()
-            ex_str = (row.get("EX-DATE") or "").strip()
-            fv_str = (row.get("FACE VALUE") or "").strip()
-            try:
-                ex_date = datetime.strptime(ex_str, "%d-%b-%Y").date()
-            except ValueError:
-                continue
-            nums = [int(s) for s in re.findall(r"\d+", purpose)]
-            old_fv, new_fv = None, None
-            if len(nums) >= 2:
-                for i in range(len(nums) - 1):
-                    if nums[i] >= 10 and nums[i + 1] <= nums[i]:
-                        old_fv, new_fv = nums[i], nums[i + 1]
-                        break
-                if old_fv is None and nums[-2] >= 10:
-                    old_fv, new_fv = nums[-2], nums[-1]
-                if old_fv is None:
-                    old_fv = max(nums)
-                    remaining = [n for n in nums if n != old_fv]
-                    new_fv = min(remaining) if remaining else old_fv
-            if old_fv is None or old_fv == 0 or new_fv is None:
-                continue
-            source = f"NSE_CF-CA_{fp.name}"
-            ratio_str = f"{old_fv}/{new_fv}"
-            factor = new_fv / old_fv
-            splits.append({
-                "symbol": sym,
-                "ex_date": ex_date,
-                "action_type": "SPLIT",
-                "purpose_raw": (row.get("PURPOSE") or "").strip(),
-                "ratio_or_fv": ratio_str,
-                "source": source,
-                "scripcode": "",
-                "raw_json": json.dumps(row, default=str)[:4000],
-                "factor": factor,
-            })
-    return splits
-
-
-def parse_bse_to_events(scripcode, symbol, raw):
+def parse_bse_dividends(scripcode, symbol, raw):
+    """Dividends only. BSE bonus records are keyed on the record date and are
+    superseded by the CF-CA feed."""
     if raw is None:
         return []
     rows = []
-    for b in (raw.get("Table1") or []):
-        dt = _parse_bse_date(
-            b.get("BCRD_FROM") or b.get("BCRD_from") or b.get("Ex_date"))
-        if dt is None:
-            continue
-        rows.append({
-            "symbol": symbol, "ex_date": dt, "action_type": "BONUS",
-            "purpose_raw": _to_str(b.get("XTYPE")),
-            "ratio_or_fv": _to_str(b.get("VALUE")),
-            "source": f"BSE_{scripcode}",
-            "scripcode": scripcode,
-            "raw_json": json.dumps(b, default=str)[:4000],
-        })
     for d in (raw.get("Table2") or []):
         dt = _parse_bse_date(d.get("Ex_date") or d.get("BCRD"))
         if dt is None:
@@ -183,8 +286,7 @@ def parse_bse_to_events(scripcode, symbol, raw):
             "symbol": symbol, "ex_date": dt, "action_type": "DIVIDEND",
             "purpose_raw": _to_str(d.get("purpose") or d.get("purpose_name")),
             "ratio_or_fv": _to_str(d.get("Details") or d.get("Amount")),
-            "source": f"BSE_{scripcode}",
-            "scripcode": scripcode,
+            "source": f"BSE_{scripcode}", "scripcode": scripcode,
             "raw_json": json.dumps(d, default=str)[:4000],
         })
     seen = {(r["symbol"], r["ex_date"], r["purpose_raw"]) for r in rows}
@@ -194,73 +296,36 @@ def parse_bse_to_events(scripcode, symbol, raw):
         if dt is None:
             continue
         purpose = _to_str(d.get("purpose_name") or d.get("purpose"))
-        key = (symbol, dt, purpose)
-        if key in seen:
+        if (symbol, dt, purpose) in seen:
             continue
         rows.append({
             "symbol": symbol, "ex_date": dt, "action_type": "DIVIDEND",
-            "purpose_raw": purpose,
-            "ratio_or_fv": _to_str(d.get("Amount")),
-            "source": f"BSE_{scripcode}",
-            "scripcode": scripcode,
+            "purpose_raw": purpose, "ratio_or_fv": _to_str(d.get("Amount")),
+            "source": f"BSE_{scripcode}", "scripcode": scripcode,
             "raw_json": json.dumps(d, default=str)[:4000],
         })
     return rows
 
 
-def derive_bonus_factor(ratio_str):
-    s = ratio_str.lower().strip()
-    if "issue" in s or ":" in s:
-        if "issue" in s:
-            parts_str = s.split("issue", 1)[-1]
-        else:
-            parts_str = s
-        parts = [p.strip() for p in parts_str.split(":") if p.strip()]
-        if len(parts) == 2:
-            try:
-                bonus, existing = int(parts[0]), int(parts[1])
-                if existing > 0:
-                    return existing / (existing + bonus)
-            except ValueError:
-                pass
-    return None
-
-
-def derive_split_factor(old_fv, new_fv):
-    return new_fv / old_fv
-
-
 def purge_and_rebuild(con):
     os.makedirs(RAW_DIR, exist_ok=True)
     con.execute(SCHEMA_SQL)
+    con.execute("DELETE FROM corporate_actions")
+    con.execute("DELETE FROM adjustment_factors")
+    con.execute("DELETE FROM ca_parse_rejects")
+    con.execute("DELETE FROM ca_evidence_exceptions")
 
-    n_del_ca = con.execute(
-        "DELETE FROM corporate_actions WHERE action_type='SPLIT'").fetchone()[0]
-    n_del_af = con.execute(
-        "DELETE FROM adjustment_factors WHERE action_type='SPLIT'").fetchone()[0]
-    print(f"Purged: {n_del_ca} SPLIT rows, {n_del_af} factors")
-
-    con.execute("DELETE FROM corporate_actions WHERE action_type IN "
-                "('BONUS', 'DIVIDEND')")
-    con.execute("DELETE FROM adjustment_factors "
-                "WHERE action_type IN ('BONUS', 'DIVIDEND')")
-
-    # Re-parse BSE cache for bonuses + dividends
-    cached = sorted(RAW_DIR.glob("bse_ca_*.json"))
     store_syms = {r[0] for r in con.execute(
-        "SELECT DISTINCT symbol FROM equity_bhavcopy "
-        "WHERE series='EQ'").fetchall()}
+        "SELECT DISTINCT symbol FROM equity_bhavcopy WHERE series='EQ'").fetchall()}
 
-    events, factors = [], []
-    for p in cached:
+    div_events = []
+    for p in sorted(RAW_DIR.glob("bse_ca_*.json")):
         code = p.stem.replace("bse_ca_", "")
         data = json.loads(p.read_bytes())
-        has_data = any(isinstance(v, list) and len(v) > 0
-                      for v in data.values())
-        if not has_data:
+        if not any(isinstance(v, list) and v for v in data.values()):
             continue
         sym = None
-        for tbl in ["Table1", "Table2", "Table"]:
+        for tbl in ("Table1", "Table2", "Table"):
             entries = data.get(tbl, [])
             if entries:
                 s = entries[0].get("short_name") or entries[0].get("scrip_id")
@@ -269,195 +334,257 @@ def purge_and_rebuild(con):
                     break
         if sym is None or sym not in store_syms:
             continue
-        for ev in parse_bse_to_events(code, sym, data):
-            events.append(ev)
-            if ev["action_type"] == "BONUS":
-                f = derive_bonus_factor(ev["ratio_or_fv"])
-                if f is not None:
-                    factors.append({
-                        "symbol": ev["symbol"], "ex_date": ev["ex_date"],
-                        "factor": f, "action_type": "BONUS",
-                        "source": ev["source"],
-                    })
+        div_events.extend(parse_bse_dividends(code, sym, data))
 
-    if events:
-        df_ev = pd.DataFrame(events).drop_duplicates(
-            subset=["symbol", "ex_date", "action_type", "ratio_or_fv"])
-        con.execute("INSERT INTO corporate_actions SELECT symbol, ex_date, "
-                    "action_type, purpose_raw, ratio_or_fv, source, "
-                    "scripcode, raw_json FROM df_ev")
-        print(f"BSE events: {len(df_ev)}")
+    nse_events, nse_factors, rejects = parse_nse_cf_ca()
 
-    if factors:
-        df_fac = pd.DataFrame(factors).drop_duplicates(
-            subset=["symbol", "ex_date", "action_type"])
-        con.execute("INSERT INTO adjustment_factors SELECT symbol, ex_date, "
-                    "factor, action_type, source FROM df_fac")
-        print(f"Bonus factors: {len(df_fac)}")
+    back, traded, n_remapped = build_rename_backmap(con), {}, 0
+    for record in nse_events + nse_factors:
+        resolved = resolve_symbol_at_ex_date(
+            con, record["symbol"], record["ex_date"], back, traded)
+        if resolved != record["symbol"]:
+            record["symbol"] = resolved
+            n_remapped += 1
+    print(f"Rename-remapped        : {n_remapped} records to the symbol in force "
+          f"at their ex-date")
 
-    # --- PRIMARY: NSE CF-CA CSV splits ---
-    nse_splits = parse_nse_cf_ca_splits()
-    split_events = [{k: v for k, v in s.items() if k != "factor"}
-                    for s in nse_splits]
-    split_factors = [{"symbol": s["symbol"], "ex_date": s["ex_date"],
-                      "factor": s["factor"], "action_type": "SPLIT",
-                      "source": s["source"]} for s in nse_splits]
-    if split_events:
-        df_se = pd.DataFrame(split_events).drop_duplicates(
-            subset=["symbol", "ex_date", "action_type"])
-        con.execute("INSERT INTO corporate_actions SELECT symbol, ex_date, "
-                    "action_type, purpose_raw, ratio_or_fv, source, "
-                    "scripcode, raw_json FROM df_se")
-        print(f"NSE CF-CA splits: {len(df_se)} events")
-    if split_factors:
-        df_sf = pd.DataFrame(split_factors).drop_duplicates(
-            subset=["symbol", "ex_date", "action_type"])
-        con.execute("INSERT INTO adjustment_factors SELECT symbol, ex_date, "
-                    "factor, action_type, source FROM df_sf")
-        print(f"NSE CF-CA split factors: {len(df_sf)}")
+    df_ev = pd.DataFrame(div_events + nse_events).drop_duplicates(
+        subset=["symbol", "ex_date", "action_type", "ratio_or_fv"])
+    con.execute("INSERT INTO corporate_actions SELECT symbol, ex_date, "
+                "action_type, purpose_raw, ratio_or_fv, source, scripcode, "
+                "raw_json FROM df_ev")
 
-    return len(events), len(factors), len(nse_splits)
+    df_fac = pd.DataFrame(nse_factors).drop_duplicates(
+        subset=["symbol", "ex_date", "action_type"])
+    con.execute("INSERT INTO adjustment_factors SELECT symbol, ex_date, factor, "
+                "action_type, source FROM df_fac")
+
+    print(f"BSE dividend events    : {len(div_events):,}")
+    print(f"NSE CF-CA events       : {len(nse_events):,}")
+    print(f"NSE CF-CA factors      : {len(df_fac):,}")
+    print(f"Parse rejects          : {len(rejects):,}")
+    if rejects:
+        df_rej = pd.DataFrame(rejects)
+        con.execute("INSERT INTO ca_parse_rejects SELECT symbol, ex_date, "
+                    "action_type, reason, purpose_raw, source FROM df_rej")
+        for reason, n in df_rej.groupby("reason").size().items():
+            print(f"    {reason:<32} {n}")
+    return len(df_ev), len(df_fac), len(rejects)
 
 
 def ingest_etf_splits(con):
-    rows = []
-    for sym, dt, old_fv, new_fv, src in ETF_SPLITS:
-        rows.append({
-            "symbol": sym, "ex_date": dt,
-            "action_type": "SPLIT",
-            "purpose_raw": f"Gold ETF unit sub-division: FV {old_fv} -> "
-                          f"{new_fv} ({src[:80]})",
-            "ratio_or_fv": f"{old_fv}/{new_fv}",
-            "source": f"ETF_AMC_notice_{dt.isoformat()}_{sym}",
-            "scripcode": "",
-            "raw_json": "{}",
-        })
-    df_ev = pd.DataFrame(rows)
-    con.execute("INSERT INTO corporate_actions SELECT symbol, "
-                "ex_date, action_type, purpose_raw, ratio_or_fv, source, "
-                "scripcode, raw_json FROM df_ev")
+    df_ev = pd.DataFrame([{
+        "symbol": s, "ex_date": d, "action_type": "SPLIT",
+        "purpose_raw": f"Gold ETF unit sub-division: FV {o} -> {n} ({note})",
+        "ratio_or_fv": f"{o}/{n}",
+        "source": f"ETF_AMC_notice_{d.isoformat()}_{s}",
+        "scripcode": "", "raw_json": "{}",
+    } for s, d, o, n, note in ETF_SPLITS])
+    con.execute("INSERT INTO corporate_actions SELECT symbol, ex_date, "
+                "action_type, purpose_raw, ratio_or_fv, source, scripcode, "
+                "raw_json FROM df_ev")
     df_f = pd.DataFrame([{
-        "symbol": s, "ex_date": d,
-        "factor": derive_split_factor(o, n),
-        "action_type": "SPLIT",
+        "symbol": s, "ex_date": d, "factor": n / o, "action_type": "SPLIT",
         "source": f"ETF_AMC_notice_{d.isoformat()}_{s}",
     } for s, d, o, n, _ in ETF_SPLITS])
-    con.execute("INSERT INTO adjustment_factors SELECT symbol, ex_date, "
-                "factor, action_type, source FROM df_f")
-    print(f"ETF splits: {len(ETF_SPLITS)} events + factors")
+    con.execute("INSERT OR REPLACE INTO adjustment_factors SELECT symbol, "
+                "ex_date, factor, action_type, source FROM df_f")
+    print(f"ETF split factors      : {len(ETF_SPLITS)}")
     return len(ETF_SPLITS)
 
 
 def ingest_special_dividends(con):
     divs = con.execute("""
-        SELECT ca.symbol, ca.ex_date, ca.ratio_or_fv
-        FROM corporate_actions ca WHERE ca.action_type = 'DIVIDEND'
-        AND ca.ratio_or_fv != '' AND ca.ratio_or_fv != '0'
+        SELECT symbol, ex_date, ratio_or_fv FROM corporate_actions
+        WHERE action_type = 'DIVIDEND' AND ratio_or_fv NOT IN ('', '0')
     """).fetchall()
+    n_unparseable = n_no_prior = n_below_threshold = n_exceeds_price = 0
     new_factors = []
     for sym, dt, amt_str in divs:
         try:
             amt = float(amt_str)
         except ValueError:
+            n_unparseable += 1
             continue
         if amt <= 0:
+            n_unparseable += 1
             continue
         prior = con.execute("""
             SELECT e.close FROM equity_bhavcopy e
             JOIN trading_calendar tc ON e.trade_date = tc.trade_date
                 AND tc.n_symbols >= 200
-            WHERE e.symbol = ? AND e.series = 'EQ'
-            AND e.trade_date < ? ORDER BY e.trade_date DESC LIMIT 1
+            WHERE e.symbol = ? AND e.series = 'EQ' AND e.trade_date < ?
+            ORDER BY e.trade_date DESC LIMIT 1
         """, [sym, dt]).fetchone()
-        P = prior[0] if prior else None
-        if P is None or P <= 0:
+        if not prior or not prior[0] or prior[0] <= 0:
+            n_no_prior += 1
             continue
-        if amt >= SPECIAL_DIV_THRESHOLD * P:
-            if amt >= P:
-                continue
-            new_factors.append({
-                "symbol": sym, "ex_date": dt,
-                "factor": (P - amt) / P,
-                "action_type": "SPECIAL_DIVIDEND",
-                "source": f"bhavcopy_prior_close_{P:.2f}_div_{amt:.2f}",
-            })
+        prior_close = prior[0]
+        if amt < SPECIAL_DIV_THRESHOLD * prior_close:
+            n_below_threshold += 1
+            continue
+        if amt >= prior_close:
+            n_exceeds_price += 1
+            continue
+        new_factors.append({
+            "symbol": sym, "ex_date": dt,
+            "factor": (prior_close - amt) / prior_close,
+            "action_type": "SPECIAL_DIVIDEND",
+            "source": f"bhavcopy_prior_close_{prior_close:.2f}_div_{amt:.2f}",
+        })
+    n_kept = 0
     if new_factors:
         df = pd.DataFrame(new_factors).drop_duplicates(
             subset=["symbol", "ex_date", "action_type"])
         con.execute("INSERT OR REPLACE INTO adjustment_factors SELECT symbol, "
                     "ex_date, factor, action_type, source FROM df")
-        print(f"Special dividends (>= {SPECIAL_DIV_THRESHOLD:.0%}): "
-              f"{len(df)} factors")
-    return len(new_factors)
+        n_kept = len(df)
+    print(f"Special dividends      : {n_kept} factors from {len(divs):,} rows")
+    print(f"    amount unparseable   {n_unparseable:,}")
+    print(f"    no prior close       {n_no_prior:,}")
+    print(f"    below {SPECIAL_DIV_THRESHOLD:.0%} threshold  {n_below_threshold:,}")
+    print(f"    amount >= price      {n_exceeds_price:,}")
+    return n_kept
+
+
+def build_adjusted_view(con):
+    """Backward adjustment. Factors sharing an ex-date are compounded once, so a
+    combined bonus+split emits one row per trade date rather than two.
+
+    `prev_close(t)` is `close(t-1)`, whose cumulative factor includes the event at
+    `t` — unlike `close(t)`'s. Scaling both by the same factor is what left every
+    ex-date row discontinuous."""
+    con.execute("""
+CREATE OR REPLACE VIEW equity_bhavcopy_adjusted AS
+WITH events AS (
+    SELECT symbol, ex_date,
+           COALESCE(EXP(SUM(LN(factor)) FILTER (
+               WHERE action_type IN ('BONUS','SPLIT','SPECIAL_DIVIDEND'))), 1.0)
+               AS price_factor,
+           COALESCE(EXP(SUM(LN(factor)) FILTER (
+               WHERE action_type IN ('BONUS','SPLIT'))), 1.0) AS vol_factor
+    FROM adjustment_factors
+    GROUP BY symbol, ex_date
+),
+cum AS (
+    SELECT symbol, ex_date,
+           EXP(SUM(LN(price_factor)) OVER (
+               PARTITION BY symbol ORDER BY ex_date DESC
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum_price,
+           EXP(SUM(LN(vol_factor)) OVER (
+               PARTITION BY symbol ORDER BY ex_date DESC
+               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum_vol
+    FROM events
+),
+joined AS (
+    SELECT e.trade_date, e.symbol, e.series, e.open, e.high, e.low, e.close,
+           e.prev_close, e.volume, e.turnover, e.deliv_qty, e.deliv_pct,
+           COALESCE(c.cum_price, 1.0) AS cum_price,
+           COALESCE(c.cum_vol, 1.0) AS cum_vol
+    FROM equity_bhavcopy e
+    LEFT JOIN cum c ON c.symbol = e.symbol AND c.ex_date = (
+        SELECT MIN(x.ex_date) FROM events x
+        WHERE x.symbol = e.symbol AND x.ex_date > e.trade_date)
+)
+SELECT
+    trade_date, symbol, series,
+    open  * cum_price AS open,
+    high  * cum_price AS high,
+    low   * cum_price AS low,
+    close * cum_price AS close,
+    prev_close * COALESCE(
+        LAG(cum_price) OVER (PARTITION BY symbol, series ORDER BY trade_date),
+        cum_price) AS prev_close,
+    volume / NULLIF(cum_vol, 0) AS volume,
+    turnover, deliv_qty, deliv_pct
+FROM joined
+""")
+
+
+def record_evidence_exceptions(con):
+    """Screen every ex-date's compounded factor against the market's own repricing.
+
+    Prices come from the EQ+BE union: a symbol moved to BE trades every session, and
+    an EQ-only lookup would compare prints years apart. The two prints must be
+    adjacent sessions — a genuinely suspended symbol has no evidence, and comparing
+    prints 85 days apart manufactures 'gaps' no circuit band permits.
+
+    The adjustment lands at the open; the close is the official settlement price.
+    A factor reconciles if either agrees within tolerance — demanding both fails on
+    thin opens, demanding only the close fails on circuit-band days."""
+    rows = con.execute(f"""
+        WITH eqbe AS (
+            SELECT trade_date, symbol, open, close,
+                   ROW_NUMBER() OVER (PARTITION BY symbol, trade_date
+                       ORDER BY CASE series WHEN 'EQ' THEN 0 ELSE 1 END) AS rn
+            FROM equity_bhavcopy WHERE series IN ('EQ', 'BE')
+        ),
+        px AS (SELECT trade_date, symbol, open, close FROM eqbe WHERE rn = 1),
+        events AS (
+            SELECT symbol, ex_date, EXP(SUM(LN(factor))) AS f,
+                   STRING_AGG(action_type || '=' || ROUND(factor, 6), ' * ') AS legs
+            FROM adjustment_factors GROUP BY symbol, ex_date
+        )
+        SELECT v.symbol, v.ex_date, v.legs, v.f,
+               o.open / p.close AS implied_open,
+               o.close / p.close AS implied_close
+        FROM events v
+        LEFT JOIN LATERAL (
+            SELECT trade_date, open, close FROM px
+            WHERE px.symbol = v.symbol AND px.trade_date >= v.ex_date
+            ORDER BY px.trade_date LIMIT 1) o ON TRUE
+        LEFT JOIN LATERAL (
+            SELECT trade_date, close FROM px
+            WHERE px.symbol = v.symbol AND px.trade_date < v.ex_date
+            ORDER BY px.trade_date DESC LIMIT 1) p ON TRUE
+        WHERE o.open IS NOT NULL AND p.close > 0
+          AND (o.trade_date - p.trade_date) <= {EVIDENCE_MAX_GAP_DAYS}
+    """).fetchall()
+
+    n_events = con.execute(
+        "SELECT COUNT(DISTINCT (symbol, ex_date)) FROM adjustment_factors").fetchone()[0]
+    exceptions = []
+    for sym, ex, legs, f, imp_open, imp_close in rows:
+        devs = [abs(f - i) / i for i in (imp_open, imp_close)
+                if i is not None and i > 0]
+        if not devs:
+            continue
+        if min(devs) > EVIDENCE_TOLERANCE:
+            exceptions.append({
+                "symbol": sym, "ex_date": ex, "legs": legs,
+                "stored_factor": f, "implied_open": imp_open,
+                "implied_close": imp_close, "deviation": min(devs),
+            })
+    if exceptions:
+        df = pd.DataFrame(exceptions)
+        con.execute("INSERT INTO ca_evidence_exceptions SELECT symbol, ex_date, "
+                    "legs, stored_factor, implied_open, implied_close, "
+                    "deviation FROM df")
+    print(f"Evidence screen        : {len(rows):,} of {n_events:,} ex-dates have "
+          f"adjacent-session evidence; {len(exceptions)} beyond "
+          f"{EVIDENCE_TOLERANCE:.0%}")
+    return len(rows), len(exceptions), n_events
 
 
 def main():
     con = duckdb.connect(str(DB_PATH))
-
-    ne, nf, nse = purge_and_rebuild(con)
-    netf = ingest_etf_splits(con)
-    nsp = ingest_special_dividends(con)
-
-    # Rebuild adjusted view
-    con.execute("""
-CREATE OR REPLACE VIEW equity_bhavcopy_adjusted AS
-WITH price_factors AS (
-    SELECT af.symbol, af.ex_date, af.factor,
-           EXP(SUM(LN(af.factor)) OVER (
-               PARTITION BY af.symbol ORDER BY af.ex_date DESC
-               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-           )) AS cum_price_factor
-    FROM adjustment_factors af
-    WHERE af.action_type IN ('BONUS', 'SPLIT', 'SPECIAL_DIVIDEND')
-),
-vol_factors AS (
-    SELECT af.symbol, af.ex_date, af.factor,
-           EXP(SUM(LN(af.factor)) OVER (
-               PARTITION BY af.symbol ORDER BY af.ex_date DESC
-               ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-           )) AS cum_vol_factor
-    FROM adjustment_factors af
-    WHERE af.action_type IN ('BONUS', 'SPLIT')
-)
-SELECT
-    e.trade_date, e.symbol, e.series,
-    e.open   * COALESCE(pf.cum_price_factor, 1.0) AS open,
-    e.high   * COALESCE(pf.cum_price_factor, 1.0) AS high,
-    e.low    * COALESCE(pf.cum_price_factor, 1.0) AS low,
-    e.close  * COALESCE(pf.cum_price_factor, 1.0) AS close,
-    e.prev_close * COALESCE(pf.cum_price_factor, 1.0) AS prev_close,
-    e.volume / COALESCE(NULLIF(vf.cum_vol_factor, 0), 1.0) AS volume,
-    e.turnover,
-    e.deliv_qty,
-    e.deliv_pct
-FROM equity_bhavcopy e
-LEFT JOIN price_factors pf ON e.symbol = pf.symbol
-    AND pf.ex_date > e.trade_date
-    AND pf.ex_date = (
-        SELECT MIN(pf2.ex_date) FROM adjustment_factors pf2
-        WHERE pf2.symbol = e.symbol AND pf2.ex_date > e.trade_date
-          AND pf2.action_type IN ('BONUS', 'SPLIT', 'SPECIAL_DIVIDEND')
-    )
-LEFT JOIN vol_factors vf ON e.symbol = vf.symbol
-    AND vf.ex_date > e.trade_date
-    AND vf.ex_date = (
-        SELECT MIN(vf2.ex_date) FROM adjustment_factors vf2
-        WHERE vf2.symbol = e.symbol AND vf2.ex_date > e.trade_date
-          AND vf2.action_type IN ('BONUS', 'SPLIT')
-    )
-""")
-
+    n_events, n_factors, n_rejects = purge_and_rebuild(con)
+    ingest_etf_splits(con)
+    ingest_special_dividends(con)
+    build_adjusted_view(con)
+    n_tested, n_exceptions, n_ex_dates = record_evidence_exceptions(con)
     con.close()
 
     print()
     print("=" * 56)
     print("REBUILD SUMMARY")
     print("=" * 56)
-    print(f"BSE Bonus/Div events: {ne:,}")
-    print(f"Bonus factors: {nf:,}")
-    print(f"NSE CF-CA split events: {nse:,}")
-    print(f"ETF split events: {netf:,}")
-    print(f"Special dividend factors: {nsp:,}")
+    print(f"Events              : {n_events:,}")
+    print(f"Factors             : {n_factors:,}")
+    print(f"Parse rejects       : {n_rejects:,}")
+    print(f"Ex-dates            : {n_ex_dates:,}")
+    print(f"…with evidence      : {n_tested:,}")
+    print(f"Evidence failures   : {n_exceptions:,}")
 
 
 if __name__ == "__main__":
