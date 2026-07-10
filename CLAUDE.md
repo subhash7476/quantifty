@@ -125,70 +125,12 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 
 ## Options Analysis Dashboard — In Progress
 
-- **Type**: Real-time options structural analysis for Nifty 50 and BankNifty
-- **Data source**: Upstox V3 Option Chain API, 5-second snapshots
-- **Metrics**: PCR (put-call ratio), Net GEX (gamma exposure), OI buildup patterns, Max Pain, IV smile
-- **Architecture**: `OptionsProvider` (fetch + DuckDB cache) → `OptionsAnalytics` (structural engine) → `OptionsFacade` → Flask blueprint
-- **Provider**: `core/data/options_provider.py` — fetches chain from Upstox V3, caches in `data/market_data/options.duckdb`
-- **Analytics**: `core/analytics/options_analytics.py` — PCR, GEX, OI analysis, Max Pain, ATM detection
-- **Facade**: `app_facade/options_facade.py` — `get_structural_data()`, `get_option_chain()`, `get_gex_distribution()`, `get_summary()`
-- **SSE**: `core/messaging/options_publisher.py` — real-time push to UI
-- **Flask**: `/options/` blueprint + `/api/` endpoints for structural data, chain, GEX, OI distribution
-- **Expiry logic**: Nifty=Tuesday, BankNifty=Wednesday weekly; `get_weekly_expiry()` + `get_expiry_list()` (instrument DB)
-- **Instrument DB**: `data/instruments/nse_fo_instruments.duckdb` — strikes, expiries, lot sizes
-- **Tests**: `tests/analytics/test_options.py` — 17 tests (provider, analytics, integration), all passing
-- **Full plan**: `docs/archive/OPTIONS_ANALYSIS_DASHBOARD_PLAN.md`
+Real-time options structural analysis (PCR, Net GEX, OI buildup, Max Pain, IV smile) for Nifty 50 and BankNifty, from the Upstox V3 option chain at 5-second snapshots.
 
----
-
-## FTMO Challenge System — Key Files
-
-| Path | Purpose |
-|------|---------|
-| `ftmo/config.py` | All FTMO constants + `INSTRUMENT_CONFIG` (point values) + `SKIP_WEEKDAYS` |
-| `ftmo/engine.py` | `FTMOBacktestEngine(df, sweep_classifier, sweep_classifier_s2, point_value)` |
-| `ftmo/detector.py` | Sweep → structure shift → displacement → entry. Optional `sweep_classifier=` gate |
-| `ftmo/session.py` | Vectorised session classifier |
-| `ftmo/risk.py` | FTMO hard limits + internal overlay. `calculate_lot_size(state, pts, point_value=)` |
-| `ftmo/live_trader.py` | `MT5LiveTrader(login, password, server, symbol, point_value)` |
-| `ftmo/kline_tokenizer.py` | K-line tokenizer: M5 candles → discrete tokens (K-means, k=64) |
-| `ftmo/sweep_classifier.py` | False sweep classifier: logistic on token histogram + structural features |
-| `ftmo/cache_{sym}_m5.parquet` | Per-instrument M5 bar cache (e.g. `cache_xauusd_m5.parquet`) |
-| `ftmo/trade_log_{sym}.csv` | Per-instrument live trade log |
-| `ftmo/sweep_clf.pkl` | Combined (both sessions) sweep classifier |
-| `ftmo/sweep_clf_s1.pkl` | Session 1 (London) sweep classifier |
-| `ftmo/sweep_clf_s2.pkl` | Session 2 (NY) sweep classifier |
-| `scripts/label_sweeps.py` | Extract labeled sweeps with session tag: `(hist, struct, label, session_num)` |
-| `scripts/train_sweep_clf.py` | Train combined + S1 + S2 classifiers in one pass |
-| `docs/FTMO_CHALLENGE_SYSTEM.md` | Full system design, backtest results, CLI reference |
-
-### FTMO Backtest + Filter Training
-
-```bash
-python -m ftmo.cli backtest                         # baseline XAUUSD
-python -m ftmo.cli backtest --symbol XAGUSD         # XAGUSD backtest
-python scripts/label_sweeps.py                      # generate training labels (with session tag)
-python scripts/train_sweep_clf.py                   # train combined + S1 + S2 classifiers
-python -m ftmo.cli backtest --sweep-filter          # A/B: per-session classifiers preferred
-python -m ftmo.cli live --login X --password Y --server Z [--symbol XAGUSD]
-python -m ftmo.cli multi-live --config ftmo/accounts.json   # parallel accounts
-```
-
-### Sweep Classifier — Design
-
-- **Tokenizer**: each candle → body_ratio + upper_wick/ATR + lower_wick/ATR → K-means cluster (0–63)
-- **Features**: 64-dim token histogram of 20 pre-sweep bars + 3 structural features (extension, body ratio, close retrace)
-- **Model**: LogisticRegression with `class_weight='balanced'`, threshold F1-optimized on training data
-- **Gate in `scan_session()`**: if `classifier.is_valid(...)` returns False, sweep is skipped before structure shift detection runs
-- **S1/S2 split**: live trader routes `_sweep_clf_s1` to London session, `_sweep_clf_s2` to NY session; fallback to combined if per-session files absent
-- **Trained on 348 trades** — re-run `label_sweeps.py` + `train_sweep_clf.py` after label format was updated to 4-tuple (session tag added Mar 2026)
-
-### TP / Pricing — Important
-
-- **Signal `entry_price`**: structural displacement zone level (historical bar)
-- **Actual fill**: live MT5 bid/ask at order time — may differ from zone price
-- **TP is computed from actual fill**: `price ± RR_RATIO × risk_points` — guarantees true 2R
-- **SL stays structural**: sweep extreme + 0.15 × ATR buffer (not adjusted for fill)
+- **Flow**: `options_provider.py` → `options_analytics.py` → `options_facade.py` → `/options/` blueprint; SSE push via `options_publisher.py` (paths in Key Directories above)
+- **Expiry**: Nifty=Tuesday, BankNifty=Wednesday weekly — `get_weekly_expiry()` / `get_expiry_list()` against `data/instruments/nse_fo_instruments.duckdb`
+- **Tests**: `tests/analytics/test_options.py` — 17 tests, passing
+- **Full detail**: `docs/archive/OPTIONS_ANALYSIS_DASHBOARD_PLAN.md`
 
 ---
 
@@ -200,7 +142,6 @@ python -m ftmo.cli multi-live --config ftmo/accounts.json   # parallel accounts
 - Single-period validation is misleading — always run full walk-forward
 - Index data (Nifty) has volume=0 — kills vol_z and VWAP filters silently
 - Position tracker not updated → equity=cash only, DD wrong, TP/SL/time stops never fire
-- **Sweep classifier trained on 348 trades** — small dataset; logistic preferred over Transformer to avoid overfitting; validate with held-out period before enabling live
 
 ---
 
