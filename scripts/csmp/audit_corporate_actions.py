@@ -87,11 +87,15 @@ def run(con):
     # === 2. Factor derivation ================================================
     w("## 2. Factor Derivation\n")
     w("**Convention:** backward adjustment — post-event prices unchanged, "
-      "pre-event prices scaled. Bonus: factor = E/(E+B). Split/sub-division: "
-      "factor = new_FV/old_FV (FV 10->1 => 0.1). Special dividend: "
-      "factor = (P-D)/P where D >= 20% of prior close P. "
-      "No plain-float fallback exists — every factor is derived from source "
-      "evidence (R1).\n")
+      "pre-event prices scaled. Bonus: `factor = E/(E+B)` (existing shares "
+      "divided by total shares after bonus). Split/sub-division: "
+      "`factor = new_FV/old_FV` (FV 10->1 => factor 0.1; FV 10->5 => "
+      "factor 0.5). This scaling is applied to pre-ex prices via "
+      "`adjusted = raw * factor`, so a sub-division reduces pre-event "
+      "prices to comparability with post-event prices. "
+      "Special dividend: `factor = (P-D)/P` where `D >= 20%` of prior "
+      "close `P`. No plain-float fallback exists — every factor is "
+      "derived from source evidence (R1).\n")
 
     factor_by_type = con.execute(
         "SELECT action_type, COUNT(*), ROUND(MIN(factor),6), "
@@ -138,17 +142,17 @@ def run(con):
             "WHERE symbol=? AND series='EQ' AND trade_date >= ? "
             "ORDER BY trade_date LIMIT 1", [sym, ex]
         ).fetchone()
-        adj_before_r = con.execute(
-            "SELECT close FROM equity_bhavcopy_adjusted "
-            "WHERE symbol=? AND series='EQ' AND trade_date < ? "
-            "ORDER BY trade_date DESC LIMIT 1", [sym, ex]
-        ).fetchone()
+        # R3: per-event adjusted price = raw prior close * current factor.
+        # The cumulative adjusted view carries all prior events' factors too,
+        # so adj_before != raw_after for multi-event symbols. Test ONLY the
+        # current event's effect: raw_before * factor should approximate
+        # raw_after (the post-event close).
         r_bef = before[0] if before else None
         r_aft = after[0] if after else None
-        adj = adj_before_r[0] if adj_before_r else None
+        adj_bef = r_bef * fac if r_bef else None
         match = "—"
-        if r_aft and adj and r_aft > 0:
-            if abs(adj - r_aft) / r_aft <= 0.10:
+        if r_aft and adj_bef and r_aft > 0:
+            if abs(adj_bef - r_aft) / r_aft <= 0.10:
                 match = "PASS"
                 verified_ok += 1
             else:
@@ -157,9 +161,12 @@ def run(con):
         w(f"| {sym} | {ex} | {at} | {fac:.6f} | "
           + (f"{r_bef:.2f}" if r_bef else "—") + " | "
           + (f"{r_aft:.2f}" if r_aft else "—") + " | "
-          + (f"{adj:.2f}" if adj else "—") + " | {match} |")
-    w(f"\nHand-verify: {verified_ok} PASS, {verified_fail} FAIL "
-      f"(assertion: adj_before ~ raw_after within 10%)\n")
+          + (f"{adj_bef:.2f}" if adj_bef else "—") + " | {match} |")
+    w(f"\nHand-verify assertions: {verified_ok} PASS, {verified_fail} FAIL "
+      f"(tolerance: adj_before vs raw_after within 10%).")
+    if verified_fail > 0:
+        w(f"**GATE BLOCKED — all {verified_fail} FAIL(s) must be resolved "
+          f"before gate (b) can PASS (R3).**\n")
 
     # === 3. Move-classification screen =======================================
     w("## 3. Move-Classification Screen\n")
