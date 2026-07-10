@@ -800,7 +800,23 @@ T3 and T6 land; do not tune it. Gate (c) stays HELD until the Lead Reviewer sign
 
 ---
 
-## Prompt 3 — Gate (c): Survivorship / point-in-time universe membership + audit  **(ISSUED 2026-07-10)**
+## Prompt 3 — Gate (c): Survivorship / point-in-time universe membership + audit  **(PASSED 2026-07-11)**
+
+> **Status: PASSED** (`CSMP_GATE_C_LEAD_REVIEW.md`, 2026-07-11). DeepSeek V4 implemented
+> `build_universe.py` / `audit_universe.py`; Claude Lead-Reviewed, re-deriving every load-bearing
+> claim against the store. All seven acceptance criteria hold: `equity_bhavcopy` bit-unmodified
+> (7,030,920); 35,000 member-cells across 175 monthly rebalances at exactly 200 each; the no-leak
+> point-in-time recomputation agrees with stored membership on all 16 sampled rebalances; 94
+> delisted/merged entities retained for their trading life with no present-day survivor list as an
+> input (112 of 200 first-rebalance members absent from today's NIFTY-200); 0 non-equity cells
+> (verified — `ICICIMOM30` resolved via the NSE `EQUITY_L` master and named as a hole, 0 cells);
+> audit regenerates byte-identically. Two findings hardened in-review (operator-authorized fix):
+> **F1** deterministic tiebreaks added where the report sliced tie-ambiguous SELECTs (criterion-6
+> compliance was incidental, now guaranteed — no count changed); **F2** §3 prose corrected to not
+> overclaim the no-leak test as "adversarial/truncated-store" (it is an independent PIT
+> reimplementation cross-check). Independence caveat: Claude reviewed and applied the hardening;
+> the gate passed on its own numbers before any fix. Gate (b)'s `ICICIMOM30` gap is closed here.
+> Gate (d) unblocked.
 
 **Objective.** Produce a **point-in-time NIFTY-200 universe** for the CSMP dev and sealed
 windows: for every monthly rebalance date `t` in 2012-01 → present, the set of ~200 symbols
@@ -973,14 +989,106 @@ the no-leak test returns its positive verdict in-run; the audit's fit-for-purpos
 PASS-eligible on its own numbers (or renders the stop language per standing constraint 4); no
 next-gate work started. Gate (d) stays HELD until the Lead Reviewer signs off on the report.
 
-## Prompt 4 — Gate (d): Delivery-equity fee model  **(HELD)**
+## Prompt 4 — Gate (d): Delivery-equity fee model  **(ISSUED 2026-07-11)**
 
-Preview: `core/execution/equity/delivery_fees.py` mirroring the options fee model
-pattern (`core/execution/options/fees.py`) — effective-dated statutory schedule: STT on
-delivery (both sides), stamp duty (buy side), NSE transaction charge, SEBI turnover
-fee, GST on the applicable base, DP charge per sell line; era-accurate rates with
-primary-source citations in the docstring; unit tests in
-`tests/execution/test_delivery_fees.py` with hand-computed arithmetic.
+**Objective.** A deterministic, effective-dated **delivery-equity fee model** for NSE cash
+delivery — the statutory + exchange cost of a buy and a sell leg for a long-only monthly-rebalance
+strategy — mirroring the proven options fee model (`core/execution/options/fees.py`). Era-accurate
+rates, every rate carrying a primary-source citation, unit-tested with hand-computed arithmetic.
+
+**Why this gate exists (charter §5-d).** Gate (e)'s transmission triage and the eventual
+consumer both need a net-of-fee number, and momentum rebalancing turns over ~30–40 delivery names
+monthly — fees are not negligible and the STT/stamp/GST schedule has changed several times across
+the dev window (2012→present). A wrong or era-blind fee model silently biases every net-of-fee
+comparison. This is a bounded, well-precedented gate: the options program's gate (b)
+(`core/execution/options/fees.py`, 12 tests green) is the exact pattern to follow.
+
+**Scope — this gate is a fee *model*, not a backtest.** No returns, no universe scoring, no
+signal work. Just the cost function and its tests. Delivery cash equity only (long-only, both
+legs held to delivery); no intraday, no F&O, no leverage.
+
+**Deliverables.**
+
+1. `core/execution/equity/delivery_fees.py` — the model. Mirror the options module's shape:
+   an **effective-dated schedule** (each statutory rate keyed by the date range it was in force)
+   and a compute function returning an **itemized breakdown** (not just a total), so the audit and
+   tests can assert each component. Suggested surface (adapt to the options module's actual API
+   once you read it):
+   - a function that, given `side ∈ {BUY, SELL}`, `trade_value` (₹), and `trade_date`, returns an
+     itemized dict/dataclass: `brokerage, stt, exchange_txn, sebi_fee, stamp_duty, gst, dp_charge,
+     total`.
+   - all rates resolved from the effective-dated schedule by `trade_date` — no rate hardcoded at
+     the call site.
+2. `tests/execution/test_delivery_fees.py` — unit tests with **hand-computed** expected values
+   (the AAA pattern, `testing.md`), covering: each component in isolation; a full buy leg and a
+   full sell leg; **at least one trade date in each rate era** (so an era boundary that shifts a
+   rate is exercised, not just the current schedule); the GST base (GST applies to brokerage +
+   exchange txn + SEBI, **not** to STT or stamp duty — verify this explicitly); and the DP-charge
+   semantics (per sell scrip per day, flat — not ad-valorem).
+3. No separate audit script is required (this gate is code + tests, not a data audit). Instead,
+   the module docstring **is** the citation record: every rate carries its primary source and the
+   effective date of each change, in the docstring, in the gate-(a)/(b) discipline (a number may
+   not stand without the evidence it summarizes).
+
+**Components and the treatment each requires (verify every rate against a primary source — do
+not trust these notes blindly; they mark the *shape*, not the authoritative value):**
+
+- **Brokerage.** The charter (§1) assumes **zero brokerage on delivery at a discount broker**.
+  Model brokerage as ₹0 for the delivery-equity base case, stated as the discount-broker
+  assumption with a citation, and make it a named parameter (default 0) so a non-zero schedule is
+  representable without a code change — do not scatter the assumption.
+- **STT (Securities Transaction Tax).** Delivery equity is taxed on **both** buy and sell legs.
+  Source the rate and its effective-dated history (it has changed) from the Income-Tax /
+  Finance-Act primary source; cite the notification and effective date for each era.
+- **Exchange transaction charge (NSE cash).** Ad-valorem on turnover; NSE has revised it (and the
+  2024-10 revision applies here). Source from the NSE circular; effective-dated.
+- **SEBI turnover fee.** Ad-valorem, both legs; source from the SEBI circular.
+- **Stamp duty.** **Buy side only** since the 2020-07 uniform central regime; **pre-2020 it was
+  state-wise** — this is the trickiest era boundary and must be handled and disclosed explicitly
+  (state the assumption for the pre-2020 dev window and cite it; a single documented assumption is
+  fine, a silent one is not).
+- **GST.** 18% on the **sum of brokerage + exchange txn + SEBI fee** only. Not on STT, not on
+  stamp duty. Verify the base in a test.
+- **DP charge.** A flat per-scrip charge on the **sell** leg (per scrip per day), plus GST; source
+  the depository/broker schedule and cite it. Model per sell line.
+
+**Determinism & reproducibility.** Pure function of `(side, trade_value, trade_date, params)` —
+no I/O, no clock, no network. Same inputs → byte-identical breakdown. The effective-dated schedule
+is a module constant; adding a future rate must not change any past computation.
+
+**Standing constraints (from the top of this document) that bind here specifically:**
+
+- Fee code lives in `core/execution/equity/` (new package) with tests in `tests/execution/`
+  (standing constraint 1). **No changes to `core/execution/options/`, frozen components, the MSI
+  runtime, the DRA, or the execution stack** — this is additive; you are following the options
+  module's pattern, not editing it.
+- No gate-(e) work (no rank IC, no top-bucket P&L, no universe scoring). One gate per prompt.
+
+**Acceptance criteria (falsifiable — the review will check these exact claims):**
+
+1. `core/execution/equity/delivery_fees.py` exists; every statutory rate is resolved from an
+   effective-dated schedule keyed by `trade_date`, and every rate in the schedule carries a
+   primary-source citation + effective date in the docstring.
+2. The compute function returns an **itemized** breakdown whose components sum to `total`.
+3. GST is computed on `brokerage + exchange_txn + sebi_fee` only — asserted by a test; STT and
+   stamp duty are outside the GST base.
+4. Stamp duty is buy-side-only under the post-2020 regime, and the pre-2020 treatment is handled
+   with a single **disclosed, cited** assumption.
+5. Tests cover each component, a full buy leg and a full sell leg, **and at least one date in each
+   rate era**, all with hand-computed expected values; the full suite passes (report the count).
+6. The model is a pure, deterministic function (no I/O); same inputs → identical output.
+7. No diffs outside `core/execution/equity/` and `tests/execution/`. No frozen-component diffs.
+   No `core/execution/options/` edits. No gate-(e) work.
+
+**Stop condition.** If an era-accurate rate for any component cannot be sourced from a primary
+citation for a span of the dev window, **stop and report** the span and the missing rate (standing
+constraint 4) — do not carry a guessed rate silently. A documented, cited assumption (e.g., the
+pre-2020 stamp-duty state) is acceptable and is not a stop; an undocumented guess is not.
+
+**Definition of done.** The module and tests run clean on a fresh checkout; all seven acceptance
+criteria hold; every rate is cited; the test suite is green with hand-computed values; no
+frozen-component or options-module diffs; no gate-(e) work started. Gate (e) stays HELD until the
+Lead Reviewer signs off.
 
 ## Prompt 5 — Gate (e): Transmission triage  **(HELD — the D1-lesson gate)**
 
@@ -996,9 +1104,10 @@ gate.
 
 ---
 
-*Prompts 4–5 remain held deliberately: each is finalized only after the preceding gate's
-review, so findings propagate forward instead of being discovered twice. Prompt 2 was
-issued 2026-07-10 on gate (a)'s final PASS (`CSMP_GATE_A_LEAD_REVIEW.md` Round 8) and reached
-PASSED WITH DOCUMENTED EXCEPTIONS the same day (`CSMP_GATE_B_IMPLEMENTATION_R5.md`). Prompt 3
-was issued 2026-07-10 on that gate-(b) pass; gate (c) now inherits `symbol_isin`,
-`symbol_changes`, `ca_scope_exclusions`, and the residual `ICICIMOM30` instrument-master gap.*
+*Prompt 5 remains held deliberately: it is finalized only after gate (d)'s review, so findings
+propagate forward instead of being discovered twice. Prompt 2 was issued 2026-07-10 on gate (a)'s
+final PASS (`CSMP_GATE_A_LEAD_REVIEW.md` Round 8) and reached PASSED WITH DOCUMENTED EXCEPTIONS the
+same day (`CSMP_GATE_B_IMPLEMENTATION_R5.md`). Prompt 3 was issued 2026-07-10 on that gate-(b) pass
+and reached PASSED 2026-07-11 (`CSMP_GATE_C_LEAD_REVIEW.md`), closing the `ICICIMOM30` gap and
+producing the point-in-time `universe_membership` panel. Prompt 4 (gate (d), delivery-equity fee
+model) was issued 2026-07-11 on that gate-(c) pass.*

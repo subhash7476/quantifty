@@ -1,0 +1,489 @@
+"""CSMP Gate (c) — point-in-time NIFTY-200 universe membership.
+
+Universe rule (charter D1 — locked, no tuning freedom): **top 200 equities by
+6-month median daily turnover**, monthly rebalance on the last full session of
+each month, computed from the ingested store only. The parameters (200, the 6-month
+median) are charter-locked. A split conserves price x quantity, so turnover needs
+no corporate-action adjustment — ranking runs on raw `turnover` (gate a confirms the
+field is populated for the whole span: 0 NULLs), and gate (b)'s adjusted view is not
+consulted.
+
+Source decision (this script evidences it; the audit re-states it): NSE publishes no
+freely-obtainable point-in-time index-constituent *change history* (add/drop with
+effective dates) back to the dev-window start — the `niftyindices` CSV path answers a
+wrong-content 200 (an HTML shell) and the archives carry only the *current* survivor
+list. The mechanical top-200-by-turnover rule is therefore the charter-locked
+fallback, chosen on evidence, not assertion. A snapshot of today's list is fetched
+for a validation cross-check ONLY (overlap with the most-recent rebalance); it is
+never a membership input — a present-day survivor list is exactly the bias this gate
+exists to prevent.
+
+Inheritance (consumed, not re-derived):
+  symbol_isin       non-equity filter (INE* = company; INF*/IN0*/IN9* = fund / SGB /
+                    govt paper; name pattern `%BEES%/%ETF%/%GOLD%` is a fallback only)
+  symbol_changes    entity continuity across renames (INFOSYSTCH -> INFY is one entity)
+  instrument_master NSE EQUITY_L company master — resolves recent IPOs that carry no
+                    ISIN in the cached raw payloads (ETERNAL, GROWW, SWIGGY, ...) and
+                    leaves ICICIMOM30 (a fund) absent, i.e. named as a hole
+  ca_scope_exclusions / ca_evidence_exceptions — a price-adjustment concern, not a
+                    membership concern: flagged for gate (e), never dropped here
+
+Usage:
+    python scripts/csmp/build_universe.py
+"""
+
+import csv
+import io
+import re
+import sys
+import urllib.error
+import urllib.request
+import ssl
+from collections import Counter
+from datetime import date
+from pathlib import Path
+
+import duckdb
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+DB_PATH = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
+RAW_DIR = ROOT / "data" / "market_data" / "universe_raw"
+
+UNIVERSE_SIZE = 200
+LOOKBACK_MONTHS = 6
+TRADING_FLOOR = 0.60
+FULL_SESSION_MIN = 200
+REBAL_START = date(2012, 1, 1)
+
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+SSL_CTX = ssl.create_default_context()
+SSL_CTX.check_hostname = False
+SSL_CTX.verify_mode = ssl.CERT_NONE
+
+RE_RIGHTS = re.compile(r"-RE\d*$")
+NAME_NON_EQUITY = re.compile(r"(BEES|ETF|GOLD)")
+
+EQUITY_L_URL = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
+NIFTY200_CSV_URL = "https://archives.nseindia.com/content/indices/ind_nifty200list.csv"
+NIFTYINDICES_CSV_URL = "https://www.niftyindices.com/IndexConstituent/ind_Nifty200.csv"
+NIFTYINDICES_HIST_URL = (
+    "https://archives.nseindia.com/content/indices/historical/"
+    "IndexConstituentHistory.xlsx")
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS universe_membership (
+    rebalance_date  DATE,
+    symbol          VARCHAR,
+    rank            INTEGER,
+    turnover_median DOUBLE,
+    method          VARCHAR,
+    PRIMARY KEY (rebalance_date, symbol)
+);
+CREATE TABLE IF NOT EXISTS universe_intervals (
+    symbol      VARCHAR,
+    entity      VARCHAR,
+    entry_date  DATE,
+    exit_date   DATE,
+    PRIMARY KEY (entity)
+);
+CREATE TABLE IF NOT EXISTS instrument_master (
+    symbol          VARCHAR,
+    name            VARCHAR,
+    instrument_type VARCHAR,
+    series          VARCHAR,
+    listing_date    VARCHAR,
+    isin            VARCHAR,
+    face_value      VARCHAR,
+    source          VARCHAR,
+    PRIMARY KEY (symbol)
+);
+CREATE TABLE IF NOT EXISTS universe_eligibility (
+    symbol  VARCHAR,
+    entity  VARCHAR,
+    class   VARCHAR,
+    via     VARCHAR,
+    PRIMARY KEY (symbol)
+);
+CREATE TABLE IF NOT EXISTS universe_probes (
+    probe        VARCHAR,
+    url          VARCHAR,
+    outcome      VARCHAR,
+    status       VARCHAR,
+    note         VARCHAR
+);
+"""
+
+
+# --------------------------------------------------------------------------
+# HTTP fetch with shape+identity validation (gate-a G4 discipline)
+# --------------------------------------------------------------------------
+def _http_get(url, timeout=25, referer=None):
+    headers = {"User-Agent": UA, "Accept": "*/*"}
+    if referer:
+        headers["Referer"] = referer
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout, context=SSL_CTX) as r:
+        return r.status, r.read()
+
+
+def _probe(url, timeout=20):
+    try:
+        st, body = _http_get(url, timeout=timeout)
+        return str(st), len(body), body[:160]
+    except urllib.error.HTTPError as e:
+        try:
+            body = e.read()[:160]
+        except Exception:
+            body = b""
+        return f"HTTP {e.code}", len(body), body
+    except (urllib.error.URLError, TimeoutError, OSError) as e:
+        return f"ERR {type(e).__name__}", 0, str(e).encode()[:160]
+
+
+def fetch_instrument_master(con):
+    """NSE EQUITY_L.csv — the authoritative company/instrument master (ISIN, name,
+    listing date, face value). Cached under universe_raw/ for deterministic re-runs."""
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    cache = RAW_DIR / "equity_l.csv"
+    if cache.exists():
+        text = cache.read_bytes().decode("utf-8-sig", "replace")
+        outcome = "cached"
+        status = "local"
+    else:
+        status, raw = _http_get(EQUITY_L_URL, timeout=40)
+        text = raw.decode("utf-8-sig", "replace")
+        cache.write_bytes(raw)
+        outcome = f"fetched HTTP {status}"
+    reader = csv.DictReader(io.StringIO(text))
+    reader.fieldnames = [(f or "").strip() for f in reader.fieldnames]
+    rows = []
+    for r in reader:
+        sym = (r.get("SYMBOL") or "").strip().upper()
+        if not sym:
+            continue
+        isin = (r.get("ISIN NUMBER") or "").strip().upper()
+        itype = ("equity" if isin.startswith("INE") else
+                 "fund" if isin.startswith("INF") else
+                 "govt" if isin.startswith(("IN0", "IN9")) else "unknown")
+        rows.append({
+            "symbol": sym,
+            "name": (r.get("NAME OF COMPANY") or "").strip(),
+            "instrument_type": itype,
+            "series": (r.get("SERIES") or "").strip(),
+            "listing_date": (r.get("DATE OF LISTING") or "").strip(),
+            "isin": isin,
+            "face_value": (r.get("FACE VALUE") or "").strip(),
+            "source": "NSE_EQUITY_L",
+        })
+    df = pd.DataFrame(rows)
+    con.execute("DELETE FROM instrument_master")
+    con.execute("INSERT INTO instrument_master SELECT symbol, name, instrument_type, "
+                "series, listing_date, isin, face_value, source FROM df")
+    con.execute("INSERT INTO universe_probes VALUES (?, ?, ?, ?, ?)",
+                ["instrument_master", EQUITY_L_URL, outcome, status,
+                 f"{len(rows)} companies; {sum(1 for r in rows if r['isin'].startswith('INE'))} INE ISIN"])
+    return rows
+
+
+def probe_official_membership(con):
+    """Attempt the official point-in-time NIFTY-200 history. The CSV API answers a
+    wrong-content 200 (HTML) and no dated change-history file is published; the
+    archives carry only the current survivor list (fetched for validation ONLY)."""
+    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    probes = []
+
+    status, n, head = _probe(NIFTYINDICES_CSV_URL, timeout=20)
+    wrong = head.lstrip().lower().startswith(b"<!doctype html")
+    probes.append(("niftyindices_csv_api", NIFTYINDICES_CSV_URL,
+                   f"{status} len={n} {'wrong-content(HTML)' if wrong else 'csv'}",
+                   "survivor_current_or_unreachable",
+                   "Answers an HTML shell, not the CSV — needs a session/CSRF token "
+                   "the public endpoint does not expose."))
+
+    status2, n2, head2 = _probe(NIFTYINDICES_HIST_URL, timeout=20)
+    probes.append(("historical_change_history", NIFTYINDICES_HIST_URL,
+                   f"{status2} len={n2}", "absent",
+                   "No dated constituent change-history file at this path (404)."))
+
+    # The current constituent list: obtainable, but survivor-biased -> validation only.
+    cur_cache = RAW_DIR / "nifty200_current.csv"
+    try:
+        st, raw = _http_get(NIFTY200_CSV_URL, timeout=25)
+        cur_cache.write_bytes(raw)
+        cur_syms = set()
+        for r in csv.DictReader(io.StringIO(raw.decode("utf-8-sig", "replace"))):
+            s = (r.get("Symbol") or r.get("SYMBOL") or "").strip().upper()
+            if s:
+                cur_syms.add(s)
+        probes.append(("current_list_validation_only", NIFTY200_CSV_URL,
+                       f"{st} {len(cur_syms)} symbols", "survivor_current",
+                       "Today's list. VALIDATION ONLY — never a membership input. "
+                       "A present-day constituent list validates a reconstruction, "
+                       "it is not a source of one."))
+    except Exception as e:
+        probes.append(("current_list_validation_only", NIFTY200_CSV_URL,
+                       f"ERR {type(e).__name__}", "unreachable",
+                       "Could not fetch; validation cross-check skipped."))
+    for p in probes:
+        con.execute("INSERT INTO universe_probes VALUES (?, ?, ?, ?, ?)", list(p))
+    method = "turnover_top200"
+    print(f"Official membership : unobtainable as point-in-time history -> "
+          f"mechanical {method}")
+    return method
+
+
+# --------------------------------------------------------------------------
+# Entity continuity (rename chains via union-find on symbol_changes)
+# --------------------------------------------------------------------------
+class UnionFind:
+    def __init__(self):
+        self.parent = {}
+
+    def find(self, x):
+        if x not in self.parent:
+            self.parent[x] = x
+            return x
+        root = x
+        while self.parent[root] != root:
+            root = self.parent[root]
+        while self.parent[x] != root:
+            self.parent[x], x = root, self.parent[x]
+        return root
+
+    def union(self, a, b):
+        ra, rb = self.find(a), self.find(b)
+        if ra == rb:
+            return
+        # deterministic tie-break keeps the representative stable across runs
+        self.parent[max(ra, rb)] = min(ra, rb)
+
+
+def build_entities(con):
+    uf = UnionFind()
+    n_records = 0
+    for old, new in con.execute(
+            "SELECT UPPER(old_symbol), UPPER(new_symbol) FROM symbol_changes").fetchall():
+        if old and new:
+            uf.union(old, new)
+            n_records += 1
+    store_syms = [r[0] for r in con.execute(
+        "SELECT DISTINCT symbol FROM equity_bhavcopy WHERE series IN ('EQ','BE')").fetchall()]
+    rows = [{"symbol": s, "entity": uf.find(s)} for s in store_syms]
+    df = pd.DataFrame(rows)
+    con.execute("CREATE OR REPLACE TEMP TABLE symbol_entity AS "
+                "SELECT CAST(symbol AS VARCHAR) symbol, CAST(entity AS VARCHAR) entity FROM df")
+    return rows, n_records
+
+
+# --------------------------------------------------------------------------
+# Eligibility classification (ISIN primary, name fallback, instrument master)
+# --------------------------------------------------------------------------
+def classify_eligibility(con):
+    """Per store symbol -> (entity, class, via).
+
+    The charter eligibility is "equity (not INF*, not name-pattern fallback)": equity is
+    the DEFAULT; instruments are excluded only when positively identified as non-equity.
+    class in:
+      equity_confirmed     INE* ISIN in symbol_isin, or company in the NSE EQUITY_L master
+      equity_unidentified  no ISIN anywhere, not name-pattern, not a rights entitlement —
+                           default-equity but FLAGGED (a hole: ICICIMOM30 is here; these
+                           almost never rank top-200 and are named in the audit, not dropped)
+      non_equity_isin      INF* (mutual-fund scheme / ETF), IN0*/IN9* (govt paper / SGB)
+      non_equity_name      no ISIN, matches %BEES%/%ETF%/%GOLD% (gate-a H2 fallback)
+      rights_entitlement   `-RE` suffix (NSE rights entitlement, not a share line)
+
+    Entity continuity: an entity is equity if ANY of its component symbols is equity, so a
+    rename whose old ticker carries no ISIN (VATECH->WABAG, ANGELBRKG->ANGELONE) keeps the
+    entity eligible across the rename. Membership is computed per entity."""
+    isin_map = {r[0]: (r[1] or "") for r in con.execute(
+        "SELECT UPPER(symbol), UPPER(isin) FROM symbol_isin").fetchall()}
+    master_isin = {r[0]: (r[1] or "") for r in con.execute(
+        "SELECT UPPER(symbol), UPPER(isin) FROM instrument_master").fetchall()}
+
+    rows = con.execute(
+        "SELECT se.symbol, se.entity FROM symbol_entity se ORDER BY se.symbol").fetchall()
+    out = []
+    for symbol, entity in rows:
+        isin = isin_map.get(symbol)
+        if isin:
+            if isin.startswith("INE"):
+                cls, via = "equity_confirmed", "symbol_isin"
+            else:
+                cls, via = "non_equity_isin", f"isin:{isin[:3]}"
+        else:
+            misin = master_isin.get(symbol)
+            if misin:
+                if misin.startswith("INE"):
+                    cls, via = "equity_confirmed", "instrument_master"
+                else:
+                    cls, via = "non_equity_isin", f"master:{misin[:3]}"
+            elif RE_RIGHTS.search(symbol):
+                cls, via = "rights_entitlement", "suffix:-RE"
+            elif NAME_NON_EQUITY.search(symbol):
+                cls, via = "non_equity_name", "name_pattern"
+            else:
+                cls, via = "equity_unidentified", "no_isin_no_master"
+        out.append({"symbol": symbol, "entity": entity, "class": cls, "via": via})
+    con.execute("DELETE FROM universe_eligibility")
+    df = pd.DataFrame(out)
+    con.execute("INSERT INTO universe_eligibility SELECT symbol, entity, class, via FROM df")
+    return out
+
+
+# --------------------------------------------------------------------------
+# Rebalance calendar + lookback
+# --------------------------------------------------------------------------
+def rebalance_dates(con):
+    rows = con.execute("""
+        WITH m AS (
+            SELECT EXTRACT(YEAR FROM trade_date)::INT y,
+                   EXTRACT(MONTH FROM trade_date)::INT mo, trade_date
+            FROM trading_calendar WHERE n_symbols >= ?)
+        SELECT MAX(trade_date) FROM m GROUP BY y, mo
+        HAVING MAX(trade_date) >= ? ORDER BY 1
+    """, [FULL_SESSION_MIN, REBAL_START]).fetchall()
+    return [r[0] for r in rows]
+
+
+def lookback_start(t):
+    total = t.year * 12 + (t.month - 1) - (LOOKBACK_MONTHS - 1)
+    return date(total // 12, total % 12 + 1, 1)
+
+
+# --------------------------------------------------------------------------
+# Membership computation (the mechanical turnover rule, point-in-time)
+# --------------------------------------------------------------------------
+def build_membership(con, method):
+    rebal = rebalance_dates(con)
+    con.execute("""
+        CREATE OR REPLACE TEMP TABLE entity_turnover AS
+        SELECT se.entity, e.trade_date, SUM(e.turnover) AS turnover
+        FROM equity_bhavcopy e
+        JOIN symbol_entity se ON se.symbol = e.symbol
+        WHERE e.series IN ('EQ','BE')
+        GROUP BY se.entity, e.trade_date
+    """)
+    con.execute("CREATE INDEX IF NOT EXISTS _et ON entity_turnover(entity, trade_date)")
+
+    con.execute("CREATE OR REPLACE TEMP TABLE equity_entities AS "
+                "SELECT DISTINCT entity FROM universe_eligibility "
+                "WHERE class IN ('equity_confirmed','equity_unidentified')")
+
+    membership = []
+    for t in rebal:
+        lb = lookback_start(t)
+        rows = con.execute("""
+            WITH sess AS (
+                SELECT COUNT(*) n FROM trading_calendar
+                WHERE n_symbols >= ? AND trade_date BETWEEN ? AND ?
+            ),
+            traded AS (
+                SELECT et.entity, MEDIAN(et.turnover) AS med,
+                       SUM(CASE WHEN tc.n_symbols >= ? THEN 1 ELSE 0 END) AS nd
+                FROM entity_turnover et
+                JOIN trading_calendar tc ON tc.trade_date = et.trade_date
+                WHERE et.trade_date BETWEEN ? AND ? AND et.turnover > 0
+                GROUP BY et.entity
+            ),
+            on_t AS (          -- must be actually trading on the rebalance session
+                SELECT entity FROM entity_turnover WHERE trade_date = ? AND turnover > 0
+            ),
+            elig AS (
+                SELECT t.entity, t.med
+                FROM traded t
+                CROSS JOIN sess
+                JOIN on_t USING (entity)
+                WHERE t.entity IN (SELECT entity FROM equity_entities)
+                  AND t.nd >= ? * sess.n
+            ),
+            label AS (         -- the entity's ticker in force on t (rename-aware)
+                SELECT se.entity, b.symbol
+                FROM equity_bhavcopy b
+                JOIN symbol_entity se ON se.symbol = b.symbol
+                WHERE b.trade_date = ? AND b.turnover > 0
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY se.entity ORDER BY b.turnover DESC) = 1
+            )
+            SELECT l.symbol, e.entity, e.med
+            FROM elig e
+            JOIN label l ON l.entity = e.entity
+        """, [FULL_SESSION_MIN, lb, t, FULL_SESSION_MIN, lb, t, t, TRADING_FLOOR, t]).fetchall()
+        ranked = sorted(rows, key=lambda r: (-r[2], r[0]))[:UNIVERSE_SIZE]
+        for rank, (symbol, entity, med) in enumerate(ranked, 1):
+            membership.append({
+                "rebalance_date": t, "symbol": symbol, "rank": rank,
+                "turnover_median": float(med), "method": method, "entity": entity,
+            })
+    con.execute("DELETE FROM universe_membership")
+    df = pd.DataFrame([{k: v for k, v in r.items() if k != "entity"} for r in membership])
+    con.execute("INSERT INTO universe_membership SELECT rebalance_date, symbol, rank, "
+                "turnover_median, method FROM df")
+    return membership, rebal
+
+
+def build_intervals(con, membership):
+    """Per entity: first/last rebalance of membership. symbol = the entity's most
+    recent active ticker (canonical label); exit_date NULL while still a member."""
+    if not membership:
+        con.execute("DELETE FROM universe_intervals")
+        return
+    df = pd.DataFrame(membership)
+    last_ticker = (df.sort_values(["entity", "rebalance_date"])
+                     .drop_duplicates("entity", keep="last")[["entity", "symbol"]]
+                     .rename(columns={"symbol": "last_symbol"}))
+    spans = (df.groupby("entity")
+               .agg(entry_date=("rebalance_date", "min"),
+                    exit_date=("rebalance_date", "max"))
+               .reset_index()
+               .merge(last_ticker, on="entity"))
+    spans["exit_date"] = spans.apply(
+        lambda r: None if r["exit_date"] == df["rebalance_date"].max() else r["exit_date"],
+        axis=1)
+    spans = spans.rename(columns={"last_symbol": "symbol"})[
+        ["symbol", "entity", "entry_date", "exit_date"]]
+    con.execute("DELETE FROM universe_intervals")
+    con.execute("INSERT INTO universe_intervals SELECT symbol, entity, entry_date, "
+                "exit_date FROM spans")
+
+
+def main():
+    con = duckdb.connect(str(DB_PATH))
+    # These five tables are fully derived and rebuilt every run; drop+recreate keeps
+    # the schema in step with this script (inherited tables are never touched).
+    for t in ("universe_membership", "universe_intervals", "instrument_master",
+              "universe_eligibility", "universe_probes"):
+        con.execute(f"DROP TABLE IF EXISTS {t}")
+    con.execute(SCHEMA_SQL)
+    con.execute("DELETE FROM universe_probes")
+
+    method = probe_official_membership(con)
+    fetch_instrument_master(con)
+    _, n_rename = build_entities(con)
+    elig = classify_eligibility(con)
+
+    cc = Counter(r["class"] for r in elig)
+    print(f"Rename records     : {n_rename:,} (entity continuity via symbol_changes)")
+    print(f"Eligibility classes: " + ", ".join(f"{k}={v:,}" for k, v in
+          sorted(cc.items(), key=lambda x: -x[1])))
+
+    membership, rebal = build_membership(con, method)
+    build_intervals(con, membership)
+
+    n_rebal = len(rebal)
+    n_cells = len(membership)
+    yr_cells = Counter(r["rebalance_date"].year for r in membership)
+    yr_rebals = Counter(r["rebalance_date"].year for r in [
+        {"rebalance_date": d} for d in rebal])
+    print(f"Rebalance dates    : {n_rebal} (last full session/month, {rebal[0]}..{rebal[-1]})")
+    print(f"Membership cells   : {n_cells:,}")
+    print("Avg members/rebalance by year: " + ", ".join(
+        f"{y}:{round(yr_cells[y] / yr_rebals[y])}" for y in sorted(yr_cells)))
+
+    con.close()
+    print("\nDone. Run scripts/csmp/audit_universe.py next.")
+
+
+if __name__ == "__main__":
+    main()
