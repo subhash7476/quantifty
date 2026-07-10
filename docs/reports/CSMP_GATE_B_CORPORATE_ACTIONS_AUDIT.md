@@ -75,7 +75,9 @@ Every failure is itemised. The exchange document is the authority for the event 
 
 ## 3. Move-Classification Screen
 
-**Screened moves:** 5,922 | **True consecutive-session moves:** 5,609 | **Resumption/migration (gap > 5d, excluded):** 313
+**Non-equity symbols excluded (gate (a) H2):** 355 — 309 identified by an `INF*` mutual-fund-scheme ISIN, 46 by name pattern where the raw payloads carry no ISIN. NSE issues `INE*` to companies and `INF*` to fund schemes, which is what an ETF is; H2's `%BEES%/%ETF%/%GOLD%` pattern alone misses `KOTAKNIFTY`, `MON100`, `ICICI500` and 93 others. Source: `symbol_isin`, built by `build_symbol_isin.py` from the raw bhavcopy payloads.
+
+**Screened moves:** 5,832 | **True consecutive-session moves:** 5,523 | **Resumption/migration (gap > 5d, excluded):** 309
 
 A factor explains exactly one move: the session `(prev_td, td]` that spans its ex-date. A move is **CA-explained** only when that factor matches it in *direction and magnitude* (within 25%). Direction alone is not evidence. A move that no factor spans, whose surviving-value ratio lands on a canonical corporate-action ratio, is a **CA-shaped-orphan** — a missing factor. Together with magnitude- and direction-mismatches these form the **residue**, which is the gate criterion. A move that no factor spans and whose ratio is not CA-shaped is classified **genuine** — a classification, not a residue.
 
@@ -83,65 +85,27 @@ The ratio test is applied only where `prev_close >= Rs 5`. Below that the Rs 0.0
 
 | Bucket | Moves | Residue? |
 |--------|------:|----------|
-| CA-explained | 1,050 | no |
-| genuine | 4,505 | no |
+| CA-explained | 1,041 | no |
+| genuine | 4,469 | no |
 | magnitude-mismatch | 1 | **yes** |
 | direction-mismatch | 0 | **yes** |
-| CA-shaped-orphan | 53 | **yes** |
+| CA-shaped-orphan | 12 | **yes** |
 
-**Dev-window residue: 23** — NOT PASSED (gate criterion)
-Sealed-window residue (reported, not gating): 25
+**Dev-window residue: 6** — NOT PASSED (gate criterion)
+Sealed-window residue (reported, not gating): 2
+
+**1 residue symbol(s) have no ISIN in any raw payload**, so the non-equity exclusion could not be applied to them and they may be unrecognised funds: `ICICIMOM30`.
 
 Residue rows (dev window first):
 
 | Date | Symbol | Return | Window | Class | Detail |
 |------|--------|-------:|--------|-------|--------|
-| 2022-09-01 | ICICITECH | -90.2% | dev | CA-shaped-orphan | survived=0.098426 sits on a CA ratio; no factor spans (2022-08-30, 2022-09-01]; prev_close=293.52 |
-| 2021-02-17 | HDFCSENETF | -90.1% | dev | CA-shaped-orphan | survived=0.099303 sits on a CA ratio; no factor spans (2021-02-16, 2021-02-17]; prev_close=5633.58 |
-| 2021-06-17 | MON100 | -90.1% | dev | CA-shaped-orphan | survived=0.099319 sits on a CA ratio; no factor spans (2021-06-16, 2021-06-17]; prev_close=1015.62 |
-| 2022-09-01 | ICICIBANKN | -90.1% | dev | CA-shaped-orphan | survived=0.099496 sits on a CA ratio; no factor spans (2022-08-30, 2022-09-01]; prev_close=396.50 |
-| 2021-10-28 | ICICI500 | -90.1% | dev | CA-shaped-orphan | survived=0.099496 sits on a CA ratio; no factor spans (2021-10-27, 2021-10-28]; prev_close=255.79 |
-| 2021-07-22 | KOTAKGOLD | -90.0% | dev | CA-shaped-orphan | survived=0.099559 sits on a CA ratio; no factor spans (2021-07-20, 2021-07-22]; prev_close=419.35 |
-| 2021-02-17 | HDFCNIFETF | -90.0% | dev | CA-shaped-orphan | survived=0.099768 sits on a CA ratio; no factor spans (2021-02-16, 2021-02-17]; prev_close=1628.18 |
-| 2021-11-25 | ABSLBANETF | -90.0% | dev | CA-shaped-orphan | survived=0.099925 sits on a CA ratio; no factor spans (2021-11-24, 2021-11-25]; prev_close=373.18 |
-| 2017-07-27 | KOTAKNIFTY | -90.0% | dev | CA-shaped-orphan | survived=0.100188 sits on a CA ratio; no factor spans (2017-07-26, 2017-07-27]; prev_close=1009.90 |
-| 2019-12-19 | BANKBEES | -90.0% | dev | CA-shaped-orphan | survived=0.100248 sits on a CA ratio; no factor spans (2019-12-18, 2019-12-19]; prev_close=3286.95 |
-| 2019-12-19 | PSUBNKBEES | -90.0% | dev | CA-shaped-orphan | survived=0.100318 sits on a CA ratio; no factor spans (2019-12-18, 2019-12-19]; prev_close=276.32 |
-| 2019-12-19 | NIFTYBEES | -89.9% | dev | CA-shaped-orphan | survived=0.100732 sits on a CA ratio; no factor spans (2019-12-18, 2019-12-19]; prev_close=1292.54 |
-| 2021-11-25 | BSLSENETFG | -89.9% | dev | CA-shaped-orphan | survived=0.100859 sits on a CA ratio; no factor spans (2021-11-24, 2021-11-25]; prev_close=558.70 |
-| 2021-11-25 | ABSLNN50ET | -89.9% | dev | CA-shaped-orphan | survived=0.100919 sits on a CA ratio; no factor spans (2021-11-24, 2021-11-25]; prev_close=440.75 |
-| 2021-11-25 | BSLNIFTY | -89.9% | dev | CA-shaped-orphan | survived=0.100954 sits on a CA ratio; no factor spans (2021-11-24, 2021-11-25]; prev_close=193.95 |
 | 2022-08-12 | ICICIMOM30 | -89.9% | dev | CA-shaped-orphan | survived=0.101222 sits on a CA ratio; no factor spans (2022-08-11, 2022-08-12]; prev_close=186.62 |
 | 2013-03-07 | ORIENTPPR | -80.4% | dev | CA-shaped-orphan | survived=0.196281 sits on a CA ratio; no factor spans (2013-03-06, 2013-03-07]; prev_close=72.60 |
-| 2022-08-11 | MOMOMENTUM | -80.0% | dev | CA-shaped-orphan | survived=0.200032 sits on a CA ratio; no factor spans (2022-08-10, 2022-08-11]; prev_close=186.87 |
-| 2022-08-11 | MOLOWVOL | -80.0% | dev | CA-shaped-orphan | survived=0.200348 sits on a CA ratio; no factor spans (2022-08-10, 2022-08-11]; prev_close=120.79 |
 | 2017-05-25 | SINTEX | -75.2% | dev | CA-shaped-orphan | survived=0.248319 sits on a CA ratio; no factor spans (2017-05-24, 2017-05-25]; prev_close=104.10 |
 | 2013-10-17 | FOURSOFT | -67.3% | dev | CA-shaped-orphan | survived=0.327402 sits on a CA ratio; no factor spans (2013-10-15, 2013-10-17]; prev_close=42.15 |
 | 2022-10-06 | AHLEAST | -49.8% | dev | magnitude-mismatch | ex=2022-10-06 factor=0.666667 survived=0.501641 |
 | 2019-05-30 | DCM | -49.0% | dev | CA-shaped-orphan | survived=0.509669 sits on a CA ratio; no factor spans (2019-05-29, 2019-05-30]; prev_close=80.15 |
-| 2023-10-20 | HDFCMOMENT | -90.2% | sealed | CA-shaped-orphan | survived=0.098101 sits on a CA ratio; no factor spans (2023-10-19, 2023-10-20]; prev_close=233.23 |
-| 2026-02-27 | CONS | -90.1% | sealed | CA-shaped-orphan | survived=0.098869 sits on a CA ratio; no factor spans (2026-02-26, 2026-02-27]; prev_close=120.26 |
-| 2026-02-13 | QNIFTY | -90.1% | sealed | CA-shaped-orphan | survived=0.098884 sits on a CA ratio; no factor spans (2026-02-12, 2026-02-13]; prev_close=2824.21 |
-| 2026-02-06 | GROWWGOLD | -90.1% | sealed | CA-shaped-orphan | survived=0.098918 sits on a CA ratio; no factor spans (2026-02-05, 2026-02-06]; prev_close=149.72 |
-| 2026-02-27 | BANKNIFTY1 | -90.1% | sealed | CA-shaped-orphan | survived=0.099055 sits on a CA ratio; no factor spans (2026-02-26, 2026-02-27]; prev_close=631.97 |
-| 2023-10-20 | HDFCNEXT50 | -90.1% | sealed | CA-shaped-orphan | survived=0.099072 sits on a CA ratio; no factor spans (2023-10-19, 2023-10-20]; prev_close=452.70 |
-| 2023-10-20 | HDFCMID150 | -90.1% | sealed | CA-shaped-orphan | survived=0.099149 sits on a CA ratio; no factor spans (2023-10-19, 2023-10-20]; prev_close=151.59 |
-| 2023-10-20 | HDFCLOWVOL | -90.1% | sealed | CA-shaped-orphan | survived=0.099149 sits on a CA ratio; no factor spans (2023-10-19, 2023-10-20]; prev_close=152.80 |
-| 2026-02-27 | MIDCAP | -90.1% | sealed | CA-shaped-orphan | survived=0.099176 sits on a CA ratio; no factor spans (2026-02-26, 2026-02-27]; prev_close=173.63 |
-| 2026-02-27 | NV20 | -90.1% | sealed | CA-shaped-orphan | survived=0.099248 sits on a CA ratio; no factor spans (2026-02-26, 2026-02-27]; prev_close=152.85 |
-| 2024-02-02 | HDFCPVTBAN | -90.1% | sealed | CA-shaped-orphan | survived=0.099410 sits on a CA ratio; no factor spans (2024-02-01, 2024-02-02]; prev_close=237.30 |
-| 2024-02-02 | HDFCNIFBAN | -90.0% | sealed | CA-shaped-orphan | survived=0.099545 sits on a CA ratio; no factor spans (2024-02-01, 2024-02-02]; prev_close=468.33 |
-| 2023-10-20 | HDFCNIF100 | -90.0% | sealed | CA-shaped-orphan | survived=0.099576 sits on a CA ratio; no factor spans (2023-10-19, 2023-10-20]; prev_close=198.14 |
-| 2024-02-02 | HDFCSENSEX | -90.0% | sealed | CA-shaped-orphan | survived=0.099872 sits on a CA ratio; no factor spans (2024-02-01, 2024-02-02]; prev_close=790.01 |
-| 2023-09-25 | UTINIFTETF | -90.0% | sealed | CA-shaped-orphan | survived=0.099935 sits on a CA ratio; no factor spans (2023-09-22, 2023-09-25]; prev_close=2113.67 |
-| 2024-03-01 | LOWVOLIETF | -89.9% | sealed | CA-shaped-orphan | survived=0.100650 sits on a CA ratio; no factor spans (2024-02-29, 2024-03-01]; prev_close=195.43 |
-| 2024-05-10 | QUAL30IETF | -89.9% | sealed | CA-shaped-orphan | survived=0.100739 sits on a CA ratio; no factor spans (2024-05-09, 2024-05-10]; prev_close=188.01 |
-| 2024-05-10 | MIDSELIETF | -89.9% | sealed | CA-shaped-orphan | survived=0.100988 sits on a CA ratio; no factor spans (2024-05-09, 2024-05-10]; prev_close=153.78 |
-| 2024-05-10 | NIF100IETF | -89.9% | sealed | CA-shaped-orphan | survived=0.101009 sits on a CA ratio; no factor spans (2024-05-09, 2024-05-10]; prev_close=250.67 |
-| 2024-05-10 | ALPL30IETF | -89.9% | sealed | CA-shaped-orphan | survived=0.101426 sits on a CA ratio; no factor spans (2024-05-09, 2024-05-10]; prev_close=267.09 |
-| 2024-05-10 | FMCGIETF | -89.9% | sealed | CA-shaped-orphan | survived=0.101438 sits on a CA ratio; no factor spans (2024-05-09, 2024-05-10]; prev_close=568.13 |
-| 2024-05-10 | MIDCAPIETF | -89.9% | sealed | CA-shaped-orphan | survived=0.101487 sits on a CA ratio; no factor spans (2024-05-09, 2024-05-10]; prev_close=186.92 |
-| 2024-03-01 | NV20IETF | -89.8% | sealed | CA-shaped-orphan | survived=0.101640 sits on a CA ratio; no factor spans (2024-02-29, 2024-03-01]; prev_close=135.97 |
 | 2025-05-22 | ABFRL | -66.6% | sealed | CA-shaped-orphan | survived=0.334077 sits on a CA ratio; no factor spans (2025-05-21, 2025-05-22]; prev_close=268.95 |
 | 2025-04-15 | QUESS | -50.7% | sealed | CA-shaped-orphan | survived=0.492974 sits on a CA ratio; no factor spans (2025-04-11, 2025-04-15]; prev_close=604.90 |
 
@@ -150,20 +114,20 @@ Residue rows (dev window first):
 | Date | Symbol | Return | Window | Detail |
 |------|--------|-------:|--------|--------|
 | 2011-12-15 | DPSCLTD | -99.5% | other | ex=2011-12-15 factor=0.004348 survived=0.004765 |
-| 2021-02-17 | HDFCMFGETF | -99.0% | dev | ex=2021-02-17 factor=0.010000 survived=0.009854 |
-| 2022-01-06 | SETFGOLD | -99.0% | dev | ex=2022-01-06 factor=0.010000 survived=0.009941 |
-| 2026-03-06 | LICMFGOLD | -99.0% | sealed | ex=2026-03-06 factor=0.010000 survived=0.009943 |
-| 2019-12-19 | GOLDBEES | -99.0% | dev | ex=2019-12-19 factor=0.010000 survived=0.009986 |
-| 2021-03-25 | GOLDSHARE | -99.0% | dev | ex=2021-03-25 factor=0.010000 survived=0.010008 |
-| 2021-11-25 | BSLGOLDETF | -99.0% | dev | ex=2021-11-25 factor=0.010000 survived=0.010038 |
-| 2026-04-30 | IVZINGOLD | -99.0% | sealed | ex=2026-04-30 factor=0.010000 survived=0.010189 |
-| 2020-07-23 | AXISGOLD | -98.8% | dev | ex=2020-07-23 factor=0.010000 survived=0.011987 |
-| 2021-12-16 | QGOLDHALF | -98.0% | dev | ex=2021-12-16 factor=0.020000 survived=0.020243 |
 | 2023-09-15 | SARVESHWAR | -96.6% | sealed | ex=2023-09-15 factor=0.033333 survived=0.033758 |
 | 2010-09-15 | RESURGERE | -95.9% | other | ex=2010-09-15 factor=0.033333 survived=0.040551 |
 | 2023-02-24 | VINNY | -95.4% | sealed | ex=2023-02-24 factor=0.043478 survived=0.045618 |
 | 2024-04-04 | CUPID | -94.8% | sealed | ex=2024-04-04 factor=0.050000 survived=0.052490 |
 | 2024-07-05 | VERTOZ | -94.7% | sealed | ex=2024-07-05 factor=0.050000 survived=0.052513 |
+| 2016-12-01 | SUNILHITEC | -94.7% | dev | ex=2016-12-01 factor=0.050000 survived=0.052528 |
+| 2022-02-22 | SBC | -94.7% | dev | ex=2022-02-22 factor=0.050000 survived=0.052542 |
+| 2011-06-23 | TITAN | -94.7% | other | ex=2011-06-23 factor=0.050000 survived=0.053326 |
+| 2012-04-12 | VAKRANSOFT | -94.3% | dev | ex=2012-04-12 factor=0.050000 survived=0.057238 |
+| 2010-07-29 | MMTC | -93.9% | other | ex=2010-07-29 factor=0.050000 survived=0.060941 |
+| 2024-03-28 | LAL | -93.4% | sealed | ex=2024-03-28 factor=0.064706 survived=0.065887 |
+| 2026-01-16 | BESTAGRO | -93.2% | sealed | ex=2026-01-16 factor=0.066667 survived=0.068287 |
+| 2022-09-06 | DANGEE | -93.1% | dev | ex=2022-09-06 factor=0.066667 survived=0.068825 |
+| 2021-08-03 | GLOBE | -93.0% | dev | ex=2021-08-03 factor=0.066667 survived=0.069798 |
 
 **Genuine sample:**
 
@@ -174,16 +138,16 @@ Residue rows (dev window first):
 | 2020-01-21 | SUVEN | -94.7% | dev | no factor spans (2020-01-20, 2020-01-21]; survived=0.052911 not CA-shaped |
 | 2011-12-23 | PIRLIFE | -92.4% | other | no factor spans (2011-12-22, 2011-12-23]; survived=0.075538 not CA-shaped |
 | 2026-02-06 | GROWWSLVR | -90.5% | sealed | no factor spans (2026-02-05, 2026-02-06]; survived=0.094934 not CA-shaped |
-| 2018-11-15 | ICICIGOLD | -89.8% | dev | no factor spans (2018-11-14, 2018-11-15]; survived=0.102136 not CA-shaped |
-| 2024-02-02 | HDFCNIFIT | -89.8% | sealed | no factor spans (2024-02-01, 2024-02-02]; survived=0.102186 not CA-shaped |
-| 2024-03-01 | PVTBANIETF | -89.8% | sealed | no factor spans (2024-02-29, 2024-03-01]; survived=0.102286 not CA-shaped |
-| 2024-03-01 | AUTOIETF | -89.7% | sealed | no factor spans (2024-02-29, 2024-03-01]; survived=0.102536 not CA-shaped |
-| 2019-12-19 | NETFNV20 | -89.7% | dev | no factor spans (2019-12-18, 2019-12-19]; survived=0.102579 not CA-shaped |
-| 2026-07-03 | HEALTHADD | -89.7% | other | no factor spans (2026-07-02, 2026-07-03]; survived=0.102614 not CA-shaped |
-| 2026-02-27 | SILVER1 | -89.7% | sealed | no factor spans (2026-02-26, 2026-02-27]; survived=0.103186 not CA-shaped |
 | 2016-05-11 | FRLDVR | -89.6% | dev | no factor spans (2016-05-10, 2016-05-11]; survived=0.104127 not CA-shaped |
-| 2015-04-13 | KOTAKGOLD | -89.5% | dev | no factor spans (2015-04-10, 2015-04-13]; survived=0.104791 not CA-shaped |
-| 2016-06-09 | IGOLD | -89.5% | dev | no factor spans (2016-06-08, 2016-06-09]; survived=0.105276 not CA-shaped |
+| 2019-08-06 | GFLLIMITED | -89.1% | dev | no factor spans (2019-08-05, 2019-08-06]; survived=0.108929 not CA-shaped |
+| 2016-05-11 | FRL | -87.4% | dev | no factor spans (2016-05-10, 2016-05-11]; survived=0.125786 not CA-shaped |
+| 2023-03-29 | MIRZAINT | -86.3% | sealed | no factor spans (2023-03-28, 2023-03-29]; survived=0.137038 not CA-shaped |
+| 2022-11-22 | NXTDIGITAL | -84.2% | dev | no factor spans (2022-11-21, 2022-11-22]; survived=0.157756 not CA-shaped |
+| 2014-01-14 | COROENGG | -84.0% | dev | no factor spans (2014-01-10, 2014-01-14]; survived=0.160394 not CA-shaped |
+| 2015-06-03 | ADANIENT | -82.8% | dev | no factor spans (2015-06-02, 2015-06-03]; survived=0.172292 not CA-shaped |
+| 2018-04-19 | PHILIPCARB | -79.0% | dev | no factor spans (2018-04-18, 2018-04-19]; survived=0.209969 not CA-shaped |
+| 2011-01-20 | MID-DAY | -78.2% | other | no factor spans (2011-01-19, 2011-01-20]; survived=0.217610 not CA-shaped |
+| 2023-06-08 | NIITLTD | -76.1% | sealed | no factor spans (2023-06-07, 2023-06-08]; survived=0.238653 not CA-shaped |
 
 ## 4. Adjusted Continuity
 
@@ -222,10 +186,10 @@ Total adjusted ex-date mismatches: **0** (PASS)
 
 - CA events: **11,965**  |  Factors: **1,205**  |  Parse rejects: **19**
 - Evidence test: **4** failures of 1,116 factors with adjacent-session evidence
-- Move buckets: CA-explained **1,050**, genuine **4,505**, residue **48**
-- Dev-window residue: **23**
+- Move buckets: CA-explained **1,041**, genuine **4,469**, residue **8**
+- Dev-window residue: **6**
 - Adjusted ex-date mismatches: **0**
 
-**Gate (b) NOT PASSED:** 23 dev-window residue move(s); 4 factor(s) failing the price-evidence test.
+**Gate (b) NOT PASSED:** 6 dev-window residue move(s); 4 factor(s) failing the price-evidence test.
 
-_Sidecar: `docs/reports/CSMP_GATE_B_MOVES.csv` holds all 5,609 classified moves._
+_Sidecar: `docs/reports/CSMP_GATE_B_MOVES.csv` holds all 5,523 classified moves._

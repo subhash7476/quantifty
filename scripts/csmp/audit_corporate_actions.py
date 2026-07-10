@@ -44,6 +44,17 @@ CA_RATIO_TOLERANCE = 0.02
 # Rs 0.10 ticking to Rs 0.05 is exactly -50% and means nothing.
 CA_RATIO_MIN_PRICE = 5.0
 
+# A symbol is not an equity if NSE gave it a mutual-fund-scheme ISIN. Where the raw
+# payloads carry no ISIN for it, fall back to gate (a) H2's name pattern.
+# COALESCE is load-bearing: an unmatched LEFT JOIN makes `si.isin LIKE` evaluate to
+# NULL, and `NOT NULL` is NULL, which would drop every unmapped symbol from the
+# screen rather than keep it.
+NON_EQUITY_PREDICATE = """
+    COALESCE(si.isin, '') LIKE 'INF%'
+    OR (si.symbol IS NULL AND (e.symbol LIKE '%BEES%' OR e.symbol LIKE '%ETF%'
+                               OR e.symbol LIKE '%GOLD%'))
+"""
+
 CONTINUITY_SYMBOLS = [
     "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "ITC", "LT",
     "AXISBANK", "KOTAKBANK", "HINDUNILVR", "BHARTIARTL", "MARUTI", "ASIANPAINT",
@@ -212,10 +223,26 @@ def run(con):
         "ORDER BY trade_date", [RESTRICTED_THRESHOLD]).fetchall())
     date_list = ", ".join(f"DATE '{d}'" for d in full_list)
 
+    # Gate (a) H2: mutual-fund schemes (ETFs) carry series 'EQ' and must not enter an
+    # equity universe. ISIN is the identifier — NSE issues INF* to fund schemes and
+    # INE* to companies. H2's `%BEES%/%ETF%/%GOLD%` name pattern misses KOTAKNIFTY,
+    # MON100, ICICI500 and 93 others, so it is used only where no ISIN exists.
+    excluded = con.execute(f"""
+        SELECT DISTINCT e.symbol,
+               CASE WHEN si.isin LIKE 'INF%' THEN 'isin' ELSE 'name_pattern' END AS via
+        FROM equity_bhavcopy e
+        LEFT JOIN symbol_isin si ON si.symbol = e.symbol
+        WHERE e.series IN ('EQ', 'BE') AND ({NON_EQUITY_PREDICATE})
+    """).fetchall()
+    n_by_isin = sum(1 for _, via in excluded if via == "isin")
+    n_by_name = len(excluded) - n_by_isin
+
     moves = con.execute(f"""
         WITH eqbe AS (
-            SELECT trade_date, symbol, close, series FROM equity_bhavcopy
-            WHERE series IN ('EQ', 'BE')
+            SELECT e.trade_date, e.symbol, e.close, e.series
+            FROM equity_bhavcopy e
+            LEFT JOIN symbol_isin si ON si.symbol = e.symbol
+            WHERE e.series IN ('EQ', 'BE') AND NOT ({NON_EQUITY_PREDICATE})
         ),
         gaps AS (
             SELECT trade_date, symbol, close, series,
@@ -282,6 +309,13 @@ def run(con):
     dev_residue = [c for c in classification if c[3] == "dev" and c[4] in RESIDUE]
     sealed_residue = [c for c in classification if c[3] == "sealed" and c[4] in RESIDUE]
 
+    w(f"**Non-equity symbols excluded (gate (a) H2):** {len(excluded):,} — "
+      f"{n_by_isin:,} identified by an `INF*` mutual-fund-scheme ISIN, {n_by_name:,} "
+      "by name pattern where the raw payloads carry no ISIN. NSE issues `INE*` to "
+      "companies and `INF*` to fund schemes, which is what an ETF is; H2's "
+      "`%BEES%/%ETF%/%GOLD%` pattern alone misses `KOTAKNIFTY`, `MON100`, `ICICI500` "
+      "and 93 others. Source: `symbol_isin`, built by `build_symbol_isin.py` from the "
+      "raw bhavcopy payloads.\n")
     w(f"**Screened moves:** {len(moves):,} | **True consecutive-session moves:** "
       f"{len(true_moves):,} | **Resumption/migration (gap > {MAX_GAP_DAYS}d, "
       f"excluded):** {len(resumptions):,}\n")
@@ -306,6 +340,17 @@ def run(con):
     w(f"**Dev-window residue: {len(dev_residue)}**"
       + (" — PASS" if not dev_residue else " — NOT PASSED (gate criterion)"))
     w(f"Sealed-window residue (reported, not gating): {len(sealed_residue)}\n")
+
+    unmapped = {r[0] for r in con.execute(
+        "SELECT DISTINCT e.symbol FROM equity_bhavcopy e LEFT JOIN symbol_isin si "
+        "ON si.symbol = e.symbol WHERE si.symbol IS NULL").fetchall()}
+    residue_unmapped = sorted({c[1] for c in dev_residue + sealed_residue}
+                              & unmapped)
+    if residue_unmapped:
+        w(f"**{len(residue_unmapped)} residue symbol(s) have no ISIN in any raw "
+          "payload**, so the non-equity exclusion could not be applied to them and "
+          "they may be unrecognised funds: "
+          + ", ".join(f"`{s}`" for s in residue_unmapped) + ".\n")
 
     if dev_residue or sealed_residue:
         w("Residue rows (dev window first):\n")

@@ -21,9 +21,14 @@ simply wrong. A genuine review of this commit is still owed.
 
 ## Verdict: **NOT PASSED**, but the failure is now finite and named
 
+> **Addendum (same day).** After this record was first written, the operator ruled that the move
+> screen inherits gate (a)'s H2 non-equity exclusion now rather than at gate (c). Implemented via a
+> new `symbol_isin` table (`scripts/csmp/build_symbol_isin.py`) — see §10. **Dev-window residue
+> 23 → 6.** Blocker 1 is closed with no inferred factor. The table below reflects the final state.
+
 | | Before (`91e7963`) | After |
 |---|---|---|
-| Dev-window residue | 4,141 (opaque "genuine") | **23** (each named, each with a cause) |
+| Dev-window residue | 4,141 (opaque "genuine") | **6** (each named, each with a cause) |
 | Adjusted ex-date continuity mismatches | 31 | **0** |
 | Factors failing price evidence | not measured in code | **4 of 1,039** |
 | Split factors with `factor = 1.0` (silent no-op) | 1 | **0** |
@@ -163,7 +168,7 @@ Two blockers remain. Both require a **primary source I do not have**, and closin
 inferring the factor from the price gap would reintroduce exactly the circularity that got Round 2
 rejected (R2/C1). I did not do it.
 
-### Blocker 1 — 18 index/sector ETF unit splits (dev window)
+### Blocker 1 — 18 index/sector ETF unit splits (dev window) — **CLOSED, see §10**
 
 `KOTAKNIFTY` 2017-07-27 · `BANKBEES`, `NIFTYBEES`, `PSUBNKBEES` 2019-12-19 · `HDFCNIFETF`,
 `HDFCSENETF` 2021-02-17 · `MON100` 2021-06-17 · `KOTAKGOLD` 2021-07-22 · `ICICI500` 2021-10-28 ·
@@ -231,6 +236,41 @@ python -m pytest tests/csmp/test_ca_parsers.py -q  # 37 passed
 
 The ingest purges and rebuilds only the corporate-action tables. The gate-(a) store
 (`equity_bhavcopy`, 7,030,920 rows) is never written and remains sound.
+
+---
+
+## 10. Non-equity exclusion — Blocker 1, closed (operator decision)
+
+The operator ruled that gate (b)'s move screen inherits gate (a)'s H2 constraint immediately.
+
+H2 identified ETFs by the symbol-name pattern `%BEES%`/`%ETF%`/`%GOLD%`. **Names are not
+identifiers.** That pattern misses `KOTAKNIFTY`, `MON100`, `ICICI500`, `ICICIBANKN`, `MOLOWVOL` and
+93 others, and would match a substring in an operating company's ticker.
+
+The bhavcopy carries the real answer: NSE issues `INE*` ISINs to companies and `INF*` ISINs to
+mutual-fund schemes, which is what an ETF is. `scripts/csmp/build_symbol_isin.py` unions the ISIN
+column of every raw payload that has one — 2,481 legacy `cm*bhav.csv` and the UDiFF
+`BhavCopy_NSE_CM_*.csv` — into a new `symbol_isin` table (3,628 symbols; 3,165 of the store's 4,132
+EQ+BE symbols mapped). Gate (c) needs this map anyway.
+
+The screen excludes **355 non-equity symbols: 309 by `INF*` ISIN, 46 by H2's name pattern** where no
+raw payload carries an ISIN for them. ISIN is authoritative; the name pattern is the fallback, not
+the rule.
+
+**One symbol escapes both**: `ICICIMOM30` (−89.9%, 2022-08-12) has no ISIN in either payload era and
+does not match the name pattern. The audit **prints it by name** rather than let it pass as an
+equity. Closing it needs an NSE instrument master, which gate (c) will require regardless.
+
+A NULL-handling bug was caught and fixed during this change: an unmatched `LEFT JOIN` makes
+`si.isin LIKE 'INF%'` evaluate to `NULL`, and `NOT NULL` is `NULL`, so the first version silently
+dropped **all 967 unmapped symbols** from the screen — 414 real moves. `COALESCE(si.isin, '')` is
+load-bearing and commented as such.
+
+Effect: dev-window residue **23 → 6**. The 18 ETF unit splits are gone from the screen without a
+single factor being inferred from a price gap. What remains is Blocker 2 in full: four demergers,
+`AHLEAST`'s disputed bonus, and `ICICIMOM30`.
+
+The audit regenerates byte-identically on re-run.
 
 ---
 
