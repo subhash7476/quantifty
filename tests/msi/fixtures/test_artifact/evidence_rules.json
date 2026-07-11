@@ -1,0 +1,24 @@
+{
+  "features": [
+    {
+      "name": "vix_close",
+      "source": "NSE_INDEX|India VIX",
+      "field": "close",
+      "transform": "identity",
+      "description": "India VIX closing level — measures expected volatility"
+    },
+    {
+      "name": "nifty_close",
+      "source": "NSE_INDEX|Nifty 50",
+      "field": "close",
+      "transform": "identity",
+      "description": "Nifty 50 closing price"
+    }
+  ],
+  "lookback_days": 90,
+  "required_symbols": [
+    "NSE_INDEX|Nifty 50",
+    "NSE_INDEX|India VIX"
+  ],
+  "rule_format_version": "1.0"
+}

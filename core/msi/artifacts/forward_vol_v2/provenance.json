@@ -1,0 +1,30 @@
+{
+  "originating_research": "MSRP Phase 1 Research Dossier (commit d9233b1)",
+  "validation_id": "val-msrp-forward-vol-v2-pending",
+  "inference_contract_version": "1.0",
+  "ontology_version": "1.0",
+  "publication_event": {
+    "event_id": "pub-msrp-forward-vol-v2-001",
+    "timestamp": "2026-07-06T00:00:00",
+    "publisher": "MSRP Phase 5A Implementation Engineer",
+    "artifact_id": "msrp-forward-vol-v2",
+    "artifact_version": "v1.0.0"
+  },
+  "research_provenance": {
+    "methodology": "HAR-RV with exogenous VIX regressor, log specification; OLS on dev window 2023-01-02 -> 2025-12-31; coefficients frozen into the artifact.",
+    "model_form": "log RV_{t+1} = b0 + b1 log RV^(d) + b2 log RV^(w) + b3 log RV^(m) + b4 log VIX",
+    "training_period": "2023-01-02 -> 2025-12-31",
+    "validation_period": null,
+    "features_used": [
+      "rv_daily",
+      "rv_weekly",
+      "rv_monthly",
+      "vix_close"
+    ],
+    "latent_variable": "expected_next_day_realized_vol",
+    "dossier_commit": "d9233b1",
+    "fit_n_obs": 700,
+    "residual_sigma": 0.27255248237535945,
+    "notes": "Coefficients frozen. Held-out window sealed until Phase 6. Uncertainty is the log-normal predictive SD (Phase-2 finding Mo2, state-dependent). Parameter-estimation uncertainty not modelled (Mo3)."
+  }
+}

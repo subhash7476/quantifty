@@ -1,0 +1,22 @@
+{
+  "artifact_id": "msrp-forward-vol-v2",
+  "artifact_version": "v1.0.0",
+  "schema_version": "1.0",
+  "validation_id": "val-msrp-forward-vol-v2-pending",
+  "publication_timestamp": "2026-07-06T00:00:00",
+  "compatibility_version": "1.0",
+  "runtime_compatibility": "msi-v1.0",
+  "provenance_reference": "prov-msrp-forward-vol-v2",
+  "supported_runtime_versions": [
+    "msi-v1.0"
+  ],
+  "supported_ontology_versions": [
+    "1.0"
+  ],
+  "supported_contract_versions": [
+    "1.0"
+  ],
+  "description": "Frozen HAR-RV+VIX forward-volatility artifact (MSRP Phase 5A). Predicts next-day Nifty 50 realized volatility regime; emits the named estimate 'expected_next_day_realized_vol' with state-dependent uncertainty.",
+  "created_by": "MSRP Phase 5A Implementation Engineer",
+  "engine": "python"
+}

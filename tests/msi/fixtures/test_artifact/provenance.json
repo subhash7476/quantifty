@@ -1,0 +1,20 @@
+{
+  "originating_research": "DRA Reference Implementation (M1)",
+  "validation_id": "val-ref-test-001-v1",
+  "inference_contract_version": "1.0",
+  "ontology_version": "1.0",
+  "publication_event": {
+    "event_id": "pub-ref-test-001-v1",
+    "timestamp": "2026-07-04T12:00:00",
+    "publisher": "DRA M1 Implementation Engineer",
+    "artifact_id": "ref-test-001",
+    "artifact_version": "v1.0.0"
+  },
+  "research_provenance": {
+    "methodology": "Simple threshold classifier on India VIX level",
+    "training_period": null,
+    "validation_period": null,
+    "features_used": ["vix_close"],
+    "notes": "Reference test artifact only. No ML, no optimisation, no statistical modelling."
+  }
+}

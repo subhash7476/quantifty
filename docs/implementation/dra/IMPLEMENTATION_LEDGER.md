@@ -1,0 +1,173 @@
+# DRA Implementation Ledger
+
+**Document ID:** DRA-LEDGER-001
+
+**Version:** v1.1
+
+**Status:** Active — Append-Only Event Log
+
+**Last Updated:** 2026-07-07 — MSRP Phase 6 COMPLETE
+
+---
+
+## Purpose
+
+This ledger records the complete implementation history of the Daily Regime Analyzer (DRA).
+
+It is the single source of truth for:
+- Milestone completion status
+- Review and certification outcomes
+- Deviations from the implementation plan
+- Final disposition of each milestone
+
+**Governance:** This ledger is an append-only event log. Events are appended in chronological order and are never modified or deleted once written. Corrections are made by appending a superseding event that references the event it corrects. Milestone status is *derived* from the latest event for that milestone — the Status View below is a convenience rendering regenerated on each append, not an independent record.
+
+**Structural note (v1.1):** v1.0 implemented this ledger as a mutable status table, which contradicted the append-only invariant (every status change required editing a row in place). v1.1 restructures the ledger as an event log so the invariant is structurally enforceable. See event #4.
+
+---
+
+## Event Log (append-only)
+
+| # | Date | Milestone | Event | Reference |
+|---|------|-----------|-------|-----------|
+| 1 | 2026-07-03 | — | Implementation baseline accepted (DRA Implementation Plan v1.0) | `DRA_IMPLEMENTATION_PLAN.md` |
+| 2 | 2026-07-03 | M0 | Implementation complete — Contracts & Runtime Interfaces (13 implementation files, 2 test files, 42/42 tests passing per implementation report) | `reports/M0_IMPLEMENTATION_REPORT.md` |
+| 3 | 2026-07-03 | M0 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Medium: forward exception-type references in interface docstrings; fix required before certification) | `reports/M0_REVIEW.md` |
+| 4 | 2026-07-04 | — | Governance documents review completed. Ledger restructured to append-only event-log form (v1.1). Implementation Plan amended to v1.1 (editorial reconciliation — see plan Amendment Log). Review template updated with traceability fields; guidelines extracted to `TECHNICAL_REVIEW_GUIDELINES.md` | `docs/reports/DRA_GOVERNANCE_DOCS_REVIEW.md` |
+| 5 | 2026-07-04 | M0 | Deviation recorded: M0 delivered the six `core/msi/interfaces/` ABCs in addition to the contracts listed in plan v1.0 M0 deliverables. The interfaces were always part of the plan §2 package layout; plan v1.1 amends the M0 deliverable list to match what was built. No architectural impact | `DRA_IMPLEMENTATION_PLAN.md` §18 M0 |
+| 6 | 2026-07-04 | M0 | Finding 1 fix applied (Resolution Option 1: exception names retained, annotated "defined in M2 — Plan §16" in all six interface docstrings) and **fix-verification addendum filed** — verified by execution: 42/42 tests pass, imports execute, all 6 files annotated. Finding 1 RESOLVED, no new issues | `reports/M0_REVIEW.md` §Fix-Verification Addendum |
+| 7 | 2026-07-04 | M0 | **M0 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed. M1 authorized | `reports/M0_REVIEW.md`; `reports/M0_IMPLEMENTATION_REPORT.md` |
+| 8 | 2026-07-04 | M0 | Certification commit recorded: `60426a3`, tag `dra-m0` (M0 implementation itself landed in `4123ea9`; Finding 1 fix + addendum + certification in `60426a3`) | git: `60426a3`, `4123ea9`, tag `dra-m0` |
+| 9 | 2026-07-04 | M1 | Implementation complete — Reference Test Artifact (5 artifact files, 2 test/fixture files, 1 report, 83/83 M1 tests passing per implementation report) | `reports/M1_IMPLEMENTATION_REPORT.md` |
+| 10 | 2026-07-04 | M1 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: 4 unused imports in conftest.py; Finding 2, Low: 1 unused import in test_m1_artifact.py; Observation 1: minor test-count inaccuracies in implementation report §7.2). Review independently executed: 125/125 tests pass, checksum recomputed and matched, import + evaluate verified | `reports/M1_REVIEW.md` |
+| 11 | 2026-07-04 | M1 | Review fixes applied: removed 5 unused imports (conftest.py 4, test_m1_artifact.py 1), corrected implementation report test counts. Fix-verification addendum filed — verified by execution: 125/125 tests pass, no regressions. Finding 1 RESOLVED, Finding 2 RESOLVED, Observation 1 RESOLVED | `reports/M1_FIX_VERIFICATION_ADDENDUM.md` |
+| 12 | 2026-07-04 | M1 | **M1 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (125/125); no architectural violations; no scope creep. M2 authorized | `reports/M1_REVIEW.md`; `reports/M1_CERTIFICATION.md` |
+| 13 | 2026-07-04 | M1 | Certification commit recorded: `148c314`, tag `dra-m1` | git: `148c314`, tag `dra-m1` |
+| 14 | 2026-07-04 | M2 | Implementation complete — FilesystemArtifactLoader (3 implementation files, 1 test file, 1 report, 159/159 tests passing per implementation report). DRA error hierarchy established (12 classes, MSI-009 §16) | `reports/M2_IMPLEMENTATION_REPORT.md` |
+| 15 | 2026-07-04 | M2 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, High/Mandatory: inconsistent compatibility defaults; Finding 2, Medium/Mandatory: missing absent-field regression tests; Finding 3, Low/Minor: misleading test name; Finding 4, Low/Documentation: loading sequence incomplete). Review independently executed: 159/159 tests pass, compatibility/checksum/determinism verified | `reports/M2_REVIEW.md` |
+| 16 | 2026-07-04 | M2 | Review fixes applied: `_validate_compatibility` unified to fail-closed for all 3 dimensions (Finding 1); 3 regression tests for absent-field rejection added (Finding 2); misleading test renamed (Finding 3); implementation report §3 updated with fail-closed policy (Finding 4). Fix-verification addendum filed — verified by execution: 162/162 tests pass, no regressions. All 4 findings RESOLVED | `reports/M2_FIX_VERIFICATION_ADDENDUM.md` |
+| 17 | 2026-07-04 | M2 | **M2 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (162/162); fail-closed compatibility policy verified; no architectural violations; no scope creep. M3 authorized | `reports/M2_REVIEW.md`; `reports/M2_CERTIFICATION.md` |
+| 18 | 2026-07-04 | M2 | Certification commit recorded: `0034734`, tag `dra-m2` | git: `0034734`, tag `dra-m2` |
+| 19 | 2026-07-04 | M3 | Implementation complete — DuckDBObservationReader (1 implementation file, 1 test file, 1 test fixture, 1 report, 183/183 tests passing per implementation report). Deterministic observation loading, point-in-time correctness, chronological ordering | `reports/M3_IMPLEMENTATION_REPORT.md` |
+| 20 | 2026-07-04 | M3 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Mandatory: ordering contract docstring mismatch; Finding 2, Mandatory: test without assertions; Finding 4, Recommended: DuckDB connection handling). Review independently executed: 183/183 tests pass, determinism/ordering/immutability/API/point-in-time correctness verified | `reports/M3_REVIEW.md` |
+| 21 | 2026-07-04 | M3 | Review fixes applied: docstring corrected to match implementation (Finding 1); test assertion added for ordering regression protection (Finding 2); context manager for DuckDB connections (Finding 4). Fix-verification addendum filed — verified by execution: 183/183 tests pass, no regressions. All 3 findings RESOLVED | `reports/M3_FIX_VERIFICATION_ADDENDUM.md` |
+| 22 | 2026-07-04 | M3 | **M3 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (183/183); ordering contract verified and regression-protected; no architectural violations; no scope creep. M4 authorized | `reports/M3_CERTIFICATION.md` |
+| 23 | 2026-07-04 | M3 | Certification commit recorded: `7b545c7`, tag `dra-m3` | git: `7b545c7`, tag `dra-m3` |
+| 24 | 2026-07-04 | M4 | Implementation complete — DefaultEvidenceBuilder (1 implementation file, 1 test file, 1 report, 205/205 tests passing per implementation report). Deterministic evidence construction, point-in-time enforcement, SHA-256 evidence IDs | `reports/M4_IMPLEMENTATION_REPORT.md` |
+| 25 | 2026-07-04 | M4 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: unused module-level ArtifactMetadata import; Finding 2, Low: unused inline ArtifactMetadata/Tuple imports in 3 test functions). Review independently executed: 205/205 tests pass, determinism/point-in-time/ownership/immutability verified | `reports/M4_REVIEW.md` |
+| 26 | 2026-07-04 | M4 | Review fixes applied: removed unused module-level ArtifactMetadata import (Finding 1); removed 6 unused inline imports (ArtifactMetadata × 3, Tuple × 3) from 3 test functions (Finding 2). Fix-verification addendum filed — verified by execution: 205/205 tests pass, no regressions. All 2 findings RESOLVED | `reports/M4_FIX_VERIFICATION_ADDENDUM.md` |
+| 27 | 2026-07-04 | M4 | **M4 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (205/205); point-in-time boundary verified; deterministic evidence IDs verified; no architectural violations; no scope creep. M5 authorized | `reports/M4_REVIEW.md`; `reports/M4_CERTIFICATION.md` |
+| 28 | 2026-07-04 | M4 | Certification commit recorded: `d45f44e`, tag `dra-m4` | git: `d45f44e`, tag `dra-m4` |
+| 29 | 2026-07-04 | M5 | Implementation complete — DefaultArtifactEvaluator + DefaultKnowledgeBuilder + ProvenanceChain (3 implementation files, 3 test files, 1 report, 242/242 tests passing per implementation report). Deterministic evaluation, SHA-256 knowledge IDs, immutable provenance, contract validation | `reports/M5_IMPLEMENTATION_REPORT.md` |
+| 30 | 2026-07-04 | M5 | Technical review filed — **PASS** (0 findings: architecturally correct, deterministic, ownership boundaries preserved, all contracts satisfied). Review independently executed: 242/242 tests pass, imports/ownership/determinism verified | `reports/M5_REVIEW.md` |
+| 31 | 2026-07-04 | M5 | **M5 CERTIFIED — PASS** (directly, as review was PASS with zero findings — no fix-verification addendum required per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (242/242); deterministic knowledge IDs verified; provenance chain validated; no architectural violations; no scope creep. M6 authorized | `reports/M5_REVIEW.md`; `reports/M5_CERTIFICATION.md` |
+| 32 | 2026-07-04 | M5 | Certification commit recorded: `793f99b`, tag `dra-m5` | git: `793f99b`, tag `dra-m5` |
+| 33 | 2026-07-04 | M6 | Implementation complete — DefaultKnowledgePublisher + KnowledgeRepository (2 implementation files, 1 modified errors.py addition, 2 test files, 1 report, 268/268 tests passing). Deterministic in-memory KnowledgeObject store, KnowledgePublisher ABC implementation, KnowledgeRepositoryError added to error hierarchy | `reports/M6_IMPLEMENTATION_REPORT.md` |
+| 34 | 2026-07-04 | M6 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: unused FrozenInstanceError import in test_knowledge_repository.py). Review independently executed: 268/268 tests pass, ownership/determinism/roundtrip/ABC conformance verified | `reports/M6_REVIEW.md` |
+| 35 | 2026-07-04 | M6 | Review fix applied: removed unused FrozenInstanceError import. Fix-verification addendum filed — verified by execution: 268/268 tests pass, no regressions. Finding 1 RESOLVED | `reports/M6_FIX_VERIFICATION_ADDENDUM.md` |
+| 36 | 2026-07-04 | M6 | **M6 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (268/268); deterministic roundtrip verified; error hierarchy correctly extended; no architectural violations; no scope creep. M7 authorized | `reports/M6_REVIEW.md`; `reports/M6_CERTIFICATION.md` |
+| 37 | 2026-07-04 | M6 | Certification commit recorded: `fcfceed`, tag `dra-m6` | git: `fcfceed`, tag `dra-m6` |
+| 38 | 2026-07-04 | M7 | Implementation complete — DRAOrchestrator (1 implementation file, 1 test file, 1 report, 278/278 tests passing). Complete pipeline: ArtifactLoader → ObservationReader → EvidenceBuilder → ArtifactEvaluator → ProvenanceChain → KnowledgeBuilder → KnowledgePublisher | `reports/M7_IMPLEMENTATION_REPORT.md` |
+| 39 | 2026-07-04 | M7 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: unused EvidenceConstructionError import in test_orchestrator.py). Review independently executed: 278/278 tests pass, pipeline order/determinism/error propagation/no partial state verified | `reports/M7_REVIEW.md` |
+| 40 | 2026-07-04 | M7 | Review fix applied: removed unused EvidenceConstructionError import. Fix-verification addendum filed — verified by execution: 278/278 tests pass, no regressions. Finding 1 RESOLVED | `reports/M7_FIX_VERIFICATION_ADDENDUM.md` |
+| 41 | 2026-07-04 | M7 | **M7 CERTIFIED — PASS** (via fix-verification addendum per §Certification Verdicts). All acceptance criteria met; architecture compliance verified; tests independently executed (278/278); pipeline order verified; deterministic across instances; no partial state; no architectural violations; no scope creep. M8 authorized | `reports/M7_REVIEW.md`; `reports/M7_CERTIFICATION.md` |
+| 42 | 2026-07-04 | M7 | Certification commit recorded: `3d252bc`, tag `dra-m7` | git: `3d252bc`, tag `dra-m7` |
+| 43 | 2026-07-04 | M8 | Implementation complete — Replay Verification (1 test file, 1 report, 283/283 tests passing). Test-only milestone: deterministic replay across runs, roundtrip, different data, point-in-time boundaries, subset equivalence | `reports/M8_IMPLEMENTATION_REPORT.md` |
+| 44 | 2026-07-04 | M8 | Technical review filed — **PASS WITH MINOR FIXES** (Finding 1, Low: 6 unused contract imports in test_replay.py). Review independently executed: 283/283 tests pass, all 5 replay guarantees verified | `reports/M8_REVIEW.md` |
+| 45 | 2026-07-04 | M8 | Review fix applied: removed 6 unused contract imports. Fix-verification addendum filed — verified by execution: 283/283 tests pass, no regressions. Finding 1 RESOLVED | `reports/M8_FIX_VERIFICATION_ADDENDUM.md` |
+| 46 | 2026-07-04 | M8 | **M8 CERTIFIED — PASS** (via fix-verification addendum). All replay guarantees verified; deterministic pipeline proven; no production code; M9 authorized | `reports/M8_CERTIFICATION.md` |
+| 47 | 2026-07-04 | M8 | Certification commit recorded: `b8b9677`, tag `dra-m8` | git: `b8b9677`, tag `dra-m8` |
+| 48 | 2026-07-04 | M9 | Implementation complete — Documentation + Package Finalization (2 init files updated, 1 developer guide, 1 report). Public API exports (22 symbols from core.msi, 9 from core.msi.dra). No runtime code changes. 283/283 tests unchanged | `reports/M9_IMPLEMENTATION_REPORT.md` |
+| 49 | 2026-07-04 | M9 | **M9 CERTIFIED — PASS** (documentation milestone — no technical review required per plan). All acceptance criteria met: public API exports complete, MSI-traceable docstrings, developer guide covers setup/artifact-creation/DRA-execution/testing/replay. No import *, no type: ignore. DRA v1.0 COMPLETE | `reports/M9_CERTIFICATION.md`; `DRA_DEVELOPER_GUIDE.md` |
+| 50 | 2026-07-04 | M9 | Certification commit recorded: `1580010`, tag `dra-m9` | git: `1580010`, tag `dra-m9` |
+| 51 | 2026-07-04 | — | **MSI v1.0 PLATFORM CERTIFIED.** Architecture frozen (MSI-001 through MSI-009). Reference implementation certified (DRA M0–M9, 283 tests). Developer resources published: Engine Development Guide, Engine Certification Checklist, Engine Authoring Template. Platform is the permanent certified target for all future Market State Engines. Release tag: `msi-v1.0-certified` | `reports/MSI_V1_0_CERTIFICATION.md`; `ENGINE_DEVELOPMENT_GUIDE.md`; `ENGINE_CERTIFICATION_CHECKLIST.md`; `ENGINE_AUTHORING_TEMPLATE.md` |
+| 52 | 2026-07-04 | — | MSI v1.0 certification commit recorded: `5079097`, tag `msi-v1.0-certified` | git: `5079097`, tag `msi-v1.0-certified` |
+| 53 | 2026-07-06 | MM13 | Implementation complete — first Knowledge-consuming SignalSource (3 implementation files, 2 test files, 2 governance updates, 1 report). `KnowledgeSignalSource` runs DRA once at `on_start()`, caches `KnowledgeObject`, emits single contract-valid BUY. `scripts/msi_paper_runner.py` wires 6 real DRA collaborators into `fno_runner.build_runner`. Integration test proves complete `KnowledgeObject → GuardedSignalSource → ExecutionHandler → PaperBroker` path with real 1m bars. 1414 passed, 4 skipped (full suite). Zero frozen-component changes | `../mm13/reports/MM13_IMPLEMENTATION_REPORT.md` |
+| 54 | 2026-07-06 | MM13 | Technical review filed — **PASS** (0 findings: architecturally clean, ownership boundaries verified, integration proof traceably correct, deterministic, regression-safe). Review independently executed: 1414/1414 tests pass, imports executed, git diff confirms zero frozen-file modifications, telemetry counter chain traced from increment site to assertion | `../mm13/reports/MM13_REVIEW.md` |
+| 55 | 2026-07-06 | MM13 | **MM13 CERTIFIED — PASS** (directly, as review was PASS with zero findings — no fix-verification addendum required per §Certification Verdicts). All 11 acceptance criteria met; architecture compliance verified; tests independently executed (1414/1414); `Knowledge → [Strategy]` integration gap closed; zero frozen-component modifications; no constitutional violations; no scope creep | `../mm13/reports/MM13_REVIEW.md`; `../mm13/reports/MM13_CERTIFICATION.md` |
+| 56 | 2026-07-06 | MM13 | Certification commit recorded: `0f8a2a6`, tag `mm13-certified` | git: `0f8a2a6`, tag `mm13-certified` |
+| 57 | 2026-07-06 | MSRP 5A | Implementation complete — `ForwardVolatilityArtifact` PublishedArtifact v2 (frozen HAR-RV+VIX log spec, OLS on dev window 2023-01-02 → 2025-12-31, n_obs=700, coefficients frozen; MSI-007 shape; deterministic `evaluate()`; state-dependent Mo2 uncertainty; 42 tests) | `../msrp/reports/MSRP_PHASE5A_IMPLEMENTATION_REPORT.md` |
+| 58 | 2026-07-06 | MSRP 5A | Technical review filed — **PASS WITH REQUIRED FIXES** (F1 Major/architectural: evidence rules declare non-identity transforms the certified identity-only `DefaultEvidenceBuilder` rejects — loadable + evaluatable on pre-built Evidence but not end-to-end evidence-buildable; F2 Moderate: `evaluate()` mis-stamped `evaluation_timestamp` via a future sentinel floor; F3 Minor: no test covered F1/F2). Math cleared as faithful to the frozen dossier; no coefficient defect | `../msrp/reports/MSRP_PHASE5A_TECHNICAL_REVIEW.md` |
+| 59 | 2026-07-06 | MSRP 5A | Review fixes applied (F1: no transform change — documented Phase-6 offline evidence-construction strategy + boundary test; F2: removed sentinel floor, `evaluation_timestamp = max(evidence ts)`, regenerated `model.py` with coefficients bit-identical; F3: added timestamp + boundary tests). Fix-verification recorded in addendum; 44/44 Phase-5A tests pass, 328/328 MSI suite green | `../msrp/reports/MSRP_Phase5A_implementation_addendum.md` |
+| 60 | 2026-07-06 | MSRP 5A | Fix verification **APPROVED** — all three findings resolved; coefficients unchanged (n_obs=700, σ=0.272552, b0=−3.762284, b1=0.312252, b2=0.129720, b3=0.082761, b4=0.475815); regression PASS (additive-only change set, 284 existing MSI tests green) | `../msrp/reports/MSRP_PHASE5A_CERTIFICATION.md` |
+| 61 | 2026-07-06 | MSRP 5A | **MSRP PHASE 5A CERTIFIED — PASS.** ForwardVolatility PublishedArtifact v2 certified; conforms to frozen dossier `d9233b1`; MSI-007 shape; deterministic + replayable; MSI-v1.0 KnowledgeObject emission on pre-built Evidence; F1 evidence-construction strategy documented for Phase 5B/6 (offline research tooling, not a platform change). Phase 5B authorized | `../msrp/reports/MSRP_PHASE5A_CERTIFICATION.md` |
+| 62 | 2026-07-06 | MSRP 5B | Implementation complete — A2 Validation Harness (7 implementation files, 3 test files, 1 report, 353/353 tests passing). Seven-domain `ValidationHarness`, direct `evaluate()` scoring, MBB CI, sealed-record I/O, phase-6 duplicate guardrail. Zero frozen-component changes | `../msrp/reports/MSRP_PHASE5B_A2_DESIGN_SPEC.md`; `../msrp/reports/MSRP_PHASE5B_A2_IMPLEMENTATION_REVIEW.md` |
+| 63 | 2026-07-06 | MSRP 5B | Technical review filed — **PASS WITH MINOR FIXES** (F1: methodology.json missing calibration params; F2: warmup_days dead code; F3: calibration returns REPORTED for zero valid days; F4: architectural domain artifact=None test gap — acknowledged). Review independently verified: 353/353 tests pass, zero frozen-component diffs, `validation_id`/`results_digest`/`checksum.sha256` determinism confirmed | `../msrp/reports/MSRP_PHASE5B_A2_IMPLEMENTATION_REVIEW.md` |
+| 64 | 2026-07-06 | MSRP 5B | Review fixes applied: added `calibration_nominal`/`calibration_tolerance` to methodology dict (F1); removed unused `warmup_days` parameter (F2); changed calibration zero-valid-days guard from REPORTED to FAIL (F3); F4 acknowledged as coverage gap. Fix-verification recorded in addendum; 353/353 tests pass | `../msrp/reports/MSRP_PHASE5B_IMPLEMENTATION_ADDENDUM.md` |
+| 65 | 2026-07-06 | MSRP 5B | Fix verification **APPROVED** — all three findings resolved; F4 acknowledged; regression PASS (353/353 tests green, zero frozen-component changes) | `../msrp/reports/MSRP_PHASE5B_IMPLEMENTATION_ADDENDUM.md` |
+| 66 | 2026-07-06 | MSRP 5B | **MSRP PHASE 5B CERTIFIED — PASS.** A2 Validation Harness certified; seven MSI-006 domains implemented; identity/integrity/reproducibility mechanisms separated; `validation_id` content-addressed over inputs only; `results_digest` 6dp canonical JSON; `checksum.sha256` per-file + combined seal; VIX gate hardcoded 15/25; sub-period split `(n+1)//2`; calibration parameters pinned. Phase 6 held-out scoring authorized | `../msrp/reports/MSRP_PHASE5B_CERTIFICATION.md` |
+| 67 | 2026-07-07 | MSRP 6 | Pre-flight complete — L=28 derived and pinned (dev-window RV ACF, k=28, no override), B=10000, seed=42; seal-integrity verified (no prior Phase-6 record, artifact checksum OK, snapshot present); dev-window rehearsal passed (wiring confirmed, numbers deterministic) | `../msrp/reports/MSRP_PHASE6_PREFLIGHT.md` |
+| 68 | 2026-07-07 | MSRP 6 | **OFFICIAL HELD-OUT SCORING RUN EXECUTED.** Single `--phase 6` run on window [2026-01-01, 2026-07-03] with L=28, B=10000, seed=42. Sealed record: `47fe32723aa9da163aee5b32e72934609187fec79f254c7b95d64629e75a6c42`. ΔAUC_gate=0.090767, CI=(0.019941, 0.212755), base_rate=0.537815, n=119. Candidate AUC≈0.585, ΔAUC_vix=0.066193. calibration coverage 94.12%. §10 row 1 → Approved (candidate). Runner byte-identical to Phase-5B-certified `6e10142`. Zero frozen-component changes | `core/msi/validations/47fe3272.../` |
+| 69 | 2026-07-07 | MSRP 6 | Execution attestation filed — **PASS** (all six checks: window match, single-touch upheld, substrate pinned, seven domains resolved, §10 mapping correct, results_digest reproducibility confirmed). Record re-sealed with `reviewer="Phase-6 attestation"`, `approval_status="approved"`. validation_id + results_digest invariant under re-seal | `../msrp/reports/MSRP_PHASE6_REVIEW.md` |
+| 70 | 2026-07-07 | MSRP 6 | Phase-6 report authored — certified PASS. Verdict: Approved (§10 row 1); §2.1 substantiated (ΔAUC_vix>0). Caveats recorded: modest edge on single ~120-day window, sub-period fade, non-stationarity not ruled out. Next: Phase 7 (first alpha strategy). KB synced (PROJECT_STATE + CHANGELOG + IMPLEMENTATION_LEDGER) | `../msrp/reports/MSRP_PHASE6_REPORT.md` |
+| 71 | 2026-07-07 | MSRP 6 | **MSRP PHASE 6 COMPLETE.** Tag `msrp-phase6-complete`. Phase 7 authorized | — |
+
+---
+
+## Status View (derived — regenerate on each append)
+
+| Milestone | Status | Latest Event | Certification |
+|-----------|--------|--------------|---------------|
+| M0 | **Certified — PASS** | #7 | PASS (via fix-verification addendum) |
+| M1 | **Certified — PASS** | #12 | PASS (via fix-verification addendum) |
+| M2 | **Certified — PASS** | #17 | PASS (via fix-verification addendum) |
+| M3 | **Certified — PASS** | #22 | PASS (via fix-verification addendum) |
+| M4 | **Certified — PASS** | #27 | PASS (via fix-verification addendum) |
+| M5 | **Certified — PASS** | #31 | PASS |
+| M6 | **Certified — PASS** | #36 | PASS (via fix-verification addendum) |
+| M7 | **Certified — PASS** | #41 | PASS (via fix-verification addendum) |
+| M8 | **Certified — PASS** | #46 | PASS (via fix-verification addendum) |
+| M9 | **Certified — PASS** | #49 | PASS |
+| **MSI v1.0** | **PLATFORM CERTIFIED** | **#51** | **Permanent release** |
+| **MM13** | **Certified — PASS** | **#55** | **PASS** |
+| **MSRP Phase 5A** | **Certified — PASS** | **#61** | **PASS (via fix verification)** |
+| **MSRP Phase 5B** | **Certified — PASS** | **#66** | **PASS (via fix verification)** |
+| **MSRP Phase 6** | **Complete — PASS** | **#71** | **PASS (execution attestation)** |
+
+---
+
+## Governance
+
+### Review Process
+
+1. **Implementation Complete** — append event with reference to implementation report
+2. **Independent Technical Review** — reviewer conducts review per `TECHNICAL_REVIEW_TEMPLATE.md`
+3. **Review Filed** — append event recording the verdict and review report path
+4. **Fixes (if verdict is PASS WITH MINOR FIXES)** — fixes applied; fix-verification addendum appended to the review report; append event recording fix verification
+5. **Certification** — append certification event (PASS or FAIL final disposition)
+6. **Commit** — git commit with milestone tag; append event recording the commit hash
+7. **Next Milestone Authorized** — only after the certification event is appended
+
+### Certification Verdicts
+
+**PASS** — All acceptance criteria met, all tests passing, architecture compliance verified, no blocking deviations, review report approved. Milestone certified as-is.
+
+**PASS WITH MINOR FIXES** — Implementation is architecturally sound and acceptance criteria are met, but the review identified non-blocking findings that must be corrected before certification. Process:
+- The implementer applies the corrections.
+- The original reviewer verifies the corrections and appends a **fix-verification addendum** to the existing review report (no full re-review required).
+- The milestone is certified once the addendum is filed and the fix-verification event is appended to this ledger.
+- If corrections surface new blocking issues, the verdict escalates to FAIL and a full re-review is required.
+
+**FAIL** — Acceptance criteria not met, tests failing, architecture compliance violations, blocking deviations, or critical review findings. Implementation returns to development; a full re-review is required after rework.
+
+### Ledger Invariants
+
+- **Append-Only:** No event is ever modified or deleted; corrections append superseding events
+- **Single Source of Truth:** All milestone status is derived from this event log
+- **Traceability:** Every event references its evidence (report, review, commit, or plan section)
+- **Chronological:** Events are appended in strictly increasing date/sequence order
+
+---
+
+## References
+
+- **MSI Architecture:** MSI-001 through MSI-009 (Frozen v1.0)
+- **Implementation Plan:** `docs/implementation/dra/DRA_IMPLEMENTATION_PLAN.md` (v1.1)
+- **Review Template:** `docs/implementation/dra/TECHNICAL_REVIEW_TEMPLATE.md`
+- **Review Guidelines:** `docs/implementation/dra/TECHNICAL_REVIEW_GUIDELINES.md`
+- **Milestone Reports:** `docs/implementation/dra/reports/`
+- **Governance:** MSI-001 `MSI-FA-002` (Version Control)
+
+---
+
+**End of Ledger**

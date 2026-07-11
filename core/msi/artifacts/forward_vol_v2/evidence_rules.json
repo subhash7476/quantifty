@@ -1,0 +1,38 @@
+{
+  "features": [
+    {
+      "name": "rv_daily",
+      "source": "NSE_INDEX|Nifty 50",
+      "field": "close",
+      "transform": "rv_intraday",
+      "description": "1-day realized vol: sqrt(sum of squared intraday 1m log-returns)"
+    },
+    {
+      "name": "rv_weekly",
+      "source": "NSE_INDEX|Nifty 50",
+      "field": "close",
+      "transform": "har_weekly_5d",
+      "description": "mean of RV over the last 5 trading days (HAR weekly aggregate)"
+    },
+    {
+      "name": "rv_monthly",
+      "source": "NSE_INDEX|Nifty 50",
+      "field": "close",
+      "transform": "har_monthly_22d",
+      "description": "mean of RV over the last 22 trading days (HAR monthly aggregate)"
+    },
+    {
+      "name": "vix_close",
+      "source": "NSE_INDEX|India VIX",
+      "field": "close",
+      "transform": "identity",
+      "description": "India VIX closing level (option-implied forward vol)"
+    }
+  ],
+  "lookback_days": 22,
+  "required_symbols": [
+    "NSE_INDEX|Nifty 50",
+    "NSE_INDEX|India VIX"
+  ],
+  "rule_format_version": "1.0"
+}
