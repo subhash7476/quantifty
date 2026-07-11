@@ -1103,9 +1103,22 @@ criteria hold; every rate is cited; the test suite is green with hand-computed v
 frozen-component or options-module diffs; no gate-(e) work started. Gate (e) stays HELD until the
 Lead Reviewer signs off.
 
-## Prompt 5 — Gate (e): Transmission triage  **(ISSUED 2026-07-11 — stop rule LOCKED)**
+## Prompt 5 — Gate (e): Transmission triage  **(PASSED 2026-07-11 — CONTINUE, independently confirmed)**
 
-> **Status: ISSUED.** The pre-committed stop-rule thresholds are **LOCKED** (operator, 2026-07-11)
+> **Status: PASSED — verdict CONTINUE** (`CSMP_GATE_E_LEAD_REVIEW.md`, independent reviewer
+> **DeepSeek V4**). GLM implemented `scripts/csmp/triage_momentum.py`; Claude found and fixed a
+> verdict-flipping bug (buckets were selected by `universe_membership.rank` = gate-(c) turnover/liquidity
+> rank, not the 12-1 momentum score — corrected at both bucket sites, flipping STOP → CONTINUE;
+> corroborated by turnover, momentum top-quintile 23.76%/mo vs ~5% liquidity-sorted). Because Claude
+> authored a verdict-flipping change, independence was spent, so DeepSeek V4 Lead-Reviewed — re-deriving
+> every number from a scratch re-implementation: mean rank IC **0.0458** (95% CI **[0.0093, 0.0812]**,
+> L=12), net-of-fee top-quintile-minus-universe spread **+6.38%** (15.53% vs 9.16%); both locked stop
+> rules clear → **CONTINUE**. Byte-identical re-run; sealed window untouched (all three fenced inputs
+> MAX = 2022-12-30). Five LOW findings (F1 baseline-subset — conservative, all-200 widens to +6.46%;
+> F2 ref-cache path; F3 fence-echo; F4 comment; F5 bucket-size invariant) — F1/F3/F4 applied. Phase-1
+> pre-registration unlocked; the sealed window stays sealed until the pre-registered rule is frozen.
+
+> **Prior status: ISSUED.** The pre-committed stop-rule thresholds are **LOCKED** (operator, 2026-07-11)
 > and frozen before the run — a stop rule chosen after seeing results is not a stop rule (the MSRP
 > D1 discipline): **L = 12 months** (fixed a priori from the 12-1 formation-window overlap — adjacent
 > monthly scores share 11 months, so serial dependence runs to ~a year; **not** derived from the IC

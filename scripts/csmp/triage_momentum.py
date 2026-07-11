@@ -87,9 +87,15 @@ def pct(x):
 # Data loading (every query fenced to the dev window)
 # ---------------------------------------------------------------------------
 def load(con):
-    # Sealed-window guard: prove the store's dev-window boundary on the adjusted view.
+    # Sealed-window guard: prove the dev-window boundary on all three fenced inputs.
     max_adj = con.execute(
         "SELECT MAX(trade_date) FROM equity_bhavcopy_adjusted "
+        "WHERE trade_date <= ?", [DEV_END]).fetchone()[0]
+    max_memb = con.execute(
+        "SELECT MAX(rebalance_date) FROM universe_membership "
+        "WHERE rebalance_date <= ?", [DEV_END]).fetchone()[0]
+    max_cal = con.execute(
+        "SELECT MAX(trade_date) FROM trading_calendar "
         "WHERE trade_date <= ?", [DEV_END]).fetchone()[0]
 
     # Full-session monthly grid from 2010-01 (data start) -> dev end, for lookback
@@ -122,8 +128,8 @@ def load(con):
 
     # Entity-level adjusted close: one row per (entity, date), max-turnover symbol
     # wins (same rule gate (c) used for the active-ticker label). Rename-continuous.
-    # Inline window-function subquery — no temp table (read-only-safe). Restricted to
-    # entities that are ever a dev-window member.
+    # Inline window-function subquery — no temp table (read-only-safe). Joins every
+    # universe_eligibility symbol; non-member rows are simply never looked up.
     px = {}
     q = """
         SELECT entity, trade_date, adj_close FROM (
@@ -138,7 +144,7 @@ def load(con):
     for ent, d, c in con.execute(q, [DEV_END]).fetchall():
         px[(ent, d)] = float(c)
 
-    return max_adj, grid, gidx, px, members
+    return max_adj, max_memb, max_cal, grid, gidx, px, members
 
 
 # ---------------------------------------------------------------------------
@@ -202,7 +208,7 @@ def reference_arm():
 # ---------------------------------------------------------------------------
 def main():
     con = duckdb.connect(str(DB_PATH), read_only=True)
-    max_adj, grid, gidx, px, members = load(con)
+    max_adj, max_memb, max_cal, grid, gidx, px, members = load(con)
     con.close()
 
     line("# CSMP Gate (e) — 12-1 Momentum Transmission Triage")
@@ -218,8 +224,13 @@ def main():
     line("## 1. Sealed-window fence")
     line()
     line(f"- `MAX(trade_date) <= {DEV_END}` asserted on every input query.")
-    line(f"- Adjusted-view dev-window boundary: **MAX(trade_date) = {max_adj}** "
-         f"({'OK' if max_adj <= DEV_END else 'VIOLATION'}).")
+    line(f"- Dev-window boundary on every fenced input (each `≤ {DEV_END}`): "
+         f"`equity_bhavcopy_adjusted` MAX(trade_date) = **{max_adj}** "
+         f"({'OK' if max_adj <= DEV_END else 'VIOLATION'}); "
+         f"`universe_membership` MAX(rebalance_date) = **{max_memb}** "
+         f"({'OK' if max_memb <= DEV_END else 'VIOLATION'}); "
+         f"`trading_calendar` MAX(trade_date) = **{max_cal}** "
+         f"({'OK' if max_cal <= DEV_END else 'VIOLATION'}).")
     line(f"- Monthly full-session grid: {len(grid)} sessions, {grid[0]} → {grid[-1]}.")
     line(f"- Forward-return cutoff: the last dev-window session is **{grid[-1]}**; a "
          f"formation's forward return needs the *next* session, so the last formation "
@@ -360,6 +371,11 @@ def main():
     line(f"- Fees: gate-(d) `delivery_equity_fees` on each buy/sell leg of rebalance "
          f"turnover; first rebalance buys the whole book; terminal month marked, not "
          f"liquidated (standard for a return series).")
+    line("- **Baseline disclosure:** the equal-weight universe arm holds the "
+         "formation-complete members each month (~197 of the 200 point-in-time names — the "
+         "same completeness filter the momentum arm passes), not a naive all-200 book. An "
+         "all-200 book nets ~9.07% (vs 9.16% here), which would *widen* the reported spread "
+         "— so this choice is conservative and apples-to-apples.")
     line()
 
     def simulate(pick):

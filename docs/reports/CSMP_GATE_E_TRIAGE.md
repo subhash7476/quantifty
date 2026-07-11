@@ -7,7 +7,7 @@
 ## 1. Sealed-window fence
 
 - `MAX(trade_date) <= 2022-12-31` asserted on every input query.
-- Adjusted-view dev-window boundary: **MAX(trade_date) = 2022-12-30** (OK).
+- Dev-window boundary on every fenced input (each `≤ 2022-12-31`): `equity_bhavcopy_adjusted` MAX(trade_date) = **2022-12-30** (OK); `universe_membership` MAX(rebalance_date) = **2022-12-30** (OK); `trading_calendar` MAX(trade_date) = **2022-12-30** (OK).
 - Monthly full-session grid: 156 sessions, 2010-01-29 → 2022-12-30.
 - Forward-return cutoff: the last dev-window session is **2022-12-30**; a formation's forward return needs the *next* session, so the last formation month with an in-dev forward return is **2022-11-30** (forward → 2022-12-30). The 2022-12-30 formation's forward return would read the sealed window (2023-01) and is excluded from the IC / portfolio series.
 
@@ -69,6 +69,7 @@ Monthly IC series (year, mean IC):
 
 - Capital: Rs 10,000,000. Equal-weight, monthly rebalance. Turnover = names entering/leaving the held bucket (bucket churn — for the top quintile, names rotating in/out of the top-40-by-momentum set; for the universe, membership churn). Equal-weight drift of continuing holdings is not re-traded, a disclosed simplification that slightly understates fees for both arms (conservative: the net drag is a few bp/mo either way).
 - Fees: gate-(d) `delivery_equity_fees` on each buy/sell leg of rebalance turnover; first rebalance buys the whole book; terminal month marked, not liquidated (standard for a return series).
+- **Baseline disclosure:** the equal-weight universe arm holds the formation-complete members each month (~197 of the 200 point-in-time names — the same completeness filter the momentum arm passes), not a naive all-200 book. An all-200 book nets ~9.07% (vs 9.16% here), which would *widen* the reported spread — so this choice is conservative and apples-to-apples.
 
 - **Top-quintile EW:** annualized net 15.53%, gross 16.26%, avg monthly two-way turnover 23.76%, avg fee drag 5.22 bp/mo, 131 periods
 - **Equal-weight universe:** annualized net 9.16%, gross 9.25%, avg monthly two-way turnover 3.03%, avg fee drag 0.71 bp/mo, 131 periods
