@@ -1103,17 +1103,114 @@ criteria hold; every rate is cited; the test suite is green with hand-computed v
 frozen-component or options-module diffs; no gate-(e) work started. Gate (e) stays HELD until the
 Lead Reviewer signs off.
 
-## Prompt 5 — Gate (e): Transmission triage  **(HELD — the D1-lesson gate)**
+## Prompt 5 — Gate (e): Transmission triage  **(ISSUED 2026-07-11 — stop rule LOCKED)**
 
-Preview: dev-window (2012→2022) pass computing monthly 12-1 momentum scores over the
-point-in-time universe from adjusted prices; report monthly cross-sectional Spearman
-rank IC (mean, SD, hit rate, by-year), decile spread, and a rough net-of-fee
-top-quintile vs equal-weight-universe comparison using the gate-(d) model. The
-**pre-committed stop rule** (numbers frozen in the prompt when issued, before the run):
-if mean dev-window rank IC or the net-of-fee top-bucket spread over the equal-weight
-universe is ≈ 0, CSMP stops before pre-registration — the same discipline that stopped
-D1. The sealed window (2023-01 → 2026-06) must not be touched by this or any earlier
-gate.
+> **Status: ISSUED.** The pre-committed stop-rule thresholds are **LOCKED** (operator, 2026-07-11)
+> and frozen before the run — a stop rule chosen after seeing results is not a stop rule (the MSRP
+> D1 discipline): **L = 12 months** (fixed a priori from the 12-1 formation-window overlap — adjacent
+> monthly scores share 11 months, so serial dependence runs to ~a year; **not** derived from the IC
+> autocorrelation, which would be circular since the IC series is this gate's own output), **mean
+> rank IC floor = 0.02**, **net top-minus-universe spread floor = 0**. DeepSeek V4 implements; Claude
+> Lead-Reviews. Nothing in this gate reads the sealed window.
+
+**Objective.** A dev-window-only (**2012-01 → 2022-12**) triage measuring whether classic 12-1
+cross-sectional momentum — computed over the point-in-time NIFTY-200 universe from gate-(b)
+adjusted prices — transmits into a **tradeable, net-of-fee edge**, before any pre-registration.
+This is the gate that stopped MSRP's D1: a signal can be real and still not transmit into a
+strategy, and that must be discovered *before* the sealed window is ever touched.
+
+**Why this gate exists (charter §5-e; the D1 lesson).** MSRP Phase 7 certified a forward-volatility
+signal that ranked well (Spearman 0.65 on the target) yet transmitted ≈ nil into the tradeable
+construct (0.09), so every Knowledge-gated variant lost to a free baseline — and D1 was correctly
+**not** pre-registered. Gate (e) applies that same pre-committed stop discipline to momentum here,
+on the dev window, so a non-transmitting signal costs a triage script, not a burned held-out window.
+
+**Scope — triage, not strategy; dev window only.**
+- Compute over **2012-01 → 2022-12 ONLY**. The sealed held-out window (2023-01 → 2026-06) must not
+  be read, loaded, or touched — its first and only use is the post-pre-registration test (D3), and
+  any peek burns it. Assert `MAX(trade_date) ≤ 2022-12-31` on every input query and print it.
+- **No tuning, no construct search, no signal engineering.** The construct is charter-locked (D2):
+  classic 12-1, monthly rebalance, equal-weight, provisional top-quintile bucket. The triage reports
+  what the *locked* construct does; it does not search for a better one.
+- No new strategy code; `core/strategies/` stays greenfield until pre-registration.
+
+**Inputs (all from passed gates).**
+- `universe_membership` (gate c) — the point-in-time ~200-name cross-section at each monthly
+  rebalance; score only names that are members as of that date (gate (c)'s no-leak guarantee).
+- `equity_bhavcopy_adjusted` (gate b) — CA-adjusted close (raw momentum is corrupted by
+  splits/bonuses; that is why gate (b) exists).
+- `symbol_changes` (gate a) — entity continuity across renames over the formation window.
+- `delivery_equity_fees` (gate d) — net-of-fee cost of each rebalance turnover leg.
+
+**Method (deterministic; charter-locked).**
+1. **Formation** at each rebalance date `t` (last full session of the month — gate (c)'s rebalance
+   calendar): for each member, 12-1 momentum = total adjusted return from `t−12m` to `t−1m` (skip
+   the most recent month, the standard short-term-reversal guard). Require a complete formation
+   window (member present and priced across the lookback via `symbol_changes`); exclude and **count**
+   names that fail it.
+2. **Rank** members cross-sectionally by score at `t`.
+3. **Forward return**: realized adjusted return of each name over `t → t+1` (next rebalance).
+4. **Rank IC**: monthly cross-sectional **Spearman** correlation of score(`t`) vs forward
+   return(`t→t+1`). Report the series + mean, SD, t-stat, hit rate (fraction of months > 0), by-year.
+5. **Bucket spread**: equal-weight top quintile and bottom quintile; report the gross spread series.
+6. **Net-of-fee gating baseline (D3)**: equal-weight **top-quintile** portfolio, monthly rebalanced,
+   vs the equal-weight **full-universe** portfolio (what a naive investor gets free). Apply gate-(d)
+   delivery fees to every buy/sell leg of each rebalance's turnover (each portfolio pays its own
+   turnover; the universe portfolio's turnover is only membership churn). Report net annualized
+   return, the **net top-minus-universe spread**, and turnover.
+7. **Reference arm (if obtainable)**: NIFTY200 Momentum 30 TRI as an external sign/magnitude sanity
+   check — obtainability shown with HTTP evidence (gate-(b)/(c) discipline); if unobtainable, say so
+   and proceed (it is a reference, not the gating baseline).
+
+**Deliverables.**
+1. `scripts/csmp/triage_momentum.py` — deterministic, re-runnable; writes
+   `docs/reports/CSMP_GATE_E_TRIAGE.md` (generated, byte-identical on re-run).
+2. No production strategy code; no `core/strategies/` work.
+
+**Pre-committed stop rule (LOCKED 2026-07-11 — frozen before the run).**
+CSMP **STOPS before pre-registration** if **EITHER** holds on the dev window (2012-2022):
+- **(A) No skill** — the mean monthly cross-sectional rank IC is not distinguishable from zero, or is
+  economically trivial. STOP if the block-bootstrap 95% CI of the mean monthly IC includes 0 **or**
+  the mean rank IC ≤ **0.02**. Block bootstrap on the monthly IC series with block length **L = 12
+  months** — fixed a priori from the 12-1 formation-window overlap (adjacent monthly scores share 11
+  months of data, so the IC series carries serial dependence to ~a year); **not** derived from the IC
+  autocorrelation, which would be circular (the IC series is this gate's own output). ~132 dev-window
+  months yield ~11 blocks; the resulting wide CI is the intended conservative bias for a triage.
+- **(B) No net edge** — the net-of-fee equal-weight top-quintile portfolio does not beat the
+  equal-weight full-universe baseline: annualized net top-minus-universe spread ≤ **0**.
+
+**CONTINUE** to pre-registration only if **BOTH** clear — mean rank IC > 0.02 **and** its bootstrap
+95% CI lower bound > 0 (A cleared), **and** net annualized top-minus-universe spread > 0 (B cleared).
+These numbers are frozen; the run's verdict is accepted mechanically — **no post-hoc widening** (the
+D1 discipline). A STOP is a *pass* of this gate's discipline, not a failure — a null result is a
+legitimate, valuable terminal state.
+
+**Standing constraints (bind here).**
+- Sealed window untouched — any read of 2023-01→present data is an automatic NOT PASSED.
+- No tuning, no construct search, no signal engineering — charter-locked parameters only.
+- Deterministic, re-runnable; report generated by the script; byte-identical on re-run.
+- Fence: new code in `scripts/csmp/`; report in `docs/reports/`; no `core/strategies/` work; no
+  frozen-component diffs.
+
+**Acceptance criteria (falsifiable — the review will check these exact claims).**
+1. Scores computed only on point-in-time members from `universe_membership`; formation-window
+   completeness enforced, excluded count reported; **no sealed-window rows read** (every input query
+   asserts `MAX(trade_date) ≤ 2022-12-31`, printed in the audit).
+2. Monthly rank IC series + mean/SD/t/hit-rate/by-year present; the block-bootstrap 95% CI with the
+   pre-committed `L` reported.
+3. Net-of-fee top-quintile vs equal-weight-universe spread present, using gate-(d) fees on actual
+   rebalance turnover; turnover disclosed.
+4. The pre-committed stop rule is stated with its locked thresholds and evaluated **mechanically**;
+   the audit renders CONTINUE or STOP on its own numbers.
+5. Reference-arm obtainability shown (data or HTTP-evidenced hole).
+6. Audit regenerates byte-identically on an unchanged store.
+7. No diffs outside `scripts/csmp/` and `docs/reports/`; no `core/strategies/` or frozen-component
+   diffs.
+
+**Definition of done.** The script runs clean; the audit renders **CONTINUE** or **STOP** on its own
+pre-committed numbers; the sealed window is untouched; no tuning occurred. If STOP, CSMP halts before
+pre-registration and the operator decides next (the D1 precedent). If CONTINUE, Phase-1
+pre-registration unlocks. DeepSeek V4 implements; Claude Lead-Reviews.
 
 ---
 
