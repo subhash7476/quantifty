@@ -989,7 +989,20 @@ the no-leak test returns its positive verdict in-run; the audit's fit-for-purpos
 PASS-eligible on its own numbers (or renders the stop language per standing constraint 4); no
 next-gate work started. Gate (d) stays HELD until the Lead Reviewer signs off on the report.
 
-## Prompt 4 — Gate (d): Delivery-equity fee model  **(ISSUED 2026-07-11)**
+## Prompt 4 — Gate (d): Delivery-equity fee model  **(PASSED 2026-07-11)**
+
+> **Status: PASSED** (`CSMP_GATE_D_LEAD_REVIEW.md`, 2026-07-11). DeepSeek V4 implemented
+> `core/execution/equity/delivery_fees.py` (+ `tests/execution/test_delivery_fees.py`, 28 tests;
+> full execution suite 290 passed / 4 skipped); Claude Lead-Reviewed independently (the file was
+> not Claude-authored — only the Prompt-4 GST/DP flag was Claude's, and it was resolved correctly).
+> All 7 acceptance criteria re-derived against the code: effective-dated schedules keyed by
+> `trade_date` (STT 0.1% both legs since 2004-10; NSE txn 0.00345% -> 0.00297% at 2024-10; stamp
+> buy-only 0.01% pre / 0.003% post 2020-07; GST 12.36/14/14.5/15/18% across the service-tax->GST
+> transition), GST base = brokerage+txn+SEBI only (DP's own GST folded into `dp_charge`, not
+> double-counted), pure/deterministic, fence clean. Two LOW documented-assumption notes (N1:
+> SEBI-fee/pre-2024-txn flatness asserted "stable" but corroborated only recently — immaterial,
+> <0.2% of a leg; N2: no paise rounding — preferable for a research aggregate). `[VERIFY]` on the
+> post-2024-10 txn figure is honest disclosure, not a silent guess. Gate (e) unlocked.
 
 **Objective.** A deterministic, effective-dated **delivery-equity fee model** for NSE cash
 delivery — the statutory + exchange cost of a buy and a sell leg for a long-only monthly-rebalance
