@@ -1234,3 +1234,257 @@ same day (`CSMP_GATE_B_IMPLEMENTATION_R5.md`). Prompt 3 was issued 2026-07-10 on
 and reached PASSED 2026-07-11 (`CSMP_GATE_C_LEAD_REVIEW.md`), closing the `ICICIMOM30` gap and
 producing the point-in-time `universe_membership` panel. Prompt 4 (gate (d), delivery-equity fee
 model) was issued 2026-07-11 on that gate-(c) pass.*
+
+---
+
+## Prompt 6 — Phase 1: apply the operator ratification, stamp Rev 6 RATIFIED (author-locked)  **(ISSUED 2026-07-12)**
+
+**Objective.** Apply the operator's ratification (`CSMP_PHASE1_FREEZE_RATIFICATION.md`, 2026-07-12)
+to `docs/reports/CSMP_PHASE1_RESEARCH_DOSSIER.md` and stamp it
+**Rev 6 — RATIFIED, author-locked, pending Phase-2**. This is a **mechanical application of a
+decision already made.** It is the last edit the dossier receives **from its authors** before the
+Phase-2 independent review.
+
+> **This prompt does NOT freeze the dossier, and Rev 6 must not contain the word FROZEN.**
+> Charter §6 row 2 orders Phase 2 as *"critique; revisions folded in; dossier FROZEN"* — **review
+> first, then freeze.** The immutable **FROZEN** stamp lands at **Rev 7**, after Phase-2 findings are
+> folded. Author-lock means the *authors* stop revising; it does **not** mean the document is closed
+> to correction. Because the sealed window is still untouched, a pre-seal change triggered by the
+> Phase-2 reviewer remains fully legitimate — enabling exactly that is why the charter puts the
+> review before the freeze.
+
+**Scope of the bars below — read this carefully.** Every constraint in this prompt binds **you,
+DeepSeek, on this mechanical application pass.** **None of them binds the Phase-2 reviewer**, whose
+job is precisely to stress-test the evidence behind D-i, D-ii, and D-iii and whose findings *are*
+foldable. Do not carry these bars into the dossier as if they gagged the reviewer.
+
+**This prompt authorizes NO new work.** For this pass, each of the following is an automatic NOT PASSED:
+
+1. Running, re-running, or modifying **any** script — `phase1_prereg_analysis.py`,
+   `phase1_ci_coverage.py`, `phase1_group_sequential.py` are final. Their numbers are final.
+2. Introducing **any** number not already in Rev 5 or in the ratification record. No new simulation,
+   no new sensitivity, no re-derivation "to check."
+3. Touching the sealed window (2023-01 → 2026-06) in any way.
+4. Changing the universe, score, holding rule (K=40), metric, baselines, cost model, delisting
+   convention (§5.2), or the ratified inference/extension design. The construct fence binds **the
+   authors** from now; it becomes **immutable at Rev 7 (freeze)**, after which a change to any of
+   these is **a new pre-registration, not an edit**.
+5. Reopening D-i, D-ii, or D-iii **on your own initiative**, or re-arguing them. They are ratified.
+   Record them; do not relitigate them. *(The Phase-2 reviewer may reopen them; you may not.)*
+
+**Deliverable — one file changed:** `docs/reports/CSMP_PHASE1_RESEARCH_DOSSIER.md`.
+
+**The edits, exhaustively.**
+
+1. **Header `Status:`** — replace the "DRAFT (Rev 5) — NOT yet frozen … await operator ratification"
+   block with **RATIFIED (Rev 6) — author-locked, pending Phase-2; NOT yet frozen**, 2026-07-12.
+   State that D-i, D-ii, and D-iii are **operator-ratified** (cite
+   `CSMP_PHASE1_FREEZE_RATIFICATION.md`); that the authors make no further self-initiated revision;
+   that the **Phase-2 independent review by a third frontier model** — neither Claude nor DeepSeek,
+   whose independence is spent — is the one remaining step; and that the dossier **FREEZES at Rev 7,
+   after Phase-2 findings are folded** (charter §6 order).
+2. **Revision provenance** — add **Rev 6**: operator ratification applied; author-locked; **no
+   analytical change from Rev 5** (this is the claim the Lead Review will verify). Note that Rev 7
+   will carry the freeze.
+3. **§1.1** — D-i row: strike "Operator-ratified at freeze" → **"RATIFIED 2026-07-12."** D-iii row:
+   the pinned design is **single-shot**, full stop. Move the Pocock boundary vector *out* of the
+   pinned-substrate table (nothing about it is pinned any more) and keep it in §3.4 as the
+   **declined** alternative, retained for the record. §1.1 must contain only what Phase 6 actually
+   builds against.
+4. **§3.3 / §3.4** — replace every "awaits operator ratification" / "recommended" / "the operator
+   ratifies" hedge with the ratified fact. Keep the D-i coverage table, the power table, and the
+   decay table **intact and unchanged** — they are the evidence, and the Phase-2 reviewer must see
+   them. Preserve verbatim the guardrail sentence *"select on coverage, NOT on narrowness."* Add the
+   record from the ratification §1.2: the rule selected **against** power (Student-t 0.398 vs
+   stationary 0.453), which is the evidence it was not reverse-engineered.
+5. **§10 row 3 (Inconclusive)** — the one substantive edit. Replace *"This requires the operator to
+   explicitly grant a deviation from charter §6 … it must not be assumed"* with the ratified
+   **epistemic-condition framing** (`CSMP_PHASE1_FREEZE_RATIFICATION.md` §2), faithfully:
+
+   > Charter §6's Approval precondition is an **epistemic condition, not a risk gate** — "Approved"
+   > labels a descriptive claim about the sealed window, not a permission to risk capital, and at
+   > PaperBroker scale there is **no capital at risk**. It is **satisfied-in-substance by
+   > disclosure**: the consumer is built and run with the artifact disclosed, in code and in every
+   > report it emits, as **Not Approved / exploratory**.
+
+   State plainly what is **not** licensed: an Inconclusive result is never reported as a
+   confirmation; no LIVE deployment; no parameter change; no re-read. Also drop the parenthetical
+   *"(If instead the operator ratifies the Pocock group-sequential design …)"* — the operator did
+   not, and the decision table must not offer a road not taken.
+6. **§11** — carry the headline in plain words, at the top of the power paragraph:
+
+   > A valid, one-sided, correctly-covered test on 42 months is **~41% powered** against the
+   > program's own point estimate. **The single likeliest outcome of Phase 6 is "Inconclusive"
+   > (~59%) — even if the hypothesis is exactly true.** This was computed **before the window was
+   > spent, not after.**
+
+7. **§13 Sources** — add a row for `CSMP_PHASE1_FREEZE_RATIFICATION.md` (operator ratification and
+   author-lock).
+8. **Footer** — the dossier is **RATIFIED and author-locked, not yet frozen.** "Remaining before the
+   seal" is **exactly two items, in this order**: (1) the **Phase-2 independent review**, whose
+   findings are folded in; (2) the **Rev 7 FROZEN** stamp. Retain the standing attestation that
+   nothing in the document reports a result computed on the sealed window.
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **No number changed.** Every figure in Rev 6 matches Rev 5: mean IC 0.0457; dev CI
+   [0.0091, 0.0811]; Student-t 0.957 / 0.049 / 0.398; mb_L12 0.811 / 0.129 / 0.538; single-shot power
+   0.41; Pocock 0.24 / 0.73; decay row 0.34; naive-schedule FWER 0.130; net spread +6.24%/yr;
+   slippage differential ≈29 bp/yr. **A single changed digit is a NOT PASSED** — this pass is a status
+   change, not a revision.
+2. Status is **RATIFIED / author-locked / pending Phase-2**. The word **FROZEN must not appear as the
+   document's status** (it may appear only as the *future* Rev 7 step). No "recommended", "awaits
+   ratification", or "operator decides" language survives anywhere.
+3. §10 row 3 carries the epistemic-condition framing and no charter-deviation framing.
+4. §1.1 pins **single-shot only**; the Pocock boundary vector appears only in §3.4, marked declined.
+5. The construct fence is stated, with its timing correct: it binds the authors now and becomes
+   immutable at **Rev 7**, after which any change to universe/score/K/metric/baselines/costs/§5.2/
+   inference requires a **new pre-registration**.
+6. **The document does not gag the Phase-2 reviewer.** Nothing in Rev 6 may assert that D-i, D-ii, or
+   D-iii is closed to challenge, or that the evidence is beyond review. The reviewer's mandate to
+   reopen any of them is stated, not merely left unstated.
+7. `git diff` touches **exactly one file** — the dossier. No script diffs. No `core/` diffs.
+8. The sealed window is untouched, and the document still says so.
+
+**Definition of done.** The dossier reads as a pre-registration whose decisions are made, whose
+authors are done, and which is **ready to be attacked** by an independent reviewer — needing nothing
+further from Claude or DeepSeek. DeepSeek V4 applies; Claude Lead-Reviews the diff for mechanical
+fidelity only — did the ratification get applied, and did anything else move?
+
+---
+
+## Prompt 7 — Phase 1: fold Phase-2 findings F1/F2/F3; stamp Rev 7 FROZEN  **(ISSUED 2026-07-12)**
+
+**Context.** The Phase-2 independent review (GPT-5 / Codex, `CSMP_PHASE2_INDEPENDENT_REVIEW.md`)
+returned **PASS WITH REQUIRED REVISIONS**. The Lead Reviewer accepted all three findings and verified
+each against the source (`CSMP_PHASE2_LEAD_DISPOSITION.md`); the operator has ratified the two
+decisions they forced. **This prompt folds them in and freezes the dossier at Rev 7.**
+
+**Scope is exactly F1 + F2 + F3 + the record correction below. Nothing else reopens.** D-ii, D-iii,
+the power analysis, K=40, the cost model, and the decision table were examined by the independent
+reviewer and **cleared on their merits** — they are not in play. Reopening them is an automatic NOT
+PASSED. The sealed window (2023-01 → 2026-06) stays untouched; the dev-only fence and its assertion
+stay in every script.
+
+---
+
+### Step 1 — **F2 first** (it is a precondition for F1, not a parallel task)
+
+`scripts/csmp/phase1_ci_coverage.py` builds its IC population with
+
+```python
+if p12 and p1 and pa and pb and p12 > 0 and pa > 0:   # <-- pb required
+    pr.append((p1 / p12 - 1.0, pb / pa - 1.0))
+```
+
+A name with **no `t+1` price (`pb`) is silently dropped.** That is **the §5.2 survivorship bug** — the
+same class of defect §5.2 was written to kill, and that B1 fixed in `phase1_prereg_analysis.py` —
+still live in **the script that selects the gate**, while the dossier asserts §5.2 is "binding on every
+forward return in the IC set."
+
+**Do:** refactor `dev_ic_series()` to use **the same `fwd()` convention as
+`phase1_prereg_analysis.py`** (rule 1: last available close in `(t, t+1]`; rule 2: 0% step; rule 3:
+never drop the name). **Do not write a second implementation of §5.2** — reuse the one that exists, so
+the two scripts cannot drift apart again. Re-run and publish the corrected coverage table.
+
+> **Falsifiable prediction, recorded before the run** (state it in your report, then run — house
+> discipline): *the §5.2 correction shifts the dev IC population negligibly (0.0458 → ~0.0457); the
+> selection does **not** flip; Student-t remains closest on one-sided Type-I.*
+
+### Step 2 — **F1**: the rule is ratified; the method is *whatever the corrected table selects*
+
+The old rule ("coverage closest to nominal") never named **which** calibration metric, and under a
+literal two-sided reading it selects `iid_perc` (0.949), **not** the ratified Student-t (0.957). The
+operator has ratified the disambiguation:
+
+> **D-i selection rule (ratified 2026-07-12).** *Because the primary gate is a one-sided lower bound,
+> select the CI method whose **one-sided null rejection rate at n = 42 is closest to nominal 0.050**.
+> Two-sided coverage is reported as a sanity check, not used to select. Guardrail, unchanged: select on
+> **calibration, NOT on narrowness**.*
+
+**Apply that rule mechanically to the corrected table and take whatever it selects — including
+`iid_perc`, if that is what it selects.** You are not permitted to steer this. The script must **print
+the selected method and its distance to nominal**, so the choice is made by code, not by prose.
+
+**Also required:** the non-selected candidates are pre-registered as **reported, non-gating arms** at
+Phase 6 — `iid_perc` (the two-sided-reading winner) alongside the retired `mb_L12`. Both readings stay
+visible in the frozen document, so neither can be silently preferred after the sealed result is seen.
+
+> **STOP CONDITION — do not freeze; escalate instead.** If the corrected table **flips the selected
+> method** (one-sided Type-I closeness no longer selects Student-t), **halt.** Do not stamp Rev 7.
+> Publish the corrected table, state the flip plainly, and return to the operator — the frozen gate
+> would be changing, and the Phase-2 reviewer gets a confirmatory look at the corrected table before
+> any freeze.
+
+### Step 3 — **F3**: the PaperBroker path is a **charter amendment**, not a satisfied precondition
+
+The current §10 row 3 framing ("charter §6's Approval precondition is an *epistemic condition* …
+satisfied-in-substance by disclosure") **modelled capital risk and nothing else.** It does not answer
+**anchoring, sunk cost, or the quiet promotion of a Not-Approved artifact into an operationally trusted
+one.** The operator has ratified the reviewer's fix: **record it as an explicit amendment to charter
+§6, with controls.**
+
+Rewrite §10 row 3, and add a dated amendment note to `CSMP_PHASE0_CHARTER.md`, saying in substance:
+
+> **Charter §6 amendment (2026-07-12).** An Inconclusive Phase-6 result leaves the artifact **Not
+> Approved**. The top-40 PaperBroker consumer may still be built and run, as an explicitly
+> **exploratory** deployment, under these controls:
+> 1. It is **not** Phase-7 completion, and must not be recorded as such.
+> 2. It may **never** appear in Approved / Deployable / certified language — in code, dashboards, or
+>    reports.
+> 3. It runs under a **separate exploratory runbook**, distinct from the production consumer path.
+> 4. Its forward data may enter **only a fresh pre-registration with frozen rules and fresh α** — never
+>    a re-read of the spent window, never a retrofit of this one.
+
+**Delete the "satisfied-in-substance by disclosure" language.** It is superseded.
+
+### Step 4 — the record correction (F1 falsifies a claim now in the dossier)
+
+§3.4 / §1.1 currently celebrate that the rule *"selected against power (Student-t 0.398 vs stationary's
+0.453)."* That is **inaccurate**: the stationary bootstrap was never the rule's winner under either
+reading, and the relevant foil — **`iid_perc`, power 0.418, the literal two-sided winner** — was
+**omitted from the comparison entirely.** Replace it with:
+
+> Student-t is the **lowest-power valid candidate** (0.398, vs `iid_perc` 0.418 and stationary 0.453) —
+> chosen on **one-sided calibration for a one-sided gate**, not for power. The rule as first written was
+> **underspecified** between the one-sided and two-sided readings (Phase-2 **F1**); under a literal
+> two-sided reading it selects `iid_perc`. It was **disambiguated to one-sided pre-seal, on a corrected
+> table, and disclosed** — not resolved after the fact.
+
+*(Adjust the figures to the corrected table if they move.)* **The disclosure is the point. Do not
+restore a triumphant framing.**
+
+### Step 5 — freeze
+
+Stamp the dossier **Rev 7 — FROZEN** (charter §6 order: critique → revisions folded → FROZEN). Header,
+revision provenance, and footer updated accordingly. The construct fence becomes **immutable**: any
+change to universe / score / K / metric / baselines / cost model / §5.2 / inference or extension design
+now requires **a new pre-registration, not an edit**. Add `CSMP_PHASE2_INDEPENDENT_REVIEW.md` and
+`CSMP_PHASE2_LEAD_DISPOSITION.md` to §13 Sources.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **F2 closed in code, not in prose:** `phase1_ci_coverage.py` reuses `phase1_prereg_analysis.py`'s
+   §5.2 `fwd()` convention — **no second implementation** — and the corrected table is published with
+   the pre-stated prediction and the actual outcome side by side.
+2. **F1 closed by code, not by choice:** the script **prints** the selected method and its distance to
+   nominal under the ratified one-sided rule. The dossier's D-i wording matches that rule verbatim. The
+   non-selected arms (`iid_perc`, `mb_L12`) are pre-registered as **reported, non-gating**.
+3. **The stop condition was honoured:** if the selection flipped, the dossier is **not** frozen and the
+   matter is back with the operator.
+4. **F3 closed as an amendment:** §10 row 3 and the charter carry the dated §6 amendment with all four
+   controls; the "satisfied-in-substance" language is **gone**.
+5. **The record correction landed:** no "selected against power (vs stationary)" claim survives
+   anywhere; the `iid_perc` foil and the F1 ambiguity are disclosed.
+6. **Nothing outside scope moved.** D-ii, D-iii, the power tables, K=40, the cost model, and
+   decision-table rows 1 / 2 / 4 are byte-unchanged.
+7. `git diff` touches only: the dossier, `phase1_ci_coverage.py`, the charter (amendment note), and the
+   coverage output. **No `core/` diffs. No sealed-window reads** (fence asserted and printed).
+8. Scripts remain deterministic at seed `20260711` and re-run byte-identically.
+
+**Definition of done.** The pre-registration is **FROZEN**; its gate is defined by a rule a stranger
+could apply mechanically to a printed table and land on the same method; its calibration script honours
+the same delisting convention as its analysis script; and its one governance deviation is recorded as
+an amendment with teeth rather than a reframing. DeepSeek V4 implements; Claude Lead-Reviews.
