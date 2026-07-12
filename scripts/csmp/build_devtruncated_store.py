@@ -61,7 +61,7 @@ CANON_PREREG = ["mean=0.0457", "CI[0.0091,0.0811]",
                 "spread vs formation-complete=0.0624",
                 "STOP-RULE (mean_IC>0.02 & CI_lo>0 & spread>0, stronger baseline): CONTINUE",
                 "rule1=21", "rule2=1"]
-CANON_COVERAGE = ["0.957", "0.049", "0.398", "0.811", "0.129"]
+CANON_COVERAGE = ["0.957", "0.049", "0.397", "0.809", "0.129"]  # post-F2 (§5.2 fwd()); pre-F2: 0.398 / 0.811
 
 
 def build():

@@ -1,17 +1,25 @@
 """CSMP Phase-1 D-i (CI-method) coverage simulation — DEV-WINDOW ONLY.
 
-Operationalizes the operator's pre-registered selection rule (§3.4): pick the CI
-method whose empirical coverage at the sealed n (=42) is closest to nominal, judged
-on COVERAGE, not narrowness. Population = the empirical distribution of the 131
-dev-window monthly rank ICs (mean 0.046, SD 0.208); iid resampling is justified by
-the near-zero serial dependence of that series (block-L12 CI is 1.011x the iid CI at
-n=131). No sealed-window data is read (fence asserted). Deterministic (seed 20260711).
+Operationalizes the RATIFIED selection rule (§3.4, disambiguated 2026-07-12 per
+Phase-2 F1): because the primary gate is a ONE-SIDED lower bound, select the CI
+method whose one-sided null rejection rate at n=42 is CLOSEST TO NOMINAL 0.050.
+Two-sided coverage is reported as a sanity check, not used to select. Guardrail,
+unchanged: select on CALIBRATION, NOT on narrowness. The script prints the selected
+method and its distance to nominal, so the choice is made by code, not by prose.
+
+The dev IC population is built under the SECTION 5.2 delisting convention, reusing
+`phase1_prereg_analysis.fwd()` (Phase-2 F2 — one implementation of §5.2, shared with
+the analysis script, so the two cannot drift). Population = the empirical distribution
+of the 131 dev-window monthly rank ICs (mean ~0.046, SD ~0.208); iid resampling is
+justified by the near-zero serial dependence of that series (block-L12 CI is 1.011x
+the iid CI at n=131). No sealed-window data is read (fence asserted). Deterministic
+(seed 20260711).
 
 For each candidate CI method it reports, at n=42, over two populations
 (null: mean 0; alt: mean = dev mean):
-  - two-sided 95% coverage of the true mean            (target 0.950)
+  - two-sided 95% coverage of the true mean            (target 0.950; sanity check only)
   - two-sided gate rejection  P(CI_lo > 0)             (null=Type-I target 0.025; alt=power)
-  - one-sided gate rejection  P(lower95 > 0)           (null=Type-I target 0.050; alt=power)
+  - one-sided gate rejection  P(lower95 > 0)           (null=Type-I target 0.050; alt=power)  <- SELECTION METRIC
 """
 import math
 from collections import defaultdict
@@ -24,10 +32,14 @@ import numpy as np
 from scipy.stats import spearmanr, t as tdist
 
 sys.path.insert(0, r"F:\Nifty")
+sys.path.insert(0, str(Path(__file__).resolve().parent))   # scripts/csmp, to reuse fwd()
+from phase1_prereg_analysis import fwd  # the ONE §5.2 delisting convention (Phase-2 F2)
+
 DEV_END = date(2022, 12, 31)
 DB = Path(r"F:\Nifty\data\market_data\equity_bhavcopy.duckdb")
 N_SEALED = 42
 SEED = 20260711
+NOMINAL_1S = 0.05  # one-sided gate α; the D-i selection targets this (F1)
 
 
 def dev_ic_series():
@@ -51,7 +63,13 @@ def dev_ic_series():
         FROM equity_bhavcopy_adjusted a JOIN universe_eligibility e ON e.symbol=a.symbol
         WHERE a.trade_date<=?) WHERE rn=1""", [DEV_END]).fetchall()
     con.close()
-    px = {(e, d): float(c) for e, d, c in rows}
+    px = {}
+    ent_dates = defaultdict(list)
+    for e, d, c in rows:
+        px[(e, d)] = float(c)
+        ent_dates[e].append(d)
+    for e in ent_dates:
+        ent_dates[e].sort()
     assert max(d for (_, d) in px) <= DEV_END, "SEALED LEAK"
     gidx = {d: i for i, d in enumerate(grid)}
     scored = [d for d in grid if d in memb and gidx[d] + 1 < len(grid)
@@ -61,10 +79,13 @@ def dev_ic_series():
         i = gidx[tt]; t12, t1, tp1 = grid[i - 12], grid[i - 1], grid[i + 1]
         pr = []
         for sym, ent in memb[tt]:
-            p12, p1, pa, pb = (px.get((ent, t12)), px.get((ent, t1)),
-                               px.get((ent, tt)), px.get((ent, tp1)))
-            if p12 and p1 and pa and pb and p12 > 0 and pa > 0:
-                pr.append((p1 / p12 - 1.0, pb / pa - 1.0))
+            p12, p1 = px.get((ent, t12)), px.get((ent, t1))
+            if not (p12 and p1 and p12 > 0):
+                continue  # formation-incomplete: not scored (matches phase1_prereg_analysis)
+            ret, _rule = fwd(ent, tt, tp1, px, ent_dates, 0.0)  # §5.2: rule1/rule2, never drops
+            if ret is None:
+                continue  # 'noentry' — no price at t at all (cannot place)
+            pr.append((p1 / p12 - 1.0, ret))
         if len(pr) >= 5:
             ic.append(float(spearmanr([a for a, _ in pr], [b for _, b in pr])[0]))
     return np.array(ic)
@@ -123,10 +144,28 @@ def run(dev, outer=5000, B=1500):
               f"{C[m]['alt_2s']/outer:8.3f} | {C[m]['null_1s']/outer:9.3f} | {C[m]['alt_1s']/outer:7.3f}")
     print(f"{'NOMINAL':14}| {0.95:8.3f} | {0.025:9.3f} | {'—':>8} | {0.05:9.3f} | {'—':>7}")
 
+    # ---- D-i selection, applied MECHANICALLY by code (Phase-2 F1) ----------------
+    # Ratified rule: one-sided null rejection closest to nominal 0.050 (the gate is
+    # one-sided). Calibration, NOT narrowness. Whatever this selects IS the gate.
+    dist1s = {m: abs(C[m]['null_1s'] / outer - NOMINAL_1S) for m in methods}
+    selected = min(dist1s, key=dist1s.get)
+    print(f"\nD-i SELECTION (ratified rule — one-sided Type-I closest to nominal {NOMINAL_1S}; "
+          f"calibration NOT narrowness):")
+    for m in methods:
+        print(f"  {m:14} 1s Type-I={C[m]['null_1s']/outer:.3f}  distance={dist1s[m]:.3f}")
+    print(f"  >> SELECTED GATE: {selected}  (1s Type-I distance {dist1s[selected]:.3f} from {NOMINAL_1S})")
+    # Disclosure: the two-sided-coverage reading (reported, NON-GATING) and its winner.
+    dist2s = {m: abs(C[m]['null_cov'] / outer - 0.95) for m in methods}
+    sel2s = min(dist2s, key=dist2s.get)
+    print(f"  two-sided-coverage reading (REPORTED, NON-GATING) would select: {sel2s} "
+          f"(2s coverage distance {dist2s[sel2s]:.3f}); retained arm: mb_L12 (invalid, 0.811)")
+    return selected
+
 
 if __name__ == "__main__":
     dev = dev_ic_series()
     print(f"dev IC: n={len(dev)} mean={dev.mean():.4f} SD={dev.std(ddof=1):.4f} "
           f"skew={((dev-dev.mean())**3).mean()/dev.std()**3:+.2f}  (sealed-fenced <= {DEV_END})")
-    print(f"Selection rule: coverage closest to nominal at n={N_SEALED}; guardrail = coverage NOT narrowness.")
+    print("Selection rule (RATIFIED, F1): one-sided Type-I closest to nominal 0.050; "
+          "guardrail = calibration NOT narrowness. §5.2 forward returns (F2, shared fwd()).")
     run(dev)

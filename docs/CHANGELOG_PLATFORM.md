@@ -6,6 +6,36 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-12 — CSMP Phase 1 pre-registration FROZEN at Rev 7 (Lead Review PASS; construct fence immutable)
+
+Prompt 7 folded the three Phase-2 findings and stamped the dossier **FROZEN — Rev 7**. DeepSeek V4 implemented; Claude Lead-Reviewed the diff for mechanical fidelity and returned **PASS on all 8 acceptance criteria** (`docs/reports/CSMP_PHASE1_REV7_FREEZE_REVIEW.md`).
+
+**The gate was re-derived, not accepted.** Claude re-ran `phase1_ci_coverage.py` independently. **The falsifiable prediction, recorded before the run, held:** dev IC 0.0458 → **0.0457** (predicted ~0.0457); the coverage table moved **≤ 0.002** on every cell; **the selection did not flip.** The script now *prints* its own choice: `>> SELECTED GATE: Student_t (1s Type-I distance 0.001 from 0.05)`, with `iid_perc` at 0.003. **The stop condition was live and correctly not triggered** — a flip would have blocked the freeze.
+
+**A margin worth recording.** F1's danger was that `iid_perc` sat **0.001** from nominal on *two-sided coverage* (knife-edge) while Student-t sat 0.007 away. **On the ratified metric — one-sided Type-I — the margin is 0.001 vs 0.003, a 3× separation.** The disambiguation did not pick a side of a coin-flip; it selected on an axis where the winner is unambiguous. That is the direct payoff of the ratified sequencing: fix F2 *before* resolving F1, because you do not ratify a frozen gate on a table you have just declared miscomputed.
+
+**F2 closed in code, not prose.** `phase1_ci_coverage.py:36` now does `from phase1_prereg_analysis import fwd` — **one** §5.2 implementation, shared. The old `if p12 and p1 and pa and pb` gate — which silently dropped any name with no `t+1` price, the survivorship bug — is **gone**. The two scripts can no longer drift apart.
+
+**F1 closed by code, not by choice.** §3.4 carries the ratified rule verbatim (*one-sided null rejection rate closest to nominal 0.050; select on calibration, NOT on narrowness*), and the script announces which method the **two-sided reading would have selected** (`iid_perc`) as an explicitly **reported, non-gating** arm alongside the retired `mb_L12`. Both readings stay visible in the frozen record; neither can be preferred after the seal.
+
+**F3 closed as an amendment.** `CSMP_PHASE0_CHARTER.md` carries a dated **§6 Approval-precondition amendment** with all four controls (not Phase-7 completion; never Approved/Deployable language; separate exploratory runbook; forward data only into a fresh pre-registration with fresh α). The "satisfied-in-substance / epistemic condition" framing is **deleted** — `grep` returns 0 across the dossier, as does "selected against power."
+
+**Diff scope verified:** exactly three files (dossier, `phase1_ci_coverage.py`, charter); **0 `core/` diffs**; out-of-scope content (D-ii, the analytic power table, the decay table, K=40, the cost model, decision rows 1/2/4) **byte-unchanged**; seed `20260711` deterministic; `assert … "SEALED LEAK"` intact.
+
+**One out-of-scope defect, flagged not hidden.** `build_devtruncated_store.py` pinned pre-F2 constants (`0.398`, `0.811`) in its self-check — a rebuild of the Phase-6 handoff store would have **false-FAILed against a correct store**. DeepSeek correctly refused to widen a scope-fenced diff and escalated instead; the Lead Reviewer closed it (synced to `0.397` / `0.809`). No query, filter, schema, or construct parameter touched — not a fence breach.
+
+**The construct fence is now immutable.** Any change to the universe, score, K=40, metric, baselines, cost model, §5.2 delisting convention, or inference/extension design requires **a new pre-registration for a new increment — not an edit.**
+
+**What the pre-registration survives that it did not four days ago:** a gate whose CI under-covered by 4×; an extension schedule whose family-wise Type-I equalled the bug it replaced; a selection rule that named no metric and pointed at two different gates; a survivorship bug inside the very script that chose the gate; and a governance escape hatch dressed as a definition. **All five were found and closed while the window was still sealed** — the only time any of them could be fixed for free.
+
+The headline is unchanged and remains the most important line in the document: **a valid, one-sided, correctly-covered test on 42 months is ~41% powered against the program's own point estimate, so "Inconclusive" is the single likeliest outcome even if the hypothesis is exactly true** — computed before the window was spent, not after.
+
+**Next: Phase 6 — the single sealed read (2023-01 → 2026-06), subject to the §8 A1 VOID precondition. The sealed window has not been read.**
+
+*(docs/reports/CSMP_PHASE1_REV7_FREEZE_REVIEW.md; docs/reports/CSMP_PHASE1_RESEARCH_DOSSIER.md Rev 7; docs/reports/CSMP_PHASE0_CHARTER.md §6 amendment; docs/reports/CSMP_IMPLEMENTATION_PROMPTS.md §Prompt 7; scripts/csmp/phase1_ci_coverage.py; scripts/csmp/build_devtruncated_store.py)*
+
+---
+
 ## 2026-07-12 — CSMP Phase 2 (independent model review): PASS WITH REQUIRED REVISIONS — all 3 findings accepted; Prompt 7 issued
 
 The Phase-2 independent review was conducted by **GPT-5 / Codex** — the third model, neither Claude (who wrote the decisions memo and reviewed twice) nor DeepSeek (who authored the dossier and self-reviewed). Verdict **PASS WITH REQUIRED REVISIONS**. Claude, as Lead Reviewer, **confirmed all three findings at the source** and accepted them in full (`docs/reports/CSMP_PHASE2_LEAD_DISPOSITION.md`); the operator ratified the two decisions they forced.

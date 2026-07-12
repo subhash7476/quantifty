@@ -259,3 +259,27 @@ not implement gate deliverables.
 - **CSMP** picks the construct where forecast and trade are the same object, and aims to
   produce the platform's **First Production Knowledge Consumer** (Phase 7, as redefined
   under Candidate H).
+
+---
+
+## Amendment — §6 Approval precondition (2026-07-12, Phase-2 F3)
+
+The independent Phase-2 review (`CSMP_PHASE2_INDEPENDENT_REVIEW.md`, F3) and the Lead
+disposition (`CSMP_PHASE2_LEAD_DISPOSITION.md` §1) established that the post-Inconclusive
+PaperBroker path is a **charter amendment**, not "satisfaction-in-substance" of §6. The
+operator ratified it as such (2026-07-12). Recorded here with teeth:
+
+> **§6 amendment.** An Inconclusive Phase-6 result leaves the artifact **Not Approved**.
+> The top-40 PaperBroker consumer may still be built and run, as an explicitly
+> **exploratory** deployment, under four controls:
+> 1. It is **not** Phase-7 completion, and must not be recorded as such.
+> 2. It may **never** appear in Approved / Deployable / certified language — in code,
+>    dashboards, or reports.
+> 3. It runs under a **separate exploratory runbook**, distinct from the production
+>    consumer path.
+> 4. Its forward data may enter **only** a fresh pre-registration with frozen rules and
+>    fresh α — never a re-read of the spent sealed window, never a retrofit of this one.
+
+The prior framing — that §6 was met by disclosure because a PaperBroker consumer puts no
+capital at risk — modelled capital risk alone and is **withdrawn**: it did not answer the
+anchoring, sunk-cost, and promotion risks the amendment's controls now govern.
