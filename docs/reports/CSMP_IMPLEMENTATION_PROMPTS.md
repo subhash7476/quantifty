@@ -1829,8 +1829,8 @@ DeepSeek V4 implements; Claude Lead-Reviews. **Do not begin Phase 6.**
 **Before touching the sealed window**, re-run the **dev** dry run and confirm it still produces:
 
 ```
-validation_id = d0651e10b38157db93a8614feff7ff4d45fefc5a7e423c38ef0fb94d875952fc
-code_commit   = 98bcaf2f18d5120f1579a29ec553dc5c8266ed23
+validation_id = 65cefc3704e87092c6e9d207e755a1bbb7646708ad0502d1282feef063825f63
+code_commit   = 8889e70defa8e00bd6ec810825f4dd6b8ff4ae31
 n = 131 | mean_IC = 0.0457 | rule-1/rule-2 = 21/1 | spread +6.24% / +5.95%
 ```
 
@@ -1925,12 +1925,12 @@ So:
 
 **Acceptance criteria (the Lead Review checks precisely these).**
 
-1. **The tripwire passed** — the dev `validation_id` is exactly `d0651e10…` before the sealed read.
+1. **The tripwire passed** — the dev `validation_id` is exactly `65cefc37…` before the sealed read.
 2. **The VOID screen ran first**, and its result is reported. If it VOIDed, **no verdict exists** and the
    window is re-sealed.
 3. **The sealed window was read exactly ONCE.** Evidence: exactly one sealed record; one report; no
    parameter variations anywhere in the shell history or the report.
-4. **Zero code diffs** between the cleared commit (`98bcaf2` harness) and the run. `git diff` over the five
+4. **Zero code diffs** between the cleared commit (`8889e70` harness) and the run. `git diff` over the five
    harness paths is **empty**. The dirty-tree guard makes this structural — do not defeat it.
 5. **`n = 42`**, matching the pinned grid.
 6. **The verdict is the code's**, rendered mechanically from §10 — not a human's reading.
