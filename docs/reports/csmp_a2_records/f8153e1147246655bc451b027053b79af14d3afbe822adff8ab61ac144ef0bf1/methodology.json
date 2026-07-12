@@ -3,11 +3,11 @@
   "gate": "one-sided 95% Student-t lower bound of mean_IC > 0 (D-i pinned)",
   "harness_version": "1.0.0",
   "holding_k": 40,
-  "methodology_fingerprint": "a33ca2a226a6415fd0ce8d275a92cdef042a02e9b8a3b309421f219d62ada5c6",
+  "methodology_fingerprint": "f9ff9dadb8739ceabbdeb0aa55ccec8245d5b2a36feb085593fa19483b0adb73",
   "slippage_bps_per_side": 5.0,
   "substrate": {
     "block_length": 12,
-    "commit": "983cca082eb3b00588844ac5d4b0d97185b692dd",
+    "commit": "0ae1dc4b36df1b10b794925606abfe363aa7d7d5",
     "lib_versions": {
       "duckdb": "1.4.3",
       "numpy": "2.4.4",
@@ -22,7 +22,7 @@
       "core/msi/csmp/validation.py": "ee89aa3bee6c094d2a82874bbb30a3b2bd5666d6fb953f5fdda2c90c164c6907",
       "core/msi/csmp/void_precondition.py": "54305a0f4234009b1a2b3acf1a308797ad813f96d649eb190643d96dfa19a4eb",
       "scripts/csmp/phase1_prereg_analysis.py": "bf9879fb7b3a3bd1bc4b7c900b6bdace4a96ff13e4e0b64d9ce3738a056f68b2",
-      "scripts/csmp/run_a2_validation.py": "fcc6a7d02ce5597ac4d3df46955c10c32482048a6405189ac6bba70c9d10ea77"
+      "scripts/csmp/run_a2_validation.py": "bc7a69f4dc5cb3043e471825c1362c0d8677f0216f6dd576e3601a4c2e3fac63"
     }
   }
 }

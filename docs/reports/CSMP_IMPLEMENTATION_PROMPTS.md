@@ -1829,8 +1829,8 @@ DeepSeek V4 implements; Claude Lead-Reviews. **Do not begin Phase 6.**
 **Before touching the sealed window**, re-run the **dev** dry run and confirm it still produces:
 
 ```
-validation_id = a5c113dc8034ae76b0809042501d69715159d82a8b355b4b865806a5758198c6
-code_commit   = 983cca082eb3b00588844ac5d4b0d97185b692dd
+validation_id = f8153e1147246655bc451b027053b79af14d3afbe822adff8ab61ac144ef0bf1
+code_commit   = 0ae1dc4b36df1b10b794925606abfe363aa7d7d5
 n = 131 | mean_IC = 0.0457 | rule-1/rule-2 = 21/1 | spread +6.24% / +5.95%
 ```
 
@@ -1925,12 +1925,12 @@ So:
 
 **Acceptance criteria (the Lead Review checks precisely these).**
 
-1. **The tripwire passed** — the dev `validation_id` is exactly `a5c113dc…` before the sealed read.
+1. **The tripwire passed** — the dev `validation_id` is exactly `f8153e11…` before the sealed read.
 2. **The VOID screen ran first**, and its result is reported. If it VOIDed, **no verdict exists** and the
    window is re-sealed.
 3. **The sealed window was read exactly ONCE.** Evidence: exactly one sealed record; one report; no
    parameter variations anywhere in the shell history or the report.
-4. **Zero code diffs** between the cleared commit (`983cca0` harness) and the run. `git diff` over the five
+4. **Zero code diffs** between the cleared commit (`0ae1dc4` harness) and the run. `git diff` over the five
    harness paths is **empty**. The dirty-tree guard makes this structural — do not defeat it.
 5. **`n = 42`**, matching the pinned grid.
 6. **The verdict is the code's**, rendered mechanically from §10 — not a human's reading.
@@ -1955,8 +1955,8 @@ DeepSeek V4 executes; Claude Lead-Reviews. **Then the operator decides — per �
 > (`CSMP_PROMPT11_LEAD_REVIEW.md`, `CSMP_PROMPT12_LEAD_REVIEW.md`).
 >
 > **Step-0 tripwire values are now:**
-> - `validation_id = a5c113dc8034ae76b0809042501d69715159d82a8b355b4b865806a5758198c6`
-> - `code_commit   = 983cca082eb3b00588844ac5d4b0d97185b692dd`
+> - `validation_id = f8153e1147246655bc451b027053b79af14d3afbe822adff8ab61ac144ef0bf1`
+> - `code_commit   = 0ae1dc4b36df1b10b794925606abfe363aa7d7d5`
 >
 > *(The `d0651e10…` / `98bcaf2` values written in Step 0 below are superseded — the identity is
 > content-addressed, so it legitimately changed when the guard and report code changed.
