@@ -2066,6 +2066,85 @@ Phase 6 is re-issued.
 
 ---
 
+## Prompt 12 — Make sealedness an invariant, not a string  **(ISSUED 2026-07-12)**
+
+**Prompt 11 is NOT PASSED on one HIGH finding** (`CSMP_PROMPT11_LEAD_REVIEW.md`). Everything else is clean —
+including the dispositive guardrail: `results.json` is byte-identical (`be662698…`), so the reporting fix
+moved no number. **This is the last fix before Phase 6.**
+
+### The finding
+
+The Lead-Review amendment — *derive `sealed` from the data, not the label* — **was not implemented**:
+
+```
+scripts/csmp/run_a2_validation.py:356   sealed = str(args.phase).startswith("6")
+core/msi/csmp/validation.py:49          if str(phase).startswith("6") and n != expected:
+```
+
+**The report's destination, the truthfulness of its central claim, and whether the `n == 42` guard arms at
+all — all hang on a prefix match against a CLI string a human types.** And the fence does **not** save you:
+`run_a2_validation.py:82` asserts only `observed_max <= price_cutoff`, which **passes while sealed rows are
+read** when `--price-cutoff 2026-06-30`.
+
+**Run Phase 6 as `--phase sealed-read` (no leading `6`) and:** the window is read and **spent forever**; the
+`n == 42` guard never arms; the report overwrites **`CSMP_A2_DEV_DRYRUN.md`, destroying the tripwire**;
+it prints `✗ MISMATCH` on every dev-reconciliation row; and it states, in the artifact produced *by the run
+that read the sealed window*, **"The sealed window (2023-01 → 2026-06) was not read."** Every defect Prompt
+11 eliminated returns at once — on the one run that cannot be repeated.
+
+### The fix (small; nothing else changes)
+
+1. **Derive sealedness from the data.** It is authoritative — it is the actual condition under which sealed
+   rows enter the computation:
+   ```python
+   sealed = (price_cutoff > DEV_HI) or (eval_hi > DEV_HI)
+   ```
+2. **Cross-check the label and raise on disagreement**, catching both directions (a sealed window labelled
+   dev; a dev window labelled Phase 6):
+   ```python
+   if str(phase).startswith("6") != sealed:
+       raise PhaseWindowMismatchError(...)
+   ```
+   Raise **before** anything is scored, written, or read.
+3. **Key `assert_grid_shape()` off the derived `sealed`**, not the label.
+
+**Scope fence:** reporting/guard layer only. **No change to scoring, the gate, VOID, record-writing, or any
+construct parameter.** `results.json` must remain byte-identical (`be662698…`) — a guard fix that moves a
+number is not a guard fix.
+
+**Accepted consequence:** the dev `validation_id` and `code_commit` change again (content-addressed by
+design). Re-pin them in dossier §1.1 **and** Prompt 10 Step 0; keep exactly one dev record.
+
+---
+
+**Acceptance criteria.**
+
+1. **`results.json` byte-identical** to `be662698dc5eb793f612b67378a8fd5e99747e4b73cb3021117a239e4538d955`.
+   **Dispositive.**
+2. **No `startswith("6")` decides anything.** `grep -n 'startswith("6")'` returns **only** the
+   label/window cross-check itself.
+3. **`sealed` is data-derived** from `price_cutoff` / `eval_hi` against `DEV_HI`.
+4. **`PhaseWindowMismatchError` raises in both directions** — tested: sealed dates + dev label → raises;
+   dev dates + `6/…` label → raises. **Neither test may read the sealed window** (a *label/date* mismatch is
+   detectable before any query — raise on the arguments, not on the data).
+5. **`assert_grid_shape()` keys off derived `sealed`**, and still raises on n ≠ 42 in the sealed phase.
+6. **Exactly one dev record**; §1.1 and Prompt 10 Step 0 carry the new `validation_id` / `code_commit`.
+7. **Sealed window not read.** Fence asserted and printed; observed max ≤ 2022-12-31.
+8. **Construct fence held** — no scoring/gate/VOID/record diffs; dossier diff = the §1.1 row only.
+
+**Definition of done.** A mislabelled sealed run is **impossible**, not merely discouraged. The code — not a
+typed string, and not an instruction in a prompt — decides what is sealed.
+
+> **The lesson, stated once, because it has now appeared twice.** Prompt 11 existed to fix `n == 42`, which
+> had been *"a sentence in a prompt, not a guard in the code."* This finding is the same species. **A
+> safeguard that depends on a human typing a label correctly is not a safeguard.** Every protection standing
+> between us and an irreversible mistake must be an invariant the machine enforces. Prompt 12 is where that
+> stops being a principle and becomes the code.
+
+**DeepSeek V4 implements; Claude Lead-Reviews. Then Phase 6 is re-issued. The sealed window stays sealed.**
+
+---
+
 > **On the refusal.** DeepSeek was given a direct instruction to execute the single most consequential
 > command in the program, and it **stopped and escalated instead** — because running it would have burned
 > an irreplaceable asset to produce a self-contradictory artifact. Every safeguard in this program exists
