@@ -3,11 +3,11 @@
   "gate": "one-sided 95% Student-t lower bound of mean_IC > 0 (D-i pinned)",
   "harness_version": "1.0.0",
   "holding_k": 40,
-  "methodology_fingerprint": "707c8ca5ffda609cd3ae8ed275b7cc6819919dca8c465ee397b7645c318df111",
+  "methodology_fingerprint": "a33ca2a226a6415fd0ce8d275a92cdef042a02e9b8a3b309421f219d62ada5c6",
   "slippage_bps_per_side": 5.0,
   "substrate": {
     "block_length": 12,
-    "commit": "8889e70defa8e00bd6ec810825f4dd6b8ff4ae31",
+    "commit": "983cca082eb3b00588844ac5d4b0d97185b692dd",
     "lib_versions": {
       "duckdb": "1.4.3",
       "numpy": "2.4.4",
@@ -19,10 +19,10 @@
     "seed": 20260711,
     "source_hashes": {
       "core/msi/artifacts/xs_momentum_v1/model.py": "db06ceffd9e4fdeddff82b916968673ab99fbfcc562997f0b670241dd74f9aa6",
-      "core/msi/csmp/validation.py": "b2b84a8e233a5c39ffe386d4a6117efbc95449d106a4c152f9835938db2540b4",
+      "core/msi/csmp/validation.py": "ee89aa3bee6c094d2a82874bbb30a3b2bd5666d6fb953f5fdda2c90c164c6907",
       "core/msi/csmp/void_precondition.py": "54305a0f4234009b1a2b3acf1a308797ad813f96d649eb190643d96dfa19a4eb",
       "scripts/csmp/phase1_prereg_analysis.py": "bf9879fb7b3a3bd1bc4b7c900b6bdace4a96ff13e4e0b64d9ce3738a056f68b2",
-      "scripts/csmp/run_a2_validation.py": "d07e419dc053786fe7304888765338258c0bd2d99f2672eb2e64679798b4dd7d"
+      "scripts/csmp/run_a2_validation.py": "fcc6a7d02ce5597ac4d3df46955c10c32482048a6405189ac6bba70c9d10ea77"
     }
   }
 }
