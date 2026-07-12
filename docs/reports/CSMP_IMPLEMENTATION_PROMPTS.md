@@ -1797,3 +1797,153 @@ acting on a signal that demonstrably does not calibrate.
 the pin. Then Phase 6 can safely be what it was always meant to be: **a ceremony, not a build.**
 
 DeepSeek V4 implements; Claude Lead-Reviews. **Do not begin Phase 6.**
+
+---
+
+## Prompt 10 — **PHASE 6: THE SINGLE SEALED READ**  **(ISSUED 2026-07-12)**
+
+> **This prompt authorizes the one irreversible act in the entire program.**
+>
+> The held-out window **2023-01 → 2026-06** has never been read. After this run, it is **spent
+> forever**. There is no second read, no re-run with different parameters, no "quick check." Every gate,
+> every review, every correction of the last five days existed to make **this one execution** trustworthy.
+>
+> **You are not building anything. You are not deciding anything. You are running one command and
+> reporting what it prints.**
+
+### What is already settled, and is not yours to revisit
+
+- The **pre-registration is FROZEN** (`CSMP_PHASE1_RESEARCH_DOSSIER.md` Rev 7), independently reviewed by
+  a third model, with every finding folded in.
+- The **gate is pinned**: the one-sided 95% Student-t lower bound of `mean_IC` > 0 → **Approved**;
+  additionally `Δ_net > 0` → **Deployable**. **The code applies it. You do not.**
+- The **decision table (§10) was written before anyone saw this data.** The harness renders the verdict
+  mechanically. **You do not interpret it, adjust it, soften it, or comment on whether it is good news.**
+- The **A2 harness is cleared** (`CSMP_PROMPT9_LEAD_REVIEW.md`, PASS on all 10 criteria) and has already
+  rendered a complete verdict on the dev window, reproducing the frozen dossier exactly.
+
+---
+
+### Step 0 — the tripwire: prove the harness is the one that was cleared
+
+**Before touching the sealed window**, re-run the **dev** dry run and confirm it still produces:
+
+```
+validation_id = d0651e10b38157db93a8614feff7ff4d45fefc5a7e423c38ef0fb94d875952fc
+code_commit   = 98bcaf2f18d5120f1579a29ec553dc5c8266ed23
+n = 131 | mean_IC = 0.0457 | rule-1/rule-2 = 21/1 | spread +6.24% / +5.95%
+```
+
+**If the `validation_id` differs by a single character, the harness is not the code the Lead Review
+cleared. STOP. Do not proceed to the sealed read.** The dev record is a tripwire, and this is the last
+moment it can catch a change.
+
+The tree must be **clean** (the dirty-tree guard will enforce this and raise if not).
+
+### Step 1 — the VOID precondition (§8 A1) — the run's own abort switch
+
+The harness re-executes gate (b)'s `|move| ≥ 20%` single-day corporate-action screen **over the sealed
+window**. This is a **data-quality** check, not a result — it reads no metric and renders no verdict, so
+it does not break the seal.
+
+> **If undocumented residue > 0, the run is VOID.** `assert_void_clear()` raises; **no metric is read and
+> no verdict is rendered.** The window is **re-sealed, NOT spent** — because nothing about the hypothesis
+> was observed. Report the residue rows, stop, and return to the operator for a gate-(b) fix.
+>
+> **A VOID is not a failure and it does not consume the read.** It is the safeguard working. A single
+> wrong split factor manufactures ±50% phantom momentum and can inject that name straight into the top
+> quintile — §12.1 names this the scariest inherited assumption, and this is the check that acts on it.
+
+### Step 2 — the read. **Once.**
+
+```
+python scripts/csmp/run_a2_validation.py \
+    --phase "6/sealed-read" \
+    --eval-lo 2023-01-01 \
+    --eval-hi 2026-06-30 \
+    --price-cutoff 2026-06-30
+```
+
+**That is the entire change: three dates.** No code edit. No parameter tuning. No exploratory pass first.
+
+**Absolutely forbidden — each is an automatic NOT PASSED and a scientific-integrity breach:**
+
+1. **Running it more than once with different arguments.** One execution. If it crashes on a genuine
+   infrastructure fault (disk, memory), report the traceback and **stop** — do not "just re-run it."
+2. **Any code change after seeing the result.** Not a bug fix, not a formatting tweak, not a comment.
+   **The moment the number is known, every subsequent edit is contaminated.** If you find a genuine bug
+   after the read, **report it — do not fix it.** The operator and Lead Reviewer decide.
+3. **"Sanity-checking" the sealed data.** No extra queries, no eyeballing the top-40 names, no plotting.
+4. **Adjusting, re-scoring, or re-grading anything** because the verdict is disappointing.
+
+### Step 3 — report exactly what happened
+
+Script-generated (not hand-typed) → **`docs/reports/CSMP_PHASE6_SEALED_READ.md`**, plus the sealed MSI-006
+record.
+
+**The gate (the only thing that decides):**
+- `n` (must be **42** — the pinned grid; if not, **STOP**, do not adjust anything to make it 42)
+- `mean_IC`, its SD, and the **one-sided 95% Student-t lower bound**
+- `Δ_net` vs the **stronger** of the two universe baselines
+- **The verdict, rendered by code, verbatim from §10.**
+
+**Reported, non-gating — all of it, whatever it says:**
+`iid_perc` and `mb_L12` bounds (both readings stay visible); the `Δ_net` bootstrap CI; by-year IC and
+hit-rate; §5.2 rule-1/rule-2 counts by year, with **every top-40 rule-2 event explicitly highlighted**;
+the **−100% rule-2 sensitivity**; the sub-period split (2023-24 vs 2025-26); risk metrics for both arms
+(vol, Sharpe, max drawdown); the **uncertainty-tercile calibration** (already known non-monotonic on dev —
+report the sealed result plainly, whatever it is); the long-short quintile spread (reported, never traded);
+the formation-exclusion count. Plus the sealed `validation_id`, `code_commit`, and the VOID screen result.
+
+### Step 4 — the thing that matters more than the result
+
+**Report the outcome faithfully, whatever it is. Do not spin it in either direction.**
+
+The frozen dossier already told us, **before the data was seen**, what to expect:
+
+> **A valid, one-sided, correctly-covered test on 42 months is only ~41% powered against the program's own
+> point estimate. "Inconclusive" is the single likeliest outcome (~59%) — even if the hypothesis is exactly
+> true.**
+
+So:
+
+- **If the verdict is Inconclusive: that is the modal, expected, non-failing outcome.** It is **not** a
+  refutation, and it is **not** a licence to tune. The artifact is **Not Approved**, the window is
+  **spent and never re-read**, and the top-40 PaperBroker consumer is still built — under the four
+  charter-§6 amendment controls. **State the ~59% pre-registered expectation in the report so the result
+  is read in the context that was fixed in advance.**
+- **If the verdict is Rejected: say so plainly.** A falsified hypothesis honestly reported is a *successful*
+  research outcome, and the program has already proved it can accept one — gate (e) could have returned
+  STOP, and MSRP's D1 did.
+- **If the verdict is Approved: state it flatly, with no triumph, and note that `Δ_net` decides
+  deployability separately.** An Approved artifact whose `Δ_net ≤ 0` substantiates skill *without*
+  transmission — the D1 outcome — and is **not deployed**.
+
+**Do not editorialize. Do not recommend next steps. Do not argue with the number.** Print it, and stop.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **The tripwire passed** — the dev `validation_id` is exactly `d0651e10…` before the sealed read.
+2. **The VOID screen ran first**, and its result is reported. If it VOIDed, **no verdict exists** and the
+   window is re-sealed.
+3. **The sealed window was read exactly ONCE.** Evidence: exactly one sealed record; one report; no
+   parameter variations anywhere in the shell history or the report.
+4. **Zero code diffs** between the cleared commit (`98bcaf2` harness) and the run. `git diff` over the five
+   harness paths is **empty**. The dirty-tree guard makes this structural — do not defeat it.
+5. **`n = 42`**, matching the pinned grid.
+6. **The verdict is the code's**, rendered mechanically from §10 — not a human's reading.
+7. **Every non-gating arm is reported**, including the ones that look bad.
+8. **The ~59% Inconclusive pre-registration is stated in the report**, so the outcome is read against the
+   expectation that was fixed before the data.
+9. **No post-read edits.** Nothing in the repository changes after the number is known, except the
+   generated report and record.
+
+**Definition of done.** One command was run, once. The verdict came from a decision table written before
+anyone saw the data, applied by code that a stranger can re-derive from a content-addressed record on any
+machine. The number is what it is, and it is reported without decoration.
+
+**This is what the last five days bought: the right to believe the answer.**
+
+DeepSeek V4 executes; Claude Lead-Reviews. **Then the operator decides — per §10, and nothing else.**
