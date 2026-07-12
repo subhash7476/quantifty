@@ -70,7 +70,16 @@ def load_window(price_cutoff: date):
           ROW_NUMBER() OVER (PARTITION BY e.entity,a.trade_date
                              ORDER BY a.turnover DESC NULLS LAST,a.symbol) rn
         FROM equity_bhavcopy_adjusted a JOIN universe_eligibility e ON e.symbol=a.symbol
-        WHERE a.trade_date<=?) WHERE rn=1""", [price_cutoff]).fetchall()
+        WHERE a.trade_date<=?
+          -- Prompt-13: restrict the price load to entities that can ever be scored (ever
+          -- appear in universe_membership). Identity-preserving: scoring/top-40/baselines/
+          -- IC/§5.2-fwd/ent_dates draw ONLY from members, so nothing outside this set is
+          -- read. NO date filter on the subquery — the set of scorable entities is a fixed
+          -- property of the study, not a function of the evaluation window (entity continuity).
+          AND e.entity IN (SELECT DISTINCT e2.entity
+                           FROM universe_membership m
+                           JOIN universe_eligibility e2 ON e2.symbol = m.symbol)
+        ) WHERE rn=1""", [price_cutoff]).fetchall()
     con.close()
     px, ent_dates = {}, defaultdict(list)
     for ent, d, cl in rows:
