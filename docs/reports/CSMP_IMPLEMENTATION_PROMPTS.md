@@ -1947,3 +1947,128 @@ machine. The number is what it is, and it is reported without decoration.
 **This is what the last five days bought: the right to believe the answer.**
 
 DeepSeek V4 executes; Claude Lead-Reviews. **Then the operator decides — per §10, and nothing else.**
+
+> ### ⚠ PROMPT 10 IS SUSPENDED — DO NOT EXECUTE
+>
+> **The sealed read was correctly refused** (2026-07-12). The runner's report generator is
+> dev-hardcoded and cannot produce the report Prompt 10 requires. **Prompt 11 remediates it; Prompt 10
+> is re-issued (with a new Step-0 tripwire value) only after that passes Lead Review.**
+>
+> **The sealed window is intact.**
+
+---
+
+## Prompt 11 — Pre-read remediation: parameterize the report generator; re-clear the harness  **(ISSUED 2026-07-12)**
+
+### What happened, and why the refusal was right
+
+DeepSeek was told to execute the sealed read and **declined**, because the run would have spent an
+irreversible resource to produce a corrupt artifact. **That judgment was correct, it was verified at the
+source, and it is exactly the behaviour this program has been building toward.** The scoring, gate, VOID,
+and record paths are all correct and phase-parameterized — **only the human-readable report generator is
+dev-specific.** Confirmed:
+
+| Defect | Evidence |
+|---|---|
+| Report path hardcoded | `run_a2_validation.py:46` — `REPORT = …/CSMP_A2_DEV_DRYRUN.md`. A sealed run would **overwrite the dev tripwire report** instead of creating `CSMP_PHASE6_SEALED_READ.md` (violates Prompt-10 C3) |
+| Dev title + a literally false claim | `"# CSMP A2 — Dev-Window Dry Run"`, and `"The sealed window (2023-01 → 2026-06) was not read."` — **printed by the very run that read it** |
+| Spurious MISMATCH | The reconciliation block hardcodes the **dev** targets (131 / 0.0457 / 21-1 / +6.24% / +5.95%). At `n=42` every row prints `✗ MISMATCH` and the report declares **"MISMATCH — harness defect, must be fixed before the seal"** — a false alarm baked permanently into the one sealed record |
+| Missing required disclosure | `grep -c "59\|Inconclusive"` → **0**. Prompt-10 C8 requires the ~59% pre-registration in the report |
+| **`n == 42` is unenforced** *(found in Lead Review — not in DeepSeek's list)* | **No `assert` anywhere.** Prompt-10 C5 says *"n must be 42; if not, STOP"* — but that was **a sentence in a prompt, not a guard in the code.** It must be structural, like the VOID gate |
+
+**Root cause, and it is the Lead Reviewer's:** the Prompt-8 review verified *"Phase 6 = date change only"*
+against the **scoring** path (`--eval-lo` / `--eval-hi` / `--price-cutoff`) and **never checked the
+reporting path.** Prompt 10 then specified a report the runner could not produce. Recorded so the miss is
+on the record, not buried.
+
+---
+
+### Scope — reporting layer and one guard. Nothing else.
+
+**The construct fence is untouched and touching it is an automatic NOT PASSED:** universe, score, K=40,
+metric, baselines, cost model, §5.2, the pinned gate, the inference/extension design. **The scoring, gate,
+VOID, and record-writing paths are correct — do not refactor them.** This is a *reporting* defect, not a
+science one.
+
+**F1 — parameterize `_write_report()`:**
+
+- **Output path by phase:** dev → `CSMP_A2_DEV_DRYRUN.md`; sealed → **`CSMP_PHASE6_SEALED_READ.md`**.
+  A sealed run must **never** overwrite the dev tripwire report.
+- **Phase-correct title and intro.** The sealed report must **not** claim the sealed window was not read.
+  It must state, plainly, that the window **was read, once, and is now spent.**
+- **The dev-reconciliation block runs in the dev phase only.** It is the tripwire, and it stays exactly as
+  it is for dev — it must not be weakened. In the sealed phase it is **absent**, not "adjusted."
+- **Add the required pre-registration disclosure to the sealed report** (Prompt-10 C8), verbatim in
+  substance:
+
+  > **Pre-registered before this data was seen:** a valid, one-sided, correctly-covered test on 42 months
+  > is only **~41% powered** against the program's own point estimate. **"Inconclusive" is therefore the
+  > single likeliest outcome (~59%) even if the hypothesis is exactly true.** This result must be read
+  > against that expectation, which was fixed in advance — not against hope.
+
+**F2 — make `n == 42` structural.** In the sealed phase, the harness **asserts the scored-month count
+equals the pinned grid count (42) and raises otherwise**, on the `assert_void_clear` model: **no verdict
+may be rendered on a window whose shape does not match the pre-registered grid.** A prompt sentence is not
+a guard. *(Do not "adjust" anything to reach 42 — a mismatch means something is wrong upstream and the
+operator decides.)*
+
+---
+
+### The consequence you must accept, not engineer around
+
+Editing `run_a2_validation.py` **changes its content hash**, so the dev **`validation_id` will change** —
+`d0651e10…` becomes something new. **That is correct and honest**, not a regression: the identity is
+content-addressed *by design*, and different code legitimately produces a differently-identified record.
+**Do not try to preserve `d0651e10…`.** Do not move the reporting code out of the hashed paths to dodge
+the churn; the conservative whole-file hash is the property Prompt 9 established and it stays.
+
+**The guardrail that proves the science did not move:** `results.json` must be **byte-identical** before
+and after this change. The record's *name* changes; its *content* must not.
+
+---
+
+### Sequence
+
+1. Fix `_write_report()` (F1) and add the `n == 42` guard (F2). **Commit the code first** — the dirty-tree
+   guard will otherwise refuse to run, and correctly so.
+2. Re-run the **dev** dry run from a clean tree → **new `validation_id`**.
+3. **Re-pin** that new `validation_id` in dossier **§1.1** and in **Prompt 10 Step 0** (the tripwire value).
+4. Lead Review → then **Phase 6 is re-issued**.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **`results.json` is byte-identical** to the `d0651e10…` record's. **The numbers did not move: n=131,
+   mean_IC 0.0457, rule-1/2 21/1, +6.24% / +5.95%.** *This is dispositive — a reporting fix that changes a
+   result is not a reporting fix.*
+2. **Dry-run report path is phase-parameterized**, and a sealed-phase run provably writes
+   `CSMP_PHASE6_SEALED_READ.md` — **demonstrate with a dev-fenced dry invocation that exercises the
+   sealed-phase report path without reading sealed data** (e.g. `--phase 6/…` with dev dates), or an
+   equivalent test. **Do not demonstrate it by reading the sealed window.**
+3. **No false claim survives.** The sealed report cannot say the sealed window was not read.
+4. **The dev reconciliation block is unchanged for dev** (it is the tripwire) and **absent in the sealed
+   phase** — not softened, not reworded.
+5. **The ~59% pre-registration disclosure is present** in the sealed report.
+6. **`n == 42` raises** in the sealed phase when violated — structural, tested, on the VOID model.
+7. **The construct fence held**: no diff to scoring, gate, VOID, or record-writing logic; no dossier diff
+   except the §1.1 `validation_id` re-pin.
+8. **Exactly one dev record** afterwards (the new one). The stale `d0651e10…` record is removed — it no
+   longer corresponds to any code in the tree.
+9. **The sealed window was not read.** Fence asserted and printed; observed max `trade_date` ≤ 2022-12-31.
+10. **Prompt 10 Step 0 carries the new tripwire `validation_id`.**
+
+**Definition of done.** The harness can produce a truthful, correctly-located, correctly-disclosed sealed
+report — and still refuses to score a window whose shape it did not pre-register. Then, and only then,
+Phase 6 is re-issued.
+
+**DeepSeek V4 implements; Claude Lead-Reviews. The sealed window stays sealed.**
+
+---
+
+> **On the refusal.** DeepSeek was given a direct instruction to execute the single most consequential
+> command in the program, and it **stopped and escalated instead** — because running it would have burned
+> an irreplaceable asset to produce a self-contradictory artifact. Every safeguard in this program exists
+> for the moment when someone is holding an irreversible action and something is subtly wrong. **This was
+> that moment, and the discipline held.** It is recorded here as the correct precedent: *when the next step
+> is irreversible and the artifact is wrong, you stop — even when you have been told to go.*
