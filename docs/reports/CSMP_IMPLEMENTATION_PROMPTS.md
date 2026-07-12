@@ -1948,13 +1948,25 @@ machine. The number is what it is, and it is reported without decoration.
 
 DeepSeek V4 executes; Claude Lead-Reviews. **Then the operator decides — per §10, and nothing else.**
 
-> ### ⚠ PROMPT 10 IS SUSPENDED — DO NOT EXECUTE
+> ### ✅ PROMPT 10 IS RE-ISSUED — CLEARED TO EXECUTE (2026-07-12)
 >
-> **The sealed read was correctly refused** (2026-07-12). The runner's report generator is
-> dev-hardcoded and cannot produce the report Prompt 10 requires. **Prompt 11 remediates it; Prompt 10
-> is re-issued (with a new Step-0 tripwire value) only after that passes Lead Review.**
+> The suspension is **lifted**. The sealed read was correctly refused; Prompts 11 and 12 remediated the
+> report generator and made sealedness a **data-derived invariant**, and both passed Lead Review
+> (`CSMP_PROMPT11_LEAD_REVIEW.md`, `CSMP_PROMPT12_LEAD_REVIEW.md`).
 >
-> **The sealed window is intact.**
+> **Step-0 tripwire values are now:**
+> - `validation_id = a5c113dc8034ae76b0809042501d69715159d82a8b355b4b865806a5758198c6`
+> - `code_commit   = 983cca082eb3b00588844ac5d4b0d97185b692dd`
+>
+> *(The `d0651e10…` / `98bcaf2` values written in Step 0 below are superseded — the identity is
+> content-addressed, so it legitimately changed when the guard and report code changed.
+> **`results.json` stayed byte-identical at `be662698…` across all three rounds — no number moved.**)*
+>
+> **Everything guarding this run is now an invariant the machine enforces, not an instruction to a human:**
+> the phase/window cross-check (a mislabelled sealed run raises on the *arguments*, before any row is read),
+> the `n == 42` grid-shape guard, the VOID precondition, the dirty-tree guard, and the sealed fence.
+>
+> **Execute exactly once. The sealed window is still intact.**
 
 ---
 
