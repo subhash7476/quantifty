@@ -1488,3 +1488,170 @@ now requires **a new pre-registration, not an edit**. Add `CSMP_PHASE2_INDEPENDE
 could apply mechanically to a printed table and land on the same method; its calibration script honours
 the same delisting convention as its analysis script; and its one governance deviation is recorded as
 an amendment with teeth rather than a reframing. DeepSeek V4 implements; Claude Lead-Reviews.
+
+---
+
+## Prompt 8 — Phase 5 (A1 artifact) + A2 validation harness — **the last build before the sealed read**  **(ISSUED 2026-07-12)**
+
+**Read `CSMP_PHASE1_RESEARCH_DOSSIER.md` (Rev 7, FROZEN) end to end first. It is now immutable and it is
+your specification.** Nothing in this prompt may contradict it; where they differ, **the dossier wins,
+and you stop and say so.**
+
+### Why this is not Phase 6 — and why that matters more than anything else in this prompt
+
+Charter §6's phase map runs **3/4 (latent variable) → 5 (artifact — "Author") → A2 ("the one required
+harness build") → 6 (held-out scoring — "No: uses A2")**. **Phase 6 builds nothing. It *runs* A2, once.**
+
+Today, `grep -rl xs_momentum_score --include=*.py .` returns **nothing**. There is no artifact and no
+harness.
+
+> **If the harness were written during Phase 6, any bug found afterwards would be unfixable.** The
+> sealed window (2023-01 → 2026-06) can be read **exactly once**, and re-reading it to fix your own code
+> is the multiplicity trap D-iii exists to forbid. **The single worst outcome available to this program
+> is to spend the sealed window on buggy scoring code.**
+
+**So this prompt builds and *fully proves* the scoring machinery on the dev window, and touches the
+sealed window nowhere.** Phase 6 must then be a change of **the date range and nothing else**. Design
+for exactly that: **the evaluation window is a parameter, not a hard-coded literal**, and the dev and
+sealed code paths are **identical**.
+
+### The hard fence (violation = automatic NOT PASSED)
+
+- Every query is fenced at `DEV_END = 2022-12-31`, and the harness **asserts and prints** the observed
+  max `trade_date` — the pattern already in `phase1_prereg_analysis.py` / `phase1_ci_coverage.py`
+  (`assert max(d) <= DEV_END, "SEALED LEAK"`).
+- **You do not read, inspect, sample, count, or describe the sealed window.** Not to "sanity check",
+  not to "confirm the schema", not once.
+- The dry run is on the **full store with the code fence** — *not* a truncated store (operator-ratified:
+  the harness is *our* code and carries its own fence; a second store would reintroduce exactly the
+  drift F2 just closed).
+
+---
+
+### Deliverable 1 — Phase 5 / A1: the artifact
+
+**Conform to the existing MSI precedent; do not invent a shape.** Read first:
+`core/msi/contracts/artifact.py` (the `PublishedArtifact` contract) and
+`core/msi/artifacts/forward_vol_v2/model.py` (MSRP's artifact — the working MSI-007 v2 example). Build
+the CSMP artifact as a **new sibling**, e.g. `core/msi/artifacts/xs_momentum_v1/`.
+
+**Scope note — the one place the standing constraints need interpreting.** The gate-era constraint said
+*"zero changes to `core/msi/`"*; that was scoped to gates (a)–(e), which were ingestion work. Phase 5 is
+charter-designated **"Author"** and A2 is **"the one required harness build"** — code must exist.
+**Adding a new artifact directory is additive and permitted. Modifying MSI runtime, the DRA, the
+contracts, frozen components, or anything MSRP-sealed is NOT.** If conforming to MSI-007 appears to
+*require* changing shared MSI code, **stop and report** — do not edit shared code to make your artifact
+fit.
+
+**The construct is frozen and parameter-free (§7).** Nothing is fitted; there are no coefficients:
+
+- `evaluate()` emits **one `Estimate` per point-in-time universe member**: `value` = the 12-1 score
+  (`adj_close(t−1m)/adj_close(t−12m) − 1`), `dimension = <symbol>`, and a **scalar `uncertainty` = the
+  SD of the 11 monthly formation sub-returns**.
+- **Formation-window completeness is separate metadata — NOT folded into the `uncertainty` scalar.** A
+  name lacking a complete formation window is **not scored** and cannot enter the top-40; the excluded
+  count is reported.
+- `uncertainty` is **reported-not-acted-on** in increment 1: it must **not** enter ranking, K-selection,
+  or weighting (charter §4).
+- Deterministic and side-effect-free: identical evidence ⇒ identical `MarketState`.
+
+### Deliverable 2 — A2: the validation harness (the one required build)
+
+Precedent: `core/msi/msrp/validation.py` (MSRP's MSI-006 record). Build the CSMP sibling (e.g.
+`core/msi/csmp/validation.py`) plus a runner in `scripts/csmp/`.
+
+**Reuse, do not reimplement — this is F2's lesson, and it is now a standing rule:**
+
+- **§5.2 delisting convention:** import `fwd()` from `scripts/csmp/phase1_prereg_analysis.py`. **There
+  is ONE implementation of §5.2 in this repo and it stays that way.** A second one is an automatic NOT
+  PASSED.
+- **Fees:** `core/execution/equity/delivery_fees.py` (gate (d)) — do not re-derive rates.
+- **Universe:** `universe_membership` (gate (c), point-in-time). **Prices:** `equity_bhavcopy_adjusted`
+  (gate (b)). **Entity continuity:** `universe_eligibility` / `symbol_changes` (gate (a)).
+
+**The gate — pinned, not re-selected.** D-i is **decided**: the gate is the **one-sided 95% Student-t
+lower bound** on the monthly `IC_t` series. **The harness applies it. It does not re-run the selection
+and it does not reopen D-i.**
+
+- **Approved** iff the one-sided 95% Student-t lower bound of `mean_IC` **> 0**.
+- **Deployable** iff additionally `Δ_net > 0` (net top-40 minus the **stronger** of the two universe
+  baselines — §3.2 / S1).
+- Read **mechanically** against the §10 decision table. **No post-hoc widening.** The harness prints the
+  verdict; a human does not choose it.
+
+**Reported, non-gating (all of these — §3.4, §5.2, §9):** the `iid_perc` and `mb_L12` bounds (both
+readings stay visible); the `Δ_net` block-bootstrap CI (explicitly non-gating); by-year IC and hit-rate;
+§5.2 rule-1/rule-2 counts **by year**, with **every top-40 rule-2 event explicitly highlighted** (a 0%
+step on a top-40 name can mask a real delisting loss); the **−100% rule-2 sensitivity**; the sub-period
+split (2023-24 vs 2025-26); risk metrics for both arms (annualized vol, Sharpe, max drawdown); the §7
+**uncertainty-tercile monotonic-IC calibration test**; the long-short quintile spread (reported, never
+traded); the formation-exclusion count.
+
+**All seven MSI-006 domains** per §9: Architectural, Scientific, Temporal, Robustness, Reproducibility,
+Operational, Calibration.
+
+### Deliverable 3 — the A1 VOID precondition (implement now; it *executes* at Phase 6)
+
+Per §8: **Step 0 of the Phase-6 run** re-executes gate (b)'s `|move| ≥ 20%` single-day CA-classification
+screen over the sealed window. **If unexplained residue > 0 → the run is VOID:** no metric is read, no
+verdict rendered, the window re-sealed pending a gate-(b) fix.
+
+**Implement it now and prove it on the dev window** (where gate (b) reports residue 0). It is a
+**data-quality** check, not a result, so it preserves the seal. **Wire it as a hard precondition: the
+harness must be structurally incapable of emitting a verdict if the VOID check fails.** A single wrong
+split factor manufactures ±50% phantom momentum and can inject that name into the top quintile — §12.1
+names this the scariest inherited assumption.
+
+### Deliverable 4 — **the mandatory dev-window dry run** (this is the acceptance gate)
+
+Run the **complete** A1 + A2 pipeline end-to-end on **dev (2012-01 → 2022-12)** and emit a **full MSI-006
+validation record with a rendered verdict** — exactly as Phase 6 will, but on data that is already spent.
+
+**This is the entire point of the prompt.** It proves the machinery works *before* it is pointed at a
+window that cannot be re-read.
+
+- The dry-run record must be **byte-identical on re-run** (seed `20260711`).
+- Its dev IC series must **reconcile with `phase1_prereg_analysis.py`**: `n = 131`, `mean_IC = 0.0457`,
+  rule-1/rule-2 = **21 / 1**, net spread **+6.24%** (fees) / **+5.95%** (fees + slippage). **A mismatch
+  means the harness disagrees with the frozen dossier's own numbers — that is a defect in the harness,
+  and it must be found now, not after the seal is broken.**
+- Script-generated (not hand-typed) → `docs/reports/CSMP_A2_DEV_DRYRUN.md`.
+
+### Deliverable 5 — close §1.1's remaining build-time fields
+
+Frozen §1.1 leaves exactly one row unpinned: *"Python / duckdb / numpy / scipy versions; store SHA-256;
+code commit hash — pin at build."* **Pin them now.** Also pin the **sealed rebalance-date list** from
+`trading_calendar` (a non-price calendar fact; target **42** formations, 2022-12 → 2026-05 inclusive).
+The count is **VOID-checked, never a tuning lever** — if it is not 42, **report it and stop**; do not
+adjust anything to make it 42.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **The sealed window was not touched.** Fence asserted *and printed*; observed max `trade_date` ≤
+   2022-12-31 everywhere. Checked first, and dispositive.
+2. **One §5.2 implementation.** `fwd()` imported from `phase1_prereg_analysis`, never reimplemented.
+3. **The dev dry run reconciles with the frozen dossier** on every number in Deliverable 4, and is
+   byte-identical on re-run.
+4. **The gate is applied, not chosen.** Student-t one-sided lower bound, pinned; the harness renders
+   Approved / Not-Approved / Rejected mechanically from §10; `iid_perc` and `mb_L12` reported non-gating.
+5. **`uncertainty` does not act.** Ranking, K-selection, and weighting are provably independent of it.
+6. **The VOID precondition is structural** — the harness *cannot* emit a verdict if it fails.
+7. **Phase 6 is a date change and nothing else.** Demonstrate it: the evaluation window is a parameter;
+   dev and sealed code paths are identical. **If Phase 6 would require editing harness logic, this
+   prompt is not done.**
+8. **No shared-MSI edits.** New artifact/validation directories only; MSI runtime, the DRA, contracts,
+   frozen components, and MSRP-sealed code untouched. No `core/execution/` diffs beyond *using*
+   `delivery_fees.py`.
+9. **The construct fence held.** Universe, score, K=40, metric, baselines, cost model, §5.2, and the
+   inference/extension design are exactly as frozen. Any pressure to change them means **stop and
+   report** — a change requires a **new pre-registration**, not an edit.
+
+**Definition of done.** The artifact exists, the harness exists, and the harness has **already rendered a
+complete verdict on the dev window and reproduced the frozen dossier's numbers**. The sealed window is
+still sealed. Phase 6 is then a **ceremony, not a build**: point the same harness at 2023-01 → 2026-06,
+run the VOID check, run it once, and read the answer off a decision table written before the data was
+seen.
+
+DeepSeek V4 implements; Claude Lead-Reviews. **Do not begin Phase 6.**
