@@ -1655,3 +1655,145 @@ run the VOID check, run it once, and read the answer off a decision table writte
 seen.
 
 DeepSeek V4 implements; Claude Lead-Reviews. **Do not begin Phase 6.**
+
+---
+
+## Prompt 9 — Close Prompt-8 F1: make the attestation true and the record reproducible  **(ISSUED 2026-07-12)**
+
+**Context.** Prompt 8 is **NOT PASSED** on one HIGH finding (`CSMP_PROMPT8_LEAD_REVIEW.md` §2). Everything
+else passed: the numbers reconcile with the frozen dossier, `results.json` is byte-identical, the fence
+holds, the VOID gate is structural, and Phase 6 is genuinely a date-flag change. **The science is sound.
+This prompt fixes a provenance defect — and it is blocking, because it is the kind of defect that becomes
+permanent the instant the seal is broken.**
+
+**Scope is F1 plus the two recorded disclosures. Nothing else reopens.** No construct change, no
+re-derivation, no new analysis. The sealed window stays untouched (the dev fence stays asserted and
+printed).
+
+---
+
+### The defect, restated so the fix is unambiguous
+
+`run_a2_validation.py`'s `git_commit()` calls `git rev-parse HEAD` **at run time, with no dirty-tree
+check**, and that value flows into `methodology.substrate.commit` → `methodology_fingerprint()` →
+**`validation_id`**.
+
+You ran the harness while **the harness itself was uncommitted** (HEAD = `4279704`, the *"issue Prompt 8"*
+commit), then committed the code afterwards as `49513fe7`. Therefore:
+
+```
+$ git ls-tree -r --name-only 42797043 | grep -E "core/msi/csmp|xs_momentum_v1|run_a2_validation"
+(empty)
+```
+
+**The commit pinned into the FROZEN dossier §1.1 as the reproducibility substrate contains no artifact,
+no validation module, and no runner.** Anyone checking it out to reproduce the record finds the code is
+not there. **The pin is not stale — it is false.** And because `commit` sits inside the `validation_id`
+preimage, the record's identity **drifts with every later commit**: re-running produced a different
+`validation_id` purely because HEAD had moved.
+
+**Why it blocks.** Phase 6 reads the sealed window **once** and emits a record naming whatever HEAD
+happens to be. If that record names a commit lacking the code — or if its ID moves whenever anyone commits
+a typo — then **the one result the entire program exists to produce can never be audited, and cannot be
+re-run, because the seal is gone.** Reproducibility is one of the seven MSI-006 domains, and the record
+whose job is to attest it is not itself reproducible.
+
+---
+
+### The circularity you will hit — read this before you start
+
+Pinning the code commit into dossier §1.1 **is itself a commit**. So if anything in the record tracks
+`HEAD`, the act of recording the pin **immediately invalidates it again**: HEAD moves, the fingerprint
+moves, the ID moves. **You cannot fix this by being careful about ordering. You must remove `HEAD` from the
+identity entirely.** That is the point of fixes 1 and 2, and it is why the acceptance test in criterion 3
+exists.
+
+---
+
+### Fix 1 — the record's identity must not depend on `HEAD`
+
+- **`validation_id`'s preimage must contain no `rev-parse HEAD` value.** Replace the mutable
+  `substrate.commit` contribution with **content hashes of the source files that actually produced the
+  numbers**: `core/msi/artifacts/xs_momentum_v1/model.py`, `core/msi/csmp/validation.py`,
+  `core/msi/csmp/void_precondition.py`, `scripts/csmp/run_a2_validation.py`, and
+  `scripts/csmp/phase1_prereg_analysis.py` (the shared §5.2 `fwd()`). **Content hashes identify the code
+  exactly and are immune to every later commit.**
+- **Record `commit` as the *code commit*, not `HEAD`:** `git log -1 --format=%H -- <those paths>` — the
+  last commit that actually touched the harness. It is stable across unrelated later commits (a docs edit
+  does not move it) and it **genuinely contains the code**. Keep it as recorded provenance **outside** the
+  `validation_id` preimage.
+- Net effect: **re-running after an unrelated commit must produce a byte-identical record.**
+
+### Fix 2 — the harness must be structurally incapable of a false attestation
+
+Add a **dirty-tree guard**, held to the same standard as the VOID gate (which *raises* rather than flags):
+if `git status --porcelain -- <the harness/artifact/analysis paths>` is **non-empty**, the run **refuses to
+emit a record** and raises.
+
+> A record naming a commit that does not contain its own code is a **false attestation**. The harness must
+> not be able to produce one — exactly as it must not be able to produce a verdict on a VOID window.
+
+Test it as `assert_void_clear` is tested: dirty a harness file, assert the run raises and writes nothing.
+
+### Fix 3 — re-pin §1.1 truthfully, and regenerate
+
+- Re-pin the §1.1 build-time row to **the real code commit** (the one containing the harness), and add the
+  **source content hashes**.
+- Regenerate the dev dry-run record. **`docs/reports/csmp_a2_records/` must end with exactly ONE record** —
+  the two currently present are artifacts of this bug (they differ *only* in the commit field) and must not
+  survive into Phase 6.
+
+**On editing the FROZEN dossier:** §1.1's build-time row is the one place the freeze explicitly sanctions
+writing (*"pin at build"*). Correcting a pin to a **true** value is completing that pin, not changing the
+construct. **The construct fence — universe, score, K=40, metric, baselines, cost model, §5.2, and the
+inference/extension design — is untouched, and touching it is an automatic NOT PASSED.**
+
+### Fix 4 — persist the grid provenance (disclosure 2)
+
+The 42 pinned sealed rebalance dates entered the frozen dossier from an **ad-hoc query with no script**.
+The Lead Reviewer re-derived them independently and they **match exactly**, so the *fact* is verified — but
+its *provenance* rests on a one-off check, against standing constraint 3 (*"the report is generated, not
+hand-typed"*).
+
+Add **`scripts/csmp/pin_sealed_grid.py`**: `trading_calendar` only (`trade_date`, `n_symbols` — **no price
+table, no returns**; the non-price calendar-fact exception §1.1 authorises), printing the 42 dates and
+asserting `count == 42`. **If the count is not 42 it must fail loudly — this is a VOID-check, never a
+tuning lever.**
+
+### Disclosure to carry forward (no code change)
+
+The **`uncertainty` scalar is not a calibrated IC predictor**: the dev tercile IC is **non-monotonic**
+(0.0485 / 0.0446 / 0.0496) against §7's stated expectation. **Keep reporting it plainly as a negative
+result** in the Phase-6 report — do not soften it. It is non-gating, and it *vindicates* the
+reported-not-acted-on fence: had increment 1 weighted or abstained on this scalar, it would have been
+acting on a signal that demonstrably does not calibrate.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **The attestation is true.** `git ls-tree -r <pinned commit>` **contains** `model.py`, `validation.py`,
+   `void_precondition.py`, and `run_a2_validation.py`. *(This is the criterion the whole prompt exists for.
+   It is checked first and it is dispositive.)*
+2. **`validation_id` is HEAD-independent** — no `rev-parse HEAD` value appears anywhere in its preimage.
+3. **The acceptance test — and it must actually be run and shown:** **(a)** run A2 from a clean tree →
+   record R₁; **(b)** make an unrelated commit (e.g. a docs line); **(c)** re-run → record R₂. **Assert
+   `R₁ == R₂` byte-for-byte, with the same `validation_id`. Paste both hashes into the report.** *This is
+   the proof the circularity is broken — an assertion that it is broken is not evidence.*
+4. **The dirty-tree guard is structural and tested** — a dirty harness path makes the run **raise** and
+   write **nothing**.
+5. **Exactly one record** in `docs/reports/csmp_a2_records/`.
+6. **The numbers did not move.** The dev dry run still reconciles exactly: `n = 131`, `mean_IC = 0.0457`,
+   rule-1/rule-2 = **21/1**, spread **+6.24%** / **+5.95%**. **Any change to a number is an automatic NOT
+   PASSED — this prompt touches provenance, not computation.**
+7. **`pin_sealed_grid.py` exists**, is calendar-only, reproduces the 42 pinned dates, and asserts the count.
+8. **The construct fence held.** The only dossier diff is the §1.1 build-time pin row.
+9. **The sealed window was not read.** Fence asserted and printed; observed max `trade_date` ≤ 2022-12-31.
+10. **Phase 6 is still a date change and nothing else** — `--eval-lo` / `--eval-hi` / `--price-cutoff`,
+    identical code paths.
+
+**Definition of done.** The record says something **true** about the code that produced it, and says the
+**same true thing** every time anyone re-runs it — forever, including after the very commit that records
+the pin. Then Phase 6 can safely be what it was always meant to be: **a ceremony, not a build.**
+
+DeepSeek V4 implements; Claude Lead-Reviews. **Do not begin Phase 6.**
