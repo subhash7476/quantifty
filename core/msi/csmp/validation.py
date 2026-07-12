@@ -43,10 +43,12 @@ class GridShapeError(RuntimeError):
     upstream; the operator decides — do NOT adjust anything to reach the count."""
 
 
-def assert_grid_shape(phase: str, n: int, expected: int = EXPECTED_SEALED_N) -> None:
-    """Structural guard: in the sealed phase, the scored-month count must equal the pinned
-    grid count. Dev phases are unconstrained. Raises `GridShapeError` otherwise."""
-    if str(phase).startswith("6") and n != expected:
+def assert_grid_shape(sealed: bool, n: int, expected: int = EXPECTED_SEALED_N) -> None:
+    """Structural guard: in the SEALED phase, the scored-month count must equal the pinned
+    grid count. `sealed` is DATA-DERIVED by the caller (from the evaluation window vs DEV_END —
+    Prompt-12), never inferred from a phase label. Dev phases are unconstrained. Raises
+    `GridShapeError` otherwise."""
+    if sealed and n != expected:
         raise GridShapeError(
             f"SEALED-PHASE GRID MISMATCH: scored {n} months, pre-registered grid is {expected} "
             f"(dossier §1.1). No verdict rendered — return to the operator; do not adjust to reach {expected}.")
@@ -184,13 +186,14 @@ def render_verdict(lb: float, delta_net: float, mean_ic: float) -> str:
 class ValidationHarness:
     def __init__(self, artifact, methodology: Methodology, scored: ScoredDataset,
                  void_result: VoidResult, evaluation_window: Tuple[date, date], phase: str,
-                 artifact_checksum: str, dataset_snapshot_hash: str):
+                 sealed: bool, artifact_checksum: str, dataset_snapshot_hash: str):
         self._artifact = artifact
         self._m = methodology
         self._s = scored
         self._void = void_result
         self._window = evaluation_window
         self._phase = phase
+        self._sealed = sealed  # DATA-DERIVED by the runner (window vs DEV_END), not the label
         self._artifact_checksum = artifact_checksum
         self._dataset_snapshot_hash = dataset_snapshot_hash
 
@@ -300,7 +303,7 @@ class ValidationHarness:
         # STRUCTURAL: no verdict may be produced if the VOID data-integrity gate fails,
         # or (in the sealed phase) if the window's shape does not match the pinned grid.
         assert_void_clear(self._void)
-        assert_grid_shape(self._phase, self._s.n_months)
+        assert_grid_shape(self._sealed, self._s.n_months)
 
         domains = self._domains()
         s = self._s

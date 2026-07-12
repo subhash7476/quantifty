@@ -284,6 +284,33 @@ def require_clean_tree():
             f"attest a commit lacking its own code:\n{out.strip()}")
 
 
+class PhaseWindowMismatchError(RuntimeError):
+    """Raised when the phase LABEL disagrees with the DATA-DERIVED sealedness of the window
+    (Prompt-12). Sealedness must be an invariant of the data, not a string a human types: a
+    mislabelled sealed run would silently defeat the report routing, the truthfulness claim,
+    and the n==42 guard on the one irreversible read. It is a pure argument check — it raises
+    before anything is scored, written, or read, so neither direction touches the data."""
+
+
+def derive_sealed(eval_hi: date, price_cutoff: date) -> bool:
+    """Sealedness is DATA-DERIVED: the sealed window is the only condition under which any
+    row after DEV_HI (2022-12-31) enters the computation (Prompt-12)."""
+    return (price_cutoff > DEV_HI) or (eval_hi > DEV_HI)
+
+
+def check_phase_window(phase: str, eval_hi: date, price_cutoff: date) -> bool:
+    """Derive `sealed` from the data and cross-check the label; raise on disagreement in
+    EITHER direction (a sealed window labelled dev; a dev window labelled Phase 6)."""
+    sealed = derive_sealed(eval_hi, price_cutoff)
+    if str(phase).startswith("6") != sealed:
+        raise PhaseWindowMismatchError(
+            f"phase label {phase!r} implies {'SEALED' if str(phase).startswith('6') else 'DEV'}, "
+            f"but the window (eval_hi={eval_hi}, price_cutoff={price_cutoff}) is "
+            f"{'SEALED' if sealed else 'DEV'} vs DEV_HI={DEV_HI}. Refusing to run — the code, not "
+            f"a typed label, decides what is sealed. Fix the label or the dates.")
+    return sealed
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--phase", default="5/A2-dev-dry-run")
@@ -295,7 +322,12 @@ def main():
     eval_hi = date.fromisoformat(args.eval_hi)
     price_cutoff = date.fromisoformat(args.price_cutoff)
 
-    print(f"=== CSMP A2 run | phase={args.phase} | window={eval_lo}..{eval_hi} ===")
+    # --- Prompt-12: derive sealedness from the DATA and cross-check the label. Pure argument
+    # check — raises BEFORE anything is scored, written, or read. ---
+    sealed = check_phase_window(args.phase, eval_hi, price_cutoff)
+
+    print(f"=== CSMP A2 run | phase={args.phase} | window={eval_lo}..{eval_hi} | "
+          f"sealed={sealed} (data-derived) ===")
 
     # --- Fix 2: structural dirty-tree guard FIRST (no record if harness source is dirty) ---
     require_clean_tree()
@@ -340,7 +372,7 @@ def main():
 
     harness = V.ValidationHarness(
         artifact=artifact, methodology=methodology, scored=scored, void_result=void,
-        evaluation_window=(eval_lo, eval_hi), phase=args.phase,
+        evaluation_window=(eval_lo, eval_hi), phase=args.phase, sealed=sealed,
         artifact_checksum=artifact_checksum, dataset_snapshot_hash=store_sha256(),
     )
     record = harness.run()
@@ -348,12 +380,11 @@ def main():
     print(f"verdict = {record.candidate_verdict} | validation_id = {record.validation_id[:16]}…")
     print(f"record written: {out.relative_to(ROOT)}")
 
-    _write_report(args, eval_lo, eval_hi, observed_max, void, base, record, artifact)
+    _write_report(args, eval_lo, eval_hi, observed_max, void, base, record, artifact, sealed)
     return base, record
 
 
-def _write_report(args, eval_lo, eval_hi, observed_max, void, b, record, artifact):
-    sealed = str(args.phase).startswith("6")
+def _write_report(args, eval_lo, eval_hi, observed_max, void, b, record, artifact, sealed):
     out_path = SEALED_REPORT if sealed else REPORT
 
     def pct(x):
