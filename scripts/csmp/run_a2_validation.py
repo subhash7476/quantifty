@@ -235,12 +235,52 @@ def store_sha256():
     return h.hexdigest()
 
 
-def git_commit():
+# --- Prompt-9 provenance: content-addressed identity + structural dirty-tree guard ---
+HARNESS_PATHS = [
+    "core/msi/artifacts/xs_momentum_v1/model.py",
+    "core/msi/csmp/validation.py",
+    "core/msi/csmp/void_precondition.py",
+    "scripts/csmp/run_a2_validation.py",
+    "scripts/csmp/phase1_prereg_analysis.py",
+]
+
+
+class DirtyTreeError(RuntimeError):
+    """Raised when a source file that produced the record is uncommitted. A record naming
+    a commit that lacks its own code is a false attestation; the run must not emit one
+    (Prompt-9 F2 — held to the same standard as the VOID gate)."""
+
+
+def content_hash(path):
+    """git-normalized (LF) content hash — platform-independent and autocrlf-immune, so the
+    identity does not drift between a Windows CRLF checkout and the LF blob (Prompt-9 amend-1)."""
+    raw = Path(path).read_bytes().replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def source_hashes():
+    return {p: content_hash(ROOT / p) for p in HARNESS_PATHS}
+
+
+def code_commit():
+    """The last commit that actually TOUCHED the harness code — it genuinely contains the
+    code and is stable across unrelated later commits (a docs edit does not move it)."""
     try:
-        return subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"],
-                                       text=True).strip()
+        return subprocess.check_output(
+            ["git", "-C", str(ROOT), "log", "-1", "--format=%H", "--", *HARNESS_PATHS],
+            text=True).strip()
     except Exception:
         return "unknown"
+
+
+def require_clean_tree():
+    """STRUCTURAL (Fix 2): refuse to emit a record if any harness source file is dirty."""
+    out = subprocess.check_output(
+        ["git", "-C", str(ROOT), "status", "--porcelain", "--", *HARNESS_PATHS], text=True)
+    if out.strip():
+        raise DirtyTreeError(
+            "DIRTY TREE — harness source uncommitted; refusing to write a record that would "
+            f"attest a commit lacking its own code:\n{out.strip()}")
 
 
 def main():
@@ -255,6 +295,10 @@ def main():
     price_cutoff = date.fromisoformat(args.price_cutoff)
 
     print(f"=== CSMP A2 run | phase={args.phase} | window={eval_lo}..{eval_hi} ===")
+
+    # --- Fix 2: structural dirty-tree guard FIRST (no record if harness source is dirty) ---
+    require_clean_tree()
+    print(f"clean-tree OK; code_commit (contains the harness) = {code_commit()}")
 
     # --- Deliverable 3: VOID precondition FIRST (structural) ---
     void = run_void_screen(DB, eval_lo if eval_lo > DEV_LO else date(2012, 1, 1), price_cutoff)
@@ -286,12 +330,12 @@ def main():
 
     methodology = V.Methodology(
         substrate=V.Substrate(block_length=12, n_replicates=20000, seed=SEED,
-                              lib_versions=lib_versions(), commit=git_commit()),
+                              lib_versions=lib_versions(), commit=code_commit(),
+                              source_hashes=source_hashes()),
         gate="one-sided 95% Student-t lower bound of mean_IC > 0 (D-i pinned)",
         holding_k=40, slippage_bps_per_side=5.0, dossier_rev="Rev 7 (FROZEN)",
     )
-    artifact_checksum = hashlib.sha256(
-        (ROOT / "core/msi/artifacts/xs_momentum_v1/model.py").read_bytes()).hexdigest()
+    artifact_checksum = content_hash(ROOT / "core/msi/artifacts/xs_momentum_v1/model.py")
 
     harness = V.ValidationHarness(
         artifact=artifact, methodology=methodology, scored=scored, void_result=void,
@@ -319,6 +363,9 @@ def _write_report(args, eval_lo, eval_hi, observed_max, void, b, record, artifac
     w(f"**Phase:** {args.phase} · **Evaluation window:** {eval_lo} → {eval_hi} · "
       f"**Verdict:** **{record.candidate_verdict}**")
     w(f"**validation_id:** `{record.validation_id}`")
+    w(f"**Code commit (contains the harness):** `{record.methodology['substrate']['commit']}` — "
+      "the identity above is **content-addressed** (git-normalized source hashes; no `HEAD`, "
+      "no lib versions), so it is byte-stable across unrelated commits and CRLF/LF checkouts (Prompt-9 F1).")
     w("")
     w("> This is the mandatory dev-window proof that the A1 artifact + A2 harness render a "
       "complete verdict on data that is already spent. Phase 6 is the SAME code path with the "

@@ -73,8 +73,9 @@ class Substrate:
     block_length: int
     n_replicates: int
     seed: int
-    lib_versions: Dict[str, str]
-    commit: str
+    lib_versions: Dict[str, str]   # recorded provenance — NOT in the identity (env-dependent)
+    commit: str                    # the CODE commit that contains the harness — provenance, NOT in the identity
+    source_hashes: Dict[str, str]  # git-normalized content hashes of the source files — THE identity
 
 
 @dataclass(frozen=True)
@@ -114,12 +115,20 @@ def student_t_one_sided_lb(mean: float, sd: float, n: int, conf: float = 0.95) -
 
 
 def methodology_fingerprint(m: Methodology) -> str:
+    # CONTENT-ADDRESSED identity (Prompt-9 F1). The preimage carries git-normalized
+    # SOURCE CONTENT HASHES — never `git rev-parse HEAD` (which drifts with every later
+    # commit and can name a commit lacking the code), and never `lib_versions` or the
+    # code `commit` (env/checkout-dependent). Those two are recorded provenance elsewhere.
+    # A docs commit, a version bump, or a Windows CRLF checkout cannot move this fingerprint.
     payload = {
-        "substrate": {"block_length": m.substrate.block_length,
-                      "n_replicates": m.substrate.n_replicates, "seed": m.substrate.seed,
-                      "lib_versions": m.substrate.lib_versions, "commit": m.substrate.commit},
-        "gate": m.gate, "holding_k": m.holding_k,
-        "slippage_bps_per_side": m.slippage_bps_per_side, "dossier_rev": m.dossier_rev,
+        "source_hashes": m.substrate.source_hashes,
+        "block_length": m.substrate.block_length,
+        "n_replicates": m.substrate.n_replicates,
+        "seed": m.substrate.seed,
+        "gate": m.gate,
+        "holding_k": m.holding_k,
+        "slippage_bps_per_side": m.slippage_bps_per_side,
+        "dossier_rev": m.dossier_rev,
     }
     return sha256_hex(canonical_json(payload))
 
@@ -287,7 +296,8 @@ class ValidationHarness:
                           "n_replicates": self._m.substrate.n_replicates,
                           "seed": self._m.substrate.seed,
                           "lib_versions": self._m.substrate.lib_versions,
-                          "commit": self._m.substrate.commit},
+                          "commit": self._m.substrate.commit,
+                          "source_hashes": self._m.substrate.source_hashes},
             "gate": self._m.gate, "holding_k": self._m.holding_k,
             "slippage_bps_per_side": self._m.slippage_bps_per_side,
             "dossier_rev": self._m.dossier_rev,
