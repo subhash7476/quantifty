@@ -2157,6 +2157,115 @@ typed string, and not an instruction in a prompt — decides what is sealed.
 
 ---
 
+## Prompt 13 — Fix the `load_window()` memory fault; re-run Phase 6 with identical arguments  **(ISSUED 2026-07-12)**
+
+**Phase 6 was executed once and ABORTED** with a `MemoryError` (`CSMP_PHASE6_ABORT_RECORD.md`, committed
+**before** this remediation was designed). **The window is NOT spent:** the crash was inside `load_window()`
+(line 343), **before `build_scored()`** — no score, no `IC_t`, no `mean_IC`, no `Δ_net`, no verdict, no
+record, nothing written, clean tree. **No statistic bearing on the hypothesis was observed by anyone.** Every
+decision in this prompt is therefore made **blind**, in exactly the epistemic state that preceded the run.
+
+**The VOID precondition ran and PASSED** over the sealed window (680 true moves, residue 2, **0
+undocumented**) — a §8-A1-authorized data-quality read that **discharges §12.1's scariest inherited
+assumption**: the corporate-action adjustment is clean across 2023-01 → 2026-06.
+
+---
+
+### The exact cause — measured, not guessed
+
+`load_window()` joins `equity_bhavcopy_adjusted` to `universe_eligibility`, which maps **every symbol that
+has ever traded** (4,132 symbols → **3,620 entities**) — then `fetchall()`s the entire deduplicated price
+history into a Python list and dict.
+
+| Cutoff | Rows materialized into Python |
+|---|---:|
+| dev (`≤ 2022-12-31`) | **5,075,370** — fits, barely |
+| **sealed (`≤ 2026-06-30`)** | **7,009,336** — **+38% → OOM** |
+
+**But scoring never touches 3,620 entities.** Only the **592** entities that ever appear in
+`universe_membership` can be scored, enter the top-40, or enter either baseline. **~5.2M of those 7.0M rows
+are the price history of stocks that can never affect any number in this study.**
+
+**Why the dev dry run could not have caught this:** dev is *strictly the smaller load*. A harness "proven on
+dev" is proven on the **easy** case for memory. **That is a real gap in the Prompt-8 acceptance criteria, and
+it is the Lead Reviewer's.**
+
+### The fix — a scope restriction, not a rewrite
+
+Restrict the price load to the entities that can actually matter:
+
+```sql
+AND e.entity IN (SELECT DISTINCT e2.entity
+                 FROM universe_membership m
+                 JOIN universe_eligibility e2 ON e2.symbol = m.symbol)
+```
+
+**This is semantically identity-preserving.** Scoring, the top-40, both universe baselines, the IC set, the
+§5.2 `fwd()` path, and `ent_dates` all draw exclusively from `universe_membership` members. Nothing outside
+that set is ever read. **No number can change — and that is the acceptance test, not an assurance.**
+
+Measured effect:
+
+| Cutoff | Rows, restricted |
+|---|---:|
+| dev | **1,425,916** |
+| **sealed** | **1,846,148** |
+
+**The fixed sealed load (1.85M rows) is 64% smaller than the dev load that already runs successfully today
+(5.08M).** The failing configuration was 7.01M. **The second run is not marginally safer — it operates far
+below a level already demonstrated to work.**
+
+**Do not** rewrite `load_window()` architecturally (no chunking, no streaming, no Arrow refactor). The minimal
+scope restriction is sufficient, provable, and semantically clean. **Keep the fix small enough to review.**
+
+### Scope fence
+
+**Reporting/loading layer only.** **No change to scoring, the gate, the VOID precondition, record-writing, or
+any construct parameter.** All existing guards stay intact and must still fire: the phase/window cross-check,
+`assert_grid_shape` (n == 42), `assert_void_clear`, the dirty-tree guard, the sealed fence.
+
+**You may measure row counts and store shape** (as above — these are shape facts, the same class the VOID
+screen reads). **You may not compute, inspect, or report any sealed-window score, return, IC, spread, or
+verdict.** If you find yourself about to look at a sealed *statistic*, stop.
+
+---
+
+**Acceptance criteria.**
+
+1. **The dev `results.json` is byte-identical to `be662698dc5eb793f612b67378a8fd5e99747e4b73cb3021117a239e4538d955`.**
+   **DISPOSITIVE.** The numbers must not move: n=131, mean_IC 0.0457, rule-1/2 21/1, +6.24% / +5.95%. *A memory
+   fix that changes a number is not a memory fix — it is a bug, and it means the entity restriction was wrong.*
+2. **The fix is the scope restriction only.** `git diff` on `load_window()` shows the added `WHERE` clause and
+   nothing else of substance. No scoring/gate/VOID/record diffs.
+3. **Report the materialized row count at the sealed cutoff** (a shape fact) and show it is **below the dev
+   load that already works** — i.e. demonstrate the headroom, do not assert it.
+4. **All five guards still fire** — re-test the phase/window cross-check (both directions) and the dirty-tree
+   guard.
+5. **Exactly one dev record**; §1.1 and Prompt 10 Step 0 re-pinned with the new `validation_id` / `code_commit`
+   (the identity legitimately changes — content-addressed by design).
+6. **No sealed statistic observed** during remediation.
+
+**Then, and only then — re-run Phase 6, ONCE, with IDENTICAL arguments:**
+
+```
+python scripts/csmp/run_a2_validation.py --phase "6/sealed-read" \
+    --eval-lo 2023-01-01 --eval-hi 2026-06-30 --price-cutoff 2026-06-30
+```
+
+**The arguments do not change.** Prompt 10 forbids re-running *"with different arguments"* — it does not
+forbid re-attempting an execution that never produced a result. **Everything in Prompt 10 Steps 1–4 still
+governs the run: VOID first; one execution; no code change after seeing the result; report faithfully,
+including the pre-registered ~59% Inconclusive expectation; no spin.**
+
+**If it crashes again, stop again.** Do not tune your way to a number.
+
+**Definition of done.** The harness loads only what it can legitimately use, the dev numbers are unmoved, the
+headroom is demonstrated rather than hoped for, and Phase 6 runs to a verdict — or aborts again, honestly.
+
+**DeepSeek V4 implements and executes; Claude Lead-Reviews. The sealed window has not been read.**
+
+---
+
 > **On the refusal.** DeepSeek was given a direct instruction to execute the single most consequential
 > command in the program, and it **stopped and escalated instead** — because running it would have burned
 > an irreplaceable asset to produce a self-contradictory artifact. Every safeguard in this program exists
