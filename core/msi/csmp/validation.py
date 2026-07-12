@@ -33,6 +33,23 @@ from core.msi.msrp.validation_stats import canonical_json, format_6dp, sha256_he
 
 HARNESS_VERSION = "1.0.0"
 NOMINAL_1S = 0.05  # one-sided gate α (D-i)
+EXPECTED_SEALED_N = 42  # the pinned sealed rebalance grid (dossier §1.1)
+
+
+class GridShapeError(RuntimeError):
+    """Raised when a sealed-phase run's scored-month count does not match the pre-registered
+    grid. No verdict may be rendered on a window whose shape was not pre-registered (Prompt-11
+    F2 — held to the same standard as the VOID gate). A mismatch means something is wrong
+    upstream; the operator decides — do NOT adjust anything to reach the count."""
+
+
+def assert_grid_shape(phase: str, n: int, expected: int = EXPECTED_SEALED_N) -> None:
+    """Structural guard: in the sealed phase, the scored-month count must equal the pinned
+    grid count. Dev phases are unconstrained. Raises `GridShapeError` otherwise."""
+    if str(phase).startswith("6") and n != expected:
+        raise GridShapeError(
+            f"SEALED-PHASE GRID MISMATCH: scored {n} months, pre-registered grid is {expected} "
+            f"(dossier §1.1). No verdict rendered — return to the operator; do not adjust to reach {expected}.")
 
 
 # --- Scored dataset: everything the runner computes on the evaluation window --
@@ -280,8 +297,10 @@ class ValidationHarness:
         return sha256_hex(canonical_json(preimage))
 
     def run(self) -> ValidationRecord:
-        # STRUCTURAL: no verdict may be produced if the VOID data-integrity gate fails.
+        # STRUCTURAL: no verdict may be produced if the VOID data-integrity gate fails,
+        # or (in the sealed phase) if the window's shape does not match the pinned grid.
         assert_void_clear(self._void)
+        assert_grid_shape(self._phase, self._s.n_months)
 
         domains = self._domains()
         s = self._s
