@@ -6,6 +6,18 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-13 — PSB-1 protocol FROZEN (Rev 2, operator-ratified); Prompt 1 issued (Phase 1 harness)
+
+**The screening protocol survived its two-party review and is now immutable.** Claude authored `docs/reports/PSB1_PROTOCOL.md` (DRAFT Rev 1: five pinned candidate formulas, §7 power hurdle ≥0.80, Bonferroni m=5 selection); because the author is the Lead Reviewer, **DeepSeek V4 ran the independent review** (`PSB1_PROTOCOL_INDEPENDENT_REVIEW.md`) — verdict **APPROVE WITH MINOR REVISIONS**, with two verdict-affecting findings: **F1**, the t-statistic ranking confound (t scales with √n, structurally disadvantaging the 143-week delivery candidates against the 572-week price candidates), and **F2**, delisting-exclusion censoring that inflates exactly the reversal candidates. All findings ACCEPTED (`PSB1_PROTOCOL_LEAD_DISPOSITION.md`) and folded as **Rev 2**: ranking now by **projected sealed power** (size-invariant, and literally the program's objective), deflated p < 0.05 retained as the promotion evidence floor (no cascade), a pinned worst-realized-forward-return imputation as a mandatory robustness column, AC₁/Newey–West disclosure triggers, the stop rule re-scoped to gate-(b) undocumented residue, and the baseline leg charged fees on its own churn.
+
+**Operator RATIFIED 2026-07-13** — explicitly acknowledging C4's high-delivery continuation leg (F4) for the successor program's prior-exposure disclosure. Status: **FROZEN Rev 2**; §9 immutability applies (any change = a new battery, PSB-2, fresh ledger).
+
+**Prompt 1 issued** (`docs/reports/PSB1_IMPLEMENTATION_PROMPTS.md`): Phase 1 screening harness + synthetic dev-proof with seven falsifiable predictions (P1 planted-signal recovery, P2 null coverage, P3 end-to-end sign wiring for C1/C3, P4 the F2 imputation machinery, P5 fee invocation, P6 byte-identical determinism, P7 dev-fence assertion) and six acceptance criteria — including AC-3, `deliv_pct` carried through the same `rn=1` turnover-primary listing pick as the price (the review's loader caveat). **No candidate score on real data under Prompt 1**; Phase 2 begins only on a written Lead Review PASS.
+
+*(docs/reports/PSB1_PROTOCOL.md; docs/reports/PSB1_PROTOCOL_INDEPENDENT_REVIEW.md; docs/reports/PSB1_PROTOCOL_LEAD_DISPOSITION.md; docs/reports/PSB1_IMPLEMENTATION_PROMPTS.md)*
+
+---
+
 ## 2026-07-13 — PSB-1 (Panel Screening Battery, increment 1) OPENED — Phase 0 research record committed
 
 **The third Knowledge program, designed from the CSMP post-mortem.** CSMP died of statistical power (~41% powered gate → pre-registered modal outcome "Inconclusive"), not of the signal; PSB-1 inverts the sequencing — **screen cheap and wide first, then spend the pre-registration machinery on the one survivor whose power case is already made.** Research record: `docs/reports/PSB1_PHASE0_RESEARCH_RECORD.md`.

@@ -2,13 +2,13 @@
 
 **Document type:** Pre-registered screening protocol (Phase 0 deliverable)
 
-**Status:** DRAFT Rev 2 (2026-07-13) — authored by Claude (Lead Reviewer). Rev 2 folds
-in the independent review by DeepSeek V4
-(`PSB1_PROTOCOL_INDEPENDENT_REVIEW.md`, verdict APPROVE WITH MINOR REVISIONS; all
-findings accepted — `PSB1_PROTOCOL_LEAD_DISPOSITION.md`). Awaiting **operator
-ratification**, which explicitly includes the §5-C4 continuation-leg acknowledgment
-(review F4). On ratification this document is stamped **FROZEN** and §9 immutability
-applies.
+**Status:** **FROZEN — Rev 2, ratified by the operator 2026-07-13.** The ratification
+explicitly acknowledges the §5-C4 continuation leg (review F4). §9 immutability now
+applies: no candidate definition, parameter, window, metric, or selection rule in this
+document may change; any change requires a new battery (PSB-2) with a fresh ledger.
+Authored by Claude (Lead Reviewer); independently reviewed by DeepSeek V4
+(`PSB1_PROTOCOL_INDEPENDENT_REVIEW.md`, APPROVE WITH MINOR REVISIONS; all findings
+accepted and folded as Rev 2 — `PSB1_PROTOCOL_LEAD_DISPOSITION.md`).
 
 **Governing record:** `docs/reports/PSB1_PHASE0_RESEARCH_RECORD.md` (operator decisions
 D1–D4, LOCKED 2026-07-13). Roles: DeepSeek V4 implements; Claude writes prompts and
@@ -303,8 +303,8 @@ momentum read as prior exposure per operator decision D2.
 1. ~~Independent review by DeepSeek V4~~ — **DONE 2026-07-13**
    (`PSB1_PROTOCOL_INDEPENDENT_REVIEW.md`, APPROVE WITH MINOR REVISIONS; all findings
    accepted and folded as Rev 2 — `PSB1_PROTOCOL_LEAD_DISPOSITION.md`).
-2. Operator ratification (explicitly including the §5-C4 continuation-leg
-   acknowledgment) → status stamped **FROZEN**.
-3. Claude writes Prompt 1 (Phase 1 screening harness + synthetic dev-proof) for
-   DeepSeek V4. Prompt-1 named acceptance criterion: `deliv_pct` carried through the
-   same `rn=1` listing pick as the price (§2).
+2. ~~Operator ratification~~ — **DONE 2026-07-13** (F4 continuation-leg
+   acknowledgment included) → status stamped **FROZEN**.
+3. Prompt 1 (Phase 1 screening harness + synthetic dev-proof) issued to DeepSeek V4:
+   `docs/reports/PSB1_IMPLEMENTATION_PROMPTS.md`. Named acceptance criterion:
+   `deliv_pct` carried through the same `rn=1` listing pick as the price (§2).
