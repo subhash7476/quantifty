@@ -18,15 +18,27 @@ as the price (§2 loader row; Prompt-1 AC-3).
 from __future__ import annotations
 
 import math
+import sys
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date
+from pathlib import Path
 
 import duckdb
 import numpy as np
 from scipy.stats import nct, spearmanr, t as student_t
 
 from core.execution.equity.delivery_fees import delivery_equity_fees
+
+# R1 (§11.3) reuses gate-(b)'s classifier — its constants and CA-shape test are the single
+# source of truth. scripts/csmp is feature-frozen: imported, never edited (Prompt 1-B item 3).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts" / "csmp"))
+from audit_corporate_actions import (  # noqa: E402
+    is_ca_shaped, MAGNITUDE_TOLERANCE, MOVE_LO, MOVE_HI, MAX_GAP_DAYS,
+)
+
+# gate-(b) residue buckets (audit_corporate_actions.py:305)
+RESIDUE = ("magnitude-mismatch", "direction-mismatch", "CA-shaped-orphan")
 
 # ---------------------------------------------------------------------------
 # PINNED PARAMETERS — exhaustive, quoting PSB1_PROTOCOL.md §9 (AC-4).
@@ -69,7 +81,6 @@ CAP = 1e7                                 # CSMP-inherited notional book (phase1
 
 WEEKLY_PPY = 52
 MONTHLY_PPY = 12
-DATA_INTEGRITY_THRESHOLD = 0.20          # §11.3 >|20%| single-day adjusted move
 
 STORE = "data/market_data/equity_bhavcopy.duckdb"
 
@@ -196,52 +207,108 @@ def sealed_grid_count(db_path, cadence):
 
 
 # ===========================================================================
-# §11.3 data-integrity stop rule (R1)
+# §11.3 data-integrity stop rule (R1) — rebuilt on gate-(b)'s classification
 # ===========================================================================
-def load_action_dates(db_path, cutoff=DEV_HI):
-    """Documented corporate-action ex-dates (gate-(b) `adjustment_factors`), mapped to
-    entity via `universe_eligibility`, fenced to cutoff. Dates/symbols only — no prices."""
+def load_factors_by_entity(db_path, cutoff=DEV_HI):
+    """Compounded adjustment factor per (symbol, ex_date) (EXP(SUM(LN(factor))), the gate-(b)
+    convention), mapped to entity via `universe_eligibility`, fenced to cutoff. Dates/factors
+    only — no prices. Returns dict entity -> list[(ex_date, f)]."""
     con = duckdb.connect(str(db_path), read_only=True)
     rows = con.execute(
-        "SELECT e.entity, af.ex_date FROM adjustment_factors af "
-        "JOIN universe_eligibility e ON e.symbol=af.symbol WHERE af.ex_date<=?",
-        [cutoff]).fetchall()
+        "SELECT e.entity, af.ex_date, EXP(SUM(LN(af.factor))) f "
+        "FROM adjustment_factors af JOIN universe_eligibility e ON e.symbol=af.symbol "
+        "WHERE af.ex_date<=? GROUP BY e.entity, af.ex_date", [cutoff]).fetchall()
     con.close()
-    out = defaultdict(set)
-    for ent, exd in rows:
-        out[ent].add(exd)
+    out = defaultdict(list)
+    for ent, exd, f in rows:
+        out[ent].append((exd, float(f)))
     return out
 
 
-def scan_data_integrity(panel, action_dates, threshold=DATA_INTEGRITY_THRESHOLD):
-    """§11.3 stop rule. Walk every consecutive-day adjusted return per entity; for any
-    |ret| > threshold:
+def load_ca_scope_exclusions(db_path, cutoff=DEV_HI):
+    """Documented residue rows (gate-(b) `ca_scope_exclusions`), mapped to entity, fenced.
+    Returns set[(entity, move_date)] — the rows gate-(b) treats as acceptable residue."""
+    con = duckdb.connect(str(db_path), read_only=True)
+    rows = con.execute(
+        "SELECT e.entity, x.move_date FROM ca_scope_exclusions x "
+        "JOIN universe_eligibility e ON e.symbol=x.symbol WHERE x.move_date<=?",
+        [cutoff]).fetchall()
+    con.close()
+    return {(ent, md) for ent, md in rows}
 
-      - if the move lands on a documented corporate-action ex-date, the adjusted series
-        should be smooth there — a surviving jump is an **adjustment mismatch (undocumented
-        residue)** -> HALT (raise RuntimeError);
-      - otherwise it is a genuine earnings/news move -> logged and continued.
 
-    Returns the list of logged genuine moves [(entity, date, ret)]. Must exist before any
-    real formation window is scored (Lead Review R1). Semantics are the literal reading of
-    the frozen §11.3 ("halt only on ... an adjustment mismatch"); recorded for Lead sign-off.
+def classify_move(ret, prev_close, ptd, td, factors):
+    """Gate-(b) five-bucket classifier (audit_corporate_actions.py:279-296), re-implemented
+    here (csmp is frozen; test_r1 asserts agreement). `factors` = list[(ex_date, f)]."""
+    survived = 1.0 + ret
+    spanning = [(ex, f) for ex, f in factors if ptd < ex <= td]     # interval span, not td==ex
+    if spanning:
+        ex, f = min(spanning, key=lambda c: abs(c[1] - survived))
+        if abs(f - survived) / survived <= MAGNITUDE_TOLERANCE:
+            return "CA-explained"
+        return "magnitude-mismatch" if (f < 1.0) == (ret < 0) else "direction-mismatch"
+    if is_ca_shaped(ret, prev_close):
+        return "CA-shaped-orphan"
+    return "genuine"
+
+
+@dataclass
+class CAScanResult:
+    register: set                 # (entity, move_date) for ALL residue classes — the D5 scoring input
+    counts: dict                  # bucket -> count
+    residue_rows: list            # (entity, move_date, ret, cls, documented_bool)
+    undocumented: list            # (entity, move_date, ret, cls) — the §11.3 HALT set
+    n_moves: int                  # total >|20%| moves screened
+    large_genuine: list           # (entity, move_date, ret, survived) genuine moves with |ret|>=0.40
+
+    @property
+    def would_halt(self):
+        return len(self.undocumented) > 0
+
+
+def scan_data_integrity(panel, factors_by_entity, documented, large_genuine_threshold=0.40):
+    """§11.3 stop rule on gate-(b)'s classification (Prompt 1-B).
+
+    For every >|20%| single-day adjusted move between consecutive entity prints (gap <=
+    MAX_GAP_DAYS), classify with `classify_move`. `register` = every (entity, move_date)
+    labelled residue (all three residue classes), documented or not — the D5 scoring input.
+    HALT set = residue rows NOT in `documented` (`ca_scope_exclusions`). This function
+    REPORTS (returns) the halt set; it does not raise — the operator disposition (D5) is
+    what actually governs, and Phase 1 does not act on the halt (Prompt 1-B item 6).
+
+    `large_genuine` collects genuine moves with |ret| >= threshold for honest disclosure:
+    gate-(b)'s ratio test is strict (±CA_RATIO_TOLERANCE) and disabled below Rs 5, so some
+    very large adjusted moves are classed genuine and therefore NOT in the register.
     """
-    genuine = []
+    register = set()
+    counts = defaultdict(int)
+    residue_rows = []
+    undocumented = []
+    large_genuine = []
+    n_moves = 0
     for e, dates in panel.ent_dates.items():
-        acts = action_dates.get(e, set())
+        facs = factors_by_entity.get(e, [])
         for k in range(1, len(dates)):
             d0, d1 = dates[k - 1], dates[k]
-            if panel.cal_pos.get(d1, -1) - panel.cal_pos.get(d0, -1) != 1:
-                continue                              # not adjacent on the master axis
+            if (d1 - d0).days > MAX_GAP_DAYS:                 # resumption/migration, excluded
+                continue
             p0, p1 = panel.px[(e, d0)], panel.px[(e, d1)]
             ret = p1 / p0 - 1.0
-            if abs(ret) > threshold:
-                if d1 in acts:
-                    raise RuntimeError(
-                        f"§11.3 HALT — undocumented residue (adjustment mismatch): {e} "
-                        f"{d1} adjusted move {ret:+.1%} on a documented ex-date")
-                genuine.append((e, d1, ret))
-    return genuine
+            if not (ret <= MOVE_LO or ret >= MOVE_HI):        # gate-(b) screen (-20% / +25%)
+                continue
+            n_moves += 1
+            cls = classify_move(ret, p0, d0, d1, facs)
+            counts[cls] += 1
+            if cls in RESIDUE:
+                register.add((e, d1))
+                doc = (e, d1) in documented
+                residue_rows.append((e, d1, ret, cls, doc))
+                if not doc:
+                    undocumented.append((e, d1, ret, cls))
+            elif cls == "genuine" and abs(ret) >= large_genuine_threshold:
+                large_genuine.append((e, d1, ret, 1.0 + ret))
+    return CAScanResult(register, dict(counts), residue_rows, undocumented, n_moves,
+                        large_genuine)
 
 
 # ===========================================================================
@@ -293,15 +360,38 @@ def members_at(panel, t):
     return panel.memb.get(best, []) if best is not None else []
 
 
+def reg_positions(panel, register):
+    """D5: map the CA register (set of (entity, move_date)) to master-axis positions per
+    entity for fast interval tests. `register` is the FULL residue register (documented +
+    undocumented) — the §4.1 missing-input set, distinct from the §11.3 halt set (D5.1)."""
+    out = defaultdict(set)
+    for (e, dt) in register:
+        p = panel.cal_pos.get(dt)
+        if p is not None:
+            out[e].add(p)
+    return dict(out)
+
+
+def _spans_register(reg_pos, e, lo_excl, hi_incl):
+    """True iff entity e has a register move at a master-axis position in (lo_excl, hi_incl]."""
+    if not reg_pos:
+        return False
+    ps = reg_pos.get(e)
+    return bool(ps) and any(lo_excl < p <= hi_incl for p in ps)
+
+
 # ===========================================================================
 # §5 candidate scores  ->  {entity: score} for formation date t
 # ===========================================================================
-def score_c1(panel, t):
+def score_c1(panel, t, reg_pos=None):
     tb = _day_back(panel, t, FORMATION_RET_DAYS)
     if tb is None:
         return {}
+    pt = panel.cal_pos[t]
     out = {}
     for e in members_at(panel, t):
+        if _spans_register(reg_pos, e, pt - FORMATION_RET_DAYS, pt):   # D5.2 formation return
+            continue
         r = _ret(panel, e, tb, t)
         if r is not None:
             out[e] = -r
@@ -312,20 +402,28 @@ def _weekly_grid_index(wgrid):
     return {d: i for i, d in enumerate(wgrid)}
 
 
-def market_weekly_returns(panel, wgrid):
-    """r_mkt(w) = EW mean of r_i(w-5, w) over members at w with both prices (§5 C2)."""
+def market_weekly_returns(panel, wgrid, reg_pos=None):
+    """r_mkt(w) = EW mean of r_i(w-5, w) over members at w with both prices (§5 C2);
+    D5.4: entities whose r_i(w-5, w) spans a register move are excluded from the mean."""
     rmkt = {}
     for w in wgrid:
         wb = _day_back(panel, w, FORMATION_RET_DAYS)
         if wb is None:
             continue
-        rs = [r for e in members_at(panel, w) if (r := _ret(panel, e, wb, w)) is not None]
+        pw = panel.cal_pos[w]
+        rs = []
+        for e in members_at(panel, w):
+            if _spans_register(reg_pos, e, pw - FORMATION_RET_DAYS, pw):   # D5.4
+                continue
+            r = _ret(panel, e, wb, w)
+            if r is not None:
+                rs.append(r)
         if rs:
             rmkt[w] = float(np.mean(rs))
     return rmkt
 
 
-def score_c2(panel, t, wgrid, widx, rmkt):
+def score_c2(panel, t, wgrid, widx, rmkt, reg_pos=None):
     gi = widx.get(t)
     if gi is None or gi - BETA_WEEKS < 0:
         return {}
@@ -334,14 +432,20 @@ def score_c2(panel, t, wgrid, widx, rmkt):
     if tb is None or t not in rmkt:
         return {}
     rm_t = rmkt[t]
+    pt = panel.cal_pos[t]
     out = {}
     for e in members_at(panel, t):
+        if _spans_register(reg_pos, e, pt - FORMATION_RET_DAYS, pt):   # D5.2 formation return
+            continue
         xs, ys = [], []
         for g in window:
             if g not in rmkt:
                 continue
             gb = _day_back(panel, g, FORMATION_RET_DAYS)
             if gb is None:
+                continue
+            pg = panel.cal_pos[g]
+            if _spans_register(reg_pos, e, pg - FORMATION_RET_DAYS, pg):   # D5.3 drop the week
                 continue
             ri = _ret(panel, e, gb, g)
             if ri is None:
@@ -398,9 +502,9 @@ def score_c3(panel, t):
     return out
 
 
-def score_c4(panel, t):
-    c1 = score_c1(panel, t)
-    c3 = score_c3(panel, t)
+def score_c4(panel, t, reg_pos=None):
+    c1 = score_c1(panel, t, reg_pos)              # D5.2: formation return is register-aware
+    c3 = score_c3(panel, t)                        # D5.6: C3 unaffected
     if not c3:
         return {}
     ents = list(c3.keys())
@@ -412,17 +516,20 @@ def score_c4(panel, t):
     return out
 
 
-def score_c5(panel, t):
+def score_c5(panel, t, reg_pos=None):
     it = panel.cal_pos.get(t)
     if it is None or it - VOL_DAYS + 1 < 0:
         return {}
     lo = it - VOL_DAYS + 1
     out = {}
     for e in members_at(panel, t):
+        e_reg = reg_pos.get(e, ()) if reg_pos else ()
         closes = [(j, panel.px[(e, panel.cal[j])]) for j in range(lo, it + 1)
                   if (e, panel.cal[j]) in panel.px]
         rets = [closes[k][1] / closes[k - 1][1] - 1.0
-                for k in range(1, len(closes)) if closes[k - 1][0] == closes[k][0] - 1]
+                for k in range(1, len(closes))
+                if closes[k - 1][0] == closes[k][0] - 1
+                and closes[k][0] not in e_reg]     # D5.5 drop the daily return on a register move
         if len(rets) < VOL_MIN:
             continue
         sd = float(np.std(rets, ddof=1))
@@ -462,6 +569,7 @@ class CandidateResult:
     min_names_skipped: int
     excl_counts: list
     fwd_missing_counts: list
+    ca_excl_counts: list
     net_spread: float
     gross_spread: float
     q1_q5: float
@@ -584,9 +692,11 @@ def _quintile_sequences(scored_by_date, banded):
     return topq, botq, base
 
 
-def evaluate_candidate(panel, cid, score_fn, db_path):
+def evaluate_candidate(panel, cid, score_fn, db_path, reg_pos=None):
     """Run one candidate end-to-end over its declared dev window. score_fn(t)->{entity:score}.
-    `db_path` is REQUIRED — used only for the §7 sealed-grid n* count (dates only)."""
+    `db_path` is REQUIRED — used only for the §7 sealed-grid n* count (dates only).
+    `reg_pos` (D5) drives the forward-window CA exclusion (score_fn already handles the
+    formation/beta/vol windows internally)."""
     meta = CANDIDATES[cid]
     cadence = meta["cadence"]; dev_lo = meta["dev_lo"]
     grid = weekly_grid(panel.cal) if cadence == "weekly" else monthly_grid(panel.cal)
@@ -597,18 +707,23 @@ def evaluate_candidate(panel, cid, score_fn, db_path):
              and gidx[d] + 1 < len(grid) and grid[gidx[d] + 1] <= DEV_HI]
 
     ic_list, ic_imp_list, dates = [], [], []
-    excl_counts, fwd_missing = [], []
+    excl_counts, fwd_missing, ca_excl_counts = [], [], []
     scored_by_date = []
     min_names_skipped = 0
     for t in forms:
         tp = grid[gidx[t] + 1]
+        pt, ptp = panel.cal_pos[t], panel.cal_pos[tp]
         scores = score_fn(t)
         members = members_at(panel, t)
         excl_counts.append(len(members) - len(scores))
         rows_primary = []           # (entity, score, fwd) fwd present
         s_all, fwd_all = [], []     # for imputed IC (fwd may be None)
         missing = 0
+        ca_excl = 0
         for e, s in scores.items():
+            if _spans_register(reg_pos, e, pt, ptp):    # D5.7 forward window (t, t'] spans a CA
+                ca_excl += 1                            # excluded entirely; NOT §4.2-imputed
+                continue
             f = _forward(panel, e, t, tp)
             s_all.append(s); fwd_all.append(f)
             if f is None:
@@ -616,6 +731,7 @@ def evaluate_candidate(panel, cid, score_fn, db_path):
             else:
                 rows_primary.append((e, s, f))
         fwd_missing.append(missing)
+        ca_excl_counts.append(ca_excl)
         rho, rho_imp = date_ic(s_all, fwd_all)
         if rho is None:
             if len(s_all) > 0:          # I2: names were scored but <MIN_NAMES had forwards
@@ -666,7 +782,7 @@ def evaluate_candidate(panel, cid, score_fn, db_path):
         cid=cid, dates=dates, ic=ic, ic_imputed=ic_imp, n_dates=len(ic),
         mean_ic=mean, sd_ic=sd, tstat=tstat, pvalue=p, ac1=ac1, nw_t=nw_t,
         mean_ic_imputed=mean_imp, sign_flag=sign_flag, min_names_skipped=min_names_skipped,
-        excl_counts=excl_counts, fwd_missing_counts=fwd_missing,
+        excl_counts=excl_counts, fwd_missing_counts=fwd_missing, ca_excl_counts=ca_excl_counts,
         net_spread=net_spread, gross_spread=gross_spread, q1_q5=q1_q5,
         fee_slip_drag_bp=drag_bp, turnover=turnover, fees_topq=tq_fee, fees_base=bs_fee,
         first_half_ic=fh, second_half_ic=sh,
@@ -688,18 +804,19 @@ def _power(delta, sd, n_star):
 
 
 SCORE_FUNCS = {
-    "C1": lambda p: (lambda t: score_c1(p, t)),
-    "C3": lambda p: (lambda t: score_c3(p, t)),
-    "C4": lambda p: (lambda t: score_c4(p, t)),
-    "C5": lambda p: (lambda t: score_c5(p, t)),
+    "C1": lambda p, rp: (lambda t: score_c1(p, t, rp)),
+    "C3": lambda p, rp: (lambda t: score_c3(p, t)),           # D5.6: C3 unaffected
+    "C4": lambda p, rp: (lambda t: score_c4(p, t, rp)),
+    "C5": lambda p, rp: (lambda t: score_c5(p, t, rp)),
 }
 
 
-def make_score_fn(panel, cid):
-    """Return the score_fn(t) for a candidate (C2 needs precomputed market returns)."""
+def make_score_fn(panel, cid, reg_pos=None):
+    """Return the score_fn(t) for a candidate (C2 needs precomputed market returns).
+    `reg_pos` (D5) is threaded into the formation/beta/vol windows and the C2 market mean."""
     if cid == "C2":
         wg = weekly_grid(panel.cal)
         widx = _weekly_grid_index(wg)
-        rmkt = market_weekly_returns(panel, wg)
-        return lambda t: score_c2(panel, t, wg, widx, rmkt)
-    return SCORE_FUNCS[cid](panel)
+        rmkt = market_weekly_returns(panel, wg, reg_pos)      # D5.4 market excludes register spans
+        return lambda t: score_c2(panel, t, wg, widx, rmkt, reg_pos)
+    return SCORE_FUNCS[cid](panel, reg_pos)

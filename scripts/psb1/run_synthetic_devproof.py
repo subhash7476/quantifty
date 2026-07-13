@@ -153,23 +153,13 @@ def _run_all(scenario_path):
     return out
 
 
-def _r1_demo():
-    """Demonstrate §11.3 scan_data_integrity on tiny in-memory panels (both branches)."""
-    cal = [date(2021, 1, 4) + timedelta(days=i) for i in range(10)]
-    cal_pos = {d: i for i, d in enumerate(cal)}
-    # genuine: +25% move on a non-action day -> logged, no halt
-    px = {("E", cal[i]): 100.0 for i in range(10)}
-    px[("E", cal[5])] = 125.0
-    pg = H.Panel(cal, cal_pos, px, {}, {"E": list(cal)}, [cal[0]], {cal[0]: ["E"]}, cal[-1])
-    genuine = H.scan_data_integrity(pg, action_dates={})
-    genuine_ok = (len(genuine) == 1 and genuine[0][0] == "E")
-    # residue: same move but cal[5] is a documented ex-date -> HALT
-    halted = False
-    try:
-        H.scan_data_integrity(pg, action_dates={"E": {cal[5]}})
-    except RuntimeError:
-        halted = True
-    return genuine_ok and halted, genuine
+def _r1_real():
+    """Run the §11.3 R1 scan on the REAL dev-fenced adjusted panel (permitted: the scan is
+    not a candidate score). Returns the CAScanResult — the operator artifact (Prompt 1-B)."""
+    panel = H.load_panel(db_path=str(REAL_STORE), cutoff=H.DEV_HI)
+    factors = H.load_factors_by_entity(REAL_STORE, H.DEV_HI)
+    documented = H.load_ca_scope_exclusions(REAL_STORE, H.DEV_HI)
+    return H.scan_data_integrity(panel, factors, documented)
 
 
 def _predictions(res_null, res_rev, res_del, fenced, unfenced, rows):
@@ -214,15 +204,16 @@ def _git_commit():
 
 def _cand_table(title, res):
     lines = [f"### {title}\n",
-             "| Cand | n | skip | mean IC | SD | t | p(1s) | AC1 | NW t | imputed IC | flag | "
-             "net spread | gross spread | Q1-Q5 | turnover | n* | power | power(d/2) |",
-             "|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|:--:|--:|--:|--:|--:|--:|--:|--:|"]
+             "| Cand | n | skip | fwd_miss | ca_excl | mean IC | SD | t | p(1s) | AC1 | NW t | "
+             "imputed IC | flag | net spread | gross spread | Q1-Q5 | turnover | n* | power | power(d/2) |",
+             "|---|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|:--:|--:|--:|--:|--:|--:|--:|--:|"]
     for cid in ("C1", "C2", "C3", "C4", "C5"):
         r = res[cid]
         nw = f"{r.nw_t:.2f}" if r.nw_t is not None else "-"
         pw_nw = f" (NW {r.power_nw:.2f})" if r.power_nw is not None else ""
         lines.append(
-            f"| {cid} | {r.n_dates} | {r.min_names_skipped} | {r.mean_ic:.4f} | {r.sd_ic:.4f} | "
+            f"| {cid} | {r.n_dates} | {r.min_names_skipped} | {sum(r.fwd_missing_counts)} | "
+            f"{sum(r.ca_excl_counts)} | {r.mean_ic:.4f} | {r.sd_ic:.4f} | "
             f"{r.tstat:.2f} | {r.pvalue:.4f} | {r.ac1:.3f} | {nw} | {r.mean_ic_imputed:.4f} | "
             f"{'FLAG' if r.sign_flag else '-'} | {r.net_spread:.4f} | {r.gross_spread:.4f} | "
             f"{r.q1_q5:.4f} | {r.turnover:.3f} | {r.n_star} | {r.power:.3f}{pw_nw} | "
@@ -242,18 +233,66 @@ def _flag_lines(scenarios):
     return ("\n".join(out) + "\n\n") if out else "_No §4.2 sign discrepancies in this run._\n\n"
 
 
+def _r1_section(scan):
+    """Render the R1 real dev-window classification (Prompt 1-B items 5/6 + D5)."""
+    h = ["## R1 — §11.3 data-integrity classification (REAL dev window)\n"]
+    h.append("Gate-(b)'s five-bucket classifier (`audit_corporate_actions.py:279-296`), "
+             "reused via `classify_move`, run on the real dev-fenced adjusted panel exactly "
+             "as `load_panel` builds it (rn=1 dedup, ever-member, ≤ 2022-12-31). The scan "
+             "reads prices but computes **no candidate score** (Prompt 1-B).\n")
+    h.append(f"Screened >|20%| moves: **{scan.n_moves}**. Bucket counts:\n")
+    h.append("| Bucket | Count | Residue? |")
+    h.append("|---|--:|:--:|")
+    for b in ("CA-explained", "genuine", "magnitude-mismatch", "direction-mismatch",
+              "CA-shaped-orphan"):
+        h.append(f"| {b} | {scan.counts.get(b, 0)} | {'**yes**' if b in H.RESIDUE else 'no'} |")
+    h.append("")
+    n_doc = sum(1 for r in scan.residue_rows if r[4])
+    h.append(f"**Residue: {len(scan.residue_rows)}** ({n_doc} documented in "
+             f"`ca_scope_exclusions`, {len(scan.undocumented)} undocumented). The full "
+             "residue register (documented + undocumented) is the **D5 missing-input set** "
+             f"({len(scan.register)} rows); the §11.3 **HALT** set is the "
+             f"{len(scan.undocumented)} undocumented rows only.\n")
+    h.append("| Entity | Move date | Adjusted move | Class | Disposition |")
+    h.append("|---|---|--:|---|---|")
+    for e, d, r, cls, doc in sorted(scan.residue_rows, key=lambda x: x[2]):
+        disp = "documented (still a missing input, D5.1)" if doc else "**UNDOCUMENTED — HALTs (§11.3)**"
+        h.append(f"| {e} | {d} | {r:+.1%} | {cls} | {disp} |")
+    h.append("")
+    h.append("> **§11.3 status (Prompt 1-B item 6, reported not acted on):** a correct R1 "
+             f"**HALTs** on the {len(scan.undocumented)} undocumented residue rows above. Their "
+             "disposition is governed by operator decision **D5** (unadjusted CA = missing "
+             "input); the register is threaded into scoring (D5.2-7) and exercised by "
+             "`tests/psb1/test_scoring.py`.\n")
+    if scan.large_genuine:
+        h.append("**Honest disclosure (Prompt 1-B item 6) — large moves gate-(b) classifies "
+                 "`genuine`, therefore NOT in the register and NOT excluded by D5:**\n")
+        h.append("Gate-(b)'s CA-ratio test is strict (±`CA_RATIO_TOLERANCE`=0.02) and disabled "
+                 "below Rs 5 (the tick-grid floor). Several very large negative adjusted moves "
+                 "fall just outside the canonical-ratio band or have a backward-adjusted "
+                 "`prev_close` < Rs 5, so gate-(b) classes them `genuine`. They remain in the "
+                 "scored panel. This is gate-(b)'s pinned classification (§9); flagged for the "
+                 "operator, **not** silently reclassified.\n")
+        h.append("| Entity | Move date | Adjusted move | Surviving ratio |")
+        h.append("|---|---|--:|--:|")
+        for e, d, r, sv in sorted(scan.large_genuine, key=lambda x: x[2])[:20]:
+            h.append(f"| {e} | {d} | {r:+.1%} | {sv:.4f} |")
+        h.append("")
+    return "\n".join(h) + "\n"
+
+
 def _canonical(res_null, res_rev, res_del, checks, fenced, unfenced, rows,
-               nstar_w, nstar_m, r1_ok, r1_log, commit):
+               nstar_w, nstar_m, scan, commit):
     """The report MINUS the self-referential S1 determinism line (compared across processes)."""
     h = []
-    h.append("# PSB-1 Phase 1 — Screening Harness Report (synthetic dev-proof)\n")
+    h.append("# PSB-1 Phase 1 — Screening Harness Report (synthetic dev-proof + real R1)\n")
     h.append(f"**Script-generated** (protocol §10). Code commit at generation `{commit}` — "
              "when the report is committed together with the code this is the **parent** of "
              "the commit that adds this file (Lead Review D3); re-run post-commit to stamp the "
              f"exact commit. Seed `{SEED}` (§10).\n")
-    h.append("This report proves the harness on **synthetic data only**; no candidate score "
-             "is computed on the real store. The only real-store touches are dates/counts "
-             "reads (§1/§7 exception): the P7 fence-check and the real n* count.\n")
+    h.append("Candidate scores are proved on **synthetic data only**. The real store is read "
+             "only for: the P7 fence-check and real n* (dates/counts), and the R1 §11.3 scan "
+             "(adjusted prices, **not** a candidate score — Prompt 1-B).\n")
     h.append(f"**Real-store stamp (D3/S3):** rows **{rows:,}**, unfenced "
              f"`MAX(trade_date)={unfenced}`, loader fenced observed max `{fenced}` "
              f"(≤ {H.DEV_HI}). 3.5y of sealed data is physically present and excluded.\n")
@@ -271,21 +310,17 @@ def _canonical(res_null, res_rev, res_del, checks, fenced, unfenced, rows,
         h.append(f"| {name} | {ev} | {'PASS' if ok else 'FAIL'} |")
     h.append("")
 
-    h.append(f"## R1 — §11.3 data-integrity stop rule\n")
-    h.append(f"`scan_data_integrity` demonstrated on tiny panels: a +25% move on a "
-             f"non-action day is **logged and continued** ({len(r1_log)} genuine move logged); "
-             f"the same move on a documented ex-date **HALTs** (adjustment mismatch). "
-             f"Both branches exercised: {'PASS' if r1_ok else 'FAIL'}. Wired to the real "
-             "gate-(b) `adjustment_factors` via `load_action_dates` for Phase 2 (not run on "
-             "real data here).\n")
+    h.append(_r1_section(scan))
 
     h.append("## §4.2 sign-discrepancy flags (D2)\n")
     h.append(_flag_lines([("reversal", res_rev), ("delivery", res_del), ("null", res_null)]))
 
     h.append("## Harness output by scenario\n")
     h.append("Net spread is an **upper bound on realizable economics** (same-close "
-             "formation, no execution lag — §6/F5). `skip` = dates dropped for <5 scored "
-             "names (I2; expected 0).\n")
+             "formation, no execution lag — §6/F5). Three distinct counters (D5.8): `skip` "
+             "= <5-scored-name dates (I2); `fwd_miss` = §4.2 missing-forward; `ca_excl` = D5 "
+             "CA-register forward exclusions. All 0 on the synthetic panels (no CAs planted); "
+             "the D5 register path is exercised in `tests/psb1/test_scoring.py`.\n")
     h.append(_cand_table("Scenario: reversal (C1/C4 signal + planted delistings)", res_rev))
     h.append(_cand_table("Scenario: delivery (C3 signal)", res_del))
     h.append(_cand_table("Scenario: null", res_null))
@@ -303,11 +338,11 @@ def _compute():
     fenced, unfenced, rows = H.fence_check(db_path=REAL_STORE, cutoff=H.DEV_HI)
     nstar_w = H.sealed_grid_count(str(REAL_STORE), "weekly")
     nstar_m = H.sealed_grid_count(str(REAL_STORE), "monthly")
-    r1_ok, r1_log = _r1_demo()
+    scan = _r1_real()
     checks = _predictions(res_null, res_rev, res_del, fenced, unfenced, rows)
     canonical = _canonical(res_null, res_rev, res_del, checks, fenced, unfenced, rows,
-                           nstar_w, nstar_m, r1_ok, r1_log, _git_commit())
-    return canonical, checks, r1_ok
+                           nstar_w, nstar_m, scan, _git_commit())
+    return canonical, checks, scan
 
 
 def main():
@@ -334,7 +369,7 @@ def main():
     s1_ok = outs[0] == outs[1]
     ha, hb = hashlib.sha256(outs[0]).hexdigest(), hashlib.sha256(outs[1]).hexdigest()
 
-    canonical, checks, r1_ok = _compute()
+    canonical, checks, scan = _compute()
     s1_line = (f"| S1/P6 determinism (two interpreters, PYTHONHASHSEED 0 vs 1, whole-file "
                f"bytes) | sha256 seed0={ha[:16]} seed1={hb[:16]} | {'PASS' if s1_ok else 'FAIL'} |")
     # splice the S1 line into the predictions table (after the header separator row)
@@ -344,10 +379,13 @@ def main():
     report = "\n".join(lines)
     REPORT.write_text(report, encoding="utf-8")
 
-    all_ok = all(ok for _, _, ok in checks) and s1_ok and r1_ok
-    print(f"\n{'ALL PREDICTIONS PASS (P1-P7, P4b, R1, S1)' if all_ok else 'FAILURE — see report'}"
+    all_ok = all(ok for _, _, ok in checks) and s1_ok
+    print(f"\n{'ALL PREDICTIONS PASS (P1-P7, P4b, S1)' if all_ok else 'FAILURE — see report'}"
           f"  ->  {REPORT}")
-    print(f"S1 cross-process byte-identical: {s1_ok}; R1 both branches: {r1_ok}")
+    print(f"S1 cross-process byte-identical: {s1_ok}")
+    print(f"R1 real dev-window: {scan.n_moves} moves screened, "
+          f"{len(scan.residue_rows)} residue ({len(scan.undocumented)} undocumented -> would HALT), "
+          f"{len(scan.large_genuine)} large genuine (not in register)")
     return 0 if all_ok else 1
 
 
