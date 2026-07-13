@@ -212,10 +212,11 @@ from Prompt 1-A stands and **must not be touched**. Standing constraints unchang
 (protocol frozen; `scripts/psb1/` + `tests/psb1/` only; no candidate score on real data —
 the §11.3 scan and dates/counts probes are not scores).
 
-**Do not act on the panel-disposition finding** (the ~18 unadjusted corporate actions in
-the scored panel). That is an **operator decision, pending** — it is *not* yours to resolve
-in code, and resolving it in code would be exactly the §9 breach the protocol forbids. Build
-the detector; do not build the remedy.
+The panel-disposition finding (the ~18 unadjusted corporate actions in the scored panel) has
+since been **ruled by the operator — decision D5, LOCKED 2026-07-13, pre-result**
+(`PSB1_PHASE0_RESEARCH_RECORD.md` §3). Implement it exactly as pinned in the **D5
+disposition** section below. Every edge is pinned there; **resolve none of them in code** —
+if something is still ambiguous, STOP and report.
 
 ### The defect
 
@@ -264,14 +265,50 @@ which gate-(b) treats as making a residue row acceptable.
 6. Note in the report, without acting on it, that a correct R1 **halts** on the undocumented
    residue and that the panel's disposition of those rows is an open operator decision.
 
+### D5 disposition — unadjusted CAs are a MISSING INPUT (§4.1)
+
+**Operator decision D5:** a price-derived input window that spans an unadjusted corporate
+action is an **absent input**; the name is not scorable across that window, exactly as if a
+price were missing. No new parameter. Pinned semantics — implement precisely these:
+
+1. **The CA register** = every `(entity, move_date)` your R1 classifier labels **residue**
+   (all three residue classes), **whether or not it is documented in `ca_scope_exclusions`.**
+   Documenting a row explains it; it does **not** repair the price. Both are unadjusted, so
+   both are missing inputs. (This register is a *scoring* input; the R1 **halt** still keys
+   only on *undocumented* residue. The two sets are deliberately different — do not merge
+   them.)
+2. **Formation return** (C1, C4, and C2's `r_i(t−5,t)`): if the window `(t−5, t]` contains a
+   register move, the name is **not scored** at *t*.
+3. **C2 beta window:** a register move inside a weekly window return `(g−5, g]` makes **that
+   week's return missing** — drop the week; it then counts against the **≥40 of 52**
+   completeness rule. Do **not** drop the name outright.
+4. **C2 market return `r_mkt(w)`:** names whose `r_i(w−5, w)` spans a register move are
+   **excluded from the equal-weighted mean.** (A fabricated −99% otherwise corrupts the
+   market return for every name that week — this is the edge most likely to be missed.)
+5. **C5 vol window:** a register move makes that **daily return missing** — drop the day; it
+   counts against the **≥200 of 252** obs rule.
+6. **C3:** unaffected. `deliv_pct` is a ratio and is CA-invariant (§2).
+7. **Forward return `r(t, t')`:** if the forward window spans a register move, the name is
+   **excluded from that date entirely** — it does not enter the IC or the portfolios.
+   **It must NOT be routed into the §4.2 missing-forward imputation:** §4.2 imputes the
+   date's *worst realized forward return* because a delisting is plausibly catastrophic; a
+   corporate action is not a delisting, and imputing it would fabricate a second time.
+8. **Counting:** report the CA-exclusion count per formation date as its **own counter**,
+   distinct from both the §4.1 formation-incomplete count and the §4.2 missing-forward
+   count. Three counters, never merged.
+
+Tests required for each of 2–7, plus a test that the register includes a **documented**
+residue row (it is still a missing input) while the R1 halt does **not** fire on it.
+
 ### Acceptance
 
 All Prompt-1 and Prompt-1-A criteria still hold; R1 classifies into gate-(b)'s five buckets
-and halts only on undocumented residue; all five buckets plus the exemption and
-interval-span paths are tested; the dev-window classification table is in the report; still
-zero candidate scores on real data.
+and halts only on **undocumented** residue; D5 is implemented on the **full** residue
+register per the pinned semantics above; all five buckets, the exemption path, the
+interval-span path, and D5 items 2–7 are tested; the dev-window classification table and the
+three exclusion counters are in the report; still zero candidate scores on real data.
 
 ### On completion
 
-Commit with prefix `fix(psb1): Prompt 1-B —` and report back. **Phase 2 requires both** a
-third written PASS **and** the operator's ruling on the panel disposition.
+Commit with prefix `fix(psb1): Prompt 1-B —` and report back. Phase 2 begins only after a
+third written PASS.

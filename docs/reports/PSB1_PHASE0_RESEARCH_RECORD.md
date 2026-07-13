@@ -51,6 +51,29 @@ Four decisions were put to the operator during Phase 0 brainstorming; all four l
 | D3 | Cadence | **Weekly-centered, test both ways.** Screening runs primarily at weekly cadence (~180 sealed observations vs CSMP's 42); each candidate declares its natural cadence; a power projection is a mandatory per-candidate artifact. | Weekly buys ~4× the observations of monthly while delivery-equity turnover remains survivable. The power calculation is now structural, not remembered. |
 | D4 | Data scope | **Existing panel only.** Candidates must be computable from the current equity store (+ delivery fields). No new ingestion this increment. | Zero ingestion cost; screening starts immediately on a CSMP-audited substrate. The delivery fields are the freshest untapped asset already inside it. |
 
+### D5 — Unadjusted corporate actions in the scored panel (LOCKED 2026-07-13, post-freeze, **pre-result**)
+
+Raised by the second Lead Review (`PSB1_PHASE1_LEAD_REVIEW_2.md`). The harness's panel reads
+`equity_bhavcopy_adjusted` unfiltered, and it contains **~18 unadjusted corporate-action
+moves** inside the ever-member universe on the dev window — every one a large *negative*
+move (BAJAUTOFIN −99.0%, AURUM/ex-MAJESCO −98.8%, ADANIENT −82.8%, SHRIRAMFIN −79.8%, …),
+mostly demergers and special capital returns that gate-(b) never adjusted **by charter, not
+by bug** (its scope was splits/bonuses/rights). Because C1 scores `s = −r(t−5,t)`, a
+fabricated −99% return is the *highest possible* C1 score — the name goes straight into the
+top-quintile long book on a move that never happened. C2/C4 inherit it; C5 sees an inflated
+252-day σ.
+
+| # | Decision | Locked choice | Rationale recorded |
+|---|---|---|---|
+| D5 | Unadjusted CAs in the panel | **Missing input under the §4.1 formation-complete rule.** A price-derived input window that spans an unadjusted corporate action is an **absent input**: the name is simply not scorable across that window, exactly as if a price were missing. No new parameter is introduced. | §4.1 already excludes names whose required inputs are absent, and an adjusted price that does not describe a continuous claim on the same asset **is** an absent input. The alternatives were rejected: documenting the rows in `ca_scope_exclusions` clears the *gate* without cleaning the *data* (the −99% would still be scored), and adding demerger factors is new adjustment work plausibly barred by **D4**. |
+
+**§9 status:** recorded as an *interpretation* of the frozen §4.1, not an amendment — no
+candidate definition, parameter, window, or metric changes. It nonetheless moves results,
+so it is locked **before any candidate result exists**, which is the only moment it can be
+settled for free. The affected `(entity, move_date)` rows are carried in a register and
+reported. Implementation semantics are pinned in **Prompt 1-B** (§"D5 disposition") — the
+implementer must not resolve any of its edges in code.
+
 ## 4. The central research insight — `deliv_pct`
 
 NSE is one of the very few major exchanges that publishes **daily per-stock delivery data**: the fraction of traded volume actually taken to demat (real position-taking) versus intraday churn. The US market has no equivalent public field; it barely exists in the international factor literature. Indian academic work finds delivery-based measures predict returns — high-delivery price moves read as informed accumulation; low-delivery moves read as noise that tends to revert.
