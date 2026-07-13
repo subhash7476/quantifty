@@ -2,10 +2,13 @@
 
 **Document type:** Pre-registered screening protocol (Phase 0 deliverable)
 
-**Status:** DRAFT Rev 1 (2026-07-13) — authored by Claude (Lead Reviewer). Because the
-author is the reviewer, the two-party discipline requires an **independent review by
-DeepSeek V4** (the CSMP Phase 2 pattern) before the operator ratifies. On ratification
-this document is stamped **FROZEN** and §9 immutability applies.
+**Status:** DRAFT Rev 2 (2026-07-13) — authored by Claude (Lead Reviewer). Rev 2 folds
+in the independent review by DeepSeek V4
+(`PSB1_PROTOCOL_INDEPENDENT_REVIEW.md`, verdict APPROVE WITH MINOR REVISIONS; all
+findings accepted — `PSB1_PROTOCOL_LEAD_DISPOSITION.md`). Awaiting **operator
+ratification**, which explicitly includes the §5-C4 continuation-leg acknowledgment
+(review F4). On ratification this document is stamped **FROZEN** and §9 immutability
+applies.
 
 **Governing record:** `docs/reports/PSB1_PHASE0_RESEARCH_RECORD.md` (operator decisions
 D1–D4, LOCKED 2026-07-13). Roles: DeepSeek V4 implements; Claude writes prompts and
@@ -43,7 +46,7 @@ Prohibited under this protocol:
 | Calendar | `trading_calendar`, full-session days defined as `n_symbols >= 200` (the CSMP convention). |
 | Fees | `core.execution.equity.delivery_fees.delivery_equity_fees(side, trade_value, trade_date).total` (gate-d, era-accurate). |
 | Slippage | κ = **5 bp per side** on traded notional (the CSMP B3 convention). |
-| Loader lineage | Phase 1 harness derives from `run_a2_validation.load_window()` at commit `0ae1dc4` (price load restricted to ever-member entities — the Prompt-13 memory fix), re-fenced to the dev cutoff. |
+| Loader lineage | Phase 1 harness derives from `run_a2_validation.load_window()` at commit `0ae1dc4` (price load restricted to ever-member entities — the Prompt-13 memory fix), re-fenced to the dev cutoff. **The inherited SELECT carries `adj_close` only; the harness must carry `deliv_pct` through the same `rn=1` turnover-primary listing pick as the price**, so delivery and price always describe the same listing (review Prompt-1 caveat; named Prompt-1 acceptance criterion). |
 
 ## §3 Time conventions
 
@@ -69,9 +72,15 @@ Prohibited under this protocol:
    input its candidate requires (§5) is present. Unscored names cannot enter portfolios;
    the excluded count is reported per formation date.
 2. **Forward-return availability:** a scored name with no price at *t'* (delisting,
-   suspension) is excluded from that date's IC and portfolios; the count is reported.
-   Exit returns are not synthesized — this is a recorded limitation, mitigated by the
-   point-in-time universe keeping delisted names in the panel until exit.
+   suspension) is excluded from that date's IC and portfolios in the **primary**
+   metrics; the count is reported. **This exclusion is directionally biased upward for
+   the reversal candidates** (C1 and C4's revert leg are long recent losers, where
+   imminent delistings concentrate — review F2). Every candidate report therefore
+   carries a **mandatory robustness column** re-computing mean IC and net spread under
+   a pinned imputation: the missing forward return is set to that date's **worst
+   realized forward return among scored names** (data-driven; no synthetic −100%). If
+   a candidate's mean-IC sign differs between the primary and imputed columns, the
+   discrepancy is flagged to the operator — never silently dropped.
 3. **Direction convention:** every score in §5 is oriented so that the candidate's
    hypothesis predicts **positive** rank IC.
 4. **Notation:** `P_i(t)` = adjusted close of name *i* at trading day *t*;
@@ -134,7 +143,10 @@ Formation-complete requires both C1 and C3 completeness. Hypothesis: low-deliver
 moves are noise and revert (weight → +1 · reversal); high-delivery moves are informed
 and persist (weight → −1, i.e., continuation). This is the interaction bet — it is
 **not** a momentum construct: its persistence leg conditions on the delivery field,
-not on trailing return alone, and its formation window is one week.
+not on trailing return alone, and its formation window is one week. **Ratification acknowledgment (review F4):** at
+`p_i(t) → 1` this score is mechanically a one-week continuation leg; operator
+ratification of this protocol explicitly acknowledges it, and the successor program's
+D2 prior-exposure disclosure must cover it.
 
 ### C5 — Low-volatility (monthly, dev 2012–2022)
 
@@ -159,11 +171,16 @@ t-statistic and p-value (H₁: mean IC > 0).
 equal-weighted top-quintile portfolio (by score, rebalanced on the candidate's grid,
 C5 banded), minus the formation-complete equal-weighted universe baseline, **net of
 gate-(d) fees on turnover-derived traded notional + κ = 5 bp/side slippage** (the
-CSMP Δ_net construction, quintile instead of top-40).
+CSMP Δ_net construction, quintile instead of top-40). **The baseline leg is charged
+the same fees + slippage on its own membership-churn turnover** — apples-to-apples by
+construction. Wherever the net spread is reported it is labeled an **upper bound on
+realizable economics** (same-close formation, no execution lag — §3; review F5).
 
 **Reported, non-gating:** gross spread; fee + slippage drag (bp/yr); one-way turnover
 per rebalance; long-short (Q1−Q5) spread; first-half / second-half sub-period ICs;
-per-date exclusion counts (§4).
+per-date exclusion counts (§4); the §4.2 imputed-forward-return robustness column;
+**the IC series' lag-1 autocorrelation** (review F3) — and, if |AC₁| > 0.1, a
+Newey–West (lag 4) t-statistic as a robustness column.
 
 ## §7 Power projection (the hurdle — operator decision D3 made structural)
 
@@ -180,6 +197,10 @@ For each candidate:
 3. **Hurdle: projected power ≥ 0.80.** A candidate below the hurdle is **dropped by
    rule**, whatever its dev IC. Power at `δ/2` is also reported (information only,
    never gating).
+4. **Autocorrelation robustness (review F3):** if the candidate's IC series has
+   |AC₁| > 0.1, a power projection using the Newey–West (lag 4) adjusted SE is
+   reported alongside the primary — report-only, never gating; the primary stays the
+   pre-registered simple-t projection.
 
 The `δ = dev point estimate` assumption is the pre-registered one; CSMP's sealed read
 landing on top of its dev estimate is the recorded precedent for its reasonableness.
@@ -189,19 +210,31 @@ landing on top of its dev estimate is the recorded precedent for its reasonablen
 **Eligibility** — a candidate is eligible iff, on its declared dev window:
 (i) mean IC > 0; (ii) annualized net top-quintile spread > 0; (iii) §7 power ≥ 0.80.
 
-**Selection statistic:** the one-sided t-statistic of mean IC, with **Bonferroni
-deflation at m = 5** (deflated p = min(1, 5·p)). The winner is the eligible candidate
-with the smallest deflated p. A recommendation for promotion additionally requires
-**deflated p < 0.05**; otherwise the battery reports **"no winner recommended."**
+**Ranking statistic (review F1):** eligible candidates are ranked by **projected
+sealed power** (§7) — size-invariant across unequal dev windows because it evaluates
+every candidate on the common sealed `n*`, and it is the program's actual objective:
+the candidate most likely to clear a sealed gate. The **winner is the
+highest-power eligible candidate.** (The declared-window t-statistic is *not* the
+ranking statistic: t scales with √n, which would hand the 2012–2022 candidates a
+structural ~2× advantage over the delivery candidates at identical effect size.)
 
-**Tie-break** (|Δt| < 0.1 between the top two): higher net spread wins.
+**Evidence floor:** a recommendation for promotion additionally requires the winner's
+declared-window one-sided p, **Bonferroni-deflated at m = 5** (deflated
+p = min(1, 5·p)), to be **< 0.05**. Its n-dependence is intentional here — less dev
+evidence should mean a harder promotion case. **No cascade:** if the highest-power
+eligible candidate fails the floor, the battery reports **"no winner recommended"** —
+walking down the list is a forking path.
+
+**Tie-break** (projected powers within 0.02 — the power scale saturates near 1):
+smaller deflated p wins, then higher net spread.
 
 **Unequal dev windows (recorded honestly):** C3/C4 are scored on 2020-04→2022; the
-others on 2012→2022. The selection statistic runs on each candidate's declared window.
-All five are *also* reported on the common sub-window 2020-04→2022 (§3). **If the
-winner by deflated p differs between the declared-window and common-sub-window
-rankings, both rankings are presented and the operator decides** — the discrepancy is
-flagged, never silently resolved.
+others on 2012→2022. Effect sizes (δ, SD) enter §7 from each candidate's declared
+window. As robustness columns, all five candidates are *also* reported on the common
+sub-window 2020-04→2022 (§3), and the declared-window deflated-p ranking is shown
+alongside the power ranking. **If the winner differs across these rankings, all are
+presented and the operator decides** — the discrepancy is flagged, never silently
+resolved.
 
 **Bonferroni is pinned now, not after results.** With m = 5 it is conservative but
 computable by hand, immune to correlation-structure assumptions the candidates would
@@ -220,7 +253,9 @@ the fact.
   non-NULL; 60-day delivery baseline ending t−5 with ≥ 40 non-NULL; 252-day vol window
   with ≥ 200 obs; quintile portfolios, EW; C5 two-quintile exit band; κ = 5 bp/side;
   weekly/monthly grids per §3; percentile ranks with average ties; Bonferroni m = 5;
-  power hurdle 0.80 at α = 0.05 one-sided.
+  power hurdle 0.80 at α = 0.05 one-sided; delisting imputation = date's worst
+  realized forward return among scored names (§4.2); AC₁ robustness trigger 0.1 with
+  Newey–West lag 4 (§6/§7); power tie band 0.02 (§8).
 
 ## §10 Determinism, audit, and reporting
 
@@ -243,9 +278,12 @@ the fact.
 2. **Run order:** C1 → C2 → C3 → C4 → C5, one report per candidate, committed as
    produced. Results of earlier candidates cannot alter later definitions (§9 makes
    this structural, the ordering makes any attempt visible in git history).
-3. **Stop rule — data integrity:** any formation window surfacing an unexplained
-   > |20%| single-day move (outside the gate-b documented set) halts the battery for a
-   gate-(b)-style triage before any further candidate runs.
+3. **Stop rule — data integrity:** every > |20%| single-day adjusted move inside a
+   formation window is logged and cross-checked against the gate-(b) corporate-action
+   record. The battery **halts** only on a move the gate-(b) classification would
+   label **undocumented residue** (an adjustment mismatch) — a genuine
+   earnings/news move is logged, not halting (review minor: the raw trigger would
+   false-halt on legitimate mid-cap moves).
 4. **Stop rule — protocol breach:** any fence assertion failure or detected formula
    deviation voids the affected candidate's report; the candidate is re-run only if
    the deviation was mechanical (wrong constant vs pinned) and the fix restores the
@@ -262,8 +300,11 @@ momentum read as prior exposure per operator decision D2.
 
 ## §13 Next steps after this document
 
-1. Independent review of this protocol by **DeepSeek V4** (CSMP Phase 2 pattern —
-   the author cannot be the only reviewer). Claude drafts the review prompt.
-2. Operator ratification → status stamped **FROZEN**.
+1. ~~Independent review by DeepSeek V4~~ — **DONE 2026-07-13**
+   (`PSB1_PROTOCOL_INDEPENDENT_REVIEW.md`, APPROVE WITH MINOR REVISIONS; all findings
+   accepted and folded as Rev 2 — `PSB1_PROTOCOL_LEAD_DISPOSITION.md`).
+2. Operator ratification (explicitly including the §5-C4 continuation-leg
+   acknowledgment) → status stamped **FROZEN**.
 3. Claude writes Prompt 1 (Phase 1 screening harness + synthetic dev-proof) for
-   DeepSeek V4.
+   DeepSeek V4. Prompt-1 named acceptance criterion: `deliv_pct` carried through the
+   same `rn=1` listing pick as the price (§2).
