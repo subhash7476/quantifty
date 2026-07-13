@@ -234,3 +234,117 @@ def test_loader_asserts_fence(tmp_path):
     con.close()
     panel = H.load_panel(db_path=str(db), cutoff=date(2022, 12, 31))
     assert panel.observed_max <= date(2022, 12, 31)
+
+
+# --------------------------------------------------------------------------- C2 (D1)
+def _c2_panel(rmkt_vals, re_vals, re_form, rmkt_form):
+    """Build a 5-day-per-week panel for one name 'E' where each weekly grid return equals
+    the supplied value, and return (panel, wgrid, widx, rmkt, formation_date).
+
+    rmkt_vals/re_vals index the 52 window weeks (grids 1..52); grid 53 is the formation
+    week (re_form / rmkt_form). rmkt is supplied directly to score_c2 (not price-derived).
+    """
+    n_grids = 54                                            # grids 0..53
+    cal = []
+    d = date(2018, 1, 1)
+    for _ in range(n_grids * 5):
+        cal.append(d)
+        d += timedelta(days=1)
+        while d.weekday() >= 5:
+            d += timedelta(days=1)
+    grid = [cal[5 * k + 4] for k in range(n_grids)]
+    # prices for E at grid days: realise each weekly return r_E(grid_k)=price(k)/price(k-1)-1
+    price = 100.0
+    px = {("E", grid[0]): price}
+    for k in range(1, 53):
+        price *= (1 + re_vals[k - 1])
+        px[("E", grid[k])] = price
+    price *= (1 + re_form)                                  # formation grid 53
+    px[("E", grid[53])] = price
+    panel = make_panel(cal, px, members=["E"])
+    widx = {g: i for i, g in enumerate(grid)}
+    rmkt = {grid[k]: rmkt_vals[k - 1] for k in range(1, 53)}
+    rmkt[grid[53]] = rmkt_form
+    return panel, grid, widx, rmkt, grid[53]
+
+
+def test_c2_fit_and_sign():
+    """Hand-computed OLS: 4-value pattern over 52 weeks -> beta=3, alpha=0.01, sigma_e computed;
+    formation resid +0.01 (E outperformed its market-implied return) -> score negative."""
+    rmkt_vals, re_vals = [], []
+    pattern = [(0.01, 0.03), (0.01, 0.05), (-0.01, -0.01), (-0.01, -0.03)]
+    for i in range(52):
+        x, y = pattern[i % 4]
+        rmkt_vals.append(x); re_vals.append(y)
+    panel, grid, widx, rmkt, t = _c2_panel(rmkt_vals, re_vals, re_form=0.02, rmkt_form=0.0)
+    s = H.score_c2(panel, t, grid, widx, rmkt)
+    # hand: alpha=0.01, beta=3, residuals all +/-0.01, sigma_e=sqrt(52*0.0001/50); resid_t=+0.01
+    import math
+    sigma_e = math.sqrt(52 * 0.0001 / 50)
+    expected = -0.01 / sigma_e
+    assert s["E"] == pytest.approx(expected, rel=1e-6)
+    assert s["E"] < 0                                       # outperformer scores negative
+
+
+def test_c2_completeness_40_present_39_absent():
+    rmkt_vals, re_vals = [], []
+    pattern = [(0.01, 0.03), (0.01, 0.05), (-0.01, -0.01), (-0.01, -0.03)]
+    for i in range(52):
+        x, y = pattern[i % 4]
+        rmkt_vals.append(x); re_vals.append(y)
+    panel, grid, widx, rmkt, t = _c2_panel(rmkt_vals, re_vals, re_form=0.02, rmkt_form=0.0)
+    # drop rmkt for 12 window weeks -> 40 usable -> present
+    rmkt40 = dict(rmkt)
+    for k in range(1, 13):
+        del rmkt40[grid[k]]
+    assert "E" in H.score_c2(panel, t, grid, widx, rmkt40)
+    # drop one more -> 39 usable -> absent
+    rmkt39 = dict(rmkt40)
+    del rmkt39[grid[13]]
+    assert "E" not in H.score_c2(panel, t, grid, widx, rmkt39)
+
+
+def test_c2_zero_residual_sigma_guard():
+    """Constant name return (price flat) with varying market -> beta=0, residuals exactly 0
+    -> sigma_e=0 -> excluded by the sigma(e)>0 guard."""
+    rmkt_vals = [(0.01 if i % 3 == 0 else -0.01 if i % 3 == 1 else 0.02) for i in range(52)]
+    re_vals = [0.0] * 52                                    # price stays 100.0 exactly
+    panel, grid, widx, rmkt, t = _c2_panel(rmkt_vals, re_vals, re_form=0.02, rmkt_form=0.01)
+    assert "E" not in H.score_c2(panel, t, grid, widx, rmkt)
+
+
+# --------------------------------------------------------------------------- sign flag (D2)
+def test_sign_flag():
+    assert H._sign_flag(0.0453, -0.0938) is True
+    assert H._sign_flag(-0.02, 0.03) is True
+    assert H._sign_flag(0.0453, 0.0015) is False
+    assert H._sign_flag(0.04, 0.0) is False                 # imputed exactly 0 -> not a flip
+
+
+# --------------------------------------------------------------------------- R1 §11.3 (data integrity)
+def _integrity_panel():
+    cal = days(10)
+    cal_pos = {d: i for i, d in enumerate(cal)}
+    px = {("E", cal[i]): 100.0 for i in range(10)}
+    px[("E", cal[5])] = 125.0                               # +25% single-day move
+    return H.Panel(cal, cal_pos, px, {}, {"E": list(cal)}, [cal[0]], {cal[0]: ["E"]}, cal[-1])
+
+
+def test_scan_data_integrity_genuine_move_logged():
+    panel = _integrity_panel()
+    logged = H.scan_data_integrity(panel, action_dates={})
+    assert len(logged) == 1 and logged[0][0] == "E"
+
+
+def test_scan_data_integrity_residue_halts():
+    panel = _integrity_panel()
+    with pytest.raises(RuntimeError):
+        H.scan_data_integrity(panel, action_dates={"E": {panel.cal[5]}})
+
+
+def test_scan_data_integrity_below_threshold_silent():
+    cal = days(10)
+    cal_pos = {d: i for i, d in enumerate(cal)}
+    px = {("E", cal[i]): 100.0 * (1.05 ** i) for i in range(10)}   # 5%/day, below 20%
+    panel = H.Panel(cal, cal_pos, px, {}, {"E": list(cal)}, [cal[0]], {cal[0]: ["E"]}, cal[-1])
+    assert H.scan_data_integrity(panel, action_dates={"E": {cal[3]}}) == []

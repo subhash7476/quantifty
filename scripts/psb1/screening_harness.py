@@ -58,11 +58,18 @@ ALPHA = 0.05                               # one-sided (§7/§9)
 AC1_TRIGGER = 0.10                         # |AC1| robustness trigger (§6/§7/§9)
 NW_LAG = 4                                 # Newey-West lag (§6/§7/§9)
 POWER_TIE_BAND = 0.02                     # power tie band (§8/§9)
-MIN_NAMES = 5                              # CSMP-inherited: skip a date with <5 scored names (§4)
-CAP = 1e7                                  # notional book for fee fractionalisation (CSMP; DP-flat immaterial at book scale)
+
+# I1 (recorded interpretation, pinned under §9 before any C4 result exists — Lead Review):
+#   C4's percentile rank p_i(t) is computed over the C3-SCORED set at t (the plain reading
+#   of "percentile rank of the C3 score among names scored at t"); C4's formation-complete
+#   set is C1 n C3. See score_c4().
+# I2 (CSMP-inherited, NOT new free parameters — enter via §2's pinning of CSMP conventions):
+MIN_NAMES = 5                             # CSMP-inherited: skip a date with <5 scored names (phase1_prereg_analysis.py:142)
+CAP = 1e7                                 # CSMP-inherited notional book (phase1_prereg_analysis.py:32); flat-fee base
 
 WEEKLY_PPY = 52
 MONTHLY_PPY = 12
+DATA_INTEGRITY_THRESHOLD = 0.20          # §11.3 >|20%| single-day adjusted move
 
 STORE = "data/market_data/equity_bhavcopy.duckdb"
 
@@ -82,11 +89,13 @@ class Panel:
     observed_max: date
 
 
-def load_panel(db_path=STORE, cutoff=DEV_HI):
+def load_panel(db_path, cutoff=DEV_HI):
     """Load the dev-fenced panel. Asserts + prints observed MAX(trade_date) <= cutoff (§1/§10).
 
-    Carries deliv_pct through the SAME rn=1 turnover-primary listing pick as adj_close
-    (§2 loader row / AC-3). Price load restricted to ever-member entities (Prompt-13 fix).
+    `db_path` is REQUIRED (no default): an argument-less call must never silently load the
+    real store (Lead Review footgun). Carries deliv_pct through the SAME rn=1 turnover-primary
+    listing pick as adj_close (§2 loader row / AC-3). Price load restricted to ever-member
+    entities (Prompt-13 fix).
     """
     con = duckdb.connect(str(db_path), read_only=True)
     cal = [r[0] for r in con.execute(
@@ -129,19 +138,28 @@ def load_panel(db_path=STORE, cutoff=DEV_HI):
 
 
 def fence_check(db_path=STORE, cutoff=DEV_HI):
-    """The ONLY permitted real-store touch in Phase 1 (§7 exception / P7): dates only.
+    """The ONLY permitted real-store touch in Phase 1 (§7 exception / P7): dates + counts only.
 
-    Runs the fenced MAX(trade_date) query and asserts/prints it <= cutoff. Computes no
-    score, loads no prices/symbols beyond the aggregate date.
+    Prints the store's UNFENCED MAX(trade_date) and row count beside the fenced observed
+    max, and asserts `fenced <= cutoff < unfenced` — evidence that sealed data is physically
+    present and was excluded, not merely that a WHERE clause filtered (Lead Review S2/S3).
+    Computes no score, loads no prices/symbols beyond these aggregates.
+    Returns (fenced_max, unfenced_max, row_count).
     """
     con = duckdb.connect(str(db_path), read_only=True)
-    observed = con.execute(
+    fenced = con.execute(
         "SELECT MAX(trade_date) FROM equity_bhavcopy_adjusted WHERE trade_date<=?",
         [cutoff]).fetchone()[0]
+    unfenced = con.execute("SELECT MAX(trade_date) FROM equity_bhavcopy_adjusted").fetchone()[0]
+    rows = con.execute("SELECT COUNT(*) FROM equity_bhavcopy_adjusted").fetchone()[0]
     con.close()
-    assert observed is not None and observed <= cutoff, f"FENCE FAIL: {observed} > {cutoff}"
-    print(f"Fence-check OK (dates only): MAX(trade_date)={observed} <= cutoff={cutoff}")
-    return observed
+    assert fenced is not None and fenced <= cutoff, f"FENCE FAIL: fenced {fenced} > {cutoff}"
+    assert unfenced > cutoff, (
+        f"FENCE VACUOUS: unfenced max {unfenced} <= cutoff {cutoff} — no sealed data present "
+        "to exclude, so the fence proves nothing")
+    print(f"Fence-check OK (dates/counts only): fenced MAX={fenced} <= cutoff={cutoff} "
+          f"< unfenced MAX={unfenced}; store rows={rows:,}")
+    return fenced, unfenced, rows
 
 
 # ===========================================================================
@@ -175,6 +193,55 @@ def sealed_grid_count(db_path, cadence):
     con.close()
     g = weekly_grid(cal) if cadence == "weekly" else monthly_grid(cal)
     return len(g)
+
+
+# ===========================================================================
+# §11.3 data-integrity stop rule (R1)
+# ===========================================================================
+def load_action_dates(db_path, cutoff=DEV_HI):
+    """Documented corporate-action ex-dates (gate-(b) `adjustment_factors`), mapped to
+    entity via `universe_eligibility`, fenced to cutoff. Dates/symbols only — no prices."""
+    con = duckdb.connect(str(db_path), read_only=True)
+    rows = con.execute(
+        "SELECT e.entity, af.ex_date FROM adjustment_factors af "
+        "JOIN universe_eligibility e ON e.symbol=af.symbol WHERE af.ex_date<=?",
+        [cutoff]).fetchall()
+    con.close()
+    out = defaultdict(set)
+    for ent, exd in rows:
+        out[ent].add(exd)
+    return out
+
+
+def scan_data_integrity(panel, action_dates, threshold=DATA_INTEGRITY_THRESHOLD):
+    """§11.3 stop rule. Walk every consecutive-day adjusted return per entity; for any
+    |ret| > threshold:
+
+      - if the move lands on a documented corporate-action ex-date, the adjusted series
+        should be smooth there — a surviving jump is an **adjustment mismatch (undocumented
+        residue)** -> HALT (raise RuntimeError);
+      - otherwise it is a genuine earnings/news move -> logged and continued.
+
+    Returns the list of logged genuine moves [(entity, date, ret)]. Must exist before any
+    real formation window is scored (Lead Review R1). Semantics are the literal reading of
+    the frozen §11.3 ("halt only on ... an adjustment mismatch"); recorded for Lead sign-off.
+    """
+    genuine = []
+    for e, dates in panel.ent_dates.items():
+        acts = action_dates.get(e, set())
+        for k in range(1, len(dates)):
+            d0, d1 = dates[k - 1], dates[k]
+            if panel.cal_pos.get(d1, -1) - panel.cal_pos.get(d0, -1) != 1:
+                continue                              # not adjacent on the master axis
+            p0, p1 = panel.px[(e, d0)], panel.px[(e, d1)]
+            ret = p1 / p0 - 1.0
+            if abs(ret) > threshold:
+                if d1 in acts:
+                    raise RuntimeError(
+                        f"§11.3 HALT — undocumented residue (adjustment mismatch): {e} "
+                        f"{d1} adjusted move {ret:+.1%} on a documented ex-date")
+                genuine.append((e, d1, ret))
+    return genuine
 
 
 # ===========================================================================
@@ -391,6 +458,8 @@ class CandidateResult:
     ac1: float
     nw_t: float | None
     mean_ic_imputed: float
+    sign_flag: bool
+    min_names_skipped: int
     excl_counts: list
     fwd_missing_counts: list
     net_spread: float
@@ -406,6 +475,11 @@ class CandidateResult:
     power: float
     power_half: float
     power_nw: float | None
+
+
+def _sign_flag(mean_ic, mean_ic_imputed):
+    """§4.2/§6 sign-discrepancy: True iff the primary and imputed mean ICs differ in sign."""
+    return (mean_ic > 0 and mean_ic_imputed < 0) or (mean_ic < 0 and mean_ic_imputed > 0)
 
 
 def _one_sided_t(ic):
@@ -510,8 +584,9 @@ def _quintile_sequences(scored_by_date, banded):
     return topq, botq, base
 
 
-def evaluate_candidate(panel, cid, score_fn, db_path=STORE):
-    """Run one candidate end-to-end over its declared dev window. score_fn(t)->{entity:score}."""
+def evaluate_candidate(panel, cid, score_fn, db_path):
+    """Run one candidate end-to-end over its declared dev window. score_fn(t)->{entity:score}.
+    `db_path` is REQUIRED — used only for the §7 sealed-grid n* count (dates only)."""
     meta = CANDIDATES[cid]
     cadence = meta["cadence"]; dev_lo = meta["dev_lo"]
     grid = weekly_grid(panel.cal) if cadence == "weekly" else monthly_grid(panel.cal)
@@ -524,6 +599,7 @@ def evaluate_candidate(panel, cid, score_fn, db_path=STORE):
     ic_list, ic_imp_list, dates = [], [], []
     excl_counts, fwd_missing = [], []
     scored_by_date = []
+    min_names_skipped = 0
     for t in forms:
         tp = grid[gidx[t] + 1]
         scores = score_fn(t)
@@ -542,12 +618,16 @@ def evaluate_candidate(panel, cid, score_fn, db_path=STORE):
         fwd_missing.append(missing)
         rho, rho_imp = date_ic(s_all, fwd_all)
         if rho is None:
+            if len(s_all) > 0:          # I2: names were scored but <MIN_NAMES had forwards
+                min_names_skipped += 1  # (genuine sparsity; empty score_fn = warmup, not counted)
             continue
         ic_list.append(rho); ic_imp_list.append(rho_imp); dates.append(t)
         scored_by_date.append((t, rows_primary))
 
     ic = np.array(ic_list); ic_imp = np.array(ic_imp_list)
     mean, sd, tstat, p = _one_sided_t(ic)
+    mean_imp = float(np.mean(ic_imp)) if len(ic_imp) else float("nan")
+    sign_flag = _sign_flag(mean, mean_imp)                  # §4.2/§6 (D2)
     ac1 = _ac1(ic)
     nw_t = None
     if abs(ac1) > AC1_TRIGGER:
@@ -585,7 +665,7 @@ def evaluate_candidate(panel, cid, score_fn, db_path=STORE):
     return CandidateResult(
         cid=cid, dates=dates, ic=ic, ic_imputed=ic_imp, n_dates=len(ic),
         mean_ic=mean, sd_ic=sd, tstat=tstat, pvalue=p, ac1=ac1, nw_t=nw_t,
-        mean_ic_imputed=float(np.mean(ic_imp)) if len(ic_imp) else float("nan"),
+        mean_ic_imputed=mean_imp, sign_flag=sign_flag, min_names_skipped=min_names_skipped,
         excl_counts=excl_counts, fwd_missing_counts=fwd_missing,
         net_spread=net_spread, gross_spread=gross_spread, q1_q5=q1_q5,
         fee_slip_drag_bp=drag_bp, turnover=turnover, fees_topq=tq_fee, fees_base=bs_fee,
