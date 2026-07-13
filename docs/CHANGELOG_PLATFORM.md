@@ -6,6 +6,20 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-13 — PSB-1 (Panel Screening Battery, increment 1) OPENED — Phase 0 research record committed
+
+**The third Knowledge program, designed from the CSMP post-mortem.** CSMP died of statistical power (~41% powered gate → pre-registered modal outcome "Inconclusive"), not of the signal; PSB-1 inverts the sequencing — **screen cheap and wide first, then spend the pre-registration machinery on the one survivor whose power case is already made.** Research record: `docs/reports/PSB1_PHASE0_RESEARCH_RECORD.md`.
+
+**Four operator decisions LOCKED (2026-07-13):** D1 rigor = pre-registered screening battery over declared candidates, then full CSMP-grade pre-registration for at most one winner; D2 sealed-data policy = 2023-01→2026-06 is spent **only for the momentum construct** — usable as a sealed window by a new construct family with the one prior momentum read disclosed as prior exposure; D3 cadence = weekly-centered (~180 sealed observations vs CSMP's 42), each candidate declares its natural cadence, **power projection mandatory per candidate (≥80% projected on the sealed window, or drop)**; D4 data scope = existing audited panel only, no new ingestion.
+
+**The slate (5 declared candidates, formulas pinned at protocol freeze):** short-term reversal (weekly, dev 2012–2022), residual reversal (weekly, 2012–2022), delivery-percentage anomaly (weekly, 2020–2022 — `deliv_pct` exists only in the SECFULL era), delivery-conditioned reversal (weekly, 2020–2022 — the interaction bet: revert low-delivery moves, don't fight high-delivery ones), low-volatility (monthly, 2012–2022). The delivery fields are the substrate's untapped comparative advantage — NSE publishes daily per-stock delivery data almost no other major exchange does, ingested and audited at CSMP gate (a) and never used. **Momentum-family constructs are excluded outright** (the CSMP closure fence).
+
+**Boundaries:** no sealed read (PSB-1 only earns the right to spend it), no consumer, no strategy code, no new ingestion; everything exploratory is labeled exploratory. Roles unchanged: DeepSeek V4 implements, Claude leads review, operator decides. Next: `PSB1_PROTOCOL.md` drafted → Lead Review → FROZEN → Prompt 1 (screening harness).
+
+*(docs/reports/PSB1_PHASE0_RESEARCH_RECORD.md)*
+
+---
+
 ## 2026-07-12 — CSMP Phase 6: the single sealed read — `Inconclusive (Not Approved)`; operator CLOSES increment 1
 
 **The sealed held-out window (2023-01-01 → 2026-06-30) was read once and is now spent.** `scripts/csmp/run_a2_validation.py` ran deterministically (seed 20260711, byte-identical on re-run) and the verdict was **rendered mechanically by code** from §10 of the frozen dossier — a decision table written before this data was seen. Sealed record: `docs/reports/CSMP_PHASE6_SEALED_READ.md`, `validation_id` `872a0c050688be64…`, `code_commit` `0ae1dc4`.
