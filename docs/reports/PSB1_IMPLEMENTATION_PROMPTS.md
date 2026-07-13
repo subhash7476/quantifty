@@ -312,3 +312,125 @@ three exclusion counters are in the report; still zero candidate scores on real 
 
 Commit with prefix `fix(psb1): Prompt 1-B —` and report back. Phase 2 begins only after a
 third written PASS.
+
+---
+
+## Prompt 2 — entity-grain adjustment repair (ISSUED 2026-07-13)
+
+### Mission
+
+Repair a defect in the **shared substrate**, found by R1's first real run
+(`PSB1_PHASE1_LEAD_REVIEW_3.md`). Prompt 1-B **passed** — nothing in `scripts/psb1/` is at
+fault and nothing in it needs redoing. This prompt changes **one CSMP function**, re-runs the
+view, and re-runs R1 against the repaired panel.
+
+**Operator authorization (2026-07-13):** the standing "do not edit `scripts/csmp/`" constraint
+is **lifted for `scripts/csmp/ingest_corporate_actions.py` only**, and only for
+`build_adjusted_view()`. Every other file under `scripts/csmp/` remains frozen — in particular
+**`audit_corporate_actions.py` must not be touched**.
+
+### The defect
+
+`adjustment_factors` is keyed to **symbol**. An entity's price history spans **two or more**
+symbols across a ticker rename. `build_adjusted_view()`
+(`scripts/csmp/ingest_corporate_actions.py:508–559`) computes the cumulative backward factor
+with `PARTITION BY symbol` (the `cum` CTE, lines 527–536), so a factor attached to the
+**post-rename** symbol is applied to post-rename prints and **not** to the pre-rename prints of
+the *same entity*. The entity's adjusted series then steps by exactly that factor on the rename
+date. The **raw** series is continuous; only the adjusted one breaks:
+
+```
+entity INFOSYSTCH        raw_close   adj_close
+2011-06-28  INFOSYSTCH     2865.30     2865.30    <- INFY's factors not applied
+2011-06-29  INFY           2881.75      360.22    <- raw x 0.125  => adjusted move -87.43%
+```
+
+`0.125 = 0.5³` — Infosys' three 1:1 bonuses. The raw move was **+0.6%**. Same mechanism:
+`BAJAUTOFIN→BAJFINANCE` (×0.01, −99.02%), `NIITTECH→COFORGE` (×0.2, −80.15%),
+`SRTRANSFIN→SHRIRAMFIN` (×0.2), `ANGELBRKG→ANGELONE` (×0.1).
+
+**Scope:** 59 entities carry a fabricated jump (51 dev, 8 sealed); **991 of the 1,050 renames
+already adjust correctly and must not be disturbed**. 15 of R1's 235 screened moves span a
+rename; the rest are sub-threshold (e.g. DUCON −9.09%) and invisible to R1 — which is why this
+must be fixed in the data, not screened out.
+
+### Required
+
+1. **Compute the cumulative factor at the ENTITY grain**, not the symbol grain. The entity map
+   is `universe_eligibility(symbol, entity)` — the same map both consumers already use.
+   **Symbols with no entity row must fall back to `entity := symbol`** so their behavior is
+   byte-identical to today. Report the count of such symbols.
+2. **Renames can be multi-hop** (A→B→C). Entity-grain grouping handles this transitively by
+   construction — do not special-case single hops.
+3. **Do not double-apply a factor.** If one event is recorded against *both* the old and the new
+   symbol, entity-grain compounding would square it. **Assert that no `(entity, ex_date)` draws
+   factors from more than one symbol. If any does, STOP and report it — do not resolve it in
+   code.**
+4. **`prev_close` must stay consistent with the new grain.** The `LAG(cum_price) OVER (PARTITION
+   BY symbol, series ...)` at line 554 is symbol-partitioned. Work out what it must become so
+   that the adjusted `close/prev_close` ratio equals the raw ratio at a rename boundary, and
+   **test it** — do not assume.
+5. **Re-run the view** (`build_adjusted_view` only — no re-ingest; `corporate_actions`,
+   `adjustment_factors`, and every other table stay untouched). Provide the runner you used.
+6. **Re-run R1** on the repaired panel and report the new classification table.
+7. **Do not touch `scripts/psb1/screening_harness.py`'s scoring, or `audit_corporate_actions.py`.**
+
+### The invariant to test
+
+This is the whole acceptance criterion, and it is exactly checkable:
+
+> For every entity, for every pair of **consecutive trading-day prints**, the **adjusted** return
+> must equal the **raw** return — *except* across a true ex-date, where it must equal the raw
+> return divided by that ex-date's factor.
+
+A rename is **not** an ex-date. Write this as a test over the real store and report how many
+(entity, date) pairs violate it **before** and **after** the fix.
+
+### Falsifiable predictions — state them, then run
+
+Scaling an entity's pre-rename prints by the post-rename factor changes price **levels** but not
+**returns** (a constant multiplier over a contiguous segment). Therefore:
+
+1. **Every return in the panel is unchanged except at the 59 rename boundaries.** R1's other 220
+   screened moves must come back **identical**. If any other move changes, the fix is wrong —
+   STOP and report.
+2. The **15** rename-spanning moves disappear from the >|20%| screen (they collapse to their raw
+   moves: −0.7%, −2.4%, +0.6%, …). **No new move appears at a rename date.**
+3. Residue falls from **7 → 2**: `SINTEX` (documented) and `KWALITY` (undocumented).
+4. The halt set falls from **6 → 1**. **KWALITY 2010-06-15 (+45.9%, `direction-mismatch`) still
+   HALTs** — it is not a rename artifact. Report it; **do not disposition it** (operator's call).
+5. Large `genuine` moves (|ret| ≥ 40%) fall from **43 → 34** — the true unadjusted-CA population.
+6. **Watch for one second-order effect and report it:** `is_ca_shaped` is disabled below
+   `prev_close < Rs 5`, and this fix *lowers* pre-rename price levels. If any move's
+   classification changes because its `prev_close` crossed Rs 5, say so explicitly.
+
+If a prediction fails, **STOP and report** — do not adjust the fix until it passes.
+
+### Blast radius — report, do not fix
+
+Seven consumers read this view. Gate-(b) does **not** (it reads raw `equity_bhavcopy` +
+`adjustment_factors`, so its certification is unaffected — confirm this and say so). The others:
+
+`scripts/psb1/screening_harness.py`, `scripts/csmp/run_a2_validation.py`,
+`scripts/csmp/phase1_prereg_analysis.py`, `scripts/csmp/phase1_ci_coverage.py`,
+`scripts/csmp/triage_momentum.py`, `scripts/csmp/build_devtruncated_store.py`,
+`core/msi/artifacts/xs_momentum_v1/model.py`.
+
+**Do not re-run or modify any of them.** CSMP's A2 panel is built with the identical entity-level
+dedup and is therefore affected; whether its banked results move is the operator's and the CSMP
+owner's call, not yours. List the consumers, state that they are affected, stop there.
+
+### Acceptance
+
+The view computes cumulative factors at the entity grain, transitively across multi-hop renames,
+with a symbol fallback for unmapped symbols and a hard assert against double-application; the
+raw-vs-adjusted return invariant holds for every entity on the real store; all six predictions
+above are confirmed or a failure is reported; R1 re-run shows residue 2 / halt 1 / large-genuine
+34; the 220 non-rename moves are unchanged; `audit_corporate_actions.py` and PSB-1 scoring are
+untouched; the blast radius is listed and not acted on.
+
+### On completion
+
+Commit with prefix `fix(csmp): Prompt 2 —` and report back. Phase 2 begins only after a Lead
+Review PASS on this **and** a re-scoped D5 (**D5-A**), which the operator will rule on once the
+repaired R1 shows the true population.
