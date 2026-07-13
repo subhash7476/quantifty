@@ -190,3 +190,88 @@ scores on real data.
 
 Commit with prefix `fix(psb1): Prompt 1-A —` and report back. Phase 2 begins only after a
 second written PASS.
+
+### Outcome — FAIL (2026-07-13)
+
+Second Lead Review: `PSB1_PHASE1_LEAD_REVIEW_2.md`. Nine of ten items closed and
+independently verified (D1 C2 tests hand-checked; D2 flag; D3/D4 stamps; S1 cross-process
+determinism; S2/S3 fence; R2 real n\* = 183/42 recomputed; I1/I2; footgun; 22/22 tests).
+**R1 REJECTED** — it is not gate-(b)'s classification and is blind to a missing CA factor.
+Chasing it surfaced a larger, operator-level finding: **the scored panel contains ~18
+fabricated returns of −49% to −99%** (unadjusted demergers/capital-returns), and C1/C2/C4
+rank on them. Phase 2 remains unauthorized.
+
+---
+
+## Prompt 1-B — R1 rebuild (ISSUED 2026-07-13)
+
+### Mission
+
+Rebuild **only** the §11.3 stop rule on gate-(b)'s actual classification. Everything else
+from Prompt 1-A stands and **must not be touched**. Standing constraints unchanged
+(protocol frozen; `scripts/psb1/` + `tests/psb1/` only; no candidate score on real data —
+the §11.3 scan and dates/counts probes are not scores).
+
+**Do not act on the panel-disposition finding** (the ~18 unadjusted corporate actions in
+the scored panel). That is an **operator decision, pending** — it is *not* yours to resolve
+in code, and resolving it in code would be exactly the §9 breach the protocol forbids. Build
+the detector; do not build the remedy.
+
+### The defect
+
+`scan_data_integrity` halts iff a >|20%| adjusted move lands on a documented ex-date, and
+logs everything else as "genuine." Gate-(b)
+(`scripts/csmp/audit_corporate_actions.py:279–305`) classifies into five buckets, of which
+three are residue:
+
+```
+RESIDUE = ("magnitude-mismatch", "direction-mismatch", "CA-shaped-orphan")
+```
+
+The current rule therefore (i) routes **CA-shaped-orphan** — *no factor spans the move, but
+the surviving ratio sits on a canonical CA ratio; i.e. a **missing factor*** — to "genuine,
+log and continue," which is the exact failure §11.3 exists to halt on; (ii) false-halts,
+because it applies no magnitude-agreement test; (iii) never consults `ca_scope_exclusions`,
+which gate-(b) treats as making a residue row acceptable.
+
+### Required
+
+1. **Reuse gate-(b)'s classification, do not re-invent it.** For every >|20%| single-day
+   adjusted move inside a formation window, classify with gate-(b)'s own logic:
+   - a factor **spans the interval `ptd < ex_date ≤ td`** (not `td == ex_date` — an ex-date
+     can fall on a non-trading day) **and** agrees in direction **and magnitude** (within
+     `MAGNITUDE_TOLERANCE`) → `CA-explained`, log;
+   - a factor spans but disagrees → `magnitude-mismatch` / `direction-mismatch` → **residue**;
+   - no factor spans **and** the surviving ratio sits on `CA_RATIOS` (0.5, 0.4, ⅓, 0.25,
+     0.2, ⅙, 0.1, 0.05, 0.02, 0.01 ± `CA_RATIO_TOLERANCE`), applied only where
+     `prev_close ≥ CA_RATIO_MIN_PRICE` → `CA-shaped-orphan` → **residue**;
+   - otherwise → `genuine`, log.
+2. **HALT iff `class ∈ RESIDUE` and `(symbol, move_date) ∉ ca_scope_exclusions`** — the
+   literal §11.3 rule ("undocumented residue"). A documented residue row is logged, not
+   halting. A genuine move is logged, not halting.
+3. `scripts/csmp/` is feature-frozen — **do not edit it**. Either import its constants and
+   classifier, or re-implement them in `scripts/psb1/` citing the source lines; if you
+   re-implement, add a test asserting your classifier agrees with gate-(b)'s on a fixture
+   covering all five buckets.
+4. **Tests for all five buckets**, plus the `ca_scope_exclusions` exemption path (a residue
+   row that is documented → logged, not halted) and the interval-span case (ex-date on a
+   non-trading day → still spanned).
+5. **Report** the classification counts per bucket for the dev window, and the full residue
+   list with its documented/undocumented disposition — the same shape as gate-(b)'s own
+   residue table. This is the artifact the operator's pending decision will be made against,
+   so it must be complete and honest, **including the undocumented rows that will halt the
+   battery**.
+6. Note in the report, without acting on it, that a correct R1 **halts** on the undocumented
+   residue and that the panel's disposition of those rows is an open operator decision.
+
+### Acceptance
+
+All Prompt-1 and Prompt-1-A criteria still hold; R1 classifies into gate-(b)'s five buckets
+and halts only on undocumented residue; all five buckets plus the exemption and
+interval-span paths are tested; the dev-window classification table is in the report; still
+zero candidate scores on real data.
+
+### On completion
+
+Commit with prefix `fix(psb1): Prompt 1-B —` and report back. **Phase 2 requires both** a
+third written PASS **and** the operator's ruling on the panel disposition.
