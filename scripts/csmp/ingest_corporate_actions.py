@@ -506,43 +506,62 @@ def ingest_special_dividends(con):
 
 
 def build_adjusted_view(con):
-    """Backward adjustment. Factors sharing an ex-date are compounded once, so a
-    combined bonus+split emits one row per trade date rather than two.
+    """Backward adjustment at the ENTITY grain.
 
-    `prev_close(t)` is `close(t-1)`, whose cumulative factor includes the event at
-    `t` — unlike `close(t)`'s. Scaling both by the same factor is what left every
-    ex-date row discontinuous."""
+    Prompt 2 (2026-07-13): entity-level cumulative factors fix the rename discontinuity
+    (59 entities), where factors keyed to the post-rename symbol were not applied to
+    pre-rename prints of the *same entity*. The shift is one logical block in `cum`:
+    partition by `entity` instead of `symbol`, join through `symbol_entity`, and
+    `LAG` by `entity, series` so prev_close survives renaming.
+
+    Symbols with no `universe_eligibility` row fall back to `entity := symbol` (byte-identical
+    behaviour for the 991 renames that already adjusted correctly). Multi-hop chains (A->B->C)
+    are transitive by construction — entity-grain `PARTITION BY` groups all three symbols.
+
+    Ex-date consistency: `prev_close(t) = close(t-1)`, so `adj_prev_close(t)`
+    must equal `adj_close(t-1)`.  At a rename with no ex-date, `cum(t) == cum(t-1)` —
+    a LAG by `entity, series` retrieves the equal value where a symbol-partitioned
+    LAG would reset to NULL and COALESCE self, fabricating a discontinuity.
+    """
     con.execute("""
 CREATE OR REPLACE VIEW equity_bhavcopy_adjusted AS
-WITH events AS (
-    SELECT symbol, ex_date,
-           COALESCE(EXP(SUM(LN(factor)) FILTER (
-               WHERE action_type IN ('BONUS','SPLIT','SPECIAL_DIVIDEND'))), 1.0)
+WITH symbol_entity AS (
+    SELECT e.symbol, COALESCE(u.entity, e.symbol) AS entity
+    FROM (SELECT DISTINCT symbol FROM equity_bhavcopy) e
+    LEFT JOIN universe_eligibility u ON u.symbol = e.symbol
+),
+events AS (
+    SELECT e.entity, af.ex_date,
+           COALESCE(EXP(SUM(LN(af.factor)) FILTER (
+               WHERE af.action_type IN ('BONUS','SPLIT','SPECIAL_DIVIDEND'))), 1.0)
                AS price_factor,
-           COALESCE(EXP(SUM(LN(factor)) FILTER (
-               WHERE action_type IN ('BONUS','SPLIT'))), 1.0) AS vol_factor
-    FROM adjustment_factors
-    GROUP BY symbol, ex_date
+           COALESCE(EXP(SUM(LN(af.factor)) FILTER (
+               WHERE af.action_type IN ('BONUS','SPLIT'))), 1.0) AS vol_factor
+    FROM adjustment_factors af
+    JOIN symbol_entity e ON e.symbol = af.symbol
+    GROUP BY e.entity, af.ex_date
 ),
 cum AS (
-    SELECT symbol, ex_date,
+    SELECT entity, ex_date,
            EXP(SUM(LN(price_factor)) OVER (
-               PARTITION BY symbol ORDER BY ex_date DESC
+               PARTITION BY entity ORDER BY ex_date DESC
                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum_price,
            EXP(SUM(LN(vol_factor)) OVER (
-               PARTITION BY symbol ORDER BY ex_date DESC
+               PARTITION BY entity ORDER BY ex_date DESC
                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)) AS cum_vol
     FROM events
 ),
 joined AS (
     SELECT e.trade_date, e.symbol, e.series, e.open, e.high, e.low, e.close,
            e.prev_close, e.volume, e.turnover, e.deliv_qty, e.deliv_pct,
+           se.entity,
            COALESCE(c.cum_price, 1.0) AS cum_price,
            COALESCE(c.cum_vol, 1.0) AS cum_vol
     FROM equity_bhavcopy e
-    LEFT JOIN cum c ON c.symbol = e.symbol AND c.ex_date = (
+    JOIN symbol_entity se ON se.symbol = e.symbol
+    LEFT JOIN cum c ON c.entity = se.entity AND c.ex_date = (
         SELECT MIN(x.ex_date) FROM events x
-        WHERE x.symbol = e.symbol AND x.ex_date > e.trade_date)
+        WHERE x.entity = se.entity AND x.ex_date > e.trade_date)
 )
 SELECT
     trade_date, symbol, series,
@@ -551,7 +570,7 @@ SELECT
     low   * cum_price AS low,
     close * cum_price AS close,
     prev_close * COALESCE(
-        LAG(cum_price) OVER (PARTITION BY symbol, series ORDER BY trade_date),
+        LAG(cum_price) OVER (PARTITION BY entity, series ORDER BY trade_date, symbol),
         cum_price) AS prev_close,
     volume / NULLIF(cum_vol, 0) AS volume,
     turnover, deliv_qty, deliv_pct
