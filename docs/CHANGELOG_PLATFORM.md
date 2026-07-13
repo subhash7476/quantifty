@@ -6,6 +6,30 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-12 — CSMP Phase 6: the single sealed read — `Inconclusive (Not Approved)`; operator CLOSES increment 1
+
+**The sealed held-out window (2023-01-01 → 2026-06-30) was read once and is now spent.** `scripts/csmp/run_a2_validation.py` ran deterministically (seed 20260711, byte-identical on re-run) and the verdict was **rendered mechanically by code** from §10 of the frozen dossier — a decision table written before this data was seen. Sealed record: `docs/reports/CSMP_PHASE6_SEALED_READ.md`, `validation_id` `872a0c050688be64…`, `code_commit` `0ae1dc4`.
+
+**VOID precondition (structural — no verdict if it fails): PASS.** 680 true moves screened across the sealed window, residue 2, **0 undocumented** — the gate-(b) corporate-action layer holds on data it had never seen.
+
+**The gate, applied not chosen.** One-sided 95% **Student-t** lower bound of `mean_IC` = **−0.0147** (mean **0.0279**, SD 0.1638, n = 42). **Not > 0 → Not Approved.** The sealed fence was asserted and printed (`MAX(trade_date)` = 2026-06-30 ≤ cutoff) and the pinned n=42 grid guard matched — a mismatch would have raised before any verdict existed.
+
+**`Δ_net` = +6.19%** (top-40 EW minus the stronger baseline, net of the gate-(d) fee model + 5bp slippage) — the deployment qualifier is **met but moot**: the IC is the gate (charter D3), and it did not clear.
+
+**This is the pre-registered modal outcome, not a surprise.** Fixed in advance and recorded before the window was spent: a valid, one-sided, correctly-covered test on 42 months is only **~41% powered** against the program's own point estimate, so **"Inconclusive" was the single likeliest result (~59%) even if momentum works exactly as well out-of-sample as in-sample.** It arrived. The point estimate is positive and close to dev (sealed net spread +6.19% vs dev +5.95%), so the hypothesis is **untested at adequate power, not refuted** — `mean_IC ≤ 0` would have been falsification (§10 row 4) and did not occur.
+
+**Reported, non-gating (both CI readings stay visible; neither can be preferred post-seal):** `iid_perc` LB −0.0141 · `mb_L12` LB −0.0335 — both agree with the gate. Δ_net block-bootstrap CI [−0.0028, 0.0173]. Sub-period IC 2023–24 **0.0430** / 2025–26 **0.0127**. Risk — top-40 vol 25.4% / Sharpe 1.03 / maxDD −30.6% vs universe 18.8% / 1.02 / −22.3%. Uncertainty terciles 0.0073 / 0.0436 / 0.0399 (non-monotonic, as on dev). Long-short quintile spread 0.92%/mo. Formation exclusions 157; top-40 rule-2 events 0. MSI-006 domains: architectural / temporal / operational / reproducibility **PASS**; scientific **FAIL** (the gate); robustness / calibration **REPORTED**.
+
+**Operator decision (§10, 2026-07-12): CLOSE increment 1. The top-40 PaperBroker consumer is NOT built** (`docs/reports/CSMP_PHASE6_OPERATOR_DECISION.md`). §10 row 3 and the charter §6 amendment *permitted* an explicitly exploratory consumer under four controls; the operator declined the option. **The +6.19% is precisely the encouraging-looking number those controls were written to resist — an artifact that failed its gate, wearing a positive result.** Refusing to promote it is the methodology working, the same shape as the MSRP D1 STOP.
+
+**Now binding:** the sealed window is **spent and never re-read** (re-reading nested data is the D-iii multiplicity trap — naive-schedule FWER 0.130, the exact level of the coverage bug D-i removed pre-seal); **no tuning, no retrofit** — the construct fence stands immutable; `csmp-xs-momentum-v1` v1.0.0 is **retained as an immutable Not-Approved record** and may never appear in Approved / Deployable / certified language in code, dashboards, or reports; **any future momentum work is a NEW pre-registration with fresh α on forward (2026-07+) data** — power bought from new data, never from re-reading the spent window.
+
+**Not spent:** gates (a)–(e) — the 7.03M-row equity store, the corporate-action layer (0 undocumented residue on the sealed window), the point-in-time NIFTY-200 universe built with no survivor list as input, and the era-accurate delivery-fee model. That substrate is the foundation any future cross-sectional pre-registration starts from.
+
+*(docs/reports/CSMP_PHASE6_SEALED_READ.md; docs/reports/CSMP_PHASE6_OPERATOR_DECISION.md; docs/reports/csmp_a2_records/872a0c05…/; scripts/csmp/run_a2_validation.py)*
+
+---
+
 ## 2026-07-12 — CSMP Phase 1 pre-registration FROZEN at Rev 7 (Lead Review PASS; construct fence immutable)
 
 Prompt 7 folded the three Phase-2 findings and stamped the dossier **FROZEN — Rev 7**. DeepSeek V4 implemented; Claude Lead-Reviewed the diff for mechanical fidelity and returned **PASS on all 8 acceptance criteria** (`docs/reports/CSMP_PHASE1_REV7_FREEZE_REVIEW.md`).
