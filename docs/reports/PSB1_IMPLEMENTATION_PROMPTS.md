@@ -105,3 +105,88 @@ The report must show, in this order:
 
 Commit with message prefix `feat(psb1): Prompt 1 —` and report back for Lead Review.
 Phase 2 (the battery run, C1→C5 in §11.2 order) begins only after a written PASS.
+
+### Outcome — PASS WITH REQUIRED FIXES (2026-07-13)
+
+Lead Review: `PSB1_PHASE1_LEAD_REVIEW.md`. The §5 formulas, the §7 power function, and
+AC-2/AC-3/AC-6 are clean. Two blocking defects (C2 untested; the §4.2 sign-discrepancy
+flag unimplemented) plus report-provenance and check-design gaps → **Prompt 1-A**.
+Phase 2 remains unauthorized.
+
+---
+
+## Prompt 1-A — Phase 1 remediation (ISSUED 2026-07-13)
+
+### Mission
+
+Close the Phase-1 Lead Review. Same standing constraints as Prompt 1 (protocol frozen;
+`scripts/psb1/` + `tests/psb1/` only; **still no candidate score on real data** — the
+permitted real-store reads remain dates-only/row-count schema probes). The §5 formulas
+are correct and **must not be touched**; this prompt adds tests, a mandated flag, honest
+stamps, and two Phase-2 prerequisites.
+
+### Blocking (Phase 2 stays closed until both land)
+
+**D1 — unit-test C2.** Hand-built fixtures with hand-computed expected values, covering:
+the OLS α/β fit over the 52 preceding weekly grid returns (formation week excluded); the
+≥40-of-52 completeness rule (39 usable weeks → name absent, 40 → present); the σ(ε) > 0
+guard (a name whose residuals are exactly zero → absent); and the residual
+standardisation sign (`s = −resid/σ`, so a name that *outperformed* its market-implied
+return scores negative). Assert against numbers you compute by hand, not against the
+harness's own output.
+
+**D2 — implement the §4.2 sign-discrepancy flag.** §4.2/§6: *"If a candidate's mean-IC
+sign differs between the primary and imputed columns, the discrepancy is flagged to the
+operator — never silently dropped."* Add the detection (not just the two printed columns)
+to `CandidateResult` and surface it prominently in every candidate report — a visible
+**FLAG** line, not a table cell. Add a unit test, and add a **P4b** prediction to the
+dev-proof asserting the flag *fires* on the reversal scenario (C1 primary +0.0453 →
+imputed −0.0938 is a sign flip and must trigger it) and *does not* fire on the null
+scenario.
+
+### Required to complete
+
+- **D3 — report stamps.** Stamp the actual commit the code was run at. If the report is
+  committed alongside the code, stamp the parent and say so explicitly, or regenerate
+  post-commit. Add the store's row count.
+- **D4** — state in the report only what the code actually verified.
+- **S1 — real determinism proof.** Run the whole dev-proof in **two separate interpreter
+  processes** with **different `PYTHONHASHSEED`** values and compare **whole-file bytes**
+  of the report (excluding only the commit stamp line if it must vary). An in-process
+  re-run cannot catch the hash-seed-dependent iteration-order bug P6 exists to catch.
+- **S2 — make the fence-check evidential.** `fence_check` must print the store's
+  **unfenced** `MAX(trade_date)` and row count beside the loader's fenced observed max,
+  and assert `fenced ≤ 2022-12-31 < unfenced`. (For reference, the store today: 7,030,920
+  rows, unfenced max `2026-07-09` — 3.5 years of sealed data are physically present and
+  the current report's "MAX(trade_date)=2022-12-30" could be misread as denying that.)
+  This stays a dates-only/count read.
+- **S3 — store stamp = row count + unfenced max + fenced observed max**, in every report.
+- **R1 — §11.3 data-integrity stop rule.** Log every >|20%| single-day adjusted move
+  inside a formation window and cross-check it against the gate-(b) corporate-action
+  record; **halt** only on undocumented residue (an adjustment mismatch), log-and-continue
+  on a documented/genuine move. Must exist before any real formation window is scored.
+- **R2 — print the real `n*`.** Weekly and monthly sealed-grid counts from the **real**
+  `trading_calendar` (dates only — the §1/§7 exception). The synthetic 183/42 is a
+  synthetic artifact; the protocol expects ≈182 weekly. `n*` is the denominator of the
+  power hurdle.
+- **I1/I2 — record the interpretations** in the constants block: C4's `p_i(t)` is ranked
+  over the C3-scored set; `MIN_NAMES=5` and `CAP=1e7` are CSMP-inherited (cite
+  `phase1_prereg_analysis.py:32,142`). Report the `MIN_NAMES` skipped-date count per
+  candidate (expected 0).
+
+### Also do
+
+Make `db_path` a **required** argument on `load_panel` and `evaluate_candidate` — the
+defaults currently point at the real store, so an argument-less call silently loads it.
+Nothing calls them that way today; remove the footgun before Phase 2.
+
+### Acceptance
+
+All Prompt-1 ACs still hold, plus: D1–D4, S1–S3, R1, R2, I1, I2 closed; the regenerated
+`PSB1_PHASE1_HARNESS_REPORT.md` shows P1–P7 **and P4b**; tests green; still zero candidate
+scores on real data.
+
+### On completion
+
+Commit with prefix `fix(psb1): Prompt 1-A —` and report back. Phase 2 begins only after a
+second written PASS.
