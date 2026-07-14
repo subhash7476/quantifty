@@ -271,7 +271,85 @@ Prompt 4 did what it was asked to do, correctly, and disclosed honestly. The DVL
 closed. But the substrate is **not** clean: a 5:1 split on an in-universe name has sat unadjusted
 in the panel through four rounds of repair — hidden by an evidence screen that never tested it and
 an R1 bucket that waved it through as a genuine −79% move. The mechanism that hid it — a company
-severed into two entities by the very corporate action that needs adjusting — affects on the order
-of 73 issuers and is the correct target for Prompt 5.
+severed into two entities by the very corporate action that needs adjusting — is the correct
+target for Prompt 5.
 
 **Prompt 4: PASS. A2 substrate: NOT CERTIFIED.**
+
+---
+
+## 9. Amendment (same day, post-review verification)
+
+Two corrections to my own §5/§6, made after verifying claims I had *inferred* rather than
+executed. Neither changes the disposition. **§6 item 4 as originally written would have
+misdirected Prompt 5, and is corrected here.**
+
+### 9.1 F-10 — right conclusion, wrong constant; remedy now verified
+
+I named `MAGNITUDE_TOLERANCE` as the gate. **That is wrong.** `MAGNITUDE_TOLERANCE = 0.25` is
+only consulted when a factor **spans** the move (`audit_corporate_actions.py:282`) — which for
+PHILIPCARB never happens, because its factor was dropped. PHILIPCARB falls to the
+`is_ca_shaped(ret, prev_close)` branch (line 289), whose gate is **`CA_RATIO_TOLERANCE = 0.02`**
+against `CA_RATIOS = [0.5, 0.4, ⅓, 0.25, 0.2, ⅙, 0.1, 0.05, 0.02, 0.01]`.
+
+Executed, not inferred:
+
+```
+PHILIPCARB 2018-04-19   prev_close=1128.50  open=228.90  close=236.95
+
+  close-implied survived = 0.2100   -> 4.98% from 0.2   is_ca_shaped = False   <- R1 today
+  open-implied  survived = 0.2028   -> 1.42% from 0.2   is_ca_shaped = True    <- the fix
+```
+
+**The remedy holds.** The 2% tolerance sits between the two, so moving the shape test to the open
+ratio converts PHILIPCARB from `genuine` to `CA-shaped-orphan` — i.e. into RESIDUE, into the halt
+set, where it belongs. The reason is now precise: the **close-to-close ratio conflates the CA with
+the ex-date's own intraday move** (PHILIPCARB rose ~5% intraday after the split), and a 5% move is
+enough to push a clean 1:5 split outside a 2% shape tolerance. The open does not have this defect,
+which is exactly why gate-(b)'s evidence screen already uses it.
+
+**Prompt 5, §6 item 4 corrected:** move `is_ca_shaped` to the **open**-implied ratio (or accept a
+hit on either open or close — gate-(b)'s dual-price convention). Do **not** widen
+`MAGNITUDE_TOLERANCE`; it is not on this path and widening it would only loosen the
+factor-explained test.
+
+**Size of the F-10 class:** panel-wide (dev fence, >|20%|, no spanning factor under the *time-aware*
+factor set, ≥Rs 5, gap ≤ 5) — **467** moves screened, **27** are CA-shaped on close (R1 catches
+these), and **12** are CA-shaped on **open only** (R1 misses these). The 12 are a **candidate** set,
+not 12 defects: most are demergers (SUVEN, IDFC, STAR, IIFL, BORORENEW) or ETF unit splits
+(HNGSNGBEES, ICICINXT50), whose factors are legitimately absent from a split/bonus register.
+**PHILIPCARB is the one confirmed unadjusted split among them.**
+
+### 9.2 Mechanism reach ≠ defect count
+
+§3 and §8 said the fragmentation "affects on the order of 73 issuers." A reader could take that as
+73 defects. It is not. Stated precisely:
+
+| | Count |
+|---|---|
+| INE issuers fragmented across ≥2 entities (**mechanism reach, upper bound**) | ~73 |
+| Factors silently dropped (orphans) | **4** |
+| **Confirmed live fabricated returns** | **1** (PHILIPCARB) |
+| Fragmentation confirmed, CA needs adjudication | 1 (ESSENTIA/INTEGRA) |
+| Inert (all prints post-date the ex-date) | 2 (KMSUGAR, VASWANI) |
+
+The 73 is a **latent-trap and series-continuity hazard**, not 73 fabricated returns: where a
+company is severed, each half is internally self-consistent, so no *within-entity* false return
+appears unless a factor lands on the wrong side (PHILIPCARB) — but any code that splices the two
+halves into one series will manufacture one, and the survivorship/continuity premise of the entity
+grain is broken for all ~73.
+
+**NOT CERTIFIED rests on the 1 confirmed defect, not on the 73.** The 73 is why Prompt 5 must fix
+the *mechanism* rather than patch PHILIPCARB.
+
+### 9.3 F-11 is larger than stated
+
+Corroborating evidence for the two-resolver split: scanning with the **time-aware** factor set
+(`symbol_entity_intervals`, the view's map) finds **27** close-CA-shaped moves with no spanning
+factor, while R1 — using the **time-agnostic** `universe_eligibility` map — reports **1**
+`CA-shaped-orphan`. The populations are not directly comparable (mine includes ETFs, which
+gate-(b) excludes via `NON_EQUITY_PREDICATE`, and equities like FOURSOFT resolve to a spanning
+factor under one map but not the other). The point stands regardless: **R1 classifies moves against
+a factor set the adjustment view does not use.** Any R1 result is therefore evidence about a
+substrate that was never built. F-11 should be treated as a **HIGH**, not a MEDIUM, and fixed
+*before* F-10 — otherwise F-10's re-run measures the wrong thing.
