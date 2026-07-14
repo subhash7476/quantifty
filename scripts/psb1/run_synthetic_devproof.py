@@ -128,6 +128,7 @@ def build_panel(path, scenario, rng):
         "trade_date": day_arr[jj],
         "symbol": np.array(names)[ii],
         "close": prices[jj, ii].astype(float),
+        "open": [None] * len(jj),
         "deliv_pct": deliv[jj, ii].astype(float),
         "turnover": (1e6 + ii).astype(float),
     })
@@ -139,7 +140,7 @@ def build_panel(path, scenario, rng):
         "CREATE TABLE universe_membership AS SELECT rebalance_date::DATE rebalance_date, symbol, rank FROM memb_df")
     con.register("px_df", px_df); con.execute(
         "CREATE TABLE equity_bhavcopy_adjusted AS "
-        "SELECT trade_date::DATE trade_date, symbol, close, deliv_pct, turnover FROM px_df")
+        "SELECT trade_date::DATE trade_date, symbol, close, open, deliv_pct, turnover FROM px_df")
     con.close()
     return path
 

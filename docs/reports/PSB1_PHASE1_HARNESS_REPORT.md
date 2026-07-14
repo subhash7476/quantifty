@@ -1,6 +1,6 @@
 # PSB-1 Phase 1 — Screening Harness Report (synthetic dev-proof + real R1)
 
-**Script-generated** (protocol §10). Code commit at generation `4166f58` — when the report is committed together with the code this is the **parent** of the commit that adds this file (Lead Review D3); re-run post-commit to stamp the exact commit. Seed `20260713` (§10).
+**Script-generated** (protocol §10). Code commit at generation `61d383b` — when the report is committed together with the code this is the **parent** of the commit that adds this file (Lead Review D3); re-run post-commit to stamp the exact commit. Seed `20260713` (§10).
 
 Candidate scores are proved on **synthetic data only**. The real store is read only for: the P7 fence-check and real n* (dates/counts), and the R1 §11.3 scan (adjusted prices, **not** a candidate score — Prompt 1-B).
 
@@ -14,7 +14,7 @@ Synthetic panels: 210 names x 260 weekly grids (5 trading days/week), scenarios 
 
 | Prediction | Evidence | Result |
 |---|---|---|
-| S1/P6 determinism (two interpreters, PYTHONHASHSEED 0 vs 1, whole-file bytes) | sha256 seed0=03bdf4e511db3329 seed1=03bdf4e511db3329 | PASS |
+| S1/P6 determinism (two interpreters, PYTHONHASHSEED 0 vs 1, whole-file bytes) | sha256 seed0=5b60b081fd952bb9 seed1=5b60b081fd952bb9 | PASS |
 | P1 planted signal (C1 reversal) | mean IC=0.0453 (target ~0.05, tol +/-0.02) | PASS |
 | P2 null (C1 null scenario) | mean IC=0.0015 95%CI[-0.0065,0.0095] covers 0 | PASS |
 | P3 sign wiring (C1>0 reversal; C3>0 delivery) | C1=0.0453>0 ; C3=0.0712>0 | PASS |
@@ -32,19 +32,22 @@ Screened >|20%| moves: **220**. Bucket counts:
 | Bucket | Count | Residue? |
 |---|--:|:--:|
 | CA-explained | 0 | no |
-| genuine | 218 | no |
+| genuine | 215 | no |
 | magnitude-mismatch | 0 | **yes** |
 | direction-mismatch | 1 | **yes** |
-| CA-shaped-orphan | 1 | **yes** |
+| CA-shaped-orphan | 4 | **yes** |
 
-**Residue: 2** (1 documented in `ca_scope_exclusions`, 1 undocumented). The full residue register (documented + undocumented) is the **D5 missing-input set** (2 rows); the §11.3 **HALT** set is the 1 undocumented rows only.
+**Residue: 5** (1 documented in `ca_scope_exclusions`, 4 undocumented). The full residue register (documented + undocumented) is the **D5 missing-input set** (5 rows); the §11.3 **HALT** set is the 4 undocumented rows only.
 
 | Entity | Move date | Adjusted move | Class | Disposition |
 |---|---|--:|---|---|
+| SUVEN | 2020-01-21 | -94.7% | CA-shaped-orphan | **UNDOCUMENTED — HALTs (§11.3)** |
 | SINTEX | 2017-05-25 | -75.2% | CA-shaped-orphan | documented (still a missing input, D5.1) |
+| STAR | 2013-12-19 | -57.6% | CA-shaped-orphan | **UNDOCUMENTED — HALTs (§11.3)** |
+| IDFC | 2015-10-01 | -57.2% | CA-shaped-orphan | **UNDOCUMENTED — HALTs (§11.3)** |
 | KWALITY | 2010-06-15 | +45.9% | direction-mismatch | **UNDOCUMENTED — HALTs (§11.3)** |
 
-> **§11.3 status (Prompt 1-B item 6, reported not acted on):** a correct R1 **HALTs** on the 1 undocumented residue rows above. Their disposition is governed by operator decision **D5** (unadjusted CA = missing input); the register is threaded into scoring (D5.2-7) and exercised by `tests/psb1/test_scoring.py`.
+> **§11.3 status (Prompt 1-B item 6, reported not acted on):** a correct R1 **HALTs** on the 4 undocumented residue rows above. Their disposition is governed by operator decision **D5** (unadjusted CA = missing input); the register is threaded into scoring (D5.2-7) and exercised by `tests/psb1/test_scoring.py`.
 
 **Honest disclosure (Prompt 1-B item 6) — large moves gate-(b) classifies `genuine`, therefore NOT in the register and NOT excluded by D5:**
 
@@ -53,11 +56,9 @@ Gate-(b)'s CA-ratio test is strict (±`CA_RATIO_TOLERANCE`=0.02) and disabled be
 | Entity | Move date | Adjusted move | Surviving ratio |
 |---|---|--:|--:|
 | AURUM | 2020-12-23 | -98.8% | 0.0124 |
-| SUVEN | 2020-01-21 | -94.7% | 0.0529 |
 | GFLLIMITED | 2019-08-06 | -89.1% | 0.1089 |
 | FEL | 2016-05-11 | -87.4% | 0.1258 |
 | ADANIENT | 2015-06-03 | -82.8% | 0.1723 |
-| PHILIPCARB | 2018-04-19 | -79.0% | 0.2100 |
 | CGPOWER | 2016-03-15 | -71.7% | 0.2833 |
 | CCAVENUE | 2018-09-28 | -70.8% | 0.2917 |
 | MASTEK | 2015-06-12 | -66.0% | 0.3400 |
@@ -65,13 +66,15 @@ Gate-(b)'s CA-ratio test is strict (±`CA_RATIO_TOLERANCE`=0.02) and disabled be
 | 63MOONS | 2013-08-01 | -64.5% | 0.3550 |
 | GLOBALTELE | 2011-06-20 | -62.2% | 0.3782 |
 | JSL | 2015-11-19 | -60.9% | 0.3913 |
-| STAR | 2013-12-19 | -57.6% | 0.4236 |
 | ABIRLANUVO | 2016-01-20 | -57.3% | 0.4271 |
-| IDFC | 2015-10-01 | -57.2% | 0.4279 |
 | TATACHEM | 2020-03-04 | -56.5% | 0.4347 |
 | YESBANK | 2020-03-06 | -56.1% | 0.4389 |
 | ABREL | 2019-10-11 | -55.4% | 0.4464 |
 | NICOLASPIR | 2022-08-30 | -44.8% | 0.5521 |
+| ANANTRAJ | 2020-10-06 | -43.9% | 0.5614 |
+| DEWANHOUS | 2018-09-21 | -42.6% | 0.5742 |
+| JETAIRWAYS | 2019-06-18 | -40.8% | 0.5921 |
+| BSOFT | 2019-01-24 | -40.5% | 0.5952 |
 
 
 ## §4.2 sign-discrepancy flags (D2)

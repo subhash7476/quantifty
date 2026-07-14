@@ -94,6 +94,7 @@ class Panel:
     cal_pos: dict            # date -> index in cal
     px: dict                 # (entity, date) -> adj close
     dp: dict                 # (entity, date) -> deliv_pct (or None)
+    op: dict                 # (entity, date) -> adj_open (Prompt 5 Task 4)
     ent_dates: dict          # entity -> sorted list of dates with px
     reb_dates: list          # sorted rebalance dates (<= cutoff)
     memb: dict               # rebalance_date -> list[entity]
@@ -119,8 +120,8 @@ def load_panel(db_path, cutoff=DEV_HI):
         "WHERE um.rebalance_date<=? ORDER BY um.rebalance_date, um.rank", [cutoff]).fetchall():
         reb[rd].append(ent)
     rows = con.execute("""
-        SELECT entity, trade_date, adj_close, deliv_pct FROM (
-          SELECT e.entity, a.trade_date, a.close adj_close, a.deliv_pct, a.turnover, a.symbol,
+        SELECT entity, trade_date, adj_close, adj_open, deliv_pct FROM (
+          SELECT e.entity, a.trade_date, a.close adj_close, a.open adj_open, a.deliv_pct, a.turnover, a.symbol,
             ROW_NUMBER() OVER (PARTITION BY e.entity, a.trade_date
                                ORDER BY a.turnover DESC NULLS LAST, a.symbol) rn
           FROM equity_bhavcopy_adjusted a JOIN universe_eligibility e ON e.symbol=a.symbol
@@ -131,12 +132,13 @@ def load_panel(db_path, cutoff=DEV_HI):
         ) WHERE rn=1""", [cutoff]).fetchall()
     con.close()
 
-    px, dp, ent_dates = {}, {}, defaultdict(list)
-    for ent, d, cl, dpv in rows:
+    px, dp, op, ent_dates = {}, {}, {}, defaultdict(list)
+    for ent, d, cl, opn, dpv in rows:
         if cl is not None and cl > 0:
             px[(ent, d)] = float(cl)
             ent_dates[ent].append(d)
         dp[(ent, d)] = None if dpv is None else float(dpv)
+        op[(ent, d)] = None if opn is None else float(opn)
     for e in ent_dates:
         ent_dates[e].sort()
     observed_max = max(d for (_, d) in px)
@@ -145,7 +147,7 @@ def load_panel(db_path, cutoff=DEV_HI):
 
     cal_pos = {d: i for i, d in enumerate(cal)}
     reb_dates = sorted(reb)
-    return Panel(cal, cal_pos, px, dp, ent_dates, reb_dates, dict(reb), observed_max)
+    return Panel(cal, cal_pos, px, dp, op, ent_dates, reb_dates, dict(reb), observed_max)
 
 
 def fence_check(db_path=STORE, cutoff=DEV_HI):
@@ -211,13 +213,16 @@ def sealed_grid_count(db_path, cadence):
 # ===========================================================================
 def load_factors_by_entity(db_path, cutoff=DEV_HI):
     """Compounded adjustment factor per (symbol, ex_date) (EXP(SUM(LN(factor))), the gate-(b)
-    convention), mapped to entity via `universe_eligibility`, fenced to cutoff. Dates/factors
-    only — no prices. Returns dict entity -> list[(ex_date, f)]."""
+    convention), mapped to ENTITY via time-aware `symbol_entity_intervals` (Prompt 5 Task 2 /
+    F-11). ONE resolver — the same map the view's `events` CTE uses. Dates/factors only —
+    no prices. Returns dict entity -> list[(ex_date, f)]."""
     con = duckdb.connect(str(db_path), read_only=True)
     rows = con.execute(
-        "SELECT e.entity, af.ex_date, EXP(SUM(LN(af.factor))) f "
-        "FROM adjustment_factors af JOIN universe_eligibility e ON e.symbol=af.symbol "
-        "WHERE af.ex_date<=? GROUP BY e.entity, af.ex_date", [cutoff]).fetchall()
+        "SELECT i.entity, af.ex_date, EXP(SUM(LN(af.factor))) f "
+        "FROM adjustment_factors af "
+        "JOIN symbol_entity_intervals i ON i.symbol=af.symbol "
+        "   AND af.ex_date >= i.valid_from AND af.ex_date < i.valid_to "
+        "WHERE af.ex_date<=? GROUP BY i.entity, af.ex_date", [cutoff]).fetchall()
     con.close()
     out = defaultdict(list)
     for ent, exd, f in rows:
@@ -226,29 +231,40 @@ def load_factors_by_entity(db_path, cutoff=DEV_HI):
 
 
 def load_ca_scope_exclusions(db_path, cutoff=DEV_HI):
-    """Documented residue rows (gate-(b) `ca_scope_exclusions`), mapped to entity, fenced.
-    Returns set[(entity, move_date)] — the rows gate-(b) treats as acceptable residue."""
+    """Documented residue rows (gate-(b) `ca_scope_exclusions`), mapped to ENTITY via
+    time-aware `symbol_entity_intervals` (Prompt 5 Task 2 / F-11). Returns
+    set[(entity, move_date)] — the rows gate-(b) treats as acceptable residue."""
     con = duckdb.connect(str(db_path), read_only=True)
     rows = con.execute(
-        "SELECT e.entity, x.move_date FROM ca_scope_exclusions x "
-        "JOIN universe_eligibility e ON e.symbol=x.symbol WHERE x.move_date<=?",
-        [cutoff]).fetchall()
+        "SELECT i.entity, x.move_date FROM ca_scope_exclusions x "
+        "JOIN symbol_entity_intervals i ON i.symbol=x.symbol "
+        "   AND x.move_date >= i.valid_from AND x.move_date < i.valid_to "
+        "WHERE x.move_date<=?", [cutoff]).fetchall()
     con.close()
     return {(ent, md) for ent, md in rows}
 
 
-def classify_move(ret, prev_close, ptd, td, factors):
+def classify_move(ret, prev_close, ptd, td, factors, open_price=None):
     """Gate-(b) five-bucket classifier (audit_corporate_actions.py:279-296), re-implemented
-    here (csmp is frozen; test_r1 asserts agreement). `factors` = list[(ex_date, f)]."""
-    survived = 1.0 + ret
+    here (csmp is frozen; test_r1 asserts agreement). `factors` = list[(ex_date, f)].
+
+    Prompt 5 Task 4 (F-10): the CA-shape test runs on the close ratio by default; the close
+    conflates the CA with the ex-date's own intraday move. Accept a hit on EITHER the close
+    ratio or the open ratio (open/prev_close - 1) — gate-(b)'s own evidence screen uses the
+    open, and a thin open is unreliable, so neither price alone is authoritative."""
+    survived_close = 1.0 + ret
     spanning = [(ex, f) for ex, f in factors if ptd < ex <= td]     # interval span, not td==ex
     if spanning:
-        ex, f = min(spanning, key=lambda c: abs(c[1] - survived))
-        if abs(f - survived) / survived <= MAGNITUDE_TOLERANCE:
+        ex, f = min(spanning, key=lambda c: abs(c[1] - survived_close))
+        if abs(f - survived_close) / survived_close <= MAGNITUDE_TOLERANCE:
             return "CA-explained"
         return "magnitude-mismatch" if (f < 1.0) == (ret < 0) else "direction-mismatch"
     if is_ca_shaped(ret, prev_close):
         return "CA-shaped-orphan"
+    if open_price is not None and open_price > 0 and prev_close > 0:
+        open_ret = open_price / prev_close - 1.0
+        if is_ca_shaped(open_ret, prev_close):
+            return "CA-shaped-orphan"
     return "genuine"
 
 
@@ -297,7 +313,8 @@ def scan_data_integrity(panel, factors_by_entity, documented, large_genuine_thre
             if not (ret <= MOVE_LO or ret >= MOVE_HI):        # gate-(b) screen (-20% / +25%)
                 continue
             n_moves += 1
-            cls = classify_move(ret, p0, d0, d1, facs)
+            open1 = panel.op.get((e, d1))
+            cls = classify_move(ret, p0, d0, d1, facs, open_price=open1)
             counts[cls] += 1
             if cls in RESIDUE:
                 register.add((e, d1))

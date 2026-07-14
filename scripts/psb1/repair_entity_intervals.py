@@ -104,14 +104,14 @@ def prev_close_violations(con):
                       LAG(rcl) OVER (PARTITION BY entity ORDER BY trade_date) rlag
                FROM rw WHERE rn=1)
         SELECT a2.entity, a2.trade_date, a2.acl/a2.alag AS adj_ret,
-               (r2.rcl/r2.rlag) / COALESCE((SELECT f FROM ev
+               r2.rcl / (r2.rlag * COALESCE((SELECT f FROM ev
                    WHERE ev.entity=a2.entity AND ev.ex_date>a2.ptd AND ev.ex_date<=a2.trade_date
-                   ORDER BY ev.ex_date LIMIT 1), 1.0) AS expected
+                   ORDER BY ev.ex_date LIMIT 1), 1.0)) AS expected
         FROM a2 JOIN r2 USING (entity, trade_date)
         WHERE a2.alag>0 AND r2.rlag>0
-          AND ABS(a2.acl/a2.alag - (r2.rcl/r2.rlag) / COALESCE((SELECT f FROM ev
+          AND ABS(a2.acl/a2.alag - r2.rcl / (r2.rlag * COALESCE((SELECT f FROM ev
                    WHERE ev.entity=a2.entity AND ev.ex_date>a2.ptd AND ev.ex_date<=a2.trade_date
-                   ORDER BY ev.ex_date LIMIT 1), 1.0)) > 1e-6
+                   ORDER BY ev.ex_date LIMIT 1), 1.0))) > 1e-6
         ORDER BY ABS(a2.acl/a2.alag) DESC
     """
     return con.execute(sql).fetchall()
@@ -127,12 +127,12 @@ def rebuild(con):
     con.execute("DELETE FROM universe_probes")
     method = build_universe.probe_official_membership(con)
     build_universe.fetch_instrument_master(con)
-    _, n_rename, n_split = build_universe.build_entities(con)
+    _, n_rename, n_split, n_merged = build_universe.build_entities(con)
     build_universe.classify_eligibility(con)
     membership, _ = build_universe.build_membership(con, method)
     build_universe.build_intervals(con, membership)
     ingest_corporate_actions.build_adjusted_view(con)
-    return n_split
+    return n_split, n_merged
 
 
 def r1_scan(db_path):
@@ -163,9 +163,9 @@ def main():
         SCRATCH.unlink()
     shutil.copy2(STORE, SCRATCH)
     cc = duckdb.connect(str(SCRATCH))
-    n_split = rebuild(cc)
+    n_split, n_merged = rebuild(cc)
     cc.close()
-    print(f"\nCOPY rebuilt: recycled-ticker splits = {n_split}")
+    print(f"\nCOPY rebuilt: recycled-ticker splits = {n_split}, ISIN-issuer merges = {n_merged}")
 
     ro2 = duckdb.connect(str(SCRATCH), read_only=True)
     memb_after = membership_snapshot(ro2)

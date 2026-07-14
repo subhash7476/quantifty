@@ -105,11 +105,11 @@ def check_adj_close_continuity(con):
             JOIN _cert_cum cc ON cc.entity=a2.entity
                 AND cc.ex_date = (SELECT MIN(cc2.ex_date) FROM _cert_cum cc2
                     WHERE cc2.entity=a2.entity AND cc2.ex_date > a2.trade_date)
-            WHERE a2.alag>0 AND r2.rlag>0
+            WHERE a2.alag>0 AND r2.rlag>0 AND r2.rlag>0
         )
-        SELECT entity, trade_date, acl/alag adj_ret, (rcl/rlag) * (cum_t/NULLIF(cum_tp,1)) expected
+        SELECT entity, trade_date, acl/alag adj_ret, (rcl * cum_t) / (rlag * NULLIF(cum_tp, 0)) expected
         FROM factor_at
-        WHERE ABS(acl/alag - (rcl/rlag) * (cum_t/NULLIF(cum_tp,1))) > 1e-6
+        WHERE cum_tp>0 AND ABS(acl/alag - (rcl * cum_t) / (rlag * cum_tp)) > 1e-6
     """).fetchall()
     return len(violations), violations[:10]
 

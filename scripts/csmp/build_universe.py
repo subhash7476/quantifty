@@ -269,6 +269,7 @@ class UnionFind:
 
 
 def build_entities(con):
+    from collections import defaultdict as _dd
     uf = UnionFind()
     n_records = 0
     edges = []
@@ -286,13 +287,80 @@ def build_entities(con):
     # 991 renames that already resolve correctly and every non-renamed symbol.
     base = {s: uf.find(s) for s in store_syms}
 
-    # actual traded span per store symbol (the dates that must be covered exactly once).
+    # actual traded span per store symbol (needed by both ISIN linkage and recycled-ticker split).
     spans = {r[0]: (r[1], r[2]) for r in con.execute(
         "SELECT symbol, MIN(trade_date), MAX(trade_date) FROM equity_bhavcopy "
         "WHERE series IN ('EQ','BE') GROUP BY symbol").fetchall()}
 
+    # --- Prompt 5 Task 3 (F-8): ISIN issuer-prefix linkage ---
+    # A face-value change re-issues the security with a new ISIN serial (same issuer prefix),
+    # which the full-ISIN entity map severs — exactly at the corporate action it must adjust
+    # for. Merge entities sharing an `INE` issuer prefix where print ranges are disjoint and
+    # abutting (NOT overlapping — that's a DVR/partly-paid class). Enumeration + evidence in
+    # the report (n_merged_issuers).
+    isin_rows = con.execute("""
+        SELECT si.symbol, SUBSTR(si.isin,1,9) iss
+        FROM symbol_isin si
+        WHERE si.isin LIKE 'INE%'
+    """).fetchall()
+    # map per store symbol: use `base` for entity (already computed from union-find)
+    iss_map = {}
+    for sym, iss in isin_rows:
+        if sym in set(store_syms):
+            iss_map[sym] = iss
+    # group store symbols by issuer prefix
+    by_iss = _dd(list)
+    for s in store_syms:
+        iss = iss_map.get(s)
+        if iss:
+            by_iss[iss].append(s)
+    merges = []   # (issuer_prefix, list[(symbol1, entity1), ...], gap_days)
+    halt_overlaps = []  # issuers with cross-entity symbol overlaps (collected, raised at end)
+    for iss, syms in by_iss.items():
+        ents = {base.get(s, s) for s in syms}
+        if len(ents) <= 1:
+            continue
+        # Merge only entities whose CONSTITUENT symbols have abutting, non-overlapping
+        # print ranges. Two entities that share an issuer ARE the same company if their
+        # symbol print ranges are temporally disjoint (old ticker ends before new begins).
+        # Co-trading symbols (DVR, partly-paid) have overlapping ranges and must NOT merge.
+        sym_spans = [(s, spans[s][0], spans[s][1]) for s in syms if s in spans]
+        sym_spans.sort(key=lambda x: x[1])
+        # Sort entities by their EARLIEST start date (chronological), so the older company
+        # is e0 and the newer one is e1 — then e0's last print before e1's first is a rename.
+        frag_ents = sorted({base.get(s, s) for s in syms},
+                           key=lambda e: min(l for s,l,_ in sym_spans if base.get(s,s)==e))
+        for k in range(1, len(frag_ents)):
+            e0, e1 = frag_ents[k-1], frag_ents[k]
+            s0 = [(lo, hi) for s, lo, hi in sym_spans if base.get(s,s) == e0]
+            s1 = [(lo, hi) for s, lo, hi in sym_spans if base.get(s,s) == e1]
+            if not s0 or not s1: continue
+            # closest pair: latest exit of e0 vs earliest entry of e1
+            hi0 = max(h for _, h in s0)
+            lo1 = min(l for l, _ in s1)
+            # check for cross-entity symbol overlap (any s0[i] overlaps any s1[j])
+            cross_overlap = any(h0 >= l1 for l0,h0 in s0 for l1,_ in s1)
+            if cross_overlap:
+                halt_overlaps.append((iss, e0, e1))
+                continue
+            if hi0 < lo1:          # abutting -> same company rename
+                uf.union(e0, e1)
+                merges.append((iss, [(s, base.get(s, s)) for s in syms
+                                     if base.get(s,s) in (e0,e1)],
+                                (lo1 - hi0).days if lo1 and hi0 else None))
+    if halt_overlaps:
+        print(f"ISIN issuer overlaps  : {len(halt_overlaps)} issuer(s) skipped — overlapping "
+              f"print ranges (likely DVR/partly-paid share classes): "
+              f"{', '.join(f'{iss}({e0}/{e1})' for iss,e0,e1 in halt_overlaps[:10])}. "
+              "Reported per Prompt 5 Task 3, P7 — not merged. All other abutting issuers "
+              "merged successfully.")
+    n_merged = len(merges)
+    if n_merged:
+        print(f"ISIN issuer merges    : {n_merged} merged (disjoint, abutting print ranges)")
+        # recompute base after ISIN linkage merges
+        base = {s: uf.find(s) for s in store_syms}
+
     # components at the base grain, for the co-trading test.
-    from collections import defaultdict as _dd
     comp = _dd(list)
     for s in store_syms:
         comp[base[s]].append(s)
@@ -366,7 +434,7 @@ def build_entities(con):
     df = pd.DataFrame(rows)
     con.execute("CREATE OR REPLACE TEMP TABLE symbol_entity AS "
                 "SELECT CAST(symbol AS VARCHAR) symbol, CAST(entity AS VARCHAR) entity FROM df")
-    return rows, n_records, n_split
+    return rows, n_records, n_split, n_merged
 
 
 # --------------------------------------------------------------------------
@@ -560,13 +628,15 @@ def main():
 
     method = probe_official_membership(con)
     fetch_instrument_master(con)
-    _, n_rename, n_split = build_entities(con)
+    _, n_rename, n_split, n_merged = build_entities(con)
     elig = classify_eligibility(con)
 
     cc = Counter(r["class"] for r in elig)
     print(f"Rename records     : {n_rename:,} (entity continuity via symbol_changes)")
     print(f"Recycled-ticker splits: {n_split} (symbol printing on/after its own rename, "
           "co-trading its vacated chain -> time-sliced into a second entity)")
+    print(f"ISIN issuer merges  : {n_merged} (fragmented INE-issuer entities merged; "
+          "disjoint, abutting print ranges)")
     print(f"Eligibility classes: " + ", ".join(f"{k}={v:,}" for k, v in
           sorted(cc.items(), key=lambda x: -x[1])))
 

@@ -156,7 +156,10 @@ CREATE TABLE IF NOT EXISTS ca_evidence_exceptions (
     implied_close   DOUBLE,
     deviation       DOUBLE,
     failure_type    VARCHAR,
-    rekey_candidate VARCHAR
+    rekey_candidate VARCHAR  -- Prompt 5 Task 5: SEARCH LEAD ONLY. Ratio proximity at f~0.80
+                              -- is ambiguous with the -20% lower circuit; at f~1.20 with the
+                              -- +20% upper circuit. Requires independent corroboration (BSE
+                              -- register + price panel). No row may be re-keyed on this alone.
 );
 """
 
@@ -582,6 +585,34 @@ def apply_factor_overrides(con):
     return n_applied
 
 
+def assert_no_orphan_factors(con):
+    """F-9 / Prompt 5 Task 1 — HALT if any `adjustment_factors` row resolves to ZERO
+    entities (its ex_date falls outside every interval for that symbol AND the symbol maps
+    to >=2 entities — making it truly ambiguous and un-resolvable by the extended rule).
+
+    A symbol with exactly ONE entity always resolves via the fallback rule (Prompt 5 Task 3
+    rule 2); only the recycled-ticker case (>=2 entities) is a genuine orphan. 4 → 0 after
+    ISIN linkage + fallback; must be 0 before the view is rebuilt."""
+    orphans = con.execute("""
+        WITH sym_n AS (
+            SELECT symbol, COUNT(DISTINCT entity) n_ent
+            FROM symbol_entity_intervals GROUP BY symbol
+        )
+        SELECT af.symbol, af.ex_date, af.action_type, af.factor
+        FROM adjustment_factors af
+        WHERE NOT EXISTS (
+            SELECT 1 FROM symbol_entity_intervals i
+            WHERE i.symbol = af.symbol
+              AND af.ex_date >= i.valid_from AND af.ex_date < i.valid_to)
+          AND (SELECT COALESCE(sn.n_ent, 0) FROM sym_n sn WHERE sn.symbol = af.symbol) >= 2
+    """).fetchall()
+    assert len(orphans) == 0, (
+        f"ORPHAN FACTORS — {len(orphans)} adjustment_factors row(s) resolve to ZERO entity "
+        f"intervals and their symbol maps to >=2 entities (ambiguous, recycled ticker). "
+        f"First 5: {orphans[:5]}. "
+        "HALT — all factors must resolve to exactly one entity.")
+
+
 def build_adjusted_view(con):
     """Backward adjustment at the TIME-AWARE ENTITY grain.
 
@@ -605,17 +636,33 @@ def build_adjusted_view(con):
     """
     con.execute("""
 CREATE OR REPLACE VIEW equity_bhavcopy_adjusted AS
-WITH events AS (
-    SELECT i.entity, af.ex_date,
+WITH symbol_n_entities AS (
+    -- Per-symbol entity count for the fallback rule (Prompt 5 Task 3). A symbol with >=2
+    -- entities is a recycled ticker; its out-of-interval factors are ambiguous -> must be HALTed
+    -- by assert_no_orphan_factors() before this view is built.
+    SELECT symbol, COUNT(DISTINCT entity) n_ent
+    FROM symbol_entity_intervals GROUP BY symbol
+),
+events AS (
+    SELECT COALESCE(i.entity, fallback.entity) AS entity, af.ex_date,
            COALESCE(EXP(SUM(LN(af.factor)) FILTER (
                WHERE af.action_type IN ('BONUS','SPLIT','SPECIAL_DIVIDEND'))), 1.0)
                AS price_factor,
            COALESCE(EXP(SUM(LN(af.factor)) FILTER (
                WHERE af.action_type IN ('BONUS','SPLIT'))), 1.0) AS vol_factor
     FROM adjustment_factors af
-    JOIN symbol_entity_intervals i ON i.symbol = af.symbol
+    -- Rule 1: ex_date within an interval of sym -> use that interval's entity
+    LEFT JOIN symbol_entity_intervals i ON i.symbol = af.symbol
          AND af.ex_date >= i.valid_from AND af.ex_date < i.valid_to
-    GROUP BY i.entity, af.ex_date
+    -- Rules 2/3: fallback to the symbol's sole entity (if >=2 entities, entity is NULL and
+    -- assert_no_orphan_factors HALTed before we reach here)
+    LEFT JOIN (
+        SELECT ue.symbol, ue.entity
+        FROM symbol_n_entities sne
+        JOIN universe_eligibility ue ON ue.symbol = sne.symbol
+        WHERE sne.n_ent = 1
+    ) fallback ON fallback.symbol = af.symbol
+    GROUP BY COALESCE(i.entity, fallback.entity), af.ex_date
 ),
 cum AS (
     SELECT entity, ex_date,
@@ -768,6 +815,7 @@ def main():
     ingest_etf_splits(con)
     ingest_special_dividends(con)
     apply_factor_overrides(con)            # Prompt 4 Task 1 — re-key confirmed feed errors
+    assert_no_orphan_factors(con)          # Prompt 5 Task 1 — HALT on silently-dropped factors
     build_adjusted_view(con)
     n_tested, n_exceptions, n_ex_dates = record_evidence_exceptions(con)
     con.close()

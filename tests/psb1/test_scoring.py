@@ -31,7 +31,7 @@ def make_panel(cal, px, dp=None, members=None):
         ent_dates[e].sort()
     reb0 = cal[0]
     members = members or sorted({e for (e, _) in px})
-    return H.Panel(cal, cal_pos, px, dp, ent_dates, [reb0], {reb0: list(members)}, cal[-1])
+    return H.Panel(cal, cal_pos, px, dp, {}, ent_dates, [reb0], {reb0: list(members)}, cal[-1])
 
 
 def days(n, start=date(2021, 1, 1)):
@@ -201,16 +201,16 @@ def test_loader_delivpct_follows_rn1_pick(tmp_path):
     con.execute("CREATE TABLE universe_eligibility(symbol VARCHAR, entity VARCHAR)")
     con.execute("CREATE TABLE universe_membership(rebalance_date DATE, symbol VARCHAR, rank INT)")
     con.execute("CREATE TABLE equity_bhavcopy_adjusted("
-                "trade_date DATE, symbol VARCHAR, close DOUBLE, deliv_pct DOUBLE, turnover DOUBLE)")
+                "trade_date DATE, symbol VARCHAR, close DOUBLE, open DOUBLE, deliv_pct DOUBLE, turnover DOUBLE)")
     d = date(2022, 6, 1)
     con.execute("INSERT INTO trading_calendar VALUES (?, 200)", [d])
     # entity E has two listings on the same day; E_A has higher turnover (rn=1)
     con.executemany("INSERT INTO universe_eligibility VALUES (?,?)",
                     [("E_A", "E"), ("E_B", "E")])
     con.execute("INSERT INTO universe_membership VALUES (?, 'E_A', 1)", [d])
-    con.executemany("INSERT INTO equity_bhavcopy_adjusted VALUES (?,?,?,?,?)", [
-        (d, "E_A", 111.0, 0.90, 100.0),                     # turnover-primary
-        (d, "E_B", 222.0, 0.10, 50.0),
+    con.executemany("INSERT INTO equity_bhavcopy_adjusted VALUES (?,?,?,?,?,?)", [
+        (d, "E_A", 111.0, None, 0.90, 100.0),                     # turnover-primary
+        (d, "E_B", 222.0, None, 0.10, 50.0),
     ])
     con.close()
     panel = H.load_panel(db_path=str(db), cutoff=date(2022, 12, 31))
@@ -225,12 +225,12 @@ def test_loader_asserts_fence(tmp_path):
     con.execute("CREATE TABLE universe_eligibility(symbol VARCHAR, entity VARCHAR)")
     con.execute("CREATE TABLE universe_membership(rebalance_date DATE, symbol VARCHAR, rank INT)")
     con.execute("CREATE TABLE equity_bhavcopy_adjusted("
-                "trade_date DATE, symbol VARCHAR, close DOUBLE, deliv_pct DOUBLE, turnover DOUBLE)")
+                "trade_date DATE, symbol VARCHAR, close DOUBLE, open DOUBLE, deliv_pct DOUBLE, turnover DOUBLE)")
     d = date(2022, 6, 1)
     con.execute("INSERT INTO trading_calendar VALUES (?, 200)", [d])
     con.execute("INSERT INTO universe_eligibility VALUES ('E','E')")
     con.execute("INSERT INTO universe_membership VALUES (?, 'E', 1)", [d])
-    con.execute("INSERT INTO equity_bhavcopy_adjusted VALUES (?, 'E', 100.0, 0.5, 100.0)", [d])
+    con.execute("INSERT INTO equity_bhavcopy_adjusted VALUES (?, 'E', 100.0, NULL, 0.5, 100.0)", [d])
     con.close()
     panel = H.load_panel(db_path=str(db), cutoff=date(2022, 12, 31))
     assert panel.observed_max <= date(2022, 12, 31)
@@ -353,7 +353,7 @@ def _scan_panel(ret, move_date_idx=5, n=10):
     cal_pos = {d: i for i, d in enumerate(cal)}
     px = {("E", cal[i]): 100.0 for i in range(n)}
     px[("E", cal[move_date_idx])] = 100.0 * (1 + ret)
-    return H.Panel(cal, cal_pos, px, {}, {"E": list(cal)}, [cal[0]], {cal[0]: ["E"]}, cal[-1])
+    return H.Panel(cal, cal_pos, px, {}, {}, {"E": list(cal)}, [cal[0]], {cal[0]: ["E"]}, cal[-1])
 
 
 def test_scan_residue_undocumented_halts_flag():
