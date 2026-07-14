@@ -506,40 +506,39 @@ def ingest_special_dividends(con):
 
 
 def build_adjusted_view(con):
-    """Backward adjustment at the ENTITY grain.
+    """Backward adjustment at the TIME-AWARE ENTITY grain.
 
-    Prompt 2 (2026-07-13): entity-level cumulative factors fix the rename discontinuity
-    (59 entities), where factors keyed to the post-rename symbol were not applied to
-    pre-rename prints of the *same entity*. The shift is one logical block in `cum`:
-    partition by `entity` instead of `symbol`, join through `symbol_entity`, and
-    `LAG` by `entity, series` so prev_close survives renaming.
+    Prompt 2 (2026-07-13): entity-level cumulative factors fixed the rename discontinuity
+    (59 entities) — a factor keyed to the post-rename symbol must reach the pre-rename prints
+    of the *same entity*.
 
-    Symbols with no `universe_eligibility` row fall back to `entity := symbol` (byte-identical
-    behaviour for the 991 renames that already adjusted correctly). Multi-hop chains (A->B->C)
-    are transitive by construction — entity-grain `PARTITION BY` groups all three symbols.
+    Prompt 3 (2026-07-14): entity is resolved by `(symbol, trade_date)` through
+    `symbol_entity_intervals` (half-open `[valid_from, valid_to)`, built by build_universe.py),
+    not a time-agnostic symbol->entity map. This stops a *recycled* ticker (DTIL, relisted after
+    its 2010 rename vacated the name) from being merged with the chain it left — which under
+    Prompt 2 both applied one company's factor across another's history and fabricated a +50%
+    `prev_close` gap via the same-date `LAG` reach-across. Intervals cover every
+    `(symbol, trade_date)` in equity_bhavcopy exactly once, so the join neither drops nor
+    duplicates a print.
 
-    Ex-date consistency: `prev_close(t) = close(t-1)`, so `adj_prev_close(t)`
-    must equal `adj_close(t-1)`.  At a rename with no ex-date, `cum(t) == cum(t-1)` —
-    a LAG by `entity, series` retrieves the equal value where a symbol-partitioned
-    LAG would reset to NULL and COALESCE self, fabricating a discontinuity.
+    Ex-date consistency: `prev_close(t) = close(t-1)`, so `adj_prev_close(t)` must equal
+    `adj_close(t-1)`. A `LAG` by `entity, series` retrieves the equal value at a genuine rename
+    (no ex-date, cum unchanged); with time-aware entities it can no longer reach a co-trading
+    different company's same-date row.
     """
     con.execute("""
 CREATE OR REPLACE VIEW equity_bhavcopy_adjusted AS
-WITH symbol_entity AS (
-    SELECT e.symbol, COALESCE(u.entity, e.symbol) AS entity
-    FROM (SELECT DISTINCT symbol FROM equity_bhavcopy) e
-    LEFT JOIN universe_eligibility u ON u.symbol = e.symbol
-),
-events AS (
-    SELECT e.entity, af.ex_date,
+WITH events AS (
+    SELECT i.entity, af.ex_date,
            COALESCE(EXP(SUM(LN(af.factor)) FILTER (
                WHERE af.action_type IN ('BONUS','SPLIT','SPECIAL_DIVIDEND'))), 1.0)
                AS price_factor,
            COALESCE(EXP(SUM(LN(af.factor)) FILTER (
                WHERE af.action_type IN ('BONUS','SPLIT'))), 1.0) AS vol_factor
     FROM adjustment_factors af
-    JOIN symbol_entity e ON e.symbol = af.symbol
-    GROUP BY e.entity, af.ex_date
+    JOIN symbol_entity_intervals i ON i.symbol = af.symbol
+         AND af.ex_date >= i.valid_from AND af.ex_date < i.valid_to
+    GROUP BY i.entity, af.ex_date
 ),
 cum AS (
     SELECT entity, ex_date,
@@ -554,14 +553,15 @@ cum AS (
 joined AS (
     SELECT e.trade_date, e.symbol, e.series, e.open, e.high, e.low, e.close,
            e.prev_close, e.volume, e.turnover, e.deliv_qty, e.deliv_pct,
-           se.entity,
+           i.entity,
            COALESCE(c.cum_price, 1.0) AS cum_price,
            COALESCE(c.cum_vol, 1.0) AS cum_vol
     FROM equity_bhavcopy e
-    JOIN symbol_entity se ON se.symbol = e.symbol
-    LEFT JOIN cum c ON c.entity = se.entity AND c.ex_date = (
+    JOIN symbol_entity_intervals i ON i.symbol = e.symbol
+         AND e.trade_date >= i.valid_from AND e.trade_date < i.valid_to
+    LEFT JOIN cum c ON c.entity = i.entity AND c.ex_date = (
         SELECT MIN(x.ex_date) FROM events x
-        WHERE x.entity = se.entity AND x.ex_date > e.trade_date)
+        WHERE x.entity = i.entity AND x.ex_date > e.trade_date)
 )
 SELECT
     trade_date, symbol, series,

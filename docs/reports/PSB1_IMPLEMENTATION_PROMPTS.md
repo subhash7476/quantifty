@@ -434,3 +434,275 @@ untouched; the blast radius is listed and not acted on.
 Commit with prefix `fix(csmp): Prompt 2 —` and report back. Phase 2 begins only after a Lead
 Review PASS on this **and** a re-scoped D5 (**D5-A**), which the operator will rule on once the
 repaired R1 shows the true population.
+
+---
+
+## Prompt 3 — time-aware entity resolution (ISSUED 2026-07-14)
+
+### Operator decisions (LOCKED 2026-07-14, pre-result)
+
+**D6 — the `build_universe.py` freeze is BROKEN for this repair.** Entity resolution must become
+a function of `(symbol, trade_date)`. The defect is *in* the entity map; a workaround inside
+`ingest_corporate_actions.py` would leave every other consumer of `universe_eligibility` still
+believing two different companies are one.
+
+**D7 — the BSE corroboration screen is a separate prompt, and it runs SECOND.** The operator
+originally sequenced it *first*, on my report that R1's baseline was contaminated by 251 missing
+factors. **That report was wrong and I have withdrawn it** (`PSB1_PHASE1_LEAD_REVIEW_4.md`,
+"Correction"): the confirmed population is **one** row, not 251. The order is now forced the other
+way by a hard constraint — see "Why this must run before the BSE screen" below.
+
+### Mission
+
+Make entity resolution time-aware, split the one entity that wrongly merges two concurrently
+listed companies, and remove the `prev_close` fabrication that Prompt 2 introduced. Add the
+assertion Prompt 2 assumed but never made.
+
+### The defect (`PSB1_PHASE1_LEAD_REVIEW_4.md`, Finding 1)
+
+`symbol_changes` records a real rename chain, every row labelled *Dhunseri Ventures Limited*:
+
+```
+DTIL -> DPTL (2010-07-26)    DPTL -> DPL (2014-11-12)    DPL -> DVL (2019-01-02)
+```
+
+`build_universe.py`'s union-find (`uf.find`, line 274) has **no time dimension**, so it collapses
+all four symbols into one entity, `DPL`. But **`DTIL` never stopped trading** — it prints
+continuously from 2010-01-04 to 2026-07-09, overlapping `DPL` and `DVL` for sixteen years. NSE
+**recycled the ticker**: the 2010 rename vacated `DTIL`, and the demerged tea business relisted
+under it. They are provably different companies — `DTIL` is BSE scrip **538902** (*Dhunseri Tea &
+Industries*), `DVL` is BSE scrip **523736** (*Dhunseri Ventures*).
+
+A symbol is therefore **not** one entity for all time. `DTIL` is two entities, sliced at
+2010-07-26. Two consequences in the substrate today:
+
+1. `DVL`'s 2021-08-05 bonus is applied at entity grain across `DTIL`'s concurrent history. It
+   lands on the right numbers **only by coincidence** — `DTIL` had an identical 1:2 bonus on the
+   identical ex-date, whose factor is missing (that is the BSE screen's job, Prompt 4).
+2. `LAG(cum_price) OVER (PARTITION BY entity, series ORDER BY trade_date, symbol)` reaches, for
+   `DVL`'s 2021-08-05 row, into **`DTIL`'s 2021-08-05 row** (same date, `'DTIL' < 'DVL'`). Result:
+   `adj_prev_close = 300.75` against `adj_close(t-1) = 200.50` — a **+50% fabricated overnight
+   gap**, exactly `1 / 0.6667`. It is the only symbol-grain continuity violation in the
+   7,030,920-row view, and it did not exist before Prompt 2.
+
+Entity `DPL` is the **only** entity repo-wide with co-trading members. Blast radius today: 4 symbols.
+
+### Why this must run before the BSE screen
+
+If `DTIL` were given its own `BONUS` factor while the bad union still exists, the `events` CTE —
+which groups by `(entity, ex_date)` and compounds via `EXP(SUM(LN(factor)))` — would multiply
+`DTIL`'s 0.6667 by `DVL`'s 0.6667 to **0.4444**, a double application. `assert_no_double_apply`
+would then see two symbols contributing a factor at one `(entity, ex_date)` and halt the build.
+**The BSE screen cannot land until the entity is split.**
+
+### Required
+
+1. **Time-aware entity resolution in `build_universe.py`.** A `symbol_changes` edge `old -> new`
+   at date `D` means: `old`'s prints **before `D`** belong to the chain; prints of `old` **on or
+   after `D`** are a recycled ticker and a **different entity**. Emit an interval table —
+   `symbol_entity_intervals(symbol, valid_from, valid_to, entity)`, half-open
+   `[valid_from, valid_to)` — that covers every `(symbol, trade_date)` present in
+   `equity_bhavcopy` **exactly once**. A symbol with prints on both sides of its own outgoing
+   rename date yields two intervals with two different entities.
+
+2. **Resolve entity by date everywhere it is used.** Every join in `build_universe.py` that
+   currently maps symbol -> entity — notably `entity_turnover` (line 362-367), which today sums
+   `DTIL` + `DVL` turnover into one entity and thereby overstates that entity's liquidity — must
+   resolve on `(symbol, trade_date)`.
+
+3. **`build_adjusted_view()` joins the interval table** on `symbol` **and** `trade_date` between
+   `valid_from` and `valid_to`, instead of `universe_eligibility`. The `cum`, `events`, and `LAG`
+   partitions stay at entity grain — that part of Prompt 2 was right.
+
+4. **Replace the vacuous STOP assertion.** `assert_no_double_apply` tests the wrong precondition:
+   it passed only because `DTIL` had *zero* factors. The assertion that matters:
+
+   > **No entity may contain two symbols whose trading spans overlap.**
+
+   Assert it on the repaired map. It is the precondition Prompt 2 silently assumed.
+
+5. **Add a `prev_close` invariant and run it at SYMBOL grain, over the whole panel.** The current
+   runner (`repair_adjusted_view.py:33-82`) never references `prev_close` at all, and dedups
+   co-trading symbols away before it measures anything — which is why it reported green. Required
+   check: `adj_prev_close(t) == adj_close(t-1)` with
+   `LAG(...) OVER (PARTITION BY symbol, series ORDER BY trade_date)`, across all 7,030,920 rows —
+   not a 20-symbol sample, no entity-grain dedup. **Enumerate** every surviving violation; do not
+   characterise them in aggregate and do not dismiss any as sub-threshold.
+
+### Falsifiable predictions — state them, then run
+
+- **P1** Exactly **1** symbol resolves to more than one entity interval: `DTIL`, split at
+  2010-07-26. The other 4,131 symbols have exactly one interval each.
+- **P2** After the repair, **0** entities contain symbols with overlapping trading spans (the new
+  assertion passes). Before: 1.
+- **P3** Symbol-grain `prev_close` view-induced violations: **1 -> 0** across the whole panel.
+- **P4** `DVL` 2021-08-05: `adj_prev_close` becomes **200.50**, equal to `adj_close(2021-08-04)`.
+- **P5 — the expected regression, and it is CORRECT.** `DTIL`'s post-2010 interval becomes its own
+  entity with **no factor of its own**, so `cum_price` goes to 1.0 across it and its pre-2021-08-05
+  closes revert to raw. The un-adjusted bonus drop then surfaces in `DTIL`'s `close`: the ex-date
+  return becomes **≈ −33.5%** (raw 521.15 -> 346.65, i.e. ×0.6652). *(Mind the sign: −33.5% is the
+  `DTIL` **close** reverting. The +50% figure elsewhere in this prompt is the `DVL` **`prev_close`**
+  cell — a different symbol, a different mechanism. Do not conflate them.)* This is the true state
+  of the data: the feed gap, no longer masked by another company's factor. **Do not fix it here.**
+  Prompt 4 (BSE corroboration) closes it.
+
+- **P6 — report R1's composition; do not hard-pin it.** Two effects land at once and they interact
+  through code this prompt is changing, so **report the full before/after composition rather than
+  asserting counts**:
+  1. `DTIL`, **if it remains a universe member**, appears as a new move at 2021-08-05. With no
+     factor of its own and a CA-shaped ratio it should classify **`CA-shaped-orphan`**
+     (`classify_move`, `screening_harness.py:240-252`) → residue 2 -> 3; and being absent from
+     `ca_scope_exclusions` it is **undocumented** → halt 1 -> 2 (`KWALITY` + `DTIL`), tripping
+     §11.3. **That is expected and pre-authorized by this prompt** — report it, do not disposition
+     it, and do not "fix" it.
+  2. `load_panel` dedups to one print per `(entity, trade_date)` by turnover (`rn=1`). Today the
+     `DPL` entity's series is a **turnover-splice of `DTIL` and `DVL`** — two different companies
+     interleaved. Splitting the entity removes the splice, so that entity's price series and its
+     move set may change independently.
+
+  Whether `DTIL` is in the panel at all depends on membership (P7): `load_panel` is member-scoped.
+  **P6 and P7 are entangled — settle P7 first, then report what R1 actually does.**
+
+- **P7 — STOP AND REPORT.** `entity_turnover` no longer sums `DTIL` + `DVL`, so that entity's
+  liquidity falls. If `universe_membership` changes **at all**, **halt and report the diff**. Do
+  **not** silently re-cut the universe: CSMP's banked A2 results are computed on it, and whether
+  they move is the operator's and the CSMP owner's call, not yours.
+
+If a prediction fails, **STOP and report** — do not adjust the fix until it passes.
+
+### Acceptance
+
+Entity is resolved by `(symbol, trade_date)`; every symbol-date is covered exactly once; the
+co-trading assertion passes; the symbol-grain `prev_close` invariant is clean over the whole panel
+with every violation enumerated; **P1-P5 confirmed or a failure reported**; **P6 reported as a
+before/after composition, not asserted**; the `universe_membership` diff (P7) is reported and **not
+acted on**; `audit_corporate_actions.py` and PSB-1 scoring untouched.
+
+### On completion
+
+Commit with prefix `fix(csmp): Prompt 3 —` and report back for Lead Review. Phase 2 remains closed.
+Prompt 4 (BSE corroboration screen) is written only after this passes.
+
+---
+
+## Prompt 3 — DISPOSITION (Lead Review 5, 2026-07-14)
+
+**APPROVED. Apply to the real store**, with one amendment. See `PSB1_PHASE1_LEAD_REVIEW_5.md`.
+
+The STOP was correct procedure on a **wrong diagnosis**. Both reported anomalies are adjudicated:
+
+- **Finding A (the "single-name bonus close-return bug") is REJECTED.** `ex_date > trade_date` is the
+  standard, correct backward-adjustment convention. **1,043 of 1,106** BONUS/SPLIT ex-dates absorb
+  cleanly under it (median residual 3.17%). **Do not touch the close-scaling convention** — the
+  proposed fix would have corrupted every one of them. The 63 large jumps are mostly *real*: 51 have
+  an open that reconciles with the factor and are genuine ex-date upper-circuit rallies.
+- **DVL's +40.2% is a mis-keyed corporate action, not a convention defect.** The NSE CF-CA feed
+  attributed **DTIL's** 1:2 bonus to **DVL**. DVL never repriced (`implied_open` = 1.0085; zero >20%
+  drops in all of 2021); DTIL repriced exactly ×⅔ on the same date (521.15 → open 330.00, theoretical
+  347.4) and BSE carries the correct record (scrip 538902). **Prompt 3 did not introduce this — it
+  removed the mask that Prompt 2's entity union had put over it.** P5 is a **pass**.
+- **Finding B is benign, and the *check* is what is wrong** — in two ways, not one. Fix the test, not
+  the view.
+
+### Amendment before applying
+
+**Fix the P3 invariant** (`repair_entity_intervals.py:59-79`); leave `build_adjusted_view()` alone.
+The check's `LAG(...) OVER (PARTITION BY symbol, series)` is mis-specified twice: it crosses the
+**entity seam** (recycled ticker) *and* the **series migration** (DTIL trades `BE` 2015-01-20 →
+02-03, then `EQ` from 02-04; the exchange's `prev_close` spans `BE → EQ`, a series-partitioned `LAG`
+does not). Partition by **entity**, over the **EQ+BE union**, matching exchange semantics.
+
+**Prediction: violations → 0.** Then apply to the real store and commit.
+
+---
+
+## Prompt 4 — CA register evidence audit and re-key
+
+**Runs only after Prompt 3 is applied and committed.** The ordering is forced (Review 4): re-keying
+before the entity split would compound DVL's 0.6667 with DTIL's 0.6667 to 0.4444 and halt the build.
+
+### Authorization
+
+`scripts/csmp/ingest_corporate_actions.py` — scoped to `record_evidence_exceptions()` and a new
+factor-override path. **`build_adjusted_view()` is OUT OF SCOPE and must not be edited.** PSB-1
+scoring and `audit_corporate_actions.py` remain untouched.
+
+### Task 1 — re-key the Dhunseri bonus
+
+Move `(DVL, 2021-08-05, BONUS, 0.6667)` → `(DTIL, 2021-08-05, BONUS, 0.6667)` in
+`adjustment_factors`, with the corroborating evidence recorded (BSE scrip 538902 register row + the
+price panel). This is a **one-row correction of a confirmed source-feed error**, not a heuristic.
+**Do not delete the factor** — deleting fixes DVL and leaves DTIL permanently unadjusted.
+
+- **P1** — DVL's 2021-08-05 adjusted close return goes **+40.2% → ≈ −6.5%** (its raw drift; DVL did
+  genuinely go ex a Rs 2.50 dividend that day).
+- **P2** — DTIL's 2021-08-05 adjusted close return goes **−33.5% → ≈ 0%** (the bonus is now absorbed).
+- **P3** — the `assert_no_double_apply` STOP assertion still passes (DVL and DTIL are now distinct
+  entities, so no `(entity, ex_date)` draws a factor from two symbols).
+
+### Task 2 — close the evidence-screen blind spot
+
+`EVIDENCE_TOLERANCE = 0.25` is **relative to `f`**, so a CA that fails to reprice *at all* deviates by
+`|f − 1|`, which clears the tolerance only when `f < 0.75`. **Every factor ≥ 0.75 is invisible to the
+screen when the corporate action never happened.** Measured: **28 no-reprice CAs sit at `f ≥ 0.75`;
+the screen caught 0 of them.**
+
+Add an **absolute** test alongside the existing relative one, separating two distinct questions:
+
+1. **Did the CA happen?** Is `implied_open` closer to **1.0** (no reprice) than to **`f`**?
+2. **Is the ratio right?** Given it repriced, how far is `implied_open` from `f`?
+
+These are different defects with different fixes. **AHLEAST (2022-10-06)** is the proof: it *did*
+reprice, but by **×0.528** against a registered 0.6667 — the market says 1:1, the register says 1:2.
+That is a **wrong ratio**; dropping the factor would leave a real bonus unadjusted.
+
+**Do not apply a blanket rule to the 28.** At `f ≈ 0.909` (a 1:10 bonus) the expected drop is only
+~9%, inside the noise of a stock that rallied into its ex-date. **Enumerate them with their evidence
+and report; disposition per name.** Only these are unambiguous today:
+
+| symbol | ex_date | f | expected | observed | screen |
+|---|---|---:|---:|---:|---|
+| SAHPETRO | 2013-07-09 | 0.4524 | −55% | −18% | flagged |
+| KWALITY | 2010-06-15 | 0.5833 | −42% | −15% | flagged |
+| DVL | 2021-08-05 | 0.6667 | −33% | **+0.8%** | flagged (mis-key — Task 1) |
+| **STAMPEDE** | 2017-01-10 | 0.8000 | −20% | **−2.2%** | **MISSED** |
+
+### Task 3 — re-key search (the general mechanism)
+
+When a factor fails the screen, **search for a symbol that *did* reprice by that factor on that
+date.** DVL → DTIL would have been caught automatically. The Dhunseri case is one instance of a class,
+and a single-source feed with no corroboration is the standing defect (Review 4, Finding 3).
+
+### Task 4 — enumerate the material suspects
+
+**Do not just check OMAXE.** Compute the set directly: **{`f ≥ 0.75` no-reprice suspects} × {universe
+membership windows that bracket the suspect's own ex-date}**. That join is the definition of "can
+reach the scored panel," and it must be re-run after Task 2 tightens the screen — a suspect the
+current screen cannot see may enter the set.
+
+At today's register the join returns **exactly one**:
+
+> **OMAXE, ex 2013-11-11, `f` = 0.7959, `implied_open` = 0.9153** (expected −20%, observed −8.5%) —
+> held across its own suspect ex-date at **3 rebalances**.
+
+Every other confirmed-bad CA is immaterial: none holds membership within ±400 days of its bad ex-date,
+and **DTIL holds zero memberships ever**, which is why Prompt 3's −33.5% artifact does not contaminate
+the panel (and why P6's predicted DTIL halt correctly did not fire). **Report the set; do not
+disposition it.**
+
+### STOP rules
+
+- If `universe_membership` changes **at all**, halt and report the diff. CSMP's banked A2 results sit
+  on it.
+- If a prediction fails, **STOP and report** — do not tune until it passes.
+- Report R1's before/after composition; **do not assert counts.**
+
+### Acceptance
+
+The Dhunseri bonus is re-keyed with evidence recorded; the evidence screen detects a no-reprice at any
+factor; the `f ≥ 0.75` population is enumerated with per-name evidence and **not** blanket-dispositioned;
+OMAXE is reported; `build_adjusted_view()`, `audit_corporate_actions.py` and PSB-1 scoring untouched.
+
+### On completion
+
+Commit with prefix `fix(csmp): Prompt 4 —` and report back for Lead Review.
