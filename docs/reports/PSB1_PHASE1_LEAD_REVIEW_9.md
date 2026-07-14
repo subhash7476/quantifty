@@ -141,26 +141,35 @@ Measured (membership window = `[rebalance_date, next global rebalance_date)`):
 substrate is "materially worse" is **withdrawn** — it was not supported by evidence and I should not
 have written it before running this check.
 
-**But the damage is real, and it is in the artifact being certified.** The four splices on names that
-*are* scored members sit in their **trailing adjusted price history**. A feature computed at scoring
-date *S* with an *L*-session lookback ingests the fabrication if the splice falls inside `[S−L, S]`:
+### The FAIL rests on the artifact contract, and needs nothing else
+
+**A substrate is certified as a substrate.** Its contract is *"the adjusted series is continuous at
+entity grain"* — not *"continuous for the names that happen to be members today."* **53 fabricated
+returns in that series is a failure of the artifact, whether or not the current universe selects
+them.** No assumption about any downstream feature is required, and this argument alone carries the
+FAIL. Membership is a *downstream selection* from the substrate; it is re-derived at each rebalance
+and will change. Certifying data on the basis of who currently reads it is not certification.
+
+### Supporting: how far the damage could reach downstream
+
+Contingent, not established — **no feature spec exists yet** (the strategy layer is greenfield), so
+these are exposures, not confirmed corruptions. The four splices on names that *are* scored members
+sit in their **trailing adjusted price history**; a feature computed at scoring date *S* with an
+*L*-session lookback would ingest the fabrication if the splice falls inside `[S−L, S]`:
 
 ```
 ALOKINDS   ALOKTEXT -> ALOKINDS   2020-02-19   +410.61%   193 sessions before its 2020-11-27 scoring date
-                                                          -> INSIDE any 252-session lookback
-PAISALO    SEINVEST -> SEINV      2011-10-17   +854.46%   489 sessions before scoring  (504+ reaches it)
-PATANJALI  RUCHISOYA-> PATANJALI  2022-07-13 +30923.88%   590 sessions before scoring  (756 reaches it)
-DALBHARAT  OCLINDIA -> DALBHARAT  2019-01-22    -21.10%   686 sessions before scoring  (756 reaches it)
+                                                          -> INSIDE a conventional 252-session lookback
+PAISALO    SEINVEST -> SEINV      2011-10-17   +854.46%   489 sessions before scoring  (needs 504+)
+PATANJALI  RUCHISOYA-> PATANJALI  2022-07-13 +30923.88%   590 sessions before scoring  (needs 756)
+DALBHARAT  OCLINDIA -> DALBHARAT  2019-01-22    -21.10%   686 sessions before scoring  (needs 756)
 ```
 
-`ALOKINDS` (31 memberships) is the live one: a **+410.61%** fabrication sits **193 sessions** before
-its next scoring date — inside a standard one-year trailing window. `PATANJALI` and `DALBHARAT` are
-**sealed-holdout members** (2024–25 and 2021–23), so a long-lookback feature corrupts the holdout,
-which is disqualifying in a way the dev fence does not soften.
-
-**A substrate is certified as a substrate.** Its contract is *"the adjusted series is continuous at
-entity grain"* — not *"continuous for the names that happen to be members today."* 53 fabricated
-returns in that series is a failure of the artifact, whether or not the current universe selects them.
+`ALOKINDS` (31 memberships) is the only one that bites under a **conventional** window: a
+**+410.61%** fabrication **193 sessions** before its next scoring date, inside any 252-session
+lookback. `PATANJALI` and `DALBHARAT` are sealed-holdout members (2024–25, 2021–23) but are reachable
+only by a **756-session (~3-year)** lookback — atypical, and speculative until a feature spec exists.
+Flagged as exposure should long-lookback features ever be built; **not** load-bearing for this FAIL.
 
 ---
 
@@ -247,15 +256,22 @@ PHILIPCARB fix is **kept**. Reverting would reinstate a −79% *in-panel* error 
 *out-of-panel* ones — a strictly worse trade. Prompt 5's correct sub-fixes (F-9, F-10, F-11, F-12, the
 open-ratio CA-shape test) all stand.
 
-1. **Un-merge the 62 merges whose session gap exceeds 10.** Of the 76, **14** survive. Leave the other
-   62 issuers **fragmented** and log each as documented residue. *Fragmentation costs series
-   continuity; fusion fabricates a return. Prefer fragmentation.*
+1. **Un-merge the 62 merges whose session gap exceeds 10.** Of the 76, **14** clear the gap rule.
+   Leave the other **62** issuers **fragmented** and log each as documented residue. *Fragmentation
+   costs series continuity; fusion fabricates a return. Prefer fragmentation.*
 2. **Add the splice-return invariant — this is the load-bearing one.** For every multi-ticker entity,
    the return across each symbol handoff must be **< |20%|**, *regardless of gap length*. **HALT**
    otherwise. It must **not** inherit R1's `MAX_GAP_DAYS` filter. Per §2a the gap rule alone is
    insufficient: **`PAISALO` passes the gap rule at 8 sessions and still fabricates +854%** — this
-   invariant is what catches it. Expect it to reject `PAISALO` and any other short-gap splice sitting
-   on a discontinuous price basis.
+   invariant is what catches it.
+   - **Do not hardcode 14.** The gap rule admits 14; this invariant then culls at least `PAISALO`
+     from them, so **≤ 13** merges actually land. The final count is whatever survives *both* gates —
+     derive it, do not assert it.
+   - **HALT for operator disposition — do not auto-exclude.** A genuine rename whose first
+     new-symbol session happens to hit a **±20% circuit** will trip this invariant (this is exactly
+     the F-12 pattern: a circuit limit is numerically indistinguishable from an `f=0.80`/`f=1.20`
+     CA ratio). Auto-excluding on trip would silently re-fragment a real rename. Every trip is a
+     **disposition item**, not a decision the code makes.
 3. **Fix F-14** — predicate to `n_ent != 1`; make fail-at-4 → pass-at-0 real.
 4. **Fix F-15** — the `events` fallback must read `symbol_entity_intervals`, never
    `universe_eligibility`.
