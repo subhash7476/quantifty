@@ -3,6 +3,8 @@
 **Subject:** Prompt 5 (entity fragmentation and the dropped-factor class)
 **Commit:** `7c42a0c`
 **Date:** 2026-07-14
+**Status:** **AMENDED** — the first issue of this review called for a revert. That instruction is
+**withdrawn**; see §8. The FAIL stands, the remedy changed.
 **Reviewer:** Lead — independent verification against the live store. `certify_substrate.py` was
 deliberately **not** trusted: it is the script that produced the disputed "I-1 false positive"
 verdict, so re-running it would replay the exculpation under test.
@@ -11,16 +13,17 @@ verdict, so re-running it would replay the exculpation under test.
 
 ## 0. Disposition
 
-> ## **Prompt 5: FAIL. Do not build on this substrate.**
+> ## **Prompt 5: FAIL — but DO NOT REVERT. Patch forward.**
 >
-> **The A2 substrate is now materially WORSE than before Prompt 5.**
+> A guard rail stated in the prompt was silently relaxed, and **53 fabricated returns** were
+> introduced into the entity-grain adjusted series — the very artifact under certification —
+> in a region where **R1 is structurally incapable of seeing them**.
+>
+> **None of the 53 reaches the scored panel.** On scored returns Prompt 5 is a net improvement
+> (1 → 0). It is a FAIL on the artifact and on process, not on the panel.
 
-Prompt 5 fixed PHILIPCARB exactly as specified — and, in the same change, **manufactured 53 new
-fabricated returns**, several of them four orders of magnitude in size, in a region of the data
-where **R1 is structurally incapable of seeing them**. It traded one −79% error for fifty-three
-errors of up to **+30,923%**.
-
-**Recommendation: revert `7c42a0c`**, then re-issue as Prompt 5-B with guard rail 2 enforced.
+**Action: Prompt 5-B patches forward from `7c42a0c`.** A literal revert would reinstate
+PHILIPCARB's −79% in-panel error and discard correct work. See §7.
 
 ---
 
@@ -47,25 +50,23 @@ that a stated guard rail was silently relaxed, and its consequences were never m
 
 ---
 
-## 2. THE FAILURE — guard rail 2 was dropped, and it was the one holding the roof up
+## 2. THE FAILURE — guard rail 2 was dropped
 
 Prompt 5, Task 3, verbatim:
 
 > **Disjoint, abutting print ranges** — the old symbol's last print must *precede* the new symbol's
 > first print (**small gap allowed**).
 
-You implemented **disjoint**. You did **not** implement **abutting**. Of the **76** new merges:
+You implemented **disjoint**. You did **not** implement **abutting**. Of the **76** new merges,
+measured in **trading sessions** between the old symbol's last print and the new symbol's first:
 
-| Gap: old symbol's last print → new symbol's first print | Merges |
+| Session gap | Merges |
 |---|---:|
-| ≤ 1 week — **actually abutting, as specified** | **4** |
-| 1 week – 1 month | 22 |
-| 1 – 6 months | 29 |
-| 6 – 13 months | 4 |
-| **> 13 MONTHS** | **17** |
+| **≤ 10 sessions — a real rename** | **14** |
+| > 10 sessions | **62** |
+| … of which **> 13 months** | **17** |
 
-**Only 4 of 76 merges satisfy the rule as written.** Seventeen fuse symbols separated by more than a
-year; `CHEMPLAST → CHEMPLASTS` is separated by **3,357 days (9.2 years)**.
+`CHEMPLAST → CHEMPLASTS` is separated by **3,357 days (9.2 years)**.
 
 ### The consequence: 53 of 76 merges manufactured a return ≥ |20%|
 
@@ -78,11 +79,6 @@ CHEMPLAST    CHEMPLAST  2012-06-15  ->  CHEMPLASTS  2021-08-24   gap=3357d   ret
 RAJRAYON     RAJRAYON   2019-05-27  ->  RAJRILTD    2022-03-16   gap=1024d   ret=  +2,600.00%
 TANTIACONS   TANTIACONS 2020-11-27  ->  TCLCONS     2023-10-16   gap=1053d   ret=  +2,523.08%
 KRITI        KRITIIND   2015-01-29  ->  KRITI       2021-11-01   gap=2468d   ret=  +1,357.67%
-DIGJAMLMTD   DIGJAMLTD  2019-09-23  ->  DIGJAMLMTD  2021-10-18   gap= 756d   ret=  +1,337.50%
-ASMS         BARTRONICS 2020-03-02  ->  ASMS        2023-02-09   gap=1074d   ret=  +1,289.47%
-SELMC        SELMCL     2020-03-26  ->  SELMC       2021-10-28   gap= 581d   ret=  +1,137.50%
-MIC          MIC        2021-06-21  ->  MICEL       2021-12-20   gap= 182d   ret=  +1,042.31%
-DIACABS      DIAPOWER   2018-09-24  ->  DIACABS     2023-09-18   gap=1820d   ret=  +1,036.59%
 ...
                      53 of 76 merges manufactured |return| >= 20%
 ```
@@ -97,34 +93,90 @@ RAW 2022-07-13  PATANJALI  close = 1039.30
 Ruchi Soya *was* renamed Patanjali Foods, and it *is* the same ISIN issuer (`INE619A`) — so the
 entity merge is, in company terms, **correct**. But an **NCLT insolvency capital reduction** sits
 inside that 32-month gap. The two price bases differ by ~300×, and **there is no factor in the
-register to bridge them**. Splicing them produces a **+30,923% single-session return** in the
-adjusted panel.
+register to bridge them**. Splicing them produces a **+30,923% single-session return**.
 
-**This is the lesson, and it is why the guard rail existed:** a large gap is not a cosmetic detail.
 **A multi-year gap is itself evidence of a corporate event** — insolvency, capital reduction,
 suspension, re-listing — that the CA register does not carry. Abutting print ranges is what
-distinguishes *"the ticker changed"* from *"the company was reconstructed."* Keeping those entities
-**separate** was strictly safer than fusing them.
+distinguishes *"the ticker changed"* from *"the company was reconstructed."*
+
+### 2a. And the gap rule alone is NOT sufficient — this is the finding that matters most
+
+I set out to prove the ≤10-session rule was the fix. **It is not.**
+
+```
+PAISALO   SEINVEST 2011-10-03  ->  SEINV 2011-10-17   gap = 8 SESSIONS   ret = +854.46%
+```
+
+**Eight sessions — comfortably inside guard rail 2 — and it still fabricates +854%.** SEINVEST/SEINV
+is a short suspension around a capital event, not a clean rename. And `SEINV` **is a universe
+member** (2 rebalances, 2013).
+
+> **A short gap does not guarantee a continuous price basis.** The gap rule is a *necessary*
+> condition, not a *sufficient* one. The only check that actually holds the line is a **splice-return
+> invariant**: across every symbol handoff inside an entity, the return must be **< |20%|**,
+> *regardless of gap length*. That invariant would have caught all 53 — and PAISALO too.
+>
+> This is why the invariant is mandatory in 5-B, not a belt-and-braces addition.
 
 ---
 
-## 3. Why neither R1 nor `certify_substrate` caught any of it
+## 3. Scope — how far does the damage actually reach?
 
-This must not be waved away. **The stop rule is blind here by construction.**
+This section corrects the first issue of this review, which asserted the substrate was "materially
+worse" without holding the 53 to PHILIPCARB's own standard. **Held to that standard, they fail it.**
 
-`screening_harness.py:293`:
+PHILIPCARB was load-bearing because two things were true: the fabricated return existed at entity
+grain **and** its ex-date sat inside a `universe_membership` window — it **reached the scored panel**
+(window `2018-03-28 .. 2018-04-30`, rank 182). For the 53 I had proved only the first.
+
+Measured (membership window = `[rebalance_date, next global rebalance_date)`):
+
+| The 53 fabricated splices | Count |
+|---|---:|
+| Splice date **inside** a membership window — **a scored return** | **0** |
+| On a name that is a member at *other* times (contaminates its trailing history) | **4** |
+| On a name **never** a universe member on either leg — cannot reach the panel at all | **49** |
+
+**On scored returns, Prompt 5 went from 1 (PHILIPCARB, −79%, in-window) to 0.** The claim that the
+substrate is "materially worse" is **withdrawn** — it was not supported by evidence and I should not
+have written it before running this check.
+
+**But the damage is real, and it is in the artifact being certified.** The four splices on names that
+*are* scored members sit in their **trailing adjusted price history**. A feature computed at scoring
+date *S* with an *L*-session lookback ingests the fabrication if the splice falls inside `[S−L, S]`:
+
+```
+ALOKINDS   ALOKTEXT -> ALOKINDS   2020-02-19   +410.61%   193 sessions before its 2020-11-27 scoring date
+                                                          -> INSIDE any 252-session lookback
+PAISALO    SEINVEST -> SEINV      2011-10-17   +854.46%   489 sessions before scoring  (504+ reaches it)
+PATANJALI  RUCHISOYA-> PATANJALI  2022-07-13 +30923.88%   590 sessions before scoring  (756 reaches it)
+DALBHARAT  OCLINDIA -> DALBHARAT  2019-01-22    -21.10%   686 sessions before scoring  (756 reaches it)
+```
+
+`ALOKINDS` (31 memberships) is the live one: a **+410.61%** fabrication sits **193 sessions** before
+its next scoring date — inside a standard one-year trailing window. `PATANJALI` and `DALBHARAT` are
+**sealed-holdout members** (2024–25 and 2021–23), so a long-lookback feature corrupts the holdout,
+which is disqualifying in a way the dev fence does not soften.
+
+**A substrate is certified as a substrate.** Its contract is *"the adjusted series is continuous at
+entity grain"* — not *"continuous for the names that happen to be members today."* 53 fabricated
+returns in that series is a failure of the artifact, whether or not the current universe selects them.
+
+---
+
+## 4. Why neither R1 nor `certify_substrate` caught any of it
+
+**The stop rule is blind here by construction.** `screening_harness.py:293`:
 
 ```python
 if (d1 - d0).days > MAX_GAP_DAYS:      # MAX_GAP_DAYS = 5
     continue                            # resumption/migration, excluded
 ```
 
-**Every one of these 53 splices spans months or years, so R1 discards it before classification.** The
-fabricated returns are in the panel right now, and the stop rule designed to catch exactly this class
-**cannot see a single one of them**.
+**Every one of these splices spans months or years, so R1 discards it before classification.**
 
-That is how the report could truthfully say "9/10 invariants PASS" while the substrate was being
-corrupted. **The invariants did not fail. They were not looking.**
+That is how the report could truthfully say "9/10 invariants PASS" while fabricated returns were
+being written into the series. **The invariants did not fail. They were not looking.**
 
 > **A green screen is not evidence of a clean substrate when the screen's own filter excludes the
 > class of damage you just created.** This is the second time in two prompts that a defect has hidden
@@ -133,7 +185,7 @@ corrupted. **The invariants did not fail. They were not looking.**
 
 ---
 
-## 4. R1 regressed, and the report omitted it
+## 5. R1 regressed, and the report omitted it
 
 Task 2 said, verbatim: *"Report R1's before/after composition. **Do not assert counts**."* The report
 gave neither. Measured:
@@ -163,7 +215,7 @@ absorbed. **P3 confirmed.**
 
 ---
 
-## 5. Two further defects
+## 6. Two further defects
 
 **F-14 (MEDIUM) — the orphan invariant was weakened below spec and now has a hole.**
 `assert_no_orphan_factors` flags only rows whose symbol maps to **`>= 2`** entities. All four known
@@ -178,43 +230,76 @@ today (verified: 0), so this is latent, not live. **The predicate must be `n_ent
 `universe_eligibility`, but the new `events` CTE fallback (`ingest_corporate_actions.py:660-664`)
 **reads `universe_eligibility`**. The view consults *two* maps again. They disagree on exactly one
 symbol — **`DTIL`** (`universe_eligibility`=DPL, `symbol_entity_intervals`=DTIL), the recycled ticker.
-It is harmless today only because the `n_ent = 1` filter excludes DTIL from the fallback. **The
-Prompt 4 re-key is one predicate away from being routed to the wrong company.**
+
+To be precise about the blast radius: the Prompt 4 DTIL re-key is **safe by rule 1** — its ex-date
+(2021-08-05) lies inside DTIL's own interval, so it resolves on the strict interval join and never
+reaches the fallback at all. It is *not* being held safe by the `n_ent = 1` filter. The defect is the
+**two-map design**, which is real fragility on a resolver we have already had to repair twice.
+**The `events` fallback must read `symbol_entity_intervals`, never `universe_eligibility`.**
 
 ---
 
-## 6. Required action — Prompt 5-B
+## 7. Required action — Prompt 5-B (patch forward from `7c42a0c`)
 
-1. **Revert `7c42a0c`.** The substrate is worse than the pre-Prompt-5 state; do not patch forward from
-   it. PHILIPCARB (1 bad row) is strictly preferable to 53 bad rows.
-2. **Re-apply with guard rail 2 enforced:** a merge requires the gap between the old symbol's last
-   print and the new symbol's first print to be **≤ ~10 trading sessions**. Anything larger is **not a
-   rename** — report it, do not merge it.
-3. **Add a splice invariant that does not inherit R1's gap filter:** for every multi-ticker entity, the
-   return across each symbol handoff must be **< |20%|**, *regardless of gap length*. **HALT**
-   otherwise. This is the check that was missing, and its absence is why the damage went unseen.
-4. **Fix F-14** — predicate to `n_ent != 1`; make fail-at-4 → pass-at-0 real.
-5. **Fix F-15** — the `events` fallback must read `symbol_entity_intervals`, never
+**Do not revert.** `PHILIPCARB → PCBL` is a **0-session handoff** (last print 2022-01-12, first print
+2022-01-13 — consecutive sessions). It satisfies guard rail 2 and survives any abutting rule, so the
+PHILIPCARB fix is **kept**. Reverting would reinstate a −79% *in-panel* error to remove 53
+*out-of-panel* ones — a strictly worse trade. Prompt 5's correct sub-fixes (F-9, F-10, F-11, F-12, the
+open-ratio CA-shape test) all stand.
+
+1. **Un-merge the 62 merges whose session gap exceeds 10.** Of the 76, **14** survive. Leave the other
+   62 issuers **fragmented** and log each as documented residue. *Fragmentation costs series
+   continuity; fusion fabricates a return. Prefer fragmentation.*
+2. **Add the splice-return invariant — this is the load-bearing one.** For every multi-ticker entity,
+   the return across each symbol handoff must be **< |20%|**, *regardless of gap length*. **HALT**
+   otherwise. It must **not** inherit R1's `MAX_GAP_DAYS` filter. Per §2a the gap rule alone is
+   insufficient: **`PAISALO` passes the gap rule at 8 sessions and still fabricates +854%** — this
+   invariant is what catches it. Expect it to reject `PAISALO` and any other short-gap splice sitting
+   on a discontinuous price basis.
+3. **Fix F-14** — predicate to `n_ent != 1`; make fail-at-4 → pass-at-0 real.
+4. **Fix F-15** — the `events` fallback must read `symbol_entity_intervals`, never
    `universe_eligibility`.
-6. **Report R1 before/after** and disposition the three new `CA-shaped-orphan` demergers (`IDFC`,
+5. **Report R1 before/after** and disposition the three new `CA-shaped-orphan` demergers (`IDFC`,
    `STAR`, `SUVEN`) into `ca_scope_exclusions` per D5.
-7. The ~17 large-gap issuers (RUCHISOYA/PATANJALI, CHEMPLAST/CHEMPLASTS, …) are **genuinely the same
-   company** but carry an unbridged capital event. **Leave them fragmented** and log each as documented
-   residue. Fragmentation costs series continuity; fusion fabricates a return. **Prefer fragmentation.**
+6. **Report the residue explicitly**: the fragmented issuers (RUCHISOYA/PATANJALI,
+   CHEMPLAST/CHEMPLASTS, …) are **genuinely the same company** but carry an unbridged capital event.
+   They stay split, by design, and that is the correct answer until a bridging factor exists.
 
 ---
 
-## 7. Summary
+## 8. Correction log — what this review got wrong on first issue
+
+Recorded because a review that hides its own errors is worth nothing.
+
+| First issue said | Corrected |
+|---|---|
+| *"The A2 substrate is now materially WORSE than before Prompt 5."* | **Withdrawn.** **0 of the 53** fabricated splices land inside a `universe_membership` window; PHILIPCARB's −79% did. On scored returns Prompt 5 is **1 → 0**, a net improvement. I asserted a regression without holding the 53 to the same in-scope test I had applied to PHILIPCARB. |
+| *"Revert `7c42a0c`. Do not patch forward."* | **Withdrawn.** `PHILIPCARB → PCBL` is a **0-session** handoff and survives guard rail 2. A revert reinstates the in-panel −79% and throws away the correct fixes. **Patch forward.** |
+| Gap rule presented as the fix | **Insufficient.** `PAISALO` clears it at 8 sessions and still fabricates **+854%**. The **splice-return invariant** is the real guard. |
+| F-15: *"one predicate away from being routed to the wrong company"* | **Overstated.** The DTIL factor resolves by rule 1 (ex-date inside DTIL's own interval) and never reaches the fallback. The two-map design is still the defect; the factor is not held safe by `n_ent`. |
+
+**What stands unchanged:** the guard rail was silently relaxed (14/76 conform); 53 fabricated returns
+are in the certified artifact; 4 contaminate the trailing history of scored members, `ALOKINDS`
+(+410.61%) inside a 252-session lookback and two of them in the **sealed holdout**; R1 is
+structurally blind to all of it; R1 regressed unreported; F-14 and F-15 hold.
+
+---
+
+## 9. Summary
 
 Prompt 5 executed its mechanics competently — the cum arithmetic is exact, no double-apply, no
-fan-out, PHILIPCARB absorbed to the paisa, and every regression guard on Prompts 3 and 4 holds. The
-I-1 exculpation was honest, and I verified it.
+fan-out, PHILIPCARB absorbed to the paisa, every regression guard on Prompts 3 and 4 holds, and the
+I-1 exculpation was honest and correct.
 
 But a guard rail stated in the prompt was silently relaxed from **"disjoint and abutting"** to
-**"disjoint"** — and that single omission fused companies across insolvencies and multi-year
-suspensions, manufacturing **53 fabricated returns of up to +30,923%**, in a region of the data where
-**R1's `MAX_GAP_DAYS` filter guarantees it will never look.** The certification reported 9/10 PASS
-because the invariants were not pointed at the damage.
+**"disjoint"**, fusing companies across insolvencies and multi-year suspensions and writing **53
+fabricated returns** into the entity series — in a region where **R1's `MAX_GAP_DAYS` filter
+guarantees it will never look.** The certification reported 9/10 PASS because the invariants were not
+pointed at the damage.
 
-**Prompt 5: FAIL. Revert `7c42a0c`. A2 substrate: NOT CERTIFIED — and further from certification than
-before.**
+None of the 53 is a scored return today, and PHILIPCARB — which *was* — is now fixed. That is why the
+remedy is **patch forward, not revert**. But 53 fabricated returns in the artifact under
+certification is a FAIL, and the check that closes it is not the gap rule (`PAISALO` clears that at 8
+sessions and still fabricates +854%) — it is the **splice-return invariant**.
+
+**Prompt 5: FAIL. Patch forward via Prompt 5-B. A2 substrate: NOT CERTIFIED.**
