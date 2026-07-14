@@ -816,3 +816,242 @@ plus `audit_corporate_actions.py` and PSB-1 scoring, untouched.
 ### On completion
 
 Commit with prefix `fix(csmp): Prompt 4 —` and report back for Lead Review.
+
+---
+
+## Prompt 5 — entity fragmentation and the dropped-factor class (ISSUED 2026-07-14)
+
+**Runs only after Prompt 4 is applied and committed (`4ef4dfb`).** Source: `PSB1_PHASE1_LEAD_REVIEW_8.md`
+(F-8 … F-13). Prompt 4 **PASSED**; this prompt does not revisit it. It closes a **pre-existing** defect
+that Prompt 4 neither introduced nor was asked to look for.
+
+### The defect
+
+`PHILIPCARB` carries an **unadjusted 5:1 split on 2018-04-19** — a fabricated **−79.00%** on a name that
+is **in `universe_membership` (2017-10-31 … 2018-06-29)** and **inside the dev fence**.
+
+The factor is **not missing**. It is in the register, keyed to `PCBL`:
+
+```
+adjustment_factors:       (PCBL, 2018-04-19, SPLIT, f=0.2)
+symbol_entity_intervals:  PCBL [2022-01-13 .. 9999-12-31)   <- the ex_date is OUTSIDE the window
+
+events CTE joins  i.symbol = af.symbol
+              AND af.ex_date >= i.valid_from AND af.ex_date < i.valid_to
+  => the row matches NOTHING and is SILENTLY DROPPED.
+```
+
+`PHILIPCARB` (2,986 prints, 2010-01-04 … 2022-01-12) is the same company pre-rename. The raw prints are
+unambiguous: `open 228.90 / prev_close 1128.50 = 0.2028 ≈ f`.
+
+**Root cause.** An Indian ISIN is `INE` + issuer(4) + type(2) + serial(3). A **face-value change
+re-issues the security** — same issuer, new serial:
+
+```
+PHILIPCARB INE602A01015  ->  PCBL      INE602A01031
+INTEGRA    INE418N01027  ->  ESSENTIA  INE418N01035
+```
+
+Entity resolution keyed on the **full 12-char ISIN** therefore **severs a company at exactly the
+corporate action it must adjust for.** `symbol_changes` does not carry `PHILIPCARB→PCBL`.
+
+**Why four rounds of repair missed it.** Both screens are structurally blind:
+
+- the **evidence screen** joins factors to prices **by symbol** — `PCBL` has no 2018 prints, so the CA
+  has no adjacent-session evidence and is **excluded from the test population**. Not "passed" — never
+  tested. Prompt 4 Task 2 catches *"CA registered but the stock didn't reprice"*; this is the **dual**
+  failure, *"the stock repriced but the CA reached no prints."*
+- **R1** sees a −79% move on an entity with **no factors**, so nothing explains it, so it is classed
+  `genuine` and filed in `large_genuine`. **"R1 unchanged 220/2/1/34" is true and is not evidence of a
+  clean substrate — the defect is inside the 34.**
+
+### Authorization
+
+| File | Scope |
+|---|---|
+| `scripts/csmp/build_universe.py` | entity construction / `symbol_entity_intervals` (Task 3) |
+| `scripts/csmp/ingest_corporate_actions.py` | factor→entity resolution rule + the Task 1 invariant |
+| `scripts/psb1/screening_harness.py` | `load_panel`, `load_factors_by_entity`, `load_ca_scope_exclusions`, `classify_move` (Tasks 2, 4) |
+
+**`scripts/csmp/audit_corporate_actions.py` stays FROZEN** (Prompt 1-B item 3). Task 4 changes only
+*what R1 passes into* the imported `is_ca_shaped` predicate, from inside `screening_harness`. Do not
+edit the frozen file. PSB-1 scoring is untouched.
+
+**Sequencing is forced.** Tasks 1 → 2 → 3 → 4 → 5, in that order. Task 2 before Task 4: R1 currently
+classifies against a factor set the view does not use, so re-running R1 before the resolvers are
+collapsed measures a substrate that was never built.
+
+---
+
+### Task 1 — the orphan invariant (F-9). **Land this FIRST, before any repair.**
+
+Nothing asserts that a registered factor actually reaches an entity. **4 rows resolve to zero
+intervals** and are silently discarded.
+
+Assert, as a **HALT**: *every* `adjustment_factors` row resolves to **exactly one entity**.
+
+```sql
+SELECT af.symbol, af.ex_date, af.action_type, af.factor
+FROM adjustment_factors af
+WHERE NOT EXISTS (
+  SELECT 1 FROM symbol_entity_intervals i
+  WHERE i.symbol = af.symbol
+    AND af.ex_date >= i.valid_from AND af.ex_date < i.valid_to);
+```
+
+Land the assertion **before** the fix so the fix is verifiable: it must fail with **4** today
+(`KMSUGAR` 2010-03-26, `VASWANI` 2011-09-29, `PCBL` 2018-04-19, `ESSENTIA` 2022-02-03) and pass with
+**0** at the end.
+
+**This invariant is necessary but not sufficient.** A CA dated *after* a missed rename resolves fine and
+still misses the pre-rename entity. It does not close the general class — Task 3 does.
+
+### Task 2 — collapse the two entity resolvers (F-11, **HIGH**)
+
+`screening_harness.load_factors_by_entity:219` joins `adjustment_factors` to **`universe_eligibility`**
+on `e.symbol = af.symbol` **with no date condition**. The view's `events` CTE uses **time-aware
+`symbol_entity_intervals`**. Two maps, one register. That is why the harness believes entity `PCBL` owns
+a 2018 factor while the view drops it.
+
+Migrate `load_factors_by_entity` **and** `load_ca_scope_exclusions` to `symbol_entity_intervals` with the
+half-open interval test, so R1 and the adjustment view resolve identically. **One register, one
+resolver.**
+
+Report R1's before/after composition. **Do not assert counts** — a change here is expected and is the
+point.
+
+### Task 3 — entity linkage by ISIN issuer (F-8 root cause)
+
+Link entities on the **ISIN issuer prefix** (`SUBSTR(isin,1,9)`, `INE` only) instead of the full ISIN, so
+a face-value re-issue no longer severs a company. **~73 `INE` issuers** are currently fragmented.
+
+**Two guard rails. A merge requires BOTH:**
+
+1. **Shared issuer prefix** — `SUBSTR(isin,1,9)` with `isin LIKE 'INE%'`.
+   **Exclude `INF` (fund/ETF) ISINs entirely** — there the prefix is the *AMC*, and dozens of unrelated
+   schemes share it (`INF109KC1` alone spans 28 "entities"). Merging those would be nonsense.
+2. **Disjoint, abutting print ranges** — the old symbol's last print must *precede* the new symbol's
+   first print (small gap allowed). **If the two symbols' print ranges OVERLAP, do not merge — HALT and
+   report.**
+
+> **Guard rail 2 is load-bearing, not defensive boilerplate.** `INE224E01` groups
+> `STAMPEDE / GATECHDVR / SCAPDVR / GATECH`, and `GATECHDVR` is a **DVR (differential-voting-rights)
+> class that CO-TRADES with the ordinary share.** Same issuer, *different live security*. A bulk merge on
+> issuer prefix alone would fuse two simultaneously-listed instruments into one entity and corrupt the
+> panel far worse than the bug being fixed. **Overlapping print ranges is the signature that separates a
+> rename (sequential) from a share class (concurrent).** DVR and partly-paid classes must survive as
+> separate entities.
+
+**Enumerate every merge with its evidence and report the list. Do not bulk-apply.** Some issuers form
+3-way chains (`PROSEED/EQUIPPP/NORTHGATE`, `SEZAL/SEJALLTD/SEZALGLASS`) — resolve transitively, but
+evidence each link.
+
+**Then extend the factor→entity resolution rule**, because merging entities alone does **not** rescue
+PCBL: `PCBL`'s *interval* still starts 2022-01-13, so the 2018 factor still matches no interval. For a
+factor `(sym, ex_date)`:
+
+1. exactly one interval of `sym` **covers** `ex_date` → use it *(today's behaviour; keep it)*;
+2. no interval covers it, and `sym` maps to **exactly one** entity → attach the factor to **that entity**
+   *(this is what reaches `PHILIPCARB`)*;
+3. no interval covers it, and `sym` maps to **two or more** entities → **AMBIGUOUS: HALT.**
+
+Rule 3 protects the **recycled `DTIL` ticker** (Prompt 3): `DTIL` maps to entity `DPL`
+(2010-01-04 … 2010-07-26) *and* to entity `DTIL` thereafter. Never resolve a recycled ticker by
+guessing — require an explicit override.
+
+`symbol_isin` holds **one ISIN per symbol** and so cannot see a mid-life ISIN change. Note this in the
+report; if exactness demands it become time-aware, **STOP and report** rather than widening scope.
+
+### Task 4 — R1's CA-shape test must use the OPEN ratio (F-10)
+
+R1 tests the shape on the **close-to-close** ratio, which **conflates the CA with the ex-date's own
+intraday move.** PHILIPCARB rose ~5% intraday after its split, and 5% is enough to push a clean 1:5
+outside a 2% shape tolerance:
+
+```
+prev_close=1128.50  open=228.90  close=236.95        CA_RATIO_TOLERANCE = 0.02
+
+close-implied survived = 0.2100  -> 4.98% from 0.2  ->  is_ca_shaped = False   <- R1 today
+open-implied  survived = 0.2028  -> 1.42% from 0.2  ->  is_ca_shaped = True    <- the fix
+```
+
+**The gate is `CA_RATIO_TOLERANCE` (0.02) inside `is_ca_shaped`, NOT `MAGNITUDE_TOLERANCE` (0.25)** —
+that branch is only consulted when a factor *spans* the move, which for a dropped factor never happens.
+**Do not widen `MAGNITUDE_TOLERANCE`; it is not on this path.**
+
+Carry `open` through `load_panel`, and in `screening_harness.classify_move` evaluate the shape test on
+the **open**-implied ratio (accept a hit on **either** open or close — gate-(b)'s dual-price convention:
+a thin open is unreliable, so neither price alone is authoritative).
+
+**Disclose the divergence.** R1 (§11.3) currently reuses gate-(b)'s classifier as a single source of
+truth (Prompt 1-B item 3). This change makes R1's *shape* test stricter than the frozen
+`audit_corporate_actions.py`. Justify it in the report on the ground that **gate-(b)'s own evidence
+screen already uses the open** — this brings R1 into line with gate-(b)'s evidence convention, not away
+from it. The frozen file is not edited.
+
+### Task 5 — label `rekey_candidate` as a lead, not evidence (F-12)
+
+Prompt 4's `rekey_candidate` has a **systematic false-positive mode**: at `f ≈ 0.80` it cannot
+distinguish a 1:4 bonus from a **−20% lower-circuit open**, and at `f ≈ 1.20` from the +20% upper
+circuit. Proof — `PGEL` opened at exactly `0.8001 × prev_close` **twice** in a post-IPO collapse
+(2011-09-29 and 2011-10-03). That is a circuit limit, not a bonus.
+
+Mark the column as a **search lead requiring independent corroboration** (register + panel), in the
+column comment and in any report that surfaces it. `DVL→DTIL` was confirmed by the BSE register plus the
+company name — **not** by ratio search. **No row may ever be re-keyed on `rekey_candidate` alone.**
+
+---
+
+### Falsifiable predictions — state them, then run
+
+- **P1** — orphan factors (Task 1 query): **4 → 0**.
+- **P2** — `PHILIPCARB` 2018-04-19 adjusted close-to-close return: **−79.00% → ≈ +4.98%**
+  (`236.95 / (1128.50 × 0.2) − 1`). It is **not** ≈ 0%: the stock genuinely rose ~5% intraday on the
+  ex-date. **A result of exactly 0% means the split was double-applied — STOP.**
+- **P3** — `PHILIPCARB` 2018-04-19 leaves R1's `large_genuine` bucket. After Task 3 it is no longer a
+  >|20%| move at all, so it must **disappear from the R1 screen entirely**, not merely re-bucket.
+- **P4 — regression guard on Prompt 4.** `DVL` 2021-08-05 stays **−6.550%** and `DTIL` 2021-08-05 stays
+  **−0.225%**. The recycled-`DTIL` split (Prompt 3) and the Dhunseri re-key (Prompt 4) must survive Task 3
+  **unchanged**. If either moves, the merge has fused something it must not — **STOP.**
+- **P5** — `LITL` 2010-01-04 `prev_close` stays **57.6700** (Prompt 4 Task 5 regression guard); the
+  generalised first-session invariant still asserts **0** violations.
+- **P6** — rows still **7,030,920**; `universe_membership` **byte-identical**.
+- **P7** — enumerate every entity merge with its evidence (issuer prefix, both ISINs, both print ranges,
+  the gap). Report the count. **Zero merges may have overlapping print ranges.**
+- **P8** — re-enumerate the **12** open-only CA-shaped candidates. `PHILIPCARB` must be gone. Report the
+  remainder **per name with evidence** — they are mostly **demergers** (`SUVEN`, `IDFC`, `STAR`, `IIFL`,
+  `BORORENEW`) and **ETF unit splits** (`HNGSNGBEES`, `ICICINXT50`), whose factors are legitimately absent
+  from a split/bonus register. **Do not blanket-disposition them and do not manufacture factors for them.**
+- **P9** — `ESSENTIA / INTEGRA` (2022-02-03, f=0.3333): fragmentation is confirmed, but **no symbol
+  repriced at ~⅓ on that date**. Report the disposition you reach (wrong ex-date in the feed, or the split
+  effected in the 2022-02-28 → 2022-03-14 print gap). **Do not force a factor onto a date with no price
+  break.**
+
+### STOP rules
+
+- If `universe_membership` changes **at all** — halt and report the diff. CSMP's banked A2 results sit on it.
+- If any candidate merge has **overlapping print ranges** — halt. That is a share class (DVR /
+  partly-paid), not a rename.
+- If any factor resolves to **two or more** entities (recycled ticker, rule 3) — halt; require an explicit
+  override with two-source evidence.
+- If P4 (DVL/DTIL) or P5 (LITL) regresses — halt. Prompts 3 and 4 are certified; this prompt must not
+  disturb them.
+- If a prediction fails — **STOP and report.** Do not tune until it passes.
+- Do not edit `scripts/csmp/audit_corporate_actions.py`. Do not touch PSB-1 scoring.
+
+### Acceptance
+
+The orphan invariant is asserted as a HALT and passes at 0; R1 and the adjustment view resolve factors
+through **one** map; entity linkage no longer severs a company at a face-value re-issue, with every merge
+individually evidenced and **no** co-trading share class fused; `PHILIPCARB`'s split is absorbed (P2) and
+gone from `large_genuine`; R1's shape test reads the open; `rekey_candidate` is labelled a lead;
+**Prompts 3 and 4 regress on nothing** (P4, P5, P6).
+
+**Disclose every new executable file in the report.**
+
+**OMAXE and the 13 `f ≥ 0.75` no-reprice CAs remain open** for operator adjudication — they sit behind
+this prompt, not in it.
+
+### On completion
+
+Commit with prefix `fix(csmp): Prompt 5 —` and report back for Lead Review.
