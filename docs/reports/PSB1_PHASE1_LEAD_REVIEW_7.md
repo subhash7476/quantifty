@@ -163,14 +163,34 @@ construction.
 Deferring F-7 with a documented note is also defensible at this severity. It is the Lead's
 call; it is not a gate.
 
+### 4.4 Operator ruling (2026-07-14)
+
+**Carry the F-7 fix into Prompt 4 as a documented rider — no separate Prompt 3-C.** Issued
+as **Prompt 4, Task 5** (`PSB1_IMPLEMENTATION_PROMPTS.md`).
+
+This required **amending Prompt 4's own authorization**, which had fenced
+`build_adjusted_view()` entirely out of scope. The re-opening is deliberately one expression
+wide: the `COALESCE` fallback on line 582 and nothing else. The `cum` / `events` / `prev_cum`
+CTEs, the session `LAG`, the join grain, and the OHLC/volume scaling stay frozen and must come
+through Prompt 4 byte-identical; if Task 5 appears to need any of them, the implementer stops
+and reports rather than widening scope in code.
+
+Task 5 is sequenced **after** Tasks 1–4 and verified against the **re-keyed** store, because
+Task 1 moves a factor between symbols and therefore changes `events` — so the first-session
+population must be re-derived on the final state. Task 5 carries a generalised invariant
+(**zero** entities whose first in-panel session leaves an ex-date `prev_close` unadjusted,
+asserted without the `alag > 0` filter that made F-7 invisible), so the class is closed, not
+just the one cell.
+
 ---
 
 ## 5. Disposition
 
 - **Prompt 3-B: PASS.** 246 → 0, rows conserved, no fan-out, no row-drop, no
   nondeterminism, R1/membership untouched, VERTOZ correct to the paisa.
-- **Prompt 4: AUTHORIZED** (DVL/DTIL `adj_close` mis-key).
-- **F-7 (LITL) opened:** pre-existing, LOW, one cell, remedy specified in §4.3.
+- **Prompt 4: AUTHORIZED and ISSUED** (DVL/DTIL `adj_close` mis-key), with its authorization
+  amended to admit the F-7 rider as **Task 5**.
+- **F-7 (LITL):** pre-existing, LOW, one cell — **carried into Prompt 4 Task 5** per §4.4.
 - **Record corrections:** commit is `af55c64`, not `4ecf…`; `scripts/psb1/repair_prev_close.py`
   is part of the 3-B change set.
 

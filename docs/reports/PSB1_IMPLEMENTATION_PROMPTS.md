@@ -616,7 +616,32 @@ does not). Partition by **entity**, over the **EQ+BE union**, matching exchange 
 
 ---
 
-## Prompt 4 — CA register evidence audit and re-key
+## Prompt 3-B — DISPOSITION (Lead Review 7, 2026-07-14)
+
+**PASS.** `PSB1_PHASE1_LEAD_REVIEW_7.md`. Verified independently (the implementer's own checker was
+deliberately not reused): rows conserved `7,030,920 → 7,030,920`; 0 NULL entities and 0 fan-out keys,
+so the new INNER JOIN neither drops nor duplicates a print; the gap invariant re-derived by
+**previous session** (EQ-preferred collapse, not the implementer's previous-*row* lag) shows 0
+violations; `VERTOZ` 2025-07-14 `prev_close` = **87.11** = `adj_close` 07-11, a real BE→EQ crossing
+resolved correctly. R1 and membership untouched.
+
+Note for the record: the gap check — theirs and mine — is satisfied **by construction** (the `cum`
+factor cancels), so it cannot fail and carries no evidential weight alone. The load-bearing evidence
+is row conservation, key uniqueness, VIEW-derivation, and the concrete VERTOZ value.
+
+**Record corrections:** the commit is **`af55c64`** (the report cited `4ecf…`);
+`scripts/psb1/repair_prev_close.py` (144 lines, new) is part of the 3-B change set — a legitimate
+validate-on-copy-then-apply harness, not a data patch, but undisclosed in a report that described the
+scope as "`prev_close` expression only." **Disclose new executables.**
+
+**F-7 opened (pre-existing, LOW).** Verified pre-existing by rebuilding the parent view (`07572e4`) on
+a copy: the cell is byte-identical, so 3-B neither introduced nor was scoped to it. **Operator ruling
+(2026-07-14): carry the F-7 fix into Prompt 4 as a documented rider — no separate Prompt 3-C.** See
+Prompt 4, Task 5.
+
+---
+
+## Prompt 4 — CA register evidence audit and re-key (ISSUED 2026-07-14)
 
 **Runs only after Prompt 3 is applied and committed.** The ordering is forced (Review 4): re-keying
 before the entity split would compound DVL's 0.6667 with DTIL's 0.6667 to 0.4444 and halt the build.
@@ -624,8 +649,14 @@ before the entity split would compound DVL's 0.6667 with DTIL's 0.6667 to 0.4444
 ### Authorization
 
 `scripts/csmp/ingest_corporate_actions.py` — scoped to `record_evidence_exceptions()` and a new
-factor-override path. **`build_adjusted_view()` is OUT OF SCOPE and must not be edited.** PSB-1
-scoring and `audit_corporate_actions.py` remain untouched.
+factor-override path. PSB-1 scoring and `audit_corporate_actions.py` remain untouched.
+
+**AMENDMENT (Lead Review 7; operator ruling 2026-07-14) — `build_adjusted_view()` is re-opened, and
+only this far:** you may edit **the `COALESCE` fallback inside the `prev_close` expression (line 582)
+and nothing else** in that function (Task 5). The `cum` / `events` / `prev_cum` CTEs, the session
+`LAG`, the join grain, and the OHLC/volume scaling are **frozen** — they are certified by Reviews 5,
+6 and 7 and must come through Prompt 4 byte-identical. If closing Task 5 appears to require touching
+any of them, **STOP and report**; do not widen the scope in code.
 
 ### Task 1 — re-key the Dhunseri bonus
 
@@ -690,18 +721,97 @@ and **DTIL holds zero memberships ever**, which is why Prompt 3's −33.5% artif
 the panel (and why P6's predicted DTIL halt correctly did not fire). **Report the set; do not
 disposition it.**
 
+### Task 5 — F-7 rider: the entity-first-session `prev_close` fallback (carried from Review 7)
+
+**This is a pre-existing defect, not a Prompt 3-B regression** — verified by rebuilding the parent view
+(`07572e4`) on a copy and reading the cell back identical. It is carried here as a documented rider
+rather than a separate Prompt 3-C, on the operator's ruling.
+
+**The defect.** `build_adjusted_view()` line 582:
+
+```sql
+j.prev_close * COALESCE(p.prev_cum_price, j.cum_price) AS prev_close
+```
+
+On an entity's **first in-panel session** `prev_cum_price` is NULL, and the fallback substitutes the
+**same-day** `cum_price` instead of the previous session's. That is wrong precisely when the first
+session is itself an ex-date. `cum_price(t)` excludes an ex-date falling *on* `t` (the join takes
+`MIN(ex_date > trade_date)`), so `prev_close` is left entirely **unadjusted**. Exactly one entity of
+3,621 qualifies today:
+
+| entity | first in-panel session | event | factor | cell in the view |
+|---|---|---|---:|---|
+| `LITL` | 2010-01-04 (= panel start) | `SPLIT` | 0.1 (10:1) | `prev_close = 576.70` vs `close = 58.10` |
+
+A **9.93× ratio** — a fabricated **−89.9%** overnight return for any consumer computing
+`close/prev_close − 1`. The correct value is `576.70 × 0.1 = 57.67`, which sits beside the 58.10 close.
+
+**Why the existing checks are blind to it:** `repair_prev_close.prev_close_col_violations()` filters on
+`WHERE a.alag > 0` — it *requires* a previous row. An entity's first session has none, so every
+first-session row is excluded from the predicate by construction. Any check you write for this task
+must not inherit that filter.
+
+**Required.** Change **only** the `COALESCE` fallback; leave the session `LAG` intact:
+
+```sql
+-- first in-panel session: cum(t-1) = cum(t) x factor(ex_date falling ON t)
+j.prev_close * COALESCE(p.prev_cum_price, j.cum_price * COALESCE(f.price_factor, 1.0))
+```
+
+with the factor reached by a **`LEFT JOIN`** — spelled out because 3-B shipped an inner-JOIN
+row-drop hazard and this is the same shape:
+
+```sql
+LEFT JOIN events f ON f.entity = j.entity AND f.ex_date = j.trade_date
+```
+
+**It must be `LEFT`.** Most `trade_date`s are not ex-dates; an inner join here would collapse the
+view from 7,030,920 rows to a few thousand. **No fan-out risk:** `events` is `GROUP BY (entity,
+ex_date)`, so the join matches at most one row — but assert the row count anyway (P7).
+
+**Do NOT replace the `LAG` with the closed form `cum(t) × factor(t)` globally**, tempting as it is. The
+two are equivalent only when every ex-date falls on a trading day: the session `LAG` yields
+`∏ factors of ex_dates > t-1`, which **includes** an ex-date landing on a holiday or weekend, whereas
+the closed form yields `∏ factors of ex_dates ≥ t`, which **drops** it. The `LAG` is the correct general
+form; the closed form is correct *only* in the first-session fallback, where there is no `t-1` in panel
+and the ex-date in question is on `t` by construction.
+
+**Sequencing.** Run Task 5 **after** Tasks 1–4, and verify it against the **re-keyed** store. Task 1
+moves a factor between symbols, which changes `events` — so the first-session population must be
+re-derived on the final state, not the current one.
+
+**Falsifiable predictions — state, then run:**
+
+- **P4** — `LITL` 2010-01-04 `adj_prev_close`: **576.70 → 57.67** (`adj_close` that day stays 58.10).
+- **P5** — **exactly one row** in the whole view changes. `prev_close` is byte-identical on all other
+  7,030,919 rows; `open/high/low/close/volume` are byte-identical on **all** 7,030,920 (the fallback
+  touches `prev_close` only). If more than one row moves, **STOP and report** — it means the re-key
+  created a new first-session ex-date, and I want to see it, not have it silently absorbed.
+- **P6** — **generalised invariant, on the final store:** **zero** entities whose first in-panel session
+  carries an unadjusted ex-date `prev_close`. Assert this over *all* entities, without an `alag > 0`
+  filter. This is the check that would have caught F-7, and it must pass after the re-key.
+- **P7** — rows still **7,030,920**; R1 composition unchanged by Task 5 in isolation (R1 derives returns
+  from `LAG(close)`, `audit_corporate_actions.py:249`, and does **not** read the `prev_close` column);
+  `universe_membership` unchanged; gate-(b) §4 continuity still 0 mismatches.
+
 ### STOP rules
 
 - If `universe_membership` changes **at all**, halt and report the diff. CSMP's banked A2 results sit
   on it.
 - If a prediction fails, **STOP and report** — do not tune until it passes.
 - Report R1's before/after composition; **do not assert counts.**
+- If Task 5 appears to need any edit inside `build_adjusted_view()` beyond the `COALESCE` fallback,
+  **STOP and report.** The rest of that function is frozen.
 
 ### Acceptance
 
 The Dhunseri bonus is re-keyed with evidence recorded; the evidence screen detects a no-reprice at any
 factor; the `f ≥ 0.75` population is enumerated with per-name evidence and **not** blanket-dispositioned;
-OMAXE is reported; `build_adjusted_view()`, `audit_corporate_actions.py` and PSB-1 scoring untouched.
+OMAXE is reported; **Task 5 lands with P4–P7 confirmed and the generalised first-session invariant
+asserted over all entities**; every part of `build_adjusted_view()` other than the `COALESCE` fallback,
+plus `audit_corporate_actions.py` and PSB-1 scoring, untouched.
+
+**Disclose every new executable file in the report** (Review 7 record correction).
 
 ### On completion
 

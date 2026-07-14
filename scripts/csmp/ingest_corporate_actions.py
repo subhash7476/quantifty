@@ -39,6 +39,22 @@ RAW_DIR = ROOT / "data" / "market_data" / "corporate_actions_raw"
 SPECIAL_DIV_THRESHOLD = 0.20
 EVIDENCE_TOLERANCE = 0.25
 EVIDENCE_MAX_GAP_DAYS = 5
+# A no-reprice (implied_open ~ 1.0) clears the relative EVIDENCE_TOLERANCE for any factor
+# >= 0.75 (Prompt 4 Task 2). An ABSOLUTE test catches it: a CA whose implied_open sits closer
+# to 1.0 than to f did not happen at the registered ratio, at any factor magnitude.
+NO_REPRICE_TOLERANCE = 0.10
+
+# Confirmed source-feed corrections (Prompt 4 Task 1). The NSE CF-CA feed mis-keys events to
+# the wrong symbol; each override is a ONE-ROW re-key corroborated by two independent sources
+# (BSE register + the price panel), never a heuristic. Applied after ingest, before the view is
+# built, so it survives every rebuild. (from_symbol, ex_date, to_symbol, action_type, evidence)
+FACTOR_OVERRIDES = [
+    ("DVL", date(2021, 8, 5), "DTIL", "BONUS",
+     "NSE CF-CA keyed DTIL's 1:2 bonus to DVL (both symbol and company name). BSE scrip "
+     "538902 (Dhunseri Tea) carries the correct record; the price panel confirms DTIL "
+     "repriced x2/3 (521.15 -> open 330.00) while DVL never dropped (implied_open 1.0085). "
+     "Reviews 4-5, PSB1_PHASE1_LEAD_REVIEW_5.md."),
+]
 
 # Gold-ETF unit sub-divisions. The NSE equity CA feed carries no ETF records, so
 # these come from the AMC notices. Each is corroborated against the ex-date gap;
@@ -132,13 +148,15 @@ CREATE TABLE IF NOT EXISTS ca_parse_rejects (
     source       VARCHAR
 );
 CREATE TABLE IF NOT EXISTS ca_evidence_exceptions (
-    symbol         VARCHAR,
-    ex_date        DATE,
-    legs           VARCHAR,
-    stored_factor  DOUBLE,
-    implied_open   DOUBLE,
-    implied_close  DOUBLE,
-    deviation      DOUBLE
+    symbol          VARCHAR,
+    ex_date         DATE,
+    legs            VARCHAR,
+    stored_factor   DOUBLE,
+    implied_open    DOUBLE,
+    implied_close   DOUBLE,
+    deviation       DOUBLE,
+    failure_type    VARCHAR,
+    rekey_candidate VARCHAR
 );
 """
 
@@ -505,6 +523,65 @@ def ingest_special_dividends(con):
     return n_kept
 
 
+def _find_rekey_candidate(con, from_sym, ex_date, f, tol=0.05):
+    """Task 3 — re-key search. A CA registered to `from_sym` that did not reprice `from_sym`
+    may have been mis-keyed: find a DIFFERENT symbol that DID reprice by ~f on `ex_date`.
+    Tests BOTH the open and the close ratio (the gate-(b) dual-price convention: a thin open
+    is unreliable, the close is the settlement price) — a match on EITHER within `tol` counts.
+    Returns 'SYM (open=..,close=..)' or None. Dhunseri's DVL->DTIL surfaces here. Pure read."""
+    rows = con.execute("""
+        WITH px AS (
+            SELECT trade_date, symbol, open, close,
+                   ROW_NUMBER() OVER (PARTITION BY symbol, trade_date
+                       ORDER BY CASE series WHEN 'EQ' THEN 0 ELSE 1 END) rn
+            FROM equity_bhavcopy WHERE series IN ('EQ','BE'))
+        SELECT o.symbol, o.open / p.close AS open_ratio, o.close / p.close AS close_ratio
+        FROM (SELECT trade_date, symbol, open, close FROM px WHERE rn=1 AND trade_date = ?) o
+        JOIN (SELECT symbol, close, trade_date,
+                     ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY trade_date DESC) rn2
+              FROM px WHERE rn=1 AND trade_date < ?) p
+          ON p.symbol = o.symbol AND p.rn2 = 1
+        WHERE o.symbol <> ? AND p.close > 0 AND o.open > 0
+          AND (ABS(o.open / p.close - ?) / ? <= ? OR ABS(o.close / p.close - ?) / ? <= ?)
+        ORDER BY LEAST(ABS(o.open / p.close - ?), ABS(o.close / p.close - ?))
+        LIMIT 3
+    """, [ex_date, ex_date, from_sym, f, f, tol, f, f, tol, f, f]).fetchall()
+    if not rows:
+        return None
+    return "; ".join(f"{s} (open={o:.4f},close={cl:.4f})" for s, o, cl in rows)
+
+
+def apply_factor_overrides(con):
+    """Re-key confirmed source-feed errors (Prompt 4 Task 1). For each override, move the
+    (from_symbol, ex_date, action_type) factor rows to `to_symbol`, preserving factor and
+    source and appending the corroborating evidence to `source`. Idempotent: re-running after
+    the row is already re-keyed is a no-op. Asserts the from-row exists (once) before moving,
+    so a silent schema/data drift surfaces rather than passing vacuously."""
+    n_applied = 0
+    for from_sym, ex, to_sym, atype, evidence in FACTOR_OVERRIDES:
+        present = con.execute(
+            "SELECT COUNT(*) FROM adjustment_factors WHERE symbol=? AND ex_date=? AND action_type=?",
+            [from_sym, ex, atype]).fetchone()[0]
+        already = con.execute(
+            "SELECT COUNT(*) FROM adjustment_factors WHERE symbol=? AND ex_date=? AND action_type=?",
+            [to_sym, ex, atype]).fetchone()[0]
+        if present == 0 and already > 0:
+            continue                                  # idempotent: already re-keyed
+        assert present == 1, (
+            f"FACTOR OVERRIDE — expected exactly 1 ({from_sym},{ex},{atype}) row to re-key, "
+            f"found {present}. STOP.")
+        assert already == 0, (
+            f"FACTOR OVERRIDE — target ({to_sym},{ex},{atype}) already has {already} row(s); "
+            "re-key would double-apply. STOP.")
+        con.execute(
+            "UPDATE adjustment_factors SET symbol=?, source = source || ' | RE-KEYED from ' || ? "
+            "|| ': ' || ? WHERE symbol=? AND ex_date=? AND action_type=?",
+            [to_sym, from_sym, evidence, from_sym, ex, atype])
+        n_applied += 1
+        print(f"Factor override        : re-keyed ({from_sym},{ex},{atype}) -> {to_sym}")
+    return n_applied
+
+
 def build_adjusted_view(con):
     """Backward adjustment at the TIME-AWARE ENTITY grain.
 
@@ -579,11 +656,17 @@ SELECT
     j.high  * j.cum_price AS high,
     j.low   * j.cum_price AS low,
     j.close * j.cum_price AS close,
-    j.prev_close * COALESCE(p.prev_cum_price, j.cum_price) AS prev_close,
+    -- prev_close scaled by the PREVIOUS SESSION's cum. On an entity's first in-panel session
+    -- prev_cum_price is NULL; the fallback must be cum(t-1) = cum(t) x factor(ex_date ON t),
+    -- not cum(t) alone — otherwise a first session that is itself an ex-date leaves prev_close
+    -- unadjusted (F-7: LITL 2010-01-04, a 10:1 split on the panel's first day). LEFT JOIN so
+    -- non-ex-date first sessions fall back to cum(t) x 1.0 = cum(t) (Prompt 4 Task 5).
+    j.prev_close * COALESCE(p.prev_cum_price, j.cum_price * COALESCE(f.price_factor, 1.0)) AS prev_close,
     j.volume / NULLIF(j.cum_vol, 0) AS volume,
     j.turnover, j.deliv_qty, j.deliv_pct
 FROM joined j
 JOIN prev_cum p ON p.entity = j.entity AND p.trade_date = j.trade_date
+LEFT JOIN events f ON f.entity = j.entity AND f.ex_date = j.trade_date
 """)
 
 
@@ -629,26 +712,53 @@ def record_evidence_exceptions(con):
 
     n_events = con.execute(
         "SELECT COUNT(DISTINCT (symbol, ex_date)) FROM adjustment_factors").fetchone()[0]
+
+    # Fully derived each run; recreate to carry the Task-2/3 columns on an existing store.
+    con.execute("DROP TABLE IF EXISTS ca_evidence_exceptions")
+    con.execute("""CREATE TABLE ca_evidence_exceptions (
+        symbol VARCHAR, ex_date DATE, legs VARCHAR, stored_factor DOUBLE,
+        implied_open DOUBLE, implied_close DOUBLE, deviation DOUBLE,
+        failure_type VARCHAR, rekey_candidate VARCHAR)""")
+
     exceptions = []
     for sym, ex, legs, f, imp_open, imp_close in rows:
         devs = [abs(f - i) / i for i in (imp_open, imp_close)
                 if i is not None and i > 0]
         if not devs:
             continue
-        if min(devs) > EVIDENCE_TOLERANCE:
-            exceptions.append({
-                "symbol": sym, "ex_date": ex, "legs": legs,
-                "stored_factor": f, "implied_open": imp_open,
-                "implied_close": imp_close, "deviation": min(devs),
-            })
+        dev = min(devs)
+        # Task 2 — two distinct questions:
+        #   (relative) given it repriced, is the ratio right?  dev = min|f - implied|/implied
+        #   (absolute) did the CA happen at all?  a genuine CA reprices the OPEN toward f;
+        #     a no-reprice leaves implied_open ~ 1.0. Flag when the open sits closer to 1.0
+        #     than to f — detectable at ANY factor, where the relative test only sees f < 0.75.
+        no_reprice = (imp_open is not None and imp_open > 0
+                      and abs(imp_open - 1.0) < abs(imp_open - f)
+                      and abs(imp_open - 1.0) <= NO_REPRICE_TOLERANCE
+                      and abs(f - 1.0) > NO_REPRICE_TOLERANCE)
+        relative = dev > EVIDENCE_TOLERANCE
+        if not (relative or no_reprice):
+            continue
+        ftype = ("no_reprice" if no_reprice and not relative
+                 else "wrong_ratio" if relative and not no_reprice
+                 else "no_reprice+wrong_ratio")
+        # Task 3 — re-key search: if the CA did not reprice THIS symbol, find a symbol that
+        # DID reprice by ~f on this ex-date (a mis-key candidate, as DVL's bonus was DTIL's).
+        rekey = _find_rekey_candidate(con, sym, ex, f) if no_reprice else None
+        exceptions.append({
+            "symbol": sym, "ex_date": ex, "legs": legs, "stored_factor": f,
+            "implied_open": imp_open, "implied_close": imp_close, "deviation": dev,
+            "failure_type": ftype, "rekey_candidate": rekey,
+        })
     if exceptions:
         df = pd.DataFrame(exceptions)
-        con.execute("INSERT INTO ca_evidence_exceptions SELECT symbol, ex_date, "
-                    "legs, stored_factor, implied_open, implied_close, "
-                    "deviation FROM df")
+        con.execute("INSERT INTO ca_evidence_exceptions SELECT symbol, ex_date, legs, "
+                    "stored_factor, implied_open, implied_close, deviation, failure_type, "
+                    "rekey_candidate FROM df")
+    n_norep = sum(1 for e in exceptions if "no_reprice" in e["failure_type"])
     print(f"Evidence screen        : {len(rows):,} of {n_events:,} ex-dates have "
-          f"adjacent-session evidence; {len(exceptions)} beyond "
-          f"{EVIDENCE_TOLERANCE:.0%}")
+          f"adjacent-session evidence; {len(exceptions)} flagged "
+          f"({n_norep} no-reprice, {len(exceptions) - n_norep} wrong-ratio-only)")
     return len(rows), len(exceptions), n_events
 
 
@@ -657,6 +767,7 @@ def main():
     n_events, n_factors, n_rejects = purge_and_rebuild(con)
     ingest_etf_splits(con)
     ingest_special_dividends(con)
+    apply_factor_overrides(con)            # Prompt 4 Task 1 — re-key confirmed feed errors
     build_adjusted_view(con)
     n_tested, n_exceptions, n_ex_dates = record_evidence_exceptions(con)
     con.close()

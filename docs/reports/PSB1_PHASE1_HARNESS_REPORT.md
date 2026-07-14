@@ -1,6 +1,6 @@
 # PSB-1 Phase 1 — Screening Harness Report (synthetic dev-proof + real R1)
 
-**Script-generated** (protocol §10). Code commit at generation `07572e4` — when the report is committed together with the code this is the **parent** of the commit that adds this file (Lead Review D3); re-run post-commit to stamp the exact commit. Seed `20260713` (§10).
+**Script-generated** (protocol §10). Code commit at generation `4166f58` — when the report is committed together with the code this is the **parent** of the commit that adds this file (Lead Review D3); re-run post-commit to stamp the exact commit. Seed `20260713` (§10).
 
 Candidate scores are proved on **synthetic data only**. The real store is read only for: the P7 fence-check and real n* (dates/counts), and the R1 §11.3 scan (adjusted prices, **not** a candidate score — Prompt 1-B).
 
@@ -14,7 +14,7 @@ Synthetic panels: 210 names x 260 weekly grids (5 trading days/week), scenarios 
 
 | Prediction | Evidence | Result |
 |---|---|---|
-| S1/P6 determinism (two interpreters, PYTHONHASHSEED 0 vs 1, whole-file bytes) | sha256 seed0=d35a6f8bd6a73a40 seed1=d35a6f8bd6a73a40 | PASS |
+| S1/P6 determinism (two interpreters, PYTHONHASHSEED 0 vs 1, whole-file bytes) | sha256 seed0=03bdf4e511db3329 seed1=03bdf4e511db3329 | PASS |
 | P1 planted signal (C1 reversal) | mean IC=0.0453 (target ~0.05, tol +/-0.02) | PASS |
 | P2 null (C1 null scenario) | mean IC=0.0015 95%CI[-0.0065,0.0095] covers 0 | PASS |
 | P3 sign wiring (C1>0 reversal; C3>0 delivery) | C1=0.0453>0 ; C3=0.0712>0 | PASS |
