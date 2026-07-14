@@ -562,19 +562,28 @@ joined AS (
     LEFT JOIN cum c ON c.entity = i.entity AND c.ex_date = (
         SELECT MIN(x.ex_date) FROM events x
         WHERE x.entity = i.entity AND x.ex_date > e.trade_date)
+),
+prev_cum AS (
+    -- The previous SESSION's cum for the entity, crossing series (Prompt 3-B, Review 6).
+    -- `cum_price` is a function of (entity, trade_date) alone, so DISTINCT collapses the
+    -- day's EQ+BE rows to one; the LAG then matches the exchange's prev_close semantics —
+    -- previous session regardless of series — where a per-(entity,series) LAG reached across
+    -- a series migration to the far side of an ex-date and fabricated a factor-reciprocal gap.
+    SELECT entity, trade_date, cum_price,
+           LAG(cum_price) OVER (PARTITION BY entity ORDER BY trade_date) AS prev_cum_price
+    FROM (SELECT DISTINCT entity, trade_date, cum_price FROM joined)
 )
 SELECT
-    trade_date, symbol, series,
-    open  * cum_price AS open,
-    high  * cum_price AS high,
-    low   * cum_price AS low,
-    close * cum_price AS close,
-    prev_close * COALESCE(
-        LAG(cum_price) OVER (PARTITION BY entity, series ORDER BY trade_date, symbol),
-        cum_price) AS prev_close,
-    volume / NULLIF(cum_vol, 0) AS volume,
-    turnover, deliv_qty, deliv_pct
-FROM joined
+    j.trade_date, j.symbol, j.series,
+    j.open  * j.cum_price AS open,
+    j.high  * j.cum_price AS high,
+    j.low   * j.cum_price AS low,
+    j.close * j.cum_price AS close,
+    j.prev_close * COALESCE(p.prev_cum_price, j.cum_price) AS prev_close,
+    j.volume / NULLIF(j.cum_vol, 0) AS volume,
+    j.turnover, j.deliv_qty, j.deliv_pct
+FROM joined j
+JOIN prev_cum p ON p.entity = j.entity AND p.trade_date = j.trade_date
 """)
 
 
