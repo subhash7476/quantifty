@@ -1055,3 +1055,216 @@ this prompt, not in it.
 ### On completion
 
 Commit with prefix `fix(csmp): Prompt 5 —` and report back for Lead Review.
+
+### Outcome — FAIL, patch forward (2026-07-14)
+
+`PSB1_PHASE1_LEAD_REVIEW_9.md`. Mechanics competent (PHILIPCARB absorbed to the paisa, no double-apply,
+Prompts 3–4 regression guards hold). But guard rail 2 was silently relaxed from "disjoint **and
+abutting**" to "disjoint," fusing companies across insolvencies/multi-year suspensions and writing **53
+fabricated returns** into the entity series — in the region R1's `MAX_GAP_DAYS` filter guarantees it
+never looks. None is a scored return today and PHILIPCARB (which *was*) is fixed, so the remedy is
+**patch forward, not revert** → **Prompt 5-B** (Review 9 §7). Commit `7c42a0c` reverted at `96b1148`.
+
+---
+
+## Prompt 5-B — gap rule + splice-return merge gate (ISSUED in `PSB1_PHASE1_LEAD_REVIEW_9.md` §7, 2026-07-14)
+
+Issued inside Review 9; recorded here to keep this file the single binding ledger. Full spec: Review 9
+§7. In brief: un-merge the 62 issuers whose handoff gap exceeds 10 sessions (keep only gap-clean ISIN
+merges); add a splice-return check (`|return across a symbol handoff| < 20%`, no `MAX_GAP_DAYS` filter,
+HALT for disposition) **inside `build_universe.build_entities`'s ISIN-merge branch**; fix F-14 (orphan
+predicate → `n_ent != 1`) and F-15 (`events` fallback reads `symbol_entity_intervals`, not
+`universe_eligibility`); disposition the demerger orphans into `ca_scope_exclusions` per D5.
+
+### Outcome — PASS on scope; A2 STILL NOT CERTIFIED (2026-07-15)
+
+`PSB1_PHASE1_LEAD_REVIEW_10.md`. The ISIN-merge fabrications are gone (53 → 0), the 6 survivors are
+legitimate and splice-clean, PHILIPCARB stays fixed, F-14/F-15 correctly closed — verified
+independently. **But 5-B built the check as a merge-admission *gate*, so it never runs over the
+`symbol_changes` rename path**, which unions renames unconditionally. A whole-substrate splice test (no
+prior review had run one, mine included) finds **4 residual fabrications** on that path — worst
+`INDOSOLAR → WAAREEINDO` at **+16,406%**. Pre-existing, out of 5-B's scope, none reaches the scored
+panel — but the certification suite has **no standing splice invariant**, so A2 cannot be certified.
+
+---
+
+## Prompt 5-C — replace the bug-shaped suite with the contract (ISSUED 2026-07-15)
+
+**Supersedes Review 10 §5's scoping.** Review 10 asked for one more invariant (a splice check, suite
+slot #10). That is a fourth bug-shaped check and it would miss a *future* PHILIPCARB — an intra-symbol
+dropped factor far from any handoff. The operator has ruled to widen it to the root cause. Governing
+analysis: **`PSB1_CERTIFICATION_METHODOLOGY.md`** (operator-endorsed 2026-07-15). Read it first; it is
+the *why* behind every task here.
+
+Runs on the post-5-B store (`d408a68`). Standing constraints unchanged (protocol frozen; report
+stamped with commit + row count + fenced/unfenced `MAX(trade_date)`; deterministic; failures reported
+as failures). **`universe_membership` must stay byte-identical — if it changes at all, HALT and
+report.** Do not touch PSB-1 scoring.
+
+### The root cause this prompt closes
+
+`certify_substrate.py` is **bug-shaped**: its ten invariants were "ordered by discovery" (its own
+docstring) and each carries a structural filter that made it tractable *and blind* — I-8 samples 20
+symbols; F-7 filters `WHERE alag>0`; the old prev_close check partitioned by symbol; 5-B's splice check
+is a merge gate; Review 9's own probe filtered `NOT IN symbol_changes`. Every discovery in this project
+has the same shape: **someone removed a filter and found more.** A bug-shaped check can only re-find its
+own bug. This prompt replaces the museum of past bugs with a test of the **one contract**:
+
+> The entity-grain adjusted series is continuous. Every consecutive-print return is explained by a
+> documented factor of the matching ratio, or is a normal move; and `adj_prev_close(t) == adj_close(t−1)`.
+
+### Authorization
+
+| File | Scope |
+|---|---|
+| `scripts/psb1/certify_substrate.py` | **rewrite the suite** as the four-arm contract test (below) |
+| `scripts/psb1/` (new modules + `tests/psb1/`) | the four arms, the disposition register, the historical-backtest harness |
+| `scripts/csmp/build_universe.py` | **only** to fragment the Task-4 dispositioned entities (entity construction) |
+
+**`scripts/csmp/audit_corporate_actions.py` stays FROZEN** (Prompt 1-B item 3) — *import* its
+`is_ca_shaped`, `CA_RATIOS`, and tolerances; do not edit it. `build_adjusted_view()` is **frozen** —
+certified by Reviews 5–10; this prompt reads its output, it does not change it. If closing any task
+appears to require editing it, **STOP and report.**
+
+### Task 1 — build the four-arm contract suite. No single query; no structural filters.
+
+A single "every >20% return needs a factor" query is itself bug-shaped: unfiltered it **floods**
+(smallcap/IPO circuits — thousands of genuine ±20% moves), and shape-gated to survive it goes **blind to
+INDOSOLAR** (+16,406% sits on no CA ratio). The generality is **four arms, one discipline** — run over
+the finished substrate, entity grain, EQ∪BE union, **every** entity, **every** handoff, **every factor**,
+**zero** structural filters (no sample, no `alag>0`, no symbol-partition, no `MAX_GAP_DAYS`, no merge-gate
+mount, no `NOT IN symbol_changes`, no `f ≥ 0.75` suspect cut, no close-vs-open):
+
+- **Arm A — intra-symbol CA-shape (shape-gated by design).** For every intra-symbol move whose survived
+  ratio is CA-shaped (`is_ca_shaped`, imported), assert a documented factor of the matching ratio
+  spans it. Shape-gating here is the *definition of the question* ("a CA-shaped move with no factor"),
+  not a blind-spot filter. A large intra-symbol move that is **not** CA-shaped and has no factor cannot
+  be told from a genuine move by price alone — it is **enumerated into `large_genuine` for operator
+  disposition, never silently passed**. Do **not** pre-bless that boundary as "genuine by convention";
+  that phrasing is the same top-level filter that hid every prior miss — surface the residue, do not
+  assume it clean. Evaluate the shape on **open- and close-implied ratios** (F-10). → catches
+  PHILIPCARB, the DTIL **missing-factor** side, the P2 class.
+- **Arm B — cross-symbol handoff, SHAPE-FREE.** For every multi-ticker entity, every consecutive
+  symbol handoff — **rename-path and ISIN-merge alike, any gap** — assert `|adjusted return| < 20%`.
+  **Shape-free is load-bearing:** a continuously-graded entity has no "normal" 16,406% overnight, so a
+  handoff jump is *always* a capital event or a fabrication regardless of ratio. HALT-for-disposition.
+  → catches INDOSOLAR, the ISIN-merge splices, the DTIL/DVL splice.
+- **Arm C — prev_close identity.** `adj_prev_close(t) == adj_close(t−1)` at entity grain, **no `alag>0`
+  filter** (that filter is exactly what hid F-7). → catches LITL/F-7, BE→EQ, the DVL +50% prev_close gap.
+- **Arm D — factor evidence (the quadrant Arms A–C do not cover).** Arms A–C all **trust the factor
+  register** — they test continuity *given the factors as recorded*, so a factor that exists but
+  corresponds to **no real reprice** (the DVL +40.2% spurious/mis-key class — the exact defect Prompt 4
+  fixed) passes all three silently. Close it: **import gate-(b)'s `fetch_evidence`**
+  (`audit_corporate_actions.py:73`, frozen — `implied_open = open(ex)/close(ex−1)`, `implied_close`) and
+  reuse the absolute-**and**-relative test (`no_reprice`: `implied_open ≈ 1.0`; `wrong_ratio`: deviation
+  > `EVIDENCE_TOLERANCE`), and run it **over the ENTIRE `adjustment_factors` register, read-only,
+  unfiltered** — **not** the Prompt-4 `f ≥ 0.75` × membership suspect cut. Every recorded factor must
+  correspond to a real reprice; a `no_reprice`/`wrong_ratio` factor HALTs-for-disposition. → catches
+  DVL +40.2%, AHLEAST wrong-ratio, the no-reprice class. Do not edit the frozen file; reuse it.
+
+**The discipline (the invariant on the invariants):** the **only** permitted exclusion from any arm is
+membership in a **committed, reasoned disposition register** (Task 4) — every structural filter is
+banned; exceptions are **data, not code**. **Delete any check true "by construction"** (Review 7 flagged
+the gap check whose `cum` factor cancels — it carries zero evidential weight). **Do NOT retire an
+invariant on an assumed "subsumed."** Retire only after the report *demonstrates* a named arm reproduces
+its coverage. In particular **I-1** (adj-vs-raw continuity) itself **trusts the factor register and does
+not catch a spurious factor — Arm D does**; verify each old-invariant→arm mapping before deleting it, or
+keep it. Keep I-6/I-7/I-9/I-10 (membership, row count, interval structure, DVL/DTIL re-key) as structural
+guards, and state in the report which old invariant each arm absorbs.
+
+### Task 2 — the historical completeness proof. This is how we know it won't recur.
+
+Belief is not evidence. Rebuild the view on a **copy** at each pre-repair commit (the 3-B machinery
+exists) and run the four arms; **require each past defect to re-appear** in the named arm's
+enumeration. If all re-appear, the suite is demonstrably contract-shaped; a miss is an incompleteness
+found now, cheaply.
+
+| # | Defect | Signature | Pre-repair commit | Arm |
+|---|---|---|---|---|
+| 4a | DTIL missing factor | `DTIL` 2021-08-05 ≈ −33.5%, CA-shaped, **no** factor on entity | `07572e4` | A |
+| 4b | DVL spurious factor | `DVL` 2021-08-05 ≈ **+40.2%**, factor 0.6667 but `implied_open` 1.0085 (never repriced) | `07572e4` | **D** |
+| 5 | F-7 LITL | `LITL` 2010-01-04 `prev_close` 576.70 vs close 58.10 | `af55c64` | C |
+| 6 | PHILIPCARB | `PHILIPCARB` 2018-04-19 ≈ −79%, 1:5, dropped orphan factor | `4ef4dfb` | A |
+| 7 | ISIN-merge splices | the 53 (e.g. `ALOKINDS` +410.61%) | `7c42a0c` | B |
+| 8 | rename-path splices | the 4 (e.g. `INDOSOLAR` +16,406%) | `d408a68` | B |
+
+Defects 4a–8 post-date the `symbol_entity_intervals` schema (`07572e4`) and the arms run **natively**
+against them — this is the required, load-bearing set. **4a and 4b are the two directions of the same
+event and must be split:** Arm A catches the DTIL *missing-factor* side, Arm D the DVL *spurious-factor*
+side — if the table collapses them to one row, the backtest goes green while the evidence direction is
+never exercised (the coverage hole and the proof-hole would align). Defects **1–3** (P2 rename, DTIL/DVL
+prev_close, BE→EQ) predate the schema; demonstrate the relevant arm's predicate fires on the
+reconstructed row, or **report the schema limitation** — do not resurrect dead schemas or force a match.
+
+### Task 3 — run the four arms on the current store; produce the COMPLETE residue, once.
+
+One unfiltered run, entire enumeration — not a count, not a characterization, not a sample. Expect it
+**larger than 4**: Arm B flags the 4 rename-path splices; Arm A re-surfaces the open-only demerger/ETF
+class Prompt 5 P8 already enumerated (`SUVEN`, `IDFC`, `STAR`, `IIFL`, `BORORENEW`, `HNGSNGBEES`,
+`ICICINXT50`, …), legitimately absent from a split/bonus register; Arm C should be **0** (LITL fixed);
+Arm D re-surfaces the known `ca_evidence_exceptions` (**OMAXE** + the `f ≥ 0.75` no-reprice class already
+open for operator adjudication) and **nothing new** — the DVL mis-key was re-keyed to DTIL in Prompt 4.
+Route the known-benign (demergers, ETF unit splits, the open evidence exceptions) to the disposition
+register per D5; the 4 splices **HALT**.
+
+### Task 4 — disposition mechanism + the 4. Per name, by reason — NOT "default fragment".
+
+Build the committed disposition register (the sole permitted exclusion). Enumerate each HALT item with
+its evidence (both ISINs, both print ranges, the gap, the return). **"Default to fragment" (Review 10
+§5.3) is wrong — it is half the bug history:** fragmenting at a face-value re-issue is exactly what
+severed PHILIPCARB from its factor. Disposition **by reason**:
+
+- **face-value re-issue with a real CA** → **merge and carry the factor** across (PHILIPCARB — already
+  done, must regress on nothing);
+- **recycled ticker** → **stay split** (DTIL);
+- **unbridged capital event** → **fragment** at the discontinuity, pre-rename ticker its own entity.
+
+The 4 are all unbridged capital events across a register-authoritative rename, so fragmenting them
+**overrides the NSE rename register per entity** — pre-authorized here for the **3 clear
+reconstructions** (`INDOSOLAR→WAAREEINDO`, `SUJANATWR→NTL→NEUEON`, `SPENTEX→CLCIND`). **`DELPHIFX`
+(+31.36%) is the one operator item** — a genuine April-2020 move and a capital event are not separable
+from the return alone; enumerate it, recommend, **do not auto-disposition it**. Verify none of the 4 is
+a `universe_membership` member on either leg (Review 10 confirmed 0/4) so fragmentation leaves membership
+byte-identical.
+
+### Falsifiable predictions — state, then run
+
+- **P1** — Task 2: defects 4a, 4b, 5, 6, 7, 8 each re-appear in the named arm at the named commit — in
+  particular **Arm D catches DVL +40.2% at `07572e4`** (evidence direction exercised, not only the DTIL
+  missing-factor side). Any miss → **STOP**.
+- **P2** — current store, Arm C: **0** violations (LITL fixed, no `alag>0` filter); Arm D re-surfaces
+  only the already-open `ca_evidence_exceptions` (OMAXE + the `f ≥ 0.75` no-reprice class), **nothing new**.
+- **P3** — current store, Arm B: exactly the **4** rename-path splices, and the 6 ISIN merges + all
+  gap-clean renames pass (`< 20%`). More or fewer than 4 → enumerate and **STOP**.
+- **P4 — regression guards.** `PHILIPCARB` 2018-04-19 **+4.984%**; `DVL`/`DTIL` 2021-08-05
+  **−6.550% / −0.225%**; `LITL` `prev_close` **57.6700**; rows **7,030,920**; `universe_membership`
+  **byte-identical**. Any move → **STOP**; Prompts 3–5 are certified.
+- **P5** — after fragmenting the 3 (DELPHIFX held): Arm B re-run HALTs on **DELPHIFX only**; membership
+  still byte-identical; the 3 fragmented entities hold **zero** memberships.
+
+### STOP rules
+
+- `universe_membership` changes at all → HALT and report the diff (CSMP's banked A2 sits on it).
+- Any arm needs a structural filter to pass → it is not dispositioned; **HALT**, do not filter.
+- Any regression guard (P4) moves → **HALT**.
+- A Task-2 defect fails to re-appear → **STOP**; the arm is incomplete, report it.
+- `build_adjusted_view()` or `audit_corporate_actions.py` appears to need an edit → **STOP and report.**
+- Any prediction fails → **STOP and report.** Do not tune until it passes.
+
+### Acceptance
+
+The suite is the four-arm contract test with zero structural filters and a committed disposition
+register as the sole exclusion; every "by-construction" check is deleted (and no invariant retired
+without demonstrated arm subsumption — I-1 explicitly checked against Arm D); Task 2 re-finds defects
+4a–8 from their pre-repair commits, **with Arm D exercising the DVL evidence direction** (1–3
+demonstrated or schema-limited-and-reported); the current run
+enumerates the complete residue with the 4 splices HALTing; the 3 reconstructions are fragmented and
+`DELPHIFX` is left as the operator item; Prompts 3–5 regress on nothing (P4); `build_adjusted_view()`,
+`audit_corporate_actions.py`, and PSB-1 scoring untouched.
+
+**Disclose every new executable file in the report.**
+
+### On completion
+
+Commit with prefix `fix(csmp): Prompt 5-C —` and report back for Lead Review. Phase 2 remains closed
+until the substrate certifies clean under the new suite.
