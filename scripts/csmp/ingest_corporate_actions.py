@@ -604,7 +604,7 @@ def assert_no_orphan_factors(con):
             SELECT 1 FROM symbol_entity_intervals i
             WHERE i.symbol = af.symbol
               AND af.ex_date >= i.valid_from AND af.ex_date < i.valid_to)
-          AND (SELECT COALESCE(sn.n_ent, 0) FROM sym_n sn WHERE sn.symbol = af.symbol) >= 2
+          AND COALESCE((SELECT sn.n_ent FROM sym_n sn WHERE sn.symbol = af.symbol), 0) != 1
     """).fetchall()
     assert len(orphans) == 0, (
         f"ORPHAN FACTORS — {len(orphans)} adjustment_factors row(s) resolve to ZERO entity "
@@ -657,10 +657,10 @@ events AS (
     -- Rules 2/3: fallback to the symbol's sole entity (if >=2 entities, entity is NULL and
     -- assert_no_orphan_factors HALTed before we reach here)
     LEFT JOIN (
-        SELECT ue.symbol, ue.entity
-        FROM symbol_n_entities sne
-        JOIN universe_eligibility ue ON ue.symbol = sne.symbol
-        WHERE sne.n_ent = 1
+        SELECT symbol, entity
+        FROM symbol_entity_intervals
+        WHERE symbol IN (SELECT symbol FROM symbol_n_entities WHERE n_ent = 1)
+        QUALIFY ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY valid_from) = 1
     ) fallback ON fallback.symbol = af.symbol
     GROUP BY COALESCE(i.entity, fallback.entity), af.ex_date
 ),

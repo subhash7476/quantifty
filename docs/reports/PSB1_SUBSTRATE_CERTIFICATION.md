@@ -1,6 +1,6 @@
 # PSB-1 Substrate Certification Report
 
-**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `61d383b`. Real store, read-only.
+**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `786d513`. Real store, read-only.
 
 Invariants accumulated across Prompts 2–4, tested independently on the post-Prompt-4 real store.
 
@@ -21,6 +21,6 @@ Invariants accumulated across Prompts 2–4, tested independently on the post-Pr
 
 ### Violations: I-1  adj_close continuity (cons. grain)
 
-- `('PCBL', datetime.date(2018, 4, 19), 1.049844926894107, 0.20996898537882144)`
 - `('ESSENTIA', datetime.date(2022, 2, 7), 0.9999999999999999, 0.33333333333333337)`
+- `('PCBL', datetime.date(2018, 4, 19), 1.049844926894107, 0.20996898537882144)`
 

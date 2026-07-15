@@ -292,6 +292,13 @@ def build_entities(con):
         "SELECT symbol, MIN(trade_date), MAX(trade_date) FROM equity_bhavcopy "
         "WHERE series IN ('EQ','BE') GROUP BY symbol").fetchall()}
 
+    # Session count for the gap rule + splice-return invariant (Prompt 5-B).
+    cal = [r[0] for r in con.execute(
+        "SELECT trade_date FROM trading_calendar WHERE n_symbols>=200 ORDER BY trade_date").fetchall()]
+    cal_pos = {d: i for i, d in enumerate(cal)}
+    MAX_SESSION_GAP = 10
+    MERGE_SPLICE_MAX = 0.20
+
     # --- Prompt 5 Task 3 (F-8): ISIN issuer-prefix linkage ---
     # A face-value change re-issues the security with a new ISIN serial (same issuer prefix),
     # which the full-ISIN entity map severs — exactly at the corporate action it must adjust
@@ -343,11 +350,31 @@ def build_entities(con):
             if cross_overlap:
                 halt_overlaps.append((iss, e0, e1))
                 continue
-            if hi0 < lo1:          # abutting -> same company rename
+            # Session gap between last e0 print and first e1 print (Prompt 5-B).
+            # Only merge if gap <= MAX_SESSION_GAP AND the raw splice return < |20%|.
+            # The gap rule distinguishes a rename from a multi-year suspension/insolvency;
+            # the splice-return invariant catches mis-pricing even in a short window.
+            gap_sessions = (cal_pos.get(lo1, 0) - cal_pos.get(hi0, 0) - 1)
+            gap_ok = gap_sessions <= MAX_SESSION_GAP
+            # Fetch the actual close at the handoff dates for the dominant-turnover EQ/BE print
+            close0 = con.execute("SELECT close FROM equity_bhavcopy WHERE symbol=? AND trade_date=? "
+                                 "AND series IN ('EQ','BE') ORDER BY turnover DESC LIMIT 1",
+                                 [sym_spans[0][0], hi0]).fetchone()
+            close1 = con.execute("SELECT close FROM equity_bhavcopy WHERE symbol=? AND trade_date=? "
+                                 "AND series IN ('EQ','BE') ORDER BY turnover DESC LIMIT 1",
+                                 [sym_spans[k][0] if k < len(sym_spans) else s1[0], lo1]).fetchone()
+            # For the first-look: use the earliest e1 symbol actually present at lo1
+            e1_sym = next((s for s, lo, hi in sym_spans if lo == lo1 and base.get(s,s)==e1),
+                          next((s for s, lo, hi in sym_spans if base.get(s,s)==e1), None))
+            splice_ret = None
+            if close0 and close1 and close0[0] > 0:
+                splice_ret = close1[0] / close0[0] - 1.0
+            splice_ok = splice_ret is not None and abs(splice_ret) < MERGE_SPLICE_MAX
+            if gap_ok and splice_ok:
                 uf.union(e0, e1)
                 merges.append((iss, [(s, base.get(s, s)) for s in syms
                                      if base.get(s,s) in (e0,e1)],
-                                (lo1 - hi0).days if lo1 and hi0 else None))
+                               gap_sessions))
     if halt_overlaps:
         print(f"ISIN issuer overlaps  : {len(halt_overlaps)} issuer(s) skipped — overlapping "
               f"print ranges (likely DVR/partly-paid share classes): "
@@ -356,7 +383,8 @@ def build_entities(con):
               "merged successfully.")
     n_merged = len(merges)
     if n_merged:
-        print(f"ISIN issuer merges    : {n_merged} merged (disjoint, abutting print ranges)")
+        print(f"ISIN issuer merges    : {n_merged} merged (gap <= {MAX_SESSION_GAP} sessions "
+              f"AND |splice return| < {MERGE_SPLICE_MAX:.0%})")
         # recompute base after ISIN linkage merges
         base = {s: uf.find(s) for s in store_syms}
 

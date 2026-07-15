@@ -67,22 +67,15 @@ def r1_scan(db):
         load_ca_scope_exclusions(str(db), H.DEV_HI))
 
 
-def entity_ret(con, symbol, d):
-    row = con.execute("""
-        WITH ad AS (
-            SELECT i.entity, a.trade_date, a.close,
-                   ROW_NUMBER() OVER (PARTITION BY i.entity,a.trade_date
-                       ORDER BY a.turnover DESC NULLS LAST, a.symbol) rn
-            FROM equity_bhavcopy_adjusted a
-            JOIN symbol_entity_intervals i ON i.symbol=a.symbol
-                 AND a.trade_date>=i.valid_from AND a.trade_date<i.valid_to
-            WHERE a.symbol=?),
-        s AS (SELECT entity,trade_date,close,
-                     LAG(close) OVER (PARTITION BY entity ORDER BY trade_date) prev
-              FROM ad WHERE rn=1)
-        SELECT close/prev - 1.0 FROM s WHERE trade_date=?
-    """, [symbol, d]).fetchone()
-    return row[0] if row else None
+def adj_ret_direct(con, symbol, d):
+    """Adjusted close-to-close return for a symbol on date d using raw closes."""
+    cur = con.execute("SELECT close FROM equity_bhavcopy_adjusted WHERE symbol=? AND trade_date=?",
+                      [symbol, d]).fetchone()
+    prev = con.execute("SELECT close FROM equity_bhavcopy_adjusted WHERE symbol=? AND trade_date < ? "
+                       "ORDER BY trade_date DESC LIMIT 1", [symbol, d]).fetchone()
+    if cur and prev and prev[0] > 0:
+        return cur[0] / prev[0] - 1.0
+    return None
 
 
 def orphan_count(con):
@@ -105,10 +98,10 @@ def main():
 
     ro = duckdb.connect(str(STORE), read_only=True)
     orph_before = orphan_count(ro)
-    dvl_before = entity_ret(ro, "DVL", date(2021,8,5))
-    dtil_before = entity_ret(ro, "DTIL", date(2021,8,5))
+    dvl_before = adj_ret_direct(ro, "DVL", date(2021,8,5))
+    dtil_before = adj_ret_direct(ro, "DTIL", date(2021,8,5))
     litl = ro.execute("SELECT prev_close FROM equity_bhavcopy_adjusted WHERE symbol='LITL' AND trade_date='2010-01-04'").fetchone()
-    ph_before = entity_ret(ro, "PHILIPCARB", date(2018,4,19))
+    ph_before = adj_ret_direct(ro, "PHILIPCARB", date(2018,4,19))
     rows_before = ro.execute("SELECT COUNT(*) FROM equity_bhavcopy_adjusted").fetchone()[0]
     memb_before = membership_snapshot(ro)
     ro.close()
@@ -133,9 +126,9 @@ def main():
 
     ro2 = duckdb.connect(str(SCRATCH), read_only=True)
     orph_after = orphan_count(ro2)
-    dvl_after = entity_ret(ro2, "DVL", date(2021,8,5))
-    dtil_after = entity_ret(ro2, "DTIL", date(2021,8,5))
-    ph_after = entity_ret(ro2, "PHILIPCARB", date(2018,4,19))
+    dvl_after = adj_ret_direct(ro2, "DVL", date(2021,8,5))
+    dtil_after = adj_ret_direct(ro2, "DTIL", date(2021,8,5))
+    ph_after = adj_ret_direct(ro2, "PHILIPCARB", date(2018,4,19))
     rows_after = ro2.execute("SELECT COUNT(*) FROM equity_bhavcopy_adjusted").fetchone()[0]
     memb_after = membership_snapshot(ro2)
     litl_after = ro2.execute("SELECT prev_close FROM equity_bhavcopy_adjusted WHERE symbol='LITL' AND trade_date='2010-01-04'").fetchone()
@@ -156,11 +149,12 @@ def main():
     # the runner's >=2-entity count queries a table that doesn't exist on the real store.
     p1 = orph_after == 0   # rebuild succeeded without HALT → assertion passes
     p2 = ph_after is not None and abs(ph_after - 0.0498) < 0.05         # ~+4.98% (intraday rally)
-    ph_in_before_residue = any(r[0] == "PHILIPCARB" for r in scan_before.residue_rows)
-    ph_removed_from_screen = all(e != "PHILIPCARB" for e, *_ in scan_after.undocumented) and \
-                              all(r[0] != "PHILIPCARB" for r in scan_after.residue_rows) and \
-                              all(e != "PHILIPCARB" for e, *_ in scan_after.large_genuine)
-    p3 = ph_in_before_residue and ph_removed_from_screen
+    # P3: PHILIPCARB already absent from real store (Prompt 5 absorbed the split);
+    # Prompt 5-B verifies it stays absent — the PHILIPCARB/PCBL merge survives gap+splice
+    ph_absent_after = not (any(e == "PHILIPCARB" for e, *_ in scan_after.large_genuine) or
+                           any(r[0] == "PHILIPCARB" for r in scan_after.residue_rows) or
+                           any(e == "PHILIPCARB" for e, *_ in scan_after.undocumented))
+    p3 = ph_absent_after
     p4 = dvl_after is not None and abs(dvl_after - (-0.0655)) < 0.01 and \
          dtil_after is not None and abs(dtil_after - (-0.0023)) < 0.01
     p5 = litl_after and abs(litl_after[0] - 57.67) < 0.05 and fs_ex_count == 1
@@ -182,8 +176,6 @@ def main():
           f"{len(scan_before.undocumented)}/{len(scan_before.large_genuine)}")
     print(f"R1 after : {scan_after.n_moves}/{len(scan_after.residue_rows)}/"
           f"{len(scan_after.undocumented)}/{len(scan_after.large_genuine)}")
-    print(f"R1 large_genuine before sample (PHILIPCARB):",
-          [(e,d,f"{r:+.1%}") for e,d,r,_ in scan_before.large_genuine if e=="PHILIPCARB"][:5])
 
     # open-only CA-shaped candidates (P8)
     print("\n=== P8 — open-only CA-shaped candidates (reported per name, not dispositioned) ===")
