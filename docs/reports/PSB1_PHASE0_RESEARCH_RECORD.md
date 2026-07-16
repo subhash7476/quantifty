@@ -2,7 +2,7 @@
 
 **Document type:** Program research record (Phase 0 — the brainstorm that shaped the program, and the operator decisions that gate it)
 
-**Status:** Phase 0 OPEN — design approved by operator 2026-07-13; protocol freeze (the Phase 0 deliverable) not yet written.
+**Status:** Phase 0–3 **CLOSED** 2026-07-14. Verdict: **"no winner recommended"** — C5 is the closest candidate but misses the 0.80 power hurdle. **PSB-2 authorized** as the successor. Phase 0 for PSB-2 OPEN.
 
 **Date:** 2026-07-13
 
@@ -128,8 +128,42 @@ This field was ingested and audited to CSMP standard at gate (a) and **never use
 
 **Artifacts:** all reports land as `docs/reports/PSB1_*.md`, in the CSMP mold (audited reports, Lead Reviews, operator decisions as separate documents).
 
-## 8. Next actions
+## 8. Phase 3 — selection outcome (CLOSED 2026-07-14)
 
-1. Claude drafts the **PSB-1 screening protocol** (`docs/reports/PSB1_PROTOCOL.md`) with the §6 contents, including pinned formulas for all five candidates and the named deflation method.
-2. Lead Review of the protocol; operator ratifies; protocol **FROZEN**.
-3. Claude writes Prompt 1 (screening harness) for DeepSeek V4; Phase 1 begins.
+The five-candidate battery ran identically through the frozen protocol. No candidate clears all three eligibility gates (§8):
+
+| Cand | Mean IC > 0 | Net spread > 0 | Power ≥ 0.80 | Outcome |
+|---|---|:--:|:--:|---|
+| C1 reversal | ✓ +0.023 | ✗ −16.8% | ✗ 0.68 | Not eligible |
+| C2 residual reversal | ✓ +0.035 | ✗ −8.6% | ✓ 0.99 | Not eligible (net<0) |
+| C3 delivery z | ✓ +0.025 | ✗ −2.5% | ✓ 0.95 | Not eligible (net<0) |
+| C4 C1×C3 | ✗ −0.003 | ✗ −16.1% | ✗ 0.02 | Not eligible |
+| C5 low-vol (monthly) | ✓ +0.068 | ✓ +4.3% | ✗ 0.54 | Closest — clears IC+spread, misses power |
+
+**Verdict: "no winner recommended."** The protocol's own selection rule was applied mechanically. Three structural findings are now institutionalized:
+
+1. **The fee model dominates signal for weekly constructs.** Delivery STT at 0.1% per leg with ~0.80 turnover imposes ~13pp/yr — no known Indian equity cross-sectional effect clears that barrier. C1–C4 all confirm it: gross spreads of +1% to +17% are consumed by 12–17pp/yr fee drag.
+2. **C5 is the only fee-survivable construct.** Monthly cadence + banded exit (0.40) drops turnover to ~0.04, fee drag to ~14 bp/yr. It clears net spread with the widest margin and the strongest IC in the slate (+0.068). Its 0.54 power is ~26 points below the hurdle because 42 monthly observations on a 3.5-year sealed window is a structural limit — not an indictment of the signal.
+3. **The protocol's sequencing logic proved itself.** CSMP spent five gates and a frozen dossier discovering its ~41% power defect. PSB-1 found the power gap in Phase 2, before the expensive pre-registration phase, for all five candidates simultaneously. The screening-first allocation (D1) saved a full program's worth of rigor.
+
+## 8.1 Substrate certification (side-effect achievement)
+
+The six-prompt substrate repair chain (Prompts 2–5) produced a certified `equity_bhavcopy_adjusted` view (7,030,920 rows) validated by the four-arm contract suite: **Arm A** (intra-symbol CA-shape), **Arm B** (cross-symbol handoff, shape-free), **Arm C** (prev_close identity, no alag>0 filter), **Arm D** (factor evidence over the entire register). Zero structural filters. The adjusted-series continuity invariant returns 0 view-induced fabrications. This substrate is now the certified foundation for all future NSE equity research in this repository.
+
+## 9. PSB-2 — authorized (Phase 0 OPEN 2026-07-14)
+
+**Decision D8 — PSB-2 is a fee-survivable battery.** Every candidate must clear the cost structure by construction: monthly cadence or longer, banded exits, low turnover, or asymmetric entry/exit that avoids STT on both sides. The substrate, harness, and fee model are reused without modification.
+
+The design space:
+- Monthly delivery signals (the delivery register is the untapped asset — C3 showed real IC at weekly cadence; at monthly with banded exits, fees are no longer the dominant constraint)
+- C5 variants with tighter bands or sector-neutral construction
+- Constructs that hold winners and cut losers asymmetrically (reducing the heavily-taxed sell side)
+- Momentum-family constructs remain **fenced** if the 2023–2026 window is sealed for them (D2); otherwise the fence is lifted and a fresh pre-registration may nominate momentum entrants
+
+The operator's ruling on the sealed-window policy for new families determines whether momentum constructs enter the slate. Pending that, the Phase 0 research record for PSB-2 will declare 3–5 candidates with exact formulas and the same frozen-protocol discipline.
+
+## 10. Next actions
+
+1. Operator ruling on PSB-2 sealed-window policy (momentum fence standing or lifted).
+2. DeepSeek V4 drafts the PSB-2 Phase 0 research record: 3–5 fee-survivable candidate definitions, pre-registered formulas, selection rules.
+3. Protocol freeze → Lead Review → harness adaptation → battery run.
