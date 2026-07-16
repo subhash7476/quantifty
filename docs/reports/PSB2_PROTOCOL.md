@@ -20,7 +20,7 @@ PSB-2 is an **explicitly exploratory** screening battery over five declared cand
 - Any formula, parameter, window, or metric change after any candidate result exists (§9).
 - Any sealed read, consumer, or strategy code. Nothing lands in `core/strategies/`.
 - Any new data ingestion (operator decision D4, carried from PSB-1).
-- **Any weekly or higher-frequency construct** (D10 — monthly cadence only).
+- **Any weekly construct** (D10 — fortnightly or slower).
 - Momentum-family constructs on a CSMP-sealed read: the one prior CSMP momentum read (42 monthly observations, December 2022 cutoff) is disclosed as prior exposure per PSB-1 operator decision D2. The successor pre-registration may apply an explicit α penalty. **No momentum candidate in this battery may read the sealed window for its own selection.**
 
 ## §2 Data substrate (pinned)
@@ -41,8 +41,14 @@ PSB-2 is an **explicitly exploratory** screening battery over five declared cand
 
 ## §3 Time conventions
 
-- **Grid:** **monthly only** — last full-session trading day of each calendar month per `trading_calendar` (D10). Formations at monthly grid dates, rebalanced on that grid.
-- **Dev window:** all candidates on **2012-01-01 → 2022-12-31**. Candidates using `deliv_pct` (C2, C3) additionally report on their respective delivery-data subset (post-2020-04).
+- **Fortnightly grid:** for each calendar month, the **15th** and the **last** full-session trading day per `trading_calendar`. Formation at the close of grid day *t*; forward return = `adj_close(t → t')` where *t'* is the next grid day (~15 days). Portfolios formed at the close of *t* (the CSMP §5.2 convention).
+- **Monthly grid:** last full-session trading day of each calendar month (the CSMP grid, carried from PSB-1).
+- **Cadence per candidate:**
+  - C1 (low-vol tighter band): **monthly** (252-day trailing σ is a slow-moving construct).
+  - C2 (delivery z-score), C3 (delivery-conditioned reversal): **fortnightly** (delivery signals have sufficient dispersion at higher frequency; banded exit at 0.40 keeps turnover ~0.15 → fee drag ~78 bp/yr — survivable).
+  - C4 (momentum staggered): **monthly** rebalance, 6-month hold (1/6th per month; the staggered design's mechanics are monthly by construction).
+  - C5 (QARP): **monthly** (quality composition is sticky).
+- **Dev window:** all candidates on **2012-01-01 → 2022-12-31**. C2/C3 additionally report on their delivery-data subset (2020-04-01 → 2022-12-31).
 - Formation *inputs* (trailing windows) may reach back before the dev window start (the store begins 2010-01-04); nothing may reach past 2022-12-31.
 - **Common robustness sub-window:** all five candidates are additionally reported on **2020-04-01 → 2022-12-31**.
 
@@ -120,7 +126,7 @@ Same as PSB-1 Protocol §8 — carried forward without change. Eligible candidat
 
 - Exactly **five** candidates: C1–C5 as defined in §5. No additions, variants, or parameter sweeps.
 - After any candidate result exists, its definition is immutable.
-- Pinned parameters (exhaustive): monthly grid only (§3); 252-day vol window with ≥ 200 obs; 252-day delivery baseline ending t−21 with ≥ 150 non-NULL; 1-month delivery mean with ≥ 15 non-NULL; C1 exit band 0.35; C2/C3 exit band 0.40; C4 staggered 6 tranches, 1/6th per month; C5 exit band 0.35; quintile portfolios, EW; κ = 5 bp/side; fee model as in §2; percentile ranks with average ties; Bonferroni m = 5; power hurdle 0.80 at α = 0.05 one-sided; delisting imputation = date's worst realized forward return among scored names (§4.2); AC₁ robustness trigger 0.1 with Newey–West lag 4; power tie band 0.02.
+- Pinned parameters (exhaustive): fortnightly grid (15th + last full session/month); monthly grid; 252-day vol window with ≥ 200 obs; 252-day delivery baseline ending t−21 with ≥ 150 non-NULL; 1-month delivery mean with ≥ 15 non-NULL; C1 exit band 0.35; C2/C3 exit band 0.40; C4 staggered 6 tranches, 1/6th per month; C5 exit band 0.35; quintile portfolios, EW; κ = 5 bp/side; fee model as in §2; percentile ranks with average ties; Bonferroni m = 5; power hurdle 0.80 at α = 0.05 one-sided; delisting imputation = date's worst realized forward return among scored names (§4.2); AC₁ robustness trigger 0.1 with Newey–West lag 4; power tie band 0.02.
 
 ## §10 Determinism, audit, and reporting
 
