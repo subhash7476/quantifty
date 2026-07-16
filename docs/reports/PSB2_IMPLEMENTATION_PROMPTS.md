@@ -185,3 +185,113 @@ No new candidates or variants (§9 — the ledger is closed at three). No sealed
 1. Claude re-reviews Rev 4.
 2. Operator ratifies → status stamped **FROZEN**, §9 immutability attaches.
 3. Prompt 1 (Phase 1 harness adaptation + synthetic dev-proof) issued to DeepSeek V4.
+
+---
+
+## Prompt 1 — Phase 1: harness adaptation + synthetic dev-proof (ISSUED 2026-07-16)
+
+**Task:** Adapt the PSB-1 screening harness to the three constructs pinned in `docs/reports/PSB2_PROTOCOL.md` **§5 (FROZEN Rev 4, `eb3d66f`)**, and produce the synthetic dev-proof that §11.2 requires as the Phase 1 gate.
+
+**Status on completion:** returns to Claude for Lead Review (§11.2), then to the operator to authorize Phase 2. **No candidate runs on real data under this prompt.**
+
+### The governing change: the protocol is frozen
+
+§9 immutability attached at `eb3d66f`. Nothing in §3, §5, §7, §8, or §9 may change — not by you, not by the operator, not by me. A change requires a new battery (PSB-3) with a fresh ledger.
+
+**Your job is to implement the frozen text exactly, not to improve it.** Two consequences that govern everything below:
+
+1. **The code is now the only place a frozen parameter can be silently mis-implemented.** Before the freeze, a wrong constant was a protocol defect the review caught. After it, a wrong constant is a *code* defect that produces authoritative-looking results from a spec nobody violated on paper. That is what this dev-proof exists to prevent.
+2. **If any part of §3/§5/§7/§8 is ambiguous or unimplementable as written — STOP and escalate. Do not interpret.** You do not have authority to resolve a frozen ambiguity, and neither do I. Silently choosing a reading is the single failure mode that would void the pre-registration, because the protocol would no longer describe what ran. Escalate to the operator with the exact text and the readings it admits.
+
+### Precondition — the Phase 0 gate (§11.1)
+
+Run `scripts/psb1/certify_substrate.py` (Arm A–D). It must return **0 undocumented violations**. §11.1 is a structural gate: no Phase 1 without a certified substrate. **Capture its output verbatim in the Phase 1 report** — the 0-violations line is part of the gate's audit trail, not merely a precondition you checked.
+
+### Hard constraints
+
+**1. `scripts/psb1/*.py` is read-only.** `screening_harness.py` generated PSB-1's C1–C5 reports — a **closed program** whose results must remain reproducible from this repo. Editing it retroactively invalidates a published result set.
+
+**2. Any PSB-1 machinery PSB-2 reuses must be demonstrably the same code.** §2 pins the harness lineage as inherited "without modification," and that must be **verifiable**, whichever route you take:
+
+- If you **import** from `scripts/psb1/`: `scripts/psb1/` stays git-clean against `eb3d66f`.
+- If you **copy** shared machinery into `scripts/psb2/` (CLAUDE.md's copy-first discipline permits this): every copied-and-unchanged function must be **diff-clean against its psb1 original**, and any function you deliberately changed must be named as changed, with the reason.
+
+State which route you took and how you made it verifiable. A silently divergent copy of `evaluate_candidate` or `_power` is the risk here — it would run PSB-2 on machinery that is no longer the certified machinery.
+
+**3. The C1–C5 names collide across batteries, and the constructs differ.** This is a silent-wrong-result hazard, not a style matter:
+
+| Name | PSB-1 (in `screening_harness.py`) | PSB-2 (§5, frozen) |
+|---|---|---|
+| C2 | residual reversal, weekly (uses market weekly returns) | **delivery z-score**, fortnightly |
+| C3 | delivery z, weekly (60-day baseline ending *t*−5) | **delivery-conditioned reversal**, fortnightly |
+| C4 | C1×C3 interaction, weekly | **momentum 12-1, monthly, staggered 6-tranche** |
+
+PSB-2's C2 is **not** PSB-1's C2. PSB-1's `score_c2` / `score_c3` / `score_c4` implement **different constructs**. PSB-2's C2 is closest to PSB-1's C3 — but with a **252-day baseline ending t−21 (≥ 150 non-NULL)**, not PSB-1's 60-day ending t−5. Reusing those functions, or their names, silently produces wrong results that look right. Name PSB-2's scorers unambiguously.
+
+**4. Phase 1 touches real data at exactly two points:** `certify_substrate.py`, and `trading_calendar` **dates** for grid verification (pre-2023 dev calendar; the sealed count is §1's dates-only exception). **No candidate score touches real data** — that is Phase 2, after the §11.2 Lead Review. The fence test below stays on synthetic data; do not let it become a third touchpoint.
+
+### What must be built
+
+- **The fortnightly grid** per §3 — "last full session on or before the 15th" + "last full session per month." PSB-1's harness has `weekly_grid` / `monthly_grid` only.
+- **The three §5 scorers.**
+- **`sealed_grid_count` for fortnightly cadence** (§7).
+- **C4's staggered 6-tranche holding** — genuinely new machinery. PSB-1 has banded exit only (`_quintile_sequences(scored_by_date, banded)`). Highest-risk new code in this prompt.
+
+**C4 — keep the two paths separate.** Staggered holding affects **turnover → fees → net spread** (eligibility gate ii) and nothing else. It must **not** touch the score → IC → power path (gates i and iii). The new machinery belongs in the portfolio-simulation layer, not in scoring.
+
+### What the dev-proof must prove
+
+Repo discipline applies: **state each prediction as a falsifiable claim before the run, then run.** Design the planted scenarios yourself — PSB-1's `run_synthetic_devproof.py` is the working template.
+
+**A. Formula fidelity — the core obligation.** Planted-signal recovery is **necessary but not sufficient**: a scorer using a 200-day baseline instead of 252, ending at *t*−20 instead of *t*−21, or thresholding at ≥ 120 non-NULL instead of ≥ 150, would still recover a planted signal and still return ~0 on a null panel. Signal recovery tests the **pipeline**; it does not test whether the code implements the **frozen formula**.
+
+Therefore: on a **tiny hand-constructed panel with exact expected values**, assert one check per pinned §9 parameter — such that a wrong constant makes the assertion **fail on a known input**. §9's ledger is your checklist; it was made exhaustive for exactly this purpose. Cover at minimum: the 252-day baseline and its *t*−21 endpoint; the ≥ 150 and ≥ 8 non-NULL thresholds; C3's 21-trading-day return horizon; C4's g−12 and g−1 lookbacks and its 12-prior-grid-date requirement; the 0.40 band; κ = 5 bp/side; m = 3; the 0.80 hurdle at α = 0.05 one-sided.
+
+If you cannot write an exact expected value for a pinned parameter because §5 admits two readings — **that is the escalation trigger.** Stop and report it.
+
+**B. Grid identity.** The harness's fortnightly grid over 2020-09-04 → 2022-12-31 must be **identical — same count and same dates** — to `scripts/psb2/count_grid_dates.py`: 56 (28 mid-month + 28 month-end, first 2020-09-15, last 2022-12-30). Sealed: 84 fortnightly / 42 monthly. If the harness and frozen §3 disagree, the protocol's declared n is wrong and Phase 2 cannot start. This is the most direct check that the frozen document and the code agree.
+
+**C. Planted-signal recovery.** Each of C2, C3, C4 recovers a planted signal of known direction, and returns ~0 IC on a null panel (no false eligibility).
+
+**D. C3's sign convention.** `s = −r·(1−2p)`: at p = 0 (low delivery) → reversal; at p = 1 (high delivery) → continuation. Plant **both** regimes; show the recovered sign matches §5's stated hypothesis in each. An interaction-term sign error is the classic defect that survives to production looking plausible.
+
+**E. Staggered mechanics.** A name entering a tranche stays until **that tranche's** next rebalance regardless of rank drift (§5 C4); realized turnover ≈ 1/6 per month. **C4's IC is invariant to the holding mechanism** — if staggering changes the IC, that is a bug.
+
+**F. Dev fence.** A load at the pinned cutoff asserts and prints observed `MAX(trade_date) ≤ 2022-12-31`. Plant a 2023 row on a **synthetic** panel and show the fence **raises** — not warns, not filters silently.
+
+**G. Fees and slippage.** Net spread < gross; κ = 5 bp/side on traded notional; era-accurate `delivery_equity_fees`.
+
+**H. Determinism (§10).** Same inputs → **byte-identical** outputs across two runs. **Pin the synthetic panels' RNG seed** — the dev-proof must itself be reproducible.
+
+### Deliverables
+
+- `scripts/psb2/` — the adapted harness and the dev-proof runner.
+- `docs/reports/PSB2_PHASE1_DEVPROOF.md` — **script-generated; no hand-edited numbers** (the repo rule, and it applies with particular force to a document certifying a frozen spec).
+- Tests, in the shape of `tests/psb1/`.
+- Committed as produced (§11.3's git-visible ordering discipline).
+
+### Acceptance criteria
+
+1. `certify_substrate.py` returns 0 undocumented violations; output captured in the report.
+2. Reuse of PSB-1 machinery is demonstrably identical code, by the route you declare (psb1 git-clean, or diff-clean copies).
+3. PSB-2's scorers are unambiguously named; no PSB-1 scorer is reused for a PSB-2 construct.
+4. Fortnightly grid **dates** (not just counts) identical to `count_grid_dates.py`; sealed 84/42.
+5. One formula-fidelity assertion per pinned §9 parameter, each failing on a wrong constant.
+6. C2/C3/C4 each recover a planted signal; null panel ~0.
+7. C3's sign verified in both delivery regimes.
+8. Staggered mechanics verified; C4's IC invariant to the holding mechanism.
+9. Fence raises on a planted post-fence row.
+10. Determinism verified across two runs; RNG seed pinned.
+11. Every number in the report script-generated.
+12. No candidate score on real data.
+13. Predictions stated before results.
+
+### Explicitly not authorized
+
+**No change to the frozen protocol** (§9) — ambiguity escalates, it does not get resolved in code. **No sealed read.** **No real candidate runs** (Phase 2, and only after the §11.2 Lead Review). **No strategy code; nothing in `core/strategies/`.** **No new ingestion** (D4). **No edits to `scripts/psb1/`.** No new candidates or variants — the ledger is closed at three.
+
+### Next after this prompt
+
+1. Claude Lead Review of the harness + dev-proof (the §11.2 gate).
+2. Operator authorizes Phase 2.
+3. Prompt 2 — candidate runs in the §11.3 order: **C2 → C3 → C4**, one report per candidate, committed as produced.
