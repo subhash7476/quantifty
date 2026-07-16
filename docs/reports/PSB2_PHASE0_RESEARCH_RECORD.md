@@ -2,7 +2,7 @@
 
 **Document type:** Program research record (Phase 0 — the brainstorm that shapes the program, and the operator decisions that gate it)
 
-**Status:** Phase 0 OPEN — pending operator decisions D8 (sealed-window policy), D9 (candidate slate ratification), D10 (cadence rule).
+**Status:** Phase 0 OPEN — D8, D9, D10 **RATIFIED** 2026-07-14. Protocol freeze draft in progress.
 
 **Date:** 2026-07-14
 
@@ -40,15 +40,15 @@ Three institutional lessons carried forward from PSB-1:
 | Validation machinery | Content-addressed validation records, sealed-fence assertions, deterministic seeded runs, script-generated mechanical verdict tables | CSMP/PSB-1 patterns |
 | Contract arms | Four-arm suite: intra-symbol CA-shape, cross-symbol handoff, prev_close identity, factor evidence | `scripts/psb1/contract_arms.py` |
 
-## 3. Operator decisions (OPEN — pending ratification)
+## 3. Operator decisions (RATIFIED 2026-07-14)
 
-Three decisions are put to the operator during Phase 0 brainstorming.
+All three decisions put to the operator during Phase 0 brainstorming were ratified as recommended.
 
-| # | Decision | Recommendation | Rationale |
+| # | Decision | Ruling | Rationale recorded |
 |---|---|---|---|
-| D8 | Sealed-window policy for new families | **Lift the momentum fence.** The 2023–2026 window is unspent (PSB-1 made no sealed read). One prior momentum read (CSMP) exists; the successor's D2 prior-exposure disclosure covers it. A fresh pre-registration program may nominate momentum-family constructs with an explicit α penalty if strictness is wanted. The decision can also be: **keep the fence standing** (momentum-family constructs remain banned), in which case the PSB-2 slate excludes them. | The sealed window has gained 6 months since CSMP's December-2022 cutoff (now 42 months, soon more). Momentum constructs at low turnover are a separate class from the monthly high-turnover construct CSMP tested. |
-| D9 | Candidate slate | **5 candidates, fee-survivable by construction.** Exact formulas pinned at protocol freeze; directions pre-registered. See §4 for the proposed slate. | PSB-1's 5-candidate battery proved the screening model works. PSB-2 narrows the design space to fee-survivable constructs only — fewer infinite-parameter degrees of freedom, less risk of post-hoc tuning. |
-| D10 | Cadence floor | **Monthly or slower.** No weekly construct is eligible for the slate. The fee model imposes this constraint mechanically; recording it as an explicit decision prevents a future candidate from being nominated at a weekly cadence "just to check." | PSB-1's C1–C4 all recorded positive IC but negative net spread at weekly cadence. The gap between signal and cost opens at ~0.06 turnover; weekly rebalancing (0.77–0.83 turnover) is always on the wrong side of it. |
+| D8 | Sealed-window policy for new families | **LIFTED — momentum fence is down.** The 2023–2026 window is unspent (PSB-1 made no sealed read). The one prior momentum read (CSMP, December 2022 cutoff) is disclosed as prior exposure per PSB-1 D2; a successor program may apply an explicit α penalty if strictness is wanted. **Does not affect the CSMP sealed window**: PSB-1 never read it; CSMP's own sealed read (Phase 6, 42 monthly observations) stands exactly as banked. Momentum-family constructs in PSB-2's slate are new designs (staggered holding, long-only) — not a re-run of the CSMP construct. | No new consumption of the sealed window occurred. The fence was credibility, not data — and six months have passed since CSMP's read, adding 6 sealed months to any future gate. |
+| D9 | Candidate slate | **RATIFIED — 5 candidates, fee-survivable by construction.** Exact formulas pinned at protocol freeze; directions pre-registered. See §5 for the proposed slate. | PSB-1's 5-candidate battery proved the screening model works. PSB-2 narrows the design space to fee-survivable constructs only — fewer infinite-parameter degrees of freedom, less risk of post-hoc tuning. |
+| D10 | Cadence floor | **RATIFIED — monthly or slower.** No weekly construct is eligible for the slate. The fee model imposes this constraint mechanically; recording it as an explicit decision prevents a future candidate from being nominated at a weekly cadence "just to check." | PSB-1's C1–C4 all recorded positive IC but negative net spread at weekly cadence. The gap between signal and cost opens at ~0.06 turnover; weekly rebalancing (0.77–0.83 turnover) is always on the wrong side of it. |
 
 ## 4. The design space — fee-survivable constructs
 
@@ -73,7 +73,7 @@ A signal that enters on strong conviction (top decile) and exits only on a rever
 | 1 | **Low-volatility, tighter band** — C5 variant. Trailing 252-day σ rank; enter top quintile, exit only when the name falls out of the **top 30%** (0.30 band, tighter than C5's 0.40). | Monthly | Direct refinement of PSB-1's closest candidate. Tighter band should further reduce turnover without sacrificing the core low-vol effect. C5's +4.3% net return at 0.40 band provides the baseline; 0.30 should improve net spread at minimal IC cost. |
 | 2 | **Delivery-percentage anomaly, monthly** — C3's signal on C5's cadence. Cross-sectional rank of `deliv_pct` z-score, banded exit. | Monthly | PSB-1's C3 showed +0.025 mean IC at weekly cadence with +17.5% gross Q1-Q5 spread. The signal is real; the weekly cadence is what killed it. At monthly cadence with banded exit, it should clear fees. The delivery register is the repository's untapped comparative advantage (§4 of the PSB-1 record). |
 | 3 | **Delivery-conditioned reversal, monthly** — C4's interaction on monthly cadence. Reversal signal gated by delivery: revert low-delivery moves, persist high-delivery moves. | Monthly | The interaction bet at a cadence where fees don't dominate. PSB-1's C4 was null (mean IC −0.003) but at weekly cadence — the delivery signal may need longer to express. Monthly gives it that room. |
-| 4 | **Momentum, long-only, multi-month holding** — cross-sectional trailing 12-month return (skip most recent month), long the top quintile, hold for 6 months (staggered portfolios, 1/6th rebalanced monthly). | Monthly rebalance, 6-month hold | Only if D8 lifts the fence. The CSMP closure binds momentum to fresh pre-registration; this construct is structurally different from CSMP's (monthly rebalance, long-only, staggered). Turnover ~0.17 (1/6th of the portfolio each month) → fee drag ~2.5pp/yr. The literature's strongest factor; PSB-2 gives it a fee-survivability test. |
+| 4 | **Momentum, long-only, multi-month holding** — cross-sectional trailing 12-month return (skip most recent month), long the top quintile, hold for 6 months (staggered portfolios, 1/6th rebalanced monthly). | Monthly rebalance, 6-month hold | **Momentum fence LIFTED (D8).** The CSMP closure binds momentum to fresh pre-registration; this construct is structurally different from CSMP's (monthly rebalance, long-only, staggered). Turnover ~0.17 (1/6th of the portfolio each month) → fee drag ~2.5pp/yr. The literature's strongest factor; PSB-2 gives it a fee-survivability test. One prior momentum read (CSMP, 42 monthly observations) is disclosed per PSB-1 D2; the successor pre-registration may apply an α penalty. |
 | 5 | **Quality-at-reasonable-price (QARP)** — composite: rank of (ROE / trailing σ) among the NIFTY-200, banded exit. Low-turnover tilt, not a trading signal. | Monthly | Turnover should be ~0.10 or lower (the composition of high-quality names is sticky). The metric is well-documented in Indian markets; the test is whether it produces enough dispersion in the 200-name universe to generate a positive net spread after fees. |
 
 **Excluded:** any weekly-rebalance construct; any high-turnover intraday derivative construct (different fee regime, different universe, out of PSB scope); any factor-zoo combination (the multiplicity penalty exceeds plausible effect sizes per PSB-1 §6-C).
@@ -104,6 +104,7 @@ The fee model is the same `delivery_equity_fees()` with κ=5bp/side. The net spr
 
 ## 8. Next actions
 
-1. Operator rulings on **D8** (sealed-window / momentum fence), **D9** (candidate slate), **D10** (monthly cadence floor).
-2. DeepSeek V4 drafts the PSB-2 screening protocol with the five candidate formulas pinned.
-3. Lead Review → **FROZEN** → Prompt 1 (harness adaptation).
+1. ~~Operator rulings on D8, D9, D10~~ — **RATIFIED 2026-07-14.**
+2. DeepSeek V4 drafts the **PSB-2 screening protocol** (`docs/reports/PSB2_PROTOCOL.md`) with the five candidate formulas pinned, adapted from the frozen PSB-1 protocol template. The protocol retains the §4 common scoring rules, §6 metrics, §7 power projection (≥0.80 hurdle), §8 Bonferroni deflation (m=5), §9 immutability, and §10 determinism — only the §3 cadence rule and §5 candidate definitions change.
+3. Lead Review of the protocol; operator ratifies; protocol **FROZEN**.
+4. Prompt 1 (harness adaptation) issued to DeepSeek V4.
