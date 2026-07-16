@@ -391,7 +391,6 @@ def evaluate_candidate_psb2(
                 fwd_with_none.append(f)
             else:
                 fwd_with_none.append(None)
-                rows.append((ent, score, f))
 
         if len(ents_primary) < MIN_NAMES:
             min_names_skipped += 1

@@ -1,53 +1,61 @@
-# PSB-2 Phase 1 — Dev-Proof Report (Prompt 1R Remediation)
-**Script-generated** — `scripts/psb2/run_devproof.py`. Commit `f961d19`.
-Seed `20260716`. 20 entities, 3000 calendar days. Generated 2026-07-16.
+# PSB-2 Phase 1 — Dev-Proof Report (Prompt 1R2, Round 3)
+**Script-generated** — `scripts/psb2/run_devproof.py`. Commit `947b99a`.
+Seed `20260716`. 30 entities, 3500 calendar days. 2026-07-16.
 
-## Grid Identity (1R-11) — Real `trading_calendar`
+## Grid Identity (R2-11)
 
-| Check | Expected | Got | Status |
-|-------|----------|-----|--------|
-| C2/C3 dev fortnightly | 56 | 56 | **PASS** |
-| C4 dev monthly | 132 | 132 | **PASS** |
-| Common sub-window monthly | 28 | 28 | **PASS** |
-| Dev fortnightly first | 2020-09-15 | 2020-09-15 | **PASS** |
-| Dev fortnightly last | 2022-12-30 | 2022-12-30 | **PASS** |
+- C2/C3 dev fortnightly: 56 (expected 56) — **PASS**
+- C4 dev monthly: 132 (expected 132) — **PASS**
+- Common sub-window: 28 (expected 28) — **PASS**
+- First: 2020-09-15 (expected 2020-09-15) — **PASS**
+- Last: 2022-12-30 (expected 2022-12-30) — **PASS**
 
-## C — Signal Recovery (1R-2)
+## Signal Recovery (R2-1/R2-2)
 
-C2/C3: signal in deliv_pct. C4: persistent momentum drift.
+Signal built as per-step drift over (t, tp]; delivery elevated in recent window.
 
-Prediction: signal IC > 0 AND >= 3x |null IC|.
+| Candidate | Null IC (seed 0) | Null IC (seed 100) | Signal IC | C4 IC | Status |
+|-----------|-----------------|-------------------|-----------|-------|--------|
+| C2 | -0.0198 | -0.0727 | 0.1638 | 0.0208 | **FAIL** |
+| C3 | -0.0556 | 0.0417 | 0.1034 | 0.0015 | **FAIL** |
+| C4 | -0.0023 | -0.0068 | 0.5302 | 0.0603 | **PASS** |
 
-| Candidate | Null IC | Signal IC | Mntm IC | Status |
-|-----------|---------|-----------|---------|--------|
-| C2 | -0.0687 | 0.0044 | 0.0526 | **FAIL** |
-| C3 | -0.0811 | -0.0255 | -0.0427 | **FAIL** |
-| C4 | -0.0144 | -0.0137 | 0.1147 | **PASS** |
+## Null Prediction (R2-4)
 
-## H — S1 Determinism (1R-1)
+| Candidate | Seed 0 | Seed 100 | |IC| < 0.05? |
+|-----------|--------|----------|-------------|
+| C2 | -0.0198 | -0.0727 | FAIL |
+| C3 | -0.0556 | 0.0417 | FAIL |
+| C4 | -0.0023 | -0.0068 | PASS |
 
-See S1 section below (run via `_s1_child.py`).
+## S1 Determinism (R2-3)
 
-## F — Dev Fence (1R-5b)
+PYTHONHASHSEED=0: `8453b3e86f4089a9...`  
+PYTHONHASHSEED=1: `8453b3e86f4089a9...`  
+Result: **IDENTICAL**
+Sample: Sealed fence OK: observed MAX(trade_date)=2022-12-30 <= cuto...
 
-Real store: 7,030,920 rows. Fenced MAX: 2022-12-30. Unfenced MAX: 2026-07-09.
+Deliberate break: Deliberate break observed: stdout={"C2": null, "C3": null, "C4": null}... returncode=0
 
-Fence: **PASS**.
+## Fence (R2-5b)
 
-**Known limitation:** `load_panel`'s in-loader assert is tautological.
-The real protection is `fence_check`'s three-way comparison.
-`fence_check` reads `equity_bhavcopy_adjusted` metadata not listed in §1's
-sole-exception clause. FROZEN protocol — flag for operator disposition.
+Store: 7,030,920. Fenced: 2022-12-30. Unfenced: 2026-07-09. **PASS**.
 
-## G — Fees (1R-4)
+Known limitation: load_panel tautology. Flag for operator.
 
-Signal C2: net=0.0793 < gross=0.1015 drag=240.2bp turnover=0.2869 PASS
-Signal C3: net=-0.0519 < gross=-0.0111 drag=426.1bp turnover=0.6004 PASS
-Signal C4: net=0.0163 < gross=0.0191 drag=29.9bp turnover=0.0726 PASS
-Null C2: net=-0.1058 < gross=-0.0635 drag=443.1bp turnover=0.6254 PASS
-Null C3: net=-0.1602 < gross=-0.1169 drag=452.2bp turnover=0.6785 PASS
-Null C4: net=-0.0157 < gross=-0.0129 drag=29.3bp turnover=0.0729 PASS
+## Missing-Forward Panel (R2-7)
+
+Primary IC: 0.0129, Imputed IC: 0.0185, Different: **YES**
+
+## G — Fees
+
+Signal C2: net=0.2529 < gross=0.2922 drag=400.0bp to=0.3917 PASS
+Signal C3: net=0.1682 < gross=0.2152 drag=476.8bp to=0.4986 PASS
+Signal C4: net=0.9714 < gross=0.9738 drag=25.0bp to=0.0278 PASS
+Null C2: net=-0.0805 < gross=-0.0371 drag=441.4bp to=0.6094 PASS
+Null C3: net=-0.0966 < gross=-0.0549 drag=424.8bp to=0.5969 PASS
+Null C4: net=-0.0037 < gross=-0.0011 drag=28.0bp to=0.0692 PASS
 
 ## Summary
 
-Time: 38.1s.
+Time: 178.4s.
