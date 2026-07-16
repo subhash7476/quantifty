@@ -68,8 +68,44 @@
 
 No new candidates or variants (§9 — the ledger is closed at three). No sealed read. No new ingestion (D4 stands; it was re-affirmed, not re-opened, when C5 was dropped rather than rescued). No change to §7's 0.80 hurdle, §8's eligibility conditions, or the gating/report-only split — loosening a hurdle to admit a candidate is the forking path this protocol exists to prevent. No strategy code; nothing lands in `core/strategies/`.
 
+### Outcome
+
+**Rev 2 delivered 2026-07-16. Re-reviewed: DO NOT FREEZE** — one BLOCK, three failed acceptance criteria. See `PSB2_PROTOCOL_INDEPENDENT_REVIEW.md` §"Rev 2 Re-Review". Superseded by Prompt 0R below.
+
+---
+
+## Prompt 0R — Protocol Rev 3 (ISSUED 2026-07-16)
+
+**Task:** Revise `docs/reports/PSB2_PROTOCOL.md` from DRAFT Rev 2 to **DRAFT Rev 3**, closing R1–R6 of the Rev 2 re-review. **Rev 2's substance is accepted** — the slate, cadence, grid rule, C4 formula, and F11 disposition all stand. These are text fixes against work already done: no re-analysis, no re-derivation, no operator decision required. Do not re-open anything Rev 2 settled.
+
+**Status on completion:** DRAFT Rev 3. Returns to Claude for re-review, then the operator. Do not stamp FROZEN.
+
+### Required fixes
+
+**R1 — BLOCK. Write the m = 3 data-independence rationale into §8.** Rev 2 justifies m = 3 only as "corresponds to the three live candidates," which is circular and reads as a loosened correction applied after the two weakest candidates were dropped. The reasoning already exists in D11 — transcribe it into §8 with its logic intact, not as a cross-reference: both drops are **data-independent** (C5's from a schema fact, C1's from PSB-1's already-banked results); neither candidate is ever scored on PSB-2 data; neither consumes a chance at a PSB-2 false positive; therefore neither may inflate the penalty, and deflating by candidates that cannot produce a result would be an arbitrary tax on the ones that can. §9 immutability makes the protocol's own text the permanent record of its defensibility — a reader reconstructing this program's integrity reads §8, not the Phase 0 decision table.
+
+**R2 — Record F8's assumption and exposure.** Add to §9's pinned list the explicit, acknowledged assumption that projected fortnightly power carries δ and SD across horizons (the 15-day IC is a different random variable from the 30-day IC; its δ and SD are unmeasured). Add to §7 the AC₁ exposure in plain terms: fortnightly formations overlap, so AC₁ should rise, inflating the simple-t projection — and because the AC₁/Newey–West columns are report-only, a fortnightly candidate **can clear the frozen 0.80 hurdle on a projection its own reported AC₁ shows is optimistic**. Do not change the gating rule; state the exposure so the operator reads the power number with it in view.
+
+**R3 — Per-candidate declared dev windows in §3.** "Dev window: all candidates on 2012-01-01 → 2022-12-31" is false for C2/C3, which cannot form before 2020-09-04 — that is their *whole* declared window, not a sub-window of a larger one. Follow PSB-1 §3's shape: state each candidate's declared window explicitly (C2/C3: 2020-09-04 → 2022-12-31; C4: 2012-01-01 → 2022-12-31) and drop the "sub-window" framing for C2/C3. This is load-bearing: §7 takes δ/SD from the declared window and §8's evidence floor is computed on the declared-window p.
+
+**R4 — Delete the orphan pin.** §9 still pins "252-day vol window with ≥ 200 obs" — C1's parameter. No surviving candidate computes a volatility window (C2's 252-day window is the *delivery* baseline, separately pinned). Remove it and re-verify the whole §9 list against the three live candidates; an exhaustive ledger containing an unused parameter is stale, not exhaustive.
+
+**R5 — Script-derive the formation count.** "~55 fortnightly formations ceiling" is a hand estimate and is wrong. The count over 2020-09-04 → 2022-12-31 at the pinned `n_symbols >= 200` convention is **56** (28 mid-month + 28 month-end; September 2020's mid-month grid date is 2020-09-15, in range). Recompute with a script, print the output, cite it, and drop the tilde. The repo rule stands: no hand-edited numbers.
+
+**R6 — Reconcile the findings ledger.** The status line and §13 claim "F1–F10". F11 *is* addressed correctly in §7/§8 — credit it. Cite `PSB2_IMPLEMENTATION_PROMPTS.md` §Prompt 0R alongside D11/D12.
+
+### Acceptance criteria
+
+1. §8 contains the data-independence argument in full, legible without reference to any other document.
+2. §9 records the horizon-invariance assumption; §7 states the AC₁ exposure.
+3. §3 declares a per-candidate dev window; no "sub-window" framing for C2/C3.
+4. §9's pinned list maps 1:1 onto parameters the three live candidates actually use — no orphans.
+5. The formation count is script-derived, printed, and reads 56.
+6. Status line and §13 reconcile to F1–F11 and cite Prompt 0R.
+7. Nothing Rev 2 settled is re-opened.
+
 ### Next after this prompt
 
-1. Claude re-reviews Rev 2.
+1. Claude re-reviews Rev 3.
 2. Operator ratifies → **FROZEN**, §9 immutability attaches.
 3. Prompt 1 (Phase 1 harness adaptation + synthetic dev-proof) issued.

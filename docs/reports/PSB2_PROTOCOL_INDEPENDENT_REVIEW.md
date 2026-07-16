@@ -295,4 +295,70 @@ Under either branch the battery is genuinely fee-survivable and worth running on
 
 **One calibration, so "worth running" is not read as "likely to promote."** The live slate is small and thin on dev evidence. Per F4, C2 and C3 cannot form before **2020-09-04**, so their dev window is delivery-limited — **56 fortnightly formations** under D12 (28 had they stayed monthly), against the n = 143 that earned PSB-1's C3 its p = 0.002 at weekly cadence. That is roughly 40% of the observations, on a signal whose per-formation strength there was +0.025 mean IC. Even with F6's relief at m = 3, it is a steep evidence floor.
 
-*(Figures updated 2026-07-16 after D12. This paragraph previously read "~28 monthly formations… roughly a fifth" — correct while F3 was open and monthly was one reading, stale once D12 pinned C2/C3 to fortnightly. The fortnightly grid halves the thinness; the concern stands at reduced magnitude. Counts are script-derived from `trading_calendar` at the `n_symbols >= 200` convention, not scaled by hand.)* This review deliberately puts **no projected t or p** on it: doing so would require assuming the IC is horizon- and cadence-invariant, which F8 rejects. The honest statement is qualitative — PSB-2 may well return "no winner recommended" again, and for a reason distinct from PSB-1's. PSB-1 died on fees; PSB-2's fee-survivable constructs buy cost survival by trading away the formation count that generates statistical evidence. **That tension is structural, not a defect in this draft**, and the operator should see it before committing Phase 2 rather than discovering it in the selection report.
+*(Figures updated 2026-07-16 after D12. This paragraph previously read "~28 monthly formations… roughly a fifth" — correct while F3 was open and monthly was one reading, stale once D12 pinned C2/C3 to fortnightly. The fortnightly grid halves the thinness; the concern stands at reduced magnitude. Counts are script-derived from `trading_calendar` at the `n_symbols >= 200` convention, not scaled by hand.)*
+
+---
+
+# Rev 2 Re-Review (2026-07-16)
+
+**Subject:** `PSB2_PROTOCOL.md` DRAFT Rev 2, authored by DeepSeek V4 against `PSB2_IMPLEMENTATION_PROMPTS.md` §Prompt 0.
+
+**Verdict:** **DO NOT FREEZE — one BLOCK, three failed acceptance criteria.** Substantially closer than Rev 1: the slate, cadence, grid rule, and C4 formula are all correctly resolved, and F11 is disposed properly despite the status line not claiming it. But the single most important item in Prompt 0 — the one guarding the program's chief audit exposure — is absent.
+
+## Findings
+
+| # | Severity | Finding | Criterion |
+|---|---|---|---|
+| R1 | **BLOCK** | The m = 3 **data-independence rationale is absent**. §8 justifies m = 3 only as "corresponds to the three live candidates" — circular, and precisely the reading that looks like rigging. | #2 FAIL |
+| R2 | HIGH | F8's horizon-invariance assumption is **not** recorded in §9; §7 does not state the AC₁ exposure. | #8 FAIL |
+| R3 | HIGH | §3's "Dev window: all candidates on 2012-01-01 → 2022-12-31" is **false for C2/C3**, whose entire feasible window is 2020-09-04 → 2022-12-31. Regression from PSB-1's per-candidate declared windows. | — |
+| R4 | HIGH | §9 pins "252-day vol window with ≥ 200 obs" — an **orphan pin from the dropped C1**. No surviving candidate uses a volatility window. | #6 FAIL |
+| R5 | MEDIUM | "~55 fortnightly formations ceiling" is a hand estimate, not script-derived, and is **wrong**: the true count is **56**. | #4 FAIL |
+| R6 | LOW | Status line and §13 claim "F1–F10"; F11 *is* addressed in §7/§8 but uncredited, so the findings ledger does not reconcile. | #10 partial |
+
+### R1 — BLOCK: the m = 3 rationale is missing, and this is the one that matters
+
+§8 closes with: *"Bonferroni m = 3 corresponds to the three live candidates (C2, C3, C4). Deflation is pinned now, not after results."*
+
+That is circular. It says m = 3 because there are three candidates — which a hostile reader already knows. It does not say **why dropping from five to three is legitimate rather than a loosened correction after the two weakest were removed.**
+
+Prompt 0's criterion #2 was explicit: m = 3 **"with the data-independence rationale written into the protocol"**, and *"legible to a reader who was not in the room."* The reasoning exists in D11 but the protocol is the frozen artifact — a reader reconstructing the program's integrity years later reads §8, not the Phase 0 record's decision table.
+
+The missing argument: both drops are **data-independent**. C5's follows from a schema fact (no ROE column) knowable without any run; C1's follows from PSB-1's already-published, already-banked results. Neither candidate is ever scored on PSB-2 data, so neither consumes a chance at a PSB-2 false positive, so neither may inflate the penalty. Deflating by candidates that cannot produce a result would be an arbitrary tax on the ones that can. **m = 3 is the honest ledger, not a relaxation** — but only if the protocol says so.
+
+This blocks the freeze. §9 immutability makes the protocol's text the permanent record of its own defensibility.
+
+### R3 — HIGH: C2/C3's declared dev window is stated two incompatible ways
+
+§3 line 50: *"**Dev window:** all candidates on **2012-01-01 → 2022-12-31**."*
+§3 line 51: *"**C2/C3 delivery-data sub-window:** 2020-09-04 → 2022-12-31."*
+
+Calling the second a "sub-window" implies C2/C3 have formations across 2012–2022 with a delivery-limited subset. They do not: **no C2/C3 formation is possible before 2020-09-04** — that is their whole declared window, not a subset of a larger one.
+
+This is load-bearing, not pedantic. §8's evidence floor is computed on *"the winner's **declared-window** one-sided p"*, and §7 takes δ and SD from *"each candidate's declared window."* An ambiguous "declared window" for two of three candidates leaves the two most outcome-determining inputs unpinned. PSB-1 §3 got this right with per-candidate declared windows ("C1, C2, C5: 2012→2022. C3, C4: 2020-04→2022"); Rev 2 regressed. State per-candidate declared windows and drop the "sub-window" framing for C2/C3.
+
+### R4 — HIGH: an orphan pin from a dropped candidate
+
+§9's exhaustive list still contains *"252-day vol window with ≥ 200 obs"*. That was **C1's σ_i(t)**, and C1 is gone. C2 uses a 252-day *delivery* baseline (separately and correctly pinned); C3 inherits C2's score plus a 21-trading-day return; C4 uses 12 grid dates of price history. **No surviving candidate computes a volatility window.** Criterion #6 named this exact class. Delete it — an exhaustive ledger containing a parameter no candidate uses is not exhaustive, it is stale.
+
+### R5 — MEDIUM: the formation count is hand-estimated and wrong
+
+§3 asserts *"~55 fortnightly formations ceiling."* Script-derived from `trading_calendar` at the pinned `n_symbols >= 200` convention over 2020-09-04 → 2022-12-31: **28 mid-month + 28 month-end = 56**. (September 2020's mid-month grid date is 2020-09-15, which is ≥ 2020-09-04 and therefore in range — the likely source of the off-by-one.)
+
+The tilde is the tell: criterion #4 required every formation count to be script-derived and printed. The repo rule is no hand-edited numbers, and a protocol that hand-estimates its own n is the wrong artifact to relax it in.
+
+## What Rev 2 gets right
+
+Substantial and worth recording:
+
+- **F9 resolved better than the finding asked.** C4 is now the ratio form `(1+r_12)/(1+r_1) − 1` with prose correctly describing "the 11-month return from *g*−12 to *g*−1." The self-contradictory "trailing 1-month return (skip most recent month)" is gone.
+- **F11 is correctly disposed** — §7 and §8 both state the cadence-dependence plainly ("not invariant to cadence… the fortnightly noncentrality advantage is structural and disclosed") and preserve divergence reporting. The status line's "F1–F10" undersells the work (R6).
+- **F5 exactly as recommended** — the grid is session-anchored ("last full session on or before the 15th"), unambiguous for every month.
+- **F3's C3 sub-finding resolved elegantly** — `r_i(t)` is now pinned to *t*−21 **trading days**, decoupling the return horizon from the grid, so the formula and its "1-month" prose agree at any cadence.
+- **F10 both items** — `open` dropped; the `universe_eligibility` entity join restored.
+- **F4's date** — 2020-09-04 carried correctly into §3, §5, and the robustness sub-window.
+- **F1/F2** — C1 and C5 fully removed from §1, §5, §9, and §11's run order, with no "deferred" residue.
+
+## Recommendation
+
+**Rev 3.** R1 alone blocks; R3/R4 fail named criteria and would freeze defects into an immutable document. All five are text fixes against work already done — no re-analysis, no re-derivation, no operator decision required. R1 is a paragraph that already exists in D11 and needs transcribing into §8 with its reasoning intact. This review deliberately puts **no projected t or p** on it: doing so would require assuming the IC is horizon- and cadence-invariant, which F8 rejects. The honest statement is qualitative — PSB-2 may well return "no winner recommended" again, and for a reason distinct from PSB-1's. PSB-1 died on fees; PSB-2's fee-survivable constructs buy cost survival by trading away the formation count that generates statistical evidence. **That tension is structural, not a defect in this draft**, and the operator should see it before committing Phase 2 rather than discovering it in the selection report.
