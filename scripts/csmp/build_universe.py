@@ -403,6 +403,7 @@ def build_entities(con):
         ("INDOSOLAR", "WAAREEINDO", "INDOSOLAR"),
         ("NEUEON",    "NEUEON",     "NTL"),
         ("CLCIND",    "CLCIND",     "SPENTEX"),
+        ("DELPHIFX",  "WEIZFOREX",  "DELPHIFX"),
     ]
     n_fragmented = 0
     for entity_to_frag, split_sym, remainder_ent in FRAGMENT_OVERRIDES:
