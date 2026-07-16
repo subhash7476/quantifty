@@ -388,6 +388,35 @@ def build_entities(con):
         # recompute base after ISIN linkage merges
         base = {s: uf.find(s) for s in store_syms}
 
+    # --- Prompt 5-C Task 4: fragmentation overrides for unbridged capital events ---
+    # The NSE rename register unions these tickers, but the price basis breaks at the
+    # handoff (|adjusted return| >= 20% across the symbol boundary — a capital
+    # reconstruction, not a rename). Fragmenting OVERRIDES the rename register per entity:
+    # the post-discontinuity ticker becomes its own entity (its basis does not belong on
+    # the pre-event company's history). Pre-authorized for the 3 clear reconstructions
+    # (PSB1_PHASE1_LEAD_REVIEW_10.md §2). DELPHIFX (+31.36%) is NOT dispositioned here —
+    # a genuine April-2020 move and a capital event are not separable from the return
+    # alone; it remains the operator item. Each entry: (entity, split_symbol,
+    # remainder_entity) — symbols matching split_symbol get their own ticker as entity;
+    # the rest get remainder_entity.
+    FRAGMENT_OVERRIDES = [
+        ("INDOSOLAR", "WAAREEINDO", "INDOSOLAR"),
+        ("NEUEON",    "NEUEON",     "NTL"),
+        ("CLCIND",    "CLCIND",     "SPENTEX"),
+    ]
+    n_fragmented = 0
+    for entity_to_frag, split_sym, remainder_ent in FRAGMENT_OVERRIDES:
+        touched = False
+        for s in store_syms:
+            if base.get(s) == entity_to_frag:
+                base[s] = split_sym if s == split_sym else remainder_ent
+                touched = True
+        if touched:
+            n_fragmented += 1
+    if n_fragmented:
+        print(f"Fragmentation overrides: {n_fragmented} entity(ies) split at an unbridged "
+              f"capital event ({', '.join(e for e,_,_ in FRAGMENT_OVERRIDES)})")
+
     # components at the base grain, for the co-trading test.
     comp = _dd(list)
     for s in store_syms:
