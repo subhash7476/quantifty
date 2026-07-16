@@ -2,7 +2,7 @@
 
 **Document type:** Pre-registered screening protocol (Phase 0 deliverable)
 
-**Status:** DRAFT Rev 2 (2026-07-16) — incorporating Lead Review findings F1–F10 (`PSB2_PROTOCOL_INDEPENDENT_REVIEW.md`) and operator decisions D11/D12 (`PSB2_PHASE0_RESEARCH_RECORD.md`). Authored by DeepSeek V4. NOT FROZEN — pending operator ratification.
+**Status:** DRAFT Rev 4 (2026-07-16) — incorporating Lead Review findings F1–F11 (`PSB2_PROTOCOL_INDEPENDENT_REVIEW.md`), operator decisions D11/D12 (`PSB2_PHASE0_RESEARCH_RECORD.md`), and Prompt 0R/0R2 fixes R1–R6/S1–S3 (`PSB2_IMPLEMENTATION_PROMPTS.md`). Authored by DeepSeek V4. NOT FROZEN — pending operator ratification.
 
 **Governing record:** `docs/reports/PSB2_PHASE0_RESEARCH_RECORD.md` (operator decisions D8–D12, RATIFIED 2026-07-16). Roles: DeepSeek V4 implements; Claude writes prompts and reviews; the operator decides.
 
@@ -47,10 +47,11 @@ PSB-2 is an **explicitly exploratory** screening battery over three declared can
   - C2 (delivery z-score): **fortnightly** (delivery signals have sufficient dispersion at higher frequency; banded exit at 0.40 keeps turnover ~0.15 → fee drag ~78 bp/yr — survivable).
   - C3 (delivery-conditioned reversal): **fortnightly** (same rationale as C2; delivery signals benefit from the denser grid for the interaction term's formation count).
   - C4 (momentum staggered): **monthly** rebalance, 6-month hold (the staggered 1/6th-per-month design is monthly by construction).
-- **Dev window:** all candidates on **2012-01-01 → 2022-12-31**.
-- **C2/C3 delivery-data sub-window:** 2020-09-04 → 2022-12-31 (~55 fortnightly formations ceiling). Delivery data begins 2020-01-01; the 252-day baseline ending *t*−21 with ≥ 150 non-NULL `deliv_pct` pushes the earliest feasible formation to 2020-09-04 per the pinned trading calendar. Realized per-name n will be lower.
+- **Dev windows (formation dates):**
+  - C2, C3: **2020-09-04 → 2022-12-31** (56 fortnightly grid dates — script-derived from `trading_calendar` at the `n_symbols >= 200` full-session convention via `scripts/psb2/count_grid_dates.py`). Delivery data begins 2020-01-01; the 252-day baseline ending *t*−21 with ≥ 150 non-NULL `deliv_pct` pushes the earliest feasible formation to 2020-09-04. Realized per-name n will be lower.
+  - C4: **2012-01-01 → 2022-12-31** (132 monthly grid dates).
 - Formation *inputs* (trailing windows) may reach back before the dev window start (the store begins 2010-01-04); nothing may reach past 2022-12-31.
-- **Common robustness sub-window:** all candidates are additionally reported on **2020-09-04 → 2022-12-31** (§8). For C2/C3 this is their full declared delivery sub-window; for C4 it supplies a common-horizon robustness column.
+- **Common robustness sub-window:** all candidates are additionally reported on **2020-09-04 → 2022-12-31** (§8). For C2/C3 this is their entire declared window; for C4 it supplies a common-horizon robustness column (28 monthly grid dates).
 
 ## §4 Common scoring rules
 
@@ -68,7 +69,7 @@ dp_i(t) = mean of deliv_pct over fortnight's whole trading days ending t     (�
 s_i(t)   = ( dp_i(t) − μ_i ) / σ_i
 ```
 
-Hypothesis (pre-registered direction): abnormally high delivery predicts positive relative returns. PSB-1's weekly C3 showed +0.025 mean IC with +17.5% gross Q1-Q5 spread — a real signal killed by weekly rebalance fees (12–17pp/yr). At fortnightly cadence with banded exit (0.40), turnover ~0.15 → fee drag ~78 bp/yr, survivable. Banded exit: a name enters the top-quintile portfolio when in the top quintile by score and exits only when it falls out of the top two quintiles (0.40 band). IC uses no banding. Delivery-data sub-window: 2020-09-04 → 2022-12-31.
+Hypothesis (pre-registered direction): abnormally high delivery predicts positive relative returns. PSB-1's weekly C3 showed +0.025 mean IC with +17.5% gross Q1-Q5 spread — a real signal killed by weekly rebalance fees (12–17pp/yr). At fortnightly cadence with banded exit (0.40), turnover ~0.15 → fee drag ~78 bp/yr, survivable. Banded exit: a name enters the top-quintile portfolio when in the top quintile by score and exits only when it falls out of the top two quintiles (0.40 band). IC uses no banding. Declared window: 2020-09-04 → 2022-12-31.
 
 ### C3 — Delivery-conditioned reversal, fortnightly
 
@@ -78,7 +79,7 @@ Let `p_i(t)` = cross-sectional percentile rank of the C2 score `s^{C2}_i(t)` amo
 s_i(t) = − r_i(t) × ( 1 − 2·p_i(t) )
 ```
 
-Formation-complete requires both the C2 score (delivery z) and the 1-month return present. Hypothesis: low-delivery monthly moves are noise and revert (weight → +1 · reversal); high-delivery moves are informed and persist (weight → −1, i.e., continuation). PSB-1's weekly C4 (mean IC −0.003) was null at weekly cadence before the delivery signal had time to differentiate; the fortnightly cadence gives the interaction term denser formations while keeping turnover survivable. Banded exit (0.40). IC uses no banding. Delivery-data sub-window: 2020-09-04 → 2022-12-31.
+Formation-complete requires both the C2 score (delivery z) and the 1-month return present. Hypothesis: low-delivery monthly moves are noise and revert (weight → +1 · reversal); high-delivery moves are informed and persist (weight → −1, i.e., continuation). PSB-1's weekly C4 (mean IC −0.003) was null at weekly cadence before the delivery signal had time to differentiate; the fortnightly cadence gives the interaction term denser formations while keeping turnover survivable. Banded exit (0.40). IC uses no banding. Declared window: 2020-09-04 → 2022-12-31.
 
 ### C4 — Momentum, long-only, staggered 6-month holding
 
@@ -111,6 +112,8 @@ Same as PSB-1 Protocol §7 — carried forward, with the following amendments fo
 
 The mixed-cadence design is deliberate (D12): fortnightly candidates gain √2 in noncentrality over a monthly candidate at equal δ/SD. This is legitimate — cadence is a design choice with real consequences for sealed-gate success, unlike dev-window length. The noncentrality advantage is proportional to √(n\*) and is disclosed alongside each candidate's projected power.
 
+**AC₁ exposure (Fortnightly candidates).** Adjacent fortnightly formations overlap in their 252-day delivery baseline, which changes slowly relative to the 15-day grid spacing. This overlap raises the IC series' autocorrelation relative to a monthly construct at equal intrinsic signal strength. Because AC₁/Newey–West columns are report-only and never gating (§6), a fortnightly candidate with inflated AC₁ **can clear the frozen 0.80 hurdle on a simple-t projection that its own reported AC₁ shows is optimistic**. The operator reads every power number with this exposure in view. The gating rule is not changed — this paragraph exists to state the exposure, not to repair it.
+
 ## §8 Selection rule (at most one winner)
 
 **Eligibility** — a candidate is eligible iff, on its declared dev window:
@@ -124,13 +127,19 @@ The mixed-cadence design is deliberate (D12): fortnightly candidates gain √2 i
 
 **Robustness:** all candidates are additionally reported on the common sub-window 2020-09-04 → 2022-12-31 (§3). The declared-window deflated-p ranking is shown alongside the power ranking. **If the winner differs across these rankings, all are presented and the operator decides** — the discrepancy is flagged, never silently resolved.
 
-Bonferroni m = 3 corresponds to the three live candidates (C2, C3, C4). Deflation is pinned now, not after results.
+**Bonferroni m = 3 — data-independence rationale.** The ledger counts only C2, C3, and C4 because the two excluded candidates were dropped for reasons that are independent of any PSB-2 data: C5 was dropped because its required `roe_i(t)` input does not exist in the pinned store (a schema fact, not a measurement), and C1 was dropped because its IC series is definitionally identical to PSB-1's C5, whose power is already recorded at 0.541 against the 0.80 hurdle (a pre-existing result, not a PSB-2 discovery). Neither candidate was ever scored on PSB-2 data; neither can consume a chance at a PSB-2 false positive; therefore neither may inflate the penalty. Deflating by candidates that cannot produce a result would be an arbitrary tax on the ones that can. Deflation is pinned at m = 3 now, not after results.
 
 ## §9 Multiplicity ledger and immutability
 
 - Exactly **three** candidates: C2, C3, C4 as defined in §5. No additions, variants, or parameter sweeps.
 - After any candidate result exists, its definition is immutable.
-- Pinned parameters (exhaustive): fortnightly grid (last session on or before the 15th + last full session/month); monthly grid; 252-day vol window with ≥ 200 obs; 252-day delivery baseline ending t−21 with ≥ 150 non-NULL; fortnightly delivery mean with ≥ 8 non-NULL; C2/C3 exit band 0.40; C4 staggered 6 tranches, 1/6th per month; quintile portfolios, EW; κ = 5 bp/side; fee model as in §2; percentile ranks with average ties; Bonferroni m = 3; power hurdle 0.80 at α = 0.05 one-sided; delisting imputation = date's worst realized forward return among scored names (§4.2); AC₁ robustness trigger 0.1 with Newey–West lag 4; power tie band 0.02.
+- Pinned parameters (exhaustive — derived from §5 formula blocks and §3 grid rules):
+  - **Grids:** fortnightly (last session on or before the 15th + last full session per month); monthly (last full session per month).
+  - **C2 delivery z:** 252-day delivery baseline ending t−21 with ≥ 150 non-NULL; fortnightly delivery mean with ≥ 8 non-NULL; banded exit at 0.40.
+  - **C3 delivery-conditioned reversal:** 21-trading-day return horizon for r_i(t); inherits C2's delivery parameters; banded exit at 0.40.
+  - **C4 momentum, staggered:** 12-month lookback (g−12) for r_{12}; 1-month lookback (g−1) for r_{1}; requires 12 prior grid dates of price history; 6 staggered tranches, 1/6th rebalanced per month.
+  - **Common:** quintile portfolios, equal-weighted; κ = 5 bp/side; fee model as in §2; percentile ranks with average ties; Bonferroni m = 3; power hurdle ≥ 0.80 at α = 0.05 one-sided; delisting imputation = date's worst realized forward return among scored names (§4.2); AC₁ robustness trigger > 0.1 with Newey–West lag 4; power tie band 0.02; dev fence MAX(trade_date) ≤ 2022-12-31.
+- **Horizon consistency:** §7 projects power from each candidate's own-cadence dev IC series (fortnightly δ/SD → fortnightly n\*, monthly δ/SD → monthly n\*). No cross-horizon carryover is applied. F8's concern — projecting *monthly* δ/SD through *fortnightly* n\* — was specific to D10's rescue arithmetic for the dropped C1/C5 candidates and does not affect the live slate.
 
 ## §10 Determinism, audit, and reporting
 
@@ -151,6 +160,8 @@ Momentum-family constructs in this battery (C4) are structurally different from 
 
 ## §13 Next steps after this document
 
-1. ~~Independent review of Rev 1~~ — **DONE 2026-07-16** (`PSB2_PROTOCOL_INDEPENDENT_REVIEW.md`, DO NOT FREEZE; findings F1–F10 resolved via D11/D12 in Rev 2 above).
-2. Operator ratification of Rev 2 → status stamped **FROZEN**.
-3. Prompt 1 (Phase 1 harness adaptation + synthetic dev-proof) issued to DeepSeek V4.
+1. ~~Independent review of Rev 1~~ — **DONE** (findings F1–F11 resolved via D11/D12 + Prompt 0R R1–R6).
+2. ~~Rev 2 re-review~~ — **DONE** (BLOCK on circular §8 rationale; closed as R1).
+3. ~~Rev 3 re-review~~ — **DONE** (S1–S3 text defects; closed as Rev 4 via Prompt 0R2).
+4. Operator ratification of Rev 4 → status stamped **FROZEN**.
+5. Prompt 1 (Phase 1 harness adaptation + synthetic dev-proof) issued to DeepSeek V4.
