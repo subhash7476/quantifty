@@ -1,6 +1,6 @@
 # PSB-1 Substrate Certification Report (Prompt 5-C — four-arm contract test)
 
-**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `440bcd9`.
+**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `680139f`.
 Real store, read-only. Store stamps: rows **7,030,920**, fenced MAX(trade_date) **2022-12-30**, unfenced MAX **2026-07-09**.
 
 Governing analysis: `PSB1_CERTIFICATION_METHODOLOGY.md` (operator-endorsed 2026-07-15). The suite tests the ONE continuity contract via four complementary arms with zero structural filters; the sole permitted exclusion is a committed disposition register.
@@ -61,8 +61,8 @@ Governing analysis: `PSB1_CERTIFICATION_METHODOLOGY.md` (operator-endorsed 2026-
 | HDFCNIF100 | HDFCNIF100 | 2023-10-20 | -90.0% | CA-shaped-orphan | etf_unit_split |
 | HDFCNIFETF | HDFCNIFETF | 2021-02-17 | -90.0% | CA-shaped-orphan | etf_unit_split |
 | HDFCPVTBAN | HDFCPVTBAN | 2024-02-02 | -90.1% | CA-shaped-orphan | etf_unit_split |
-| HDFCSENETF | HDFCSENSEX | 2024-02-02 | -90.0% | CA-shaped-orphan | etf_unit_split |
 | HDFCSENETF | HDFCSENETF | 2021-02-17 | -90.1% | CA-shaped-orphan | etf_unit_split |
+| HDFCSENETF | HDFCSENSEX | 2024-02-02 | -90.0% | CA-shaped-orphan | etf_unit_split |
 | HEALTHADD | HEALTHADD | 2026-07-03 | -89.7% | CA-shaped-orphan | etf_unit_split |
 | HERITGFOOD | HERITGFOOD | 2023-01-20 | -46.8% | CA-shaped-orphan | demerger |
 | HNGSNGBEES | HNGSNGBEES | 2019-12-19 | -88.6% | CA-shaped-orphan | etf_unit_split |
@@ -166,11 +166,9 @@ Each past defect re-appears in the named arm at its pre-repair commit:
 | 7 | ISIN-merge splices | B | `7c42a0c` | **YES** | 547 splice fabrications re-appeared, worst: PATANJALI RUCHISOYA->PATANJALI ret=+30923.9% |
 | 8 | rename-path splices | B | `d408a68` | **YES** | 4 splices: ['CLCIND', 'DELPHIFX', 'INDOSOLAR', 'NEUEON'] |
 
-## Task 4 — Fragmentation (3 unbridged capital events)
+## Task 4 — Fragmentation (4 unbridged capital events)
 
-Fragmenting INDOSOLAR/WAAREEINDO, SUJANATWR/NTL/NEUEON, SPENTEX/CLCIND: PASS — Arm B splices: ['DELPHIFX'] (expect ['DELPHIFX']); membership identical; rows=7,030,920
-
-DELPHIFX (+31.36%) is the operator item — not auto-dispositioned.
+Fragmenting INDOSOLAR/WAAREEINDO, SUJANATWR/NTL/NEUEON, SPENTEX/CLCIND, EBIXFOREX/WEIZFOREX: PASS — Arm B splices: [] (expect []); membership identical; rows=7,030,920
 
 ## Old invariant -> arm mapping
 

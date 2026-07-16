@@ -213,14 +213,14 @@ def _fragmentation_test(real_con):
         memb_real = membership_snapshot(real_con)
         memb_frag = membership_snapshot(rc)
         memb_ok = memb_real == memb_frag
-        # verify the 3 fragmented entities hold zero memberships
-        for ent in ("WAAREEINDO", "NEUEON", "CLCIND"):
+        # verify the 4 fragmented entities hold zero memberships
+        for ent in ("WAAREEINDO", "NEUEON", "CLCIND", "WEIZFOREX"):
             in_memb = con_check_membership(rc, ent)
             if in_memb:
                 splices.discard(ent)  # shouldn't happen
-        b_ok = splices == {"DELPHIFX"}
+        b_ok = len(splices) == 0
         rows = rc.execute("SELECT COUNT(*) FROM equity_bhavcopy_adjusted").fetchone()[0]
-        detail = (f"Arm B splices: {sorted(splices)} (expect ['DELPHIFX']); "
+        detail = (f"Arm B splices: {sorted(splices)} (expect []); "
                   f"membership {'identical' if memb_ok else 'CHANGED'}; rows={rows:,}")
         return b_ok and memb_ok and rows == EXPECTED_ROWS, detail
     finally:
@@ -378,13 +378,13 @@ def main():
     W("")
 
     # ── Fragmentation test ──
-    W("## Task 4 — Fragmentation (3 unbridged capital events)\n")
+    W("## Task 4 — Fragmentation (4 unbridged capital events)\n")
     frag_ok, frag_detail = _fragmentation_test(con)
-    W(f"Fragmenting INDOSOLAR/WAAREEINDO, SUJANATWR/NTL/NEUEON, SPENTEX/CLCIND: "
+    W(f"Fragmenting INDOSOLAR/WAAREEINDO, SUJANATWR/NTL/NEUEON, SPENTEX/CLCIND, "
+      f"EBIXFOREX/WEIZFOREX: "
       f"{'PASS' if frag_ok else '**FAIL**'} — {frag_detail}\n")
     if not frag_ok:
         all_ok = False
-    W("DELPHIFX (+31.36%) is the operator item — not auto-dispositioned.\n")
 
     # ── Old invariant mapping ──
     W("## Old invariant -> arm mapping\n")
