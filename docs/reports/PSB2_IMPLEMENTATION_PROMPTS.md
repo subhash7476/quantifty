@@ -109,3 +109,79 @@ No new candidates or variants (§9 — the ledger is closed at three). No sealed
 1. Claude re-reviews Rev 3.
 2. Operator ratifies → **FROZEN**, §9 immutability attaches.
 3. Prompt 1 (Phase 1 harness adaptation + synthetic dev-proof) issued.
+
+### Outcome
+
+**Rev 3 delivered 2026-07-16. Re-reviewed: DO NOT FREEZE CLEAN** — R1 (the Rev 2 BLOCK) closed and closed well; R2's AC₁ half, R3, R5, R6 closed; R5 independently reproduced by executing `scripts/psb2/count_grid_dates.py`. Three localized text defects remain in §7/§9 (S1–S3), none changing a computed number. **S1 originates in this prompt's own R2 wording, not in the implementation.** See `PSB2_PROTOCOL_INDEPENDENT_REVIEW.md` §"Rev 3 Re-Review". Superseded by Prompt 0R2 below.
+
+---
+
+## Prompt 0R2 — Protocol Rev 4 (ISSUED 2026-07-16)
+
+**Task:** Revise `docs/reports/PSB2_PROTOCOL.md` from DRAFT Rev 3 to **DRAFT Rev 4**, closing S1–S3 of the Rev 3 re-review (`PSB2_PROTOCOL_INDEPENDENT_REVIEW.md` §"Rev 3 Re-Review") plus the freeze checklist.
+
+**Rev 3's substance is accepted in full.** R1's data-independence rationale, the per-candidate declared windows, the script-derived counts, §7's AC₁ exposure, and the entire slate/cadence/formula set all stand — verified, including an independent execution of `count_grid_dates.py` that reproduced all four counts. What remains is **three localized text edits in §7 and §9.**
+
+**Status on completion:** DRAFT Rev 4. Returns to Claude for re-review, then the operator. Do not stamp FROZEN.
+
+**Scope discipline:** no formula, hurdle, band, window, cadence, count, or slate entry is in scope. **If a proposed edit would change a number, it is out of scope — stop and say so rather than making it.**
+
+### S1 — §9's horizon-invariance paragraph: delete or replace. **This defect originates in Prompt 0R's R2, not in your implementation of it.**
+
+R2 instructed you to record *"the explicit, acknowledged assumption that projected fortnightly power carries δ and SD across horizons."* **That instruction was wrong.** §7 makes no such assumption: line 109 takes `δ` = the candidate's own dev mean IC and `SD_dev` = its own dev IC SD, each measured at its own cadence. Fortnightly δ/SD → fortnightly n\* = 84 is **horizon-consistent**. You implemented the instruction faithfully; the result is a paragraph that is either **false** (read as describing §7's method) or **vacuous** (read as "the values are unmeasured before the run" — true of every parameter in every protocol).
+
+F8's actual target was **D10's ratified rationale** — the 0.54 → 0.80 projection, which held PSB-1's *monthly* δ = 0.068 / SD = 0.2479 fixed while doubling n\* to 84. That was the rescue projection for the **low-volatility candidate D11 dropped.**
+
+**Do not re-scope the paragraph to D10's cadence choice.** That would pin an assumption describing a dead candidate inside the live protocol's immutable ledger.
+
+Choose one disposition and state why:
+
+- **(a) Delete it.** No live candidate's projection carries δ/SD across horizons, so there is no assumption to pin.
+- **(b) Replace it** with an accurate statement: §7's projection is horizon-consistent for every live candidate, and F8's cross-horizon concern was specific to the dropped C1/C5 rescue — moot for C2/C3, whose fortnightly cadence rests on delivery-signal dispersion grounds, not a horizon assumption.
+
+Either way, the §9 entry must be **true of the three live candidates**.
+
+### S2 — §9's "(exhaustive)" list is not exhaustive. Run the sweep R4 asked for.
+
+Prompt 0R's R4 required: *"re-verify the whole §9 list against the three live candidates."* The named orphan (252-day vol window) was deleted; **the sweep was not run.** Two omissions found on review:
+
+- **C4's 12-1 lookback** (`r_12` at *g*−12, `r_1` at *g*−1) — the candidate's entire signal definition.
+- **C3's 21-trading-day return horizon** in `r_i(t)`. §9's "252-day delivery baseline ending *t*−21" pins t−21 as the baseline **endpoint** — a different parameter that merely shares the number 21.
+
+**Do not patch in these two.** They are *evidence the sweep was not run*, not a complete list of what it will find. **Derive §9's list from §5's three formula blocks and §3's grid rules directly**, parameter by parameter, and state in your response how you enumerated it. If the sweep surfaces omissions this review did not name, that is the sweep working as intended.
+
+The available defense does not hold: one could argue §9 is a summary and §5 pins the formulas (protected by §9 bullet 2). But **§9 already re-lists C2's formula parameters** — "252-day delivery baseline ending t−21" and "fortnightly delivery mean with ≥ 8 non-NULL" come straight out of C2's formula block. So §9 re-states formula parameters, includes C2's, and drops C3's and C4's. Either the list is exhaustive as labelled, or the label goes.
+
+For the record, this is a **record-integrity** defect, not a protection gap: the parameters *are* protected via §5 + §9 bullet 2, and C4's signal is not unpinned. The problem is a document whose entire authority rests on precise pinning permanently asserting a completeness it does not have.
+
+### S3 — §7's dropped-candidate residue
+
+§7's AC₁ paragraph reads: *"Adjacent fortnightly formations overlap in their trailing **252-day σ** and 252-day delivery baseline."*
+
+No live candidate computes a price-volatility window. The only live σ is C2's **delivery** std over 252 trading days ending *t*−21 — which the same sentence already names as the delivery baseline. So the phrase is C1 residue (inherited from F8's wording, which described C1's price σ) and names one object twice as though it were two.
+
+**Fix only the referent.** The AC₁ exposure argument itself is sound and lands exactly as asked — preserve it intact.
+
+### Freeze checklist (audit-trail integrity, not housekeeping)
+
+1. **Commit `scripts/psb2/count_grid_dates.py`.** §3 cites it as the provenance for 56. A frozen protocol citing a script absent from git has a **broken provenance chain** — the number becomes unverifiable at exactly the moment it becomes immutable. It must land in the same commit as the protocol.
+2. **Delete the stray 0-byte file `=`** in the repo root (shell-redirect artifact).
+
+### Acceptance criteria
+
+1. §9 contains no statement that is false or vacuous with respect to the three live candidates.
+2. §9's pinned list is **derived from §5/§3** and maps 1:1 onto the live candidates' parameters — no orphans, no omissions. **Your enumeration method is stated.**
+3. §7 contains no dropped-candidate residue; the AC₁ exposure argument survives intact.
+4. **No formula, hurdle, band, window, cadence, count, or slate entry changed from Rev 3.** The diff touches §7, §9, and the status line only.
+5. `count_grid_dates.py` is tracked; the stray `=` is gone.
+6. Status line reads **DRAFT Rev 4**, cites this prompt, and does not claim FROZEN.
+
+### Explicitly not authorized
+
+No new candidates or variants (§9 — the ledger is closed at three). No sealed read. No new ingestion (D4 stands). No change to §7's 0.80 hurdle, §8's eligibility conditions or ranking rule, or the gating/report-only split. **No re-opening of R1's §8 rationale, the per-candidate declared windows, or the script-derived counts** — all reviewed, verified, and accepted.
+
+### Next after this prompt
+
+1. Claude re-reviews Rev 4.
+2. Operator ratifies → status stamped **FROZEN**, §9 immutability attaches.
+3. Prompt 1 (Phase 1 harness adaptation + synthetic dev-proof) issued to DeepSeek V4.

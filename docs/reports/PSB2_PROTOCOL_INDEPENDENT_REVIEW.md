@@ -362,3 +362,138 @@ Substantial and worth recording:
 ## Recommendation
 
 **Rev 3.** R1 alone blocks; R3/R4 fail named criteria and would freeze defects into an immutable document. All five are text fixes against work already done — no re-analysis, no re-derivation, no operator decision required. R1 is a paragraph that already exists in D11 and needs transcribing into §8 with its reasoning intact. This review deliberately puts **no projected t or p** on it: doing so would require assuming the IC is horizon- and cadence-invariant, which F8 rejects. The honest statement is qualitative — PSB-2 may well return "no winner recommended" again, and for a reason distinct from PSB-1's. PSB-1 died on fees; PSB-2's fee-survivable constructs buy cost survival by trading away the formation count that generates statistical evidence. **That tension is structural, not a defect in this draft**, and the operator should see it before committing Phase 2 rather than discovering it in the selection report.
+
+---
+
+# Rev 3 Re-Review (2026-07-16)
+
+**Subject:** `PSB2_PROTOCOL.md` DRAFT Rev 3, authored by DeepSeek V4 against `PSB2_IMPLEMENTATION_PROMPTS.md` §Prompt 0R.
+
+**Verdict:** **DO NOT FREEZE CLEAN — two §9 corrections and one §7 residue.** All six Prompt 0R fixes land, including R1, the Rev 2 BLOCK. What remains is narrower than any prior round: **three localized text defects, none of which changes a computed number.** They are raised only because all three sit in §7/§9 — the sections §9 immutability makes permanent.
+
+**One of them is my fault.** S1 originates in an imprecise instruction in Prompt 0R, not in DeepSeek's implementation of it. See S1.
+
+## Findings
+
+| # | Severity | Finding | Criterion |
+|---|---|---|---|
+| S1 | HIGH | §9's "horizon-invariance" assumption **misdescribes §7**, which makes no such assumption. The paragraph occupies F8's slot while recording something vacuous — so F8 now *looks* disposed and is not. **Caused by Prompt 0R's R2 wording.** | #2 FAIL |
+| S2 | HIGH | §9's list is labelled **"(exhaustive)"** but omits C4's **12-1 momentum lookback** and C3's **21-trading-day return horizon**. R4's re-verification was not performed. | #4 FAIL |
+| S3 | LOW | §7's AC₁ paragraph cites a **"trailing 252-day σ"** — dropped-C1 residue; the only live σ is C2's delivery std, which the same sentence already names as the delivery baseline. Same class as S2. | #4 |
+
+### S1 — §9 records an assumption §7 does not make
+
+§9 now reads: *"projected fortnightly power (§7) carries the candidate's δ and SD from its **fortnightly** dev IC series. The 15-day IC is a different random variable from a 30-day IC… its mean and SD are unmeasured until Phase 2."*
+
+The first sentence is **true and correctly describes §7** — line 109 takes `δ` = the candidate's own dev mean IC and `SD_dev` = its own dev IC SD, at its own cadence. Fortnightly δ/SD → fortnightly n\* = 84 is **horizon-consistent**. Nothing is carried across horizons.
+
+So the paragraph fails under either reading: it is **wrong** if it claims §7 carries δ/SD across horizons, or **vacuous** if it merely says the values are unmeasured before the run — which is true of every parameter in every protocol. "Horizon-invariance" has no referent in §7.
+
+**Where the real assumption lived:** D10's ratified rationale ("fortnightly pushes power 0.54 → ~0.80") held PSB-1's **monthly** δ = 0.068 / SD = 0.2479 fixed while doubling n\* to 84. *That* was the cross-horizon carry — and it was the rescue projection for the **low-volatility candidate, which D11 dropped.** For the live slate C2/C3, fortnightly cadence rests on delivery-signal dispersion, not on any horizon assumption.
+
+**Disposition: delete the paragraph, or replace it with an accurate one** — that no surviving candidate's projection carries δ/SD across horizons, and that F8's concern was specific to the dropped C1/C5 rescue and is moot for the live slate. Do **not** re-scope it to D10's cadence choice: that would pin an assumption describing a dead candidate.
+
+**Provenance of the defect.** Prompt 0R's R2 instructed DeepSeek to record that *"projected fortnightly power carries δ and SD across horizons."* That mis-transposed F8 — which was about D10's **rationale** — onto §7's **method**. DeepSeek implemented the instruction as written. The finding is against the text, not the implementer.
+
+### S2 — the ledger claims a completeness it does not have
+
+§9's pinned list omits two parameters the live candidates use:
+
+- **C4's 12-1 lookback** (`r_12` at *g*−12, `r_1` at *g*−1) — the candidate's entire signal definition.
+- **C3's 21-trading-day return horizon** in `r_i(t)`. §9's "252-day delivery baseline ending *t*−21" pins t−21 as the *baseline endpoint* — a different parameter that merely shares the number 21.
+
+**The obvious defense fails on the document's own contents.** One could argue §9 is a summary and §5 pins the formulas (protected by §9 bullet 2, which this review accepts). But §9 **already re-lists §5 formula parameters** — "252-day delivery baseline ending t−21" and "fortnightly delivery mean with ≥ 8 non-NULL" come straight out of C2's formula block. So §9 is not a list of extra knobs; it re-states formula parameters, includes C2's, and drops C3's and C4's. That inconsistency is what makes **"(exhaustive)" a false claim** rather than a defensible abbreviation.
+
+**Severity, stated precisely:** the parameters *are* protected via §5 + §9 bullet 2. C4's signal is **not** unpinned. The defect is that a document whose entire authority rests on precise pinning carries a ledger asserting completeness it does not have — permanently, once frozen.
+
+Prompt 0R's R4 asked for exactly the missing step: *"re-verify the whole §9 list against the three live candidates."* The named orphan was deleted; the sweep was not run. S3 is the same omission surfacing in §7.
+
+## What Rev 3 closes — verified, not taken on faith
+
+- **R1 (the Rev 2 BLOCK) — closed, and closed well.** §8's data-independence rationale is complete and legible without reaching for any other document: C5's drop from a schema fact, C1's from PSB-1's already-banked 0.541, neither ever scored on PSB-2 data, neither able to consume a PSB-2 false positive, deflating by dead candidates an arbitrary tax on the live ones. This was the finding that mattered and it is properly disposed.
+- **R2's second half — closed as asked.** §7's AC₁ exposure states the live risk plainly: a fortnightly candidate *"can clear the frozen 0.80 hurdle on a simple-t projection that its own reported AC₁ shows is optimistic."* Exposure stated, gating rule untouched — correct on both counts. (Only the §9 half fails; see S1.)
+- **R3 — closed.** Per-candidate declared windows in §3; the "sub-window" framing is gone for C2/C3 ("their entire declared window").
+- **R5 — closed, and independently reproduced.** `scripts/psb2/count_grid_dates.py` was **executed by this review**, not read. It reproduces every number in §3: **56** fortnightly dev grid dates (28 mid-month + 28 month-end; first 2020-09-15, last 2022-12-30), sealed n\* = **84** fortnightly / **42** monthly, **28** monthly robustness dates, **132** monthly for C4's dev window. The mid-month rule is correctly session-anchored (last session on or before the 15th), and the script reads `trade_date` only from `trading_calendar` — §1's sole authorized sealed exception. The tilde is gone.
+- **R6 — closed.** Status line reads F1–F11 and cites Prompt 0R; §13 reconciles and credits the Rev 2 re-review.
+- **Criterion 7 — held.** Nothing Rev 2 settled was re-opened. No formula, grid rule, hurdle, or slate entry changed; the diff is confined to the status line, §3 windows, §5 window wording, §7's added paragraph, §8's rationale, §9, and §13.
+
+## Freeze checklist (audit-trail integrity, not housekeeping)
+
+1. **`scripts/psb2/count_grid_dates.py` is untracked.** §3 cites it as the provenance for "56". A frozen protocol citing a script absent from git has a **broken provenance chain** — the number becomes unverifiable at exactly the moment it becomes immutable. Commit it with the protocol.
+2. **Delete the stray 0-byte file `=`** in the repo root (shell-redirect artifact).
+
+## Recommendation
+
+**Three text edits, then freeze.** No re-analysis, no re-derivation, no operator decision, no number changes. This is materially lighter than a full revision round, and it is the last cheap moment: §9 immutability attaches at ratification, and all three defects live in §9/§7.
+
+Routing is the operator's call — back to DeepSeek as a short Prompt 0R2, or an authorized inline correction. **This review does not draft the replacement §9 text**, per the standing author-≠-reviewer split (`PSB2_IMPLEMENTATION_PROMPTS.md` header): the reviewer writing the frozen ledger's text would collapse the independence that produced F1, F2, and R1.
+
+The structural calibration from the Rev 2 re-review stands unchanged and is repeated deliberately, because it is the thing the operator should weigh before committing Phase 2 rather than discovering in the selection report: **PSB-2's fee-survivable constructs buy cost survival by trading away the formation count that generates statistical evidence.** C2/C3 hold 56 fortnightly formations against the n = 143 that earned PSB-1's C3 its p = 0.002. That tension is structural — not a defect in this draft, and not something a Rev 4 can fix. PSB-2 may well return "no winner recommended," for a reason distinct from PSB-1's.
+
+---
+
+# Rev 4 Re-Review (2026-07-16)
+
+**Subject:** `PSB2_PROTOCOL.md` DRAFT Rev 4 (commit `c9ebb9f`), authored by DeepSeek V4 against `PSB2_IMPLEMENTATION_PROMPTS.md` §Prompt 0R2.
+
+**Verdict:** **RECOMMEND RATIFY — FREEZE.**
+
+S1, S2, and S3 are closed. All six Prompt 0R2 acceptance criteria hold under independent verification, not self-report. The full document was re-read end to end for this review — not just the changed sections — because ratification attaches §9 immutability to all of it.
+
+## S1 — closed (disposition (b), correctly executed)
+
+§9's replacement bullet is accurate and load-bearing:
+
+> **Horizon consistency:** §7 projects power from each candidate's own-cadence dev IC series (fortnightly δ/SD → fortnightly n\*, monthly δ/SD → monthly n\*). No cross-horizon carryover is applied. F8's concern — projecting *monthly* δ/SD through *fortnightly* n\* — was specific to D10's rescue arithmetic for the dropped C1/C5 candidates and does not affect the live slate.
+
+This is true of §7 (line 109 takes δ and SD from each candidate's own dev IC series), correctly scopes F8 to D10's rescue arithmetic, and does **not** re-scope the paragraph to D10's cadence choice — the trap Prompt 0R2 named. The vacuous "assumption" is gone; what replaces it is a true statement a future reader can check against §7 in thirty seconds.
+
+## S2 — closed, and the sweep demonstrably ran
+
+§9's list is rebuilt per-candidate and derived from §5/§3 as instructed. Both named omissions are now pinned — **C4's 12-month (g−12) and 1-month (g−1) lookbacks**, and **C3's 21-trading-day return horizon**, the latter correctly distinguished from C2's t−21 baseline endpoint. The Rev 3 orphan (252-day vol window) remains gone.
+
+**The evidence that the sweep was genuinely run rather than patched:** §9 now pins **`dev fence MAX(trade_date) ≤ 2022-12-31`** — a §1 parameter this review never named. Prompt 0R2 stated that omissions the review did not name would be the sweep working as intended. That is what happened.
+
+## S3 — closed
+
+§7's AC₁ paragraph now reads "overlap in their 252-day delivery baseline" — the dropped-C1 "252-day σ" residue is gone, the double-naming is resolved, and the exposure argument survives intact, including the sentence that carries its weight ("can clear the frozen 0.80 hurdle on a simple-t projection that its own reported AC₁ shows is optimistic").
+
+## Criteria — verified independently
+
+| # | Criterion | Verification |
+|---|---|---|
+| 1 | §9 no false/vacuous statements | Confirmed against §7's actual method |
+| 2 | §9 list derived, 1:1, no orphans/omissions | Checked parameter-by-parameter against §5's three formula blocks and §3's grids |
+| 3 | §7 no residue, AC₁ intact | Confirmed line 115 |
+| 4 | No formula/hurdle/cadence/count change | §5's three formula blocks, all counts (56/132/28/84/42), the 0.80 hurdle, and the 0.40 bands are **byte-identical to Rev 2 by diff** (`git show c9ebb9f` diffs against `02085d4` = Rev 2; see provenance note below). Rev 3 → Rev 4 touched only §7, §9, §13, and the status line — established by read against this review's Rev 3 section, **not** by diff |
+| 5 | Script tracked, `=` deleted | `git ls-files` confirms `scripts/psb2/count_grid_dates.py` at `c9ebb9f`; stray file absent |
+| 6 | Status Rev 4, cites Prompt 0R2 | Line 5 |
+
+**On criterion 4's scope:** the diff touches §7, §9, §13, and the status line. Prompt 0R2 specified "§7, §9, and the status line only." §13 is next-steps bookkeeping that Rev 4 must update to describe itself, it changes nothing substantive, and DeepSeek **disclosed the deviation rather than absorbing it silently**. Accepted.
+
+## Residual nits — recorded, explicitly NOT blocking
+
+Noted so the freeze does not silently lose them. None justifies a Rev 5; raising them as blockers would be the perpetual-revision failure this review is supposed to avoid.
+
+1. **§9 line 142** says F8's concern was specific to "the dropped **C1/C5** candidates." D10's rescue arithmetic concerned **C1 only** (PSB-2's C1 ≡ PSB-1's C5); C5 (QARP) was dropped on a schema fact and never had rescue arithmetic. The phrasing is inherited verbatim from Prompt 0R2 — **this review's own wording.** Referent is right; the lumping is cosmetic.
+2. **§5 C2's `σ_i > 0` guard** is not in §9's list. It is a degenerate-case guard (a zero-variance baseline makes the z-score undefined), not a tunable parameter, and it is protected by §5 + §9 bullet 2 regardless.
+3. **§7 lines 107–108** read "computed exactly from `trading_calendar` (≈ 84)" / "(≈ 42)" — the tilde is now unnecessary, since the tracked script derives both exactly. Harmless and mildly conservative.
+4. **§5 line 62** restates n\* = 84/42 rather than referencing §3 (Prompt 0's criterion 3). Pre-existing since Rev 2, values consistent with §3, never raised by this review.
+
+## Provenance notes before the freeze commit
+
+**1. Cited records were uncommitted at `c9ebb9f`.** Rev 4's status line cites `PSB2_IMPLEMENTATION_PROMPTS.md` (Prompt 0R/0R2) and §13 cites the Rev 3 re-review — but **both documents were uncommitted when `c9ebb9f` landed.** At that commit the protocol cites records absent from git: the same provenance-chain class this review raised for the then-untracked `count_grid_dates.py`.
+
+**This is the reviewer's fault, not the implementer's** — the Rev 3 re-review and Prompt 0R2 were written but not committed. Committing them resolves it. The resulting commit order (Rev 4 before the prompt that specified it) is cosmetic and worth a note in the commit message; it does not affect ratification.
+
+**2. Rev 3 has no commit — the git chain reads Rev 2 → Rev 4.** DeepSeek revised the working tree in place and committed Rev 4, so Rev 3's exact text is not recoverable from git. **This is documented supersession, not a lost revision:** the Rev 3 section of this review quotes Rev 3's §9 horizon paragraph and §7 AC₁ sentence verbatim, and enumerates precisely what Rev 3 → Rev 4 changed, so a future reconstructor can establish what was superseded and why from the record itself. Recorded here so the gap is visible rather than inferred.
+
+## Recommendation
+
+**Ratify. Stamp FROZEN. §9 immutability attaches.**
+
+Four rounds of review are recorded in this document, and the two-party discipline is what produced the artifact rather than merely blessing it: F1 caught a candidate with no data in the store, F2 one mathematically predetermined to fail its own gate, F3 a pass/fail ambiguity stated four ways, R1 a multiplicity correction that read as rigged, and S2 a ledger falsely claiming exhaustiveness. Every one of those would have been permanent on ratification of the draft that carried it.
+
+**The structural calibration stands, restated once for the ratification record.** PSB-2's fee-survivable constructs buy cost survival by trading away the formation count that generates statistical evidence. C2/C3 carry **56** fortnightly formations against the n = 143 that earned PSB-1's C3 its p = 0.002 at weekly cadence, and they face an evidence floor deflated at m = 3 plus a power hurdle of 0.80 whose AC₁ exposure §7 now discloses. C4 has the deeper dev window (132) but concedes √2 in noncentrality to the fortnightly pair — so §8's divergence rule is **expected to trigger**, not a remote contingency.
+
+**PSB-2 may well return "no winner recommended," for a reason distinct from PSB-1's.** PSB-1 died on fees. PSB-2's constructs survive fees and may die on evidence. That tension is structural — no revision can fix it, and it is the right thing to have in view when committing Phase 2, rather than a surprise in the selection report. Freezing this protocol is what makes that outcome *informative* instead of arguable: a pre-registered "no" is a real result.
