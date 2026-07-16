@@ -1477,3 +1477,38 @@ series had no dedicated owner for it and scheduled it (implicitly) only after th
   code changes — MSI remains architecture-only until a production strategy requires Runtime MSI.
 
 *Ref: docs/reports/MSI_005_ARCHITECTURE_CHALLENGE.md; docs/architecture/market_state_intelligence/MSI_DOCUMENT_ROADMAP.md (v1.2); MSI-002 MSI-OD-003, MSI-OD-005, MSI-OP-002, MSI-OP-004.*
+
+---
+
+## ADR-024 — PSB-1 Screening Program: Protocol Design, Fee Finding, and Substrate Certification
+
+**Date:** 2026-07-14
+
+**Status:** ACCEPTED (post-hoc, recording PSB-1's closed findings)
+
+### Context
+
+PSB-1 (Panel Screening Battery, Increment 1) was the third Knowledge program following MSRP and CSMP. It screened five pre-registered candidate constructs against the NIFTY-200 universe on dev data (2012–2022) using a frozen protocol with a structural power hurdle (≥0.80 projected sealed power) and Bonferroni-deflated selection (m=5). Phase 2 completed 2026-07-14. The protocol's outcome was "no winner recommended" — C5 (low-vol, monthly) cleared the IC and net spread gates but missed the power hurdle at 0.54/0.80. The remaining four candidates were excluded by the fee model or null signal.
+
+### Decision
+
+The following findings from PSB-1 are institutionalized as binding for all future NSE equity cross-sectional research in this repository:
+
+1. **The fee model is the dominant constraint for any weekly construct.** Delivery-equity STT at 0.1% per leg (both buy and sell) with weekly rebalance turnover of ~0.80 imposes a ~13pp/yr gross hurdle. C1–C4 all confirmed this: gross Q1-Q5 spreads of +1% to +17% were consumed by 12–17pp/yr fee drag. No known Indian equity cross-sectional effect clears a 13pp fee barrier. **Any future weekly or higher-frequency NSE equity cross-sectional construct must clear the fee model in Phase 0 design before nomination, or it is dead on arrival.**
+
+2. **Monthly cadence + banded exit is the fee-survivable path.** C5 (monthly, 0.40 exit band) recorded +4.3% annualized net spread with 14 bp/yr fee drag at 0.04 turnover. This is the template construct for PSB-2 and any future delivery-equity strategy: monthly or slower, banded exits, turnover designed below 0.06.
+
+3. **The frozen-protocol screening discipline works.** PSB-1's pre-registered protocol (5 candidates, exact formulas, structural power hurdle, Bonferroni m=5, script-generated reports with no hand-edited numbers) produced an honest "no winner recommended" outcome on its own pre-committed rules. This discipline is the standing pattern for all future screening batteries. CSMP's 0.41 power defect was caught before the expensive phase — the screening-first allocation (operator decision D1) is vindicated.
+
+4. **The equity_bhavcopy_adjusted view is certified.** Six structural defects were repaired in the substrate across Prompts 2–5: entity-grain factors, time-aware entity resolution (recycled tickers), series-crossing prev_close LAG, source-feed mis-key correction (DVL→DTIL), evidence-screen blind spot closure, and ISIN issuer-prefix entity fragmentation. The four-arm contract suite (`scripts/psb1/contract_arms.py`) validates the entire 7,030,920-row adjusted series with zero view-induced fabrications. This substrate is the authoritative research source for all future NSE equity work in this repository.
+
+5. **PSB-2 is authorized as a fee-survivable successor battery.** Every candidate must clear the cost structure by construction. The substrate, harness, and fee model are inherited without modification. A Phase 0 research record is open at `docs/reports/PSB2_PHASE0_RESEARCH_RECORD.md` with operator decisions D8 (sealed-window/momentum fence), D9 (candidate slate), and D10 (monthly cadence floor) pending.
+
+### Consequences
+
+- No weekly NSE equity cross-sectional construct may be nominated for a screening battery without a Phase 0 fee-model proof that demonstrates positive net spread at the candidate's natural cadence.
+- `equity_bhavcopy_adjusted` is certified for all downstream research consumers. Any future change to this view must re-certify against the four-arm contract suite.
+- PSB-2 inherits the entire infrastructure (harness, fee model, contract arms, substrate) without modification. Only candidate definitions are new.
+- The frozen-protocol + screening-first architecture (ADR-011/ADR-012's margin-authority split, extended to research validation) is now proven through two consecutive Knowledge programs (CSMP, PSB-1) and a third (PSB-2) in design.
+
+*Ref: docs/reports/PSB1_PHASE0_RESEARCH_RECORD.md; docs/reports/PSB1_PROTOCOL.md; docs/reports/PSB1_C{1..5}_REPORT.md; docs/reports/PSB2_PHASE0_RESEARCH_RECORD.md; docs/reports/PSB1_SUBSTRATE_CERTIFICATION.md; scripts/psb1/contract_arms.py; core/execution/equity/delivery_fees.py.*
