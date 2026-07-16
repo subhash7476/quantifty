@@ -2,7 +2,7 @@
 
 **Document type:** Pre-registered screening protocol (Phase 0 deliverable)
 
-**Status:** DRAFT Rev 4 (2026-07-16) — incorporating Lead Review findings F1–F11 (`PSB2_PROTOCOL_INDEPENDENT_REVIEW.md`), operator decisions D11/D12 (`PSB2_PHASE0_RESEARCH_RECORD.md`), and Prompt 0R/0R2 fixes R1–R6/S1–S3 (`PSB2_IMPLEMENTATION_PROMPTS.md`). Authored by DeepSeek V4. NOT FROZEN — pending operator ratification.
+**Status:** **FROZEN — Rev 4 (2026-07-16), ratified by the operator.** §9 immutability now applies: no candidate definition, parameter, window, metric, or selection rule in this document may change; any change requires a new battery (PSB-3) with a fresh ledger. Authored by DeepSeek V4; independent review and ratification by Claude (Lead Reviewer).
 
 **Governing record:** `docs/reports/PSB2_PHASE0_RESEARCH_RECORD.md` (operator decisions D8–D12, RATIFIED 2026-07-16). Roles: DeepSeek V4 implements; Claude writes prompts and reviews; the operator decides.
 
@@ -163,5 +163,5 @@ Momentum-family constructs in this battery (C4) are structurally different from 
 1. ~~Independent review of Rev 1~~ — **DONE** (findings F1–F11 resolved via D11/D12 + Prompt 0R R1–R6).
 2. ~~Rev 2 re-review~~ — **DONE** (BLOCK on circular §8 rationale; closed as R1).
 3. ~~Rev 3 re-review~~ — **DONE** (S1–S3 text defects; closed as Rev 4 via Prompt 0R2).
-4. Operator ratification of Rev 4 → status stamped **FROZEN**.
+4. ~~Operator ratification of Rev 4~~ — **DONE** → status stamped **FROZEN**.
 5. Prompt 1 (Phase 1 harness adaptation + synthetic dev-proof) issued to DeepSeek V4.
