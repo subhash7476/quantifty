@@ -175,7 +175,8 @@ def main():
     A(f"| Fence | fenced MAX={fenced_max} < cutoff={DEV_HI} < unfenced MAX={unfenced_max} |")
     A(f"| n* fortnightly / monthly | {n_star_fg} / {n_star_mg} |")
     A(f"| Bonferroni m | {H.BONFERRONI_M} |")
-    A(f"| Eligible set | {{{', '.join(eligible_set)}|{'none' if not eligible_set else ''}}} |")
+    eligible_display = ', '.join(eligible_set) if eligible_set else 'none'
+    A(f"| Eligible set | {{{eligible_display}}} |")
     A("")
 
     # --- §8 Eligibility ---
