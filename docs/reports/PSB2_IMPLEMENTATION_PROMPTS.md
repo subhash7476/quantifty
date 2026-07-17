@@ -1129,3 +1129,106 @@ Given §D's defect — the register is the *only* thing between a splice and a p
 1. Claude **review** — focused on §1/§2 (does the check fail when it should?) and §7 (does the artifact exist?).
 2. Operator authorizes Phase 2 — **§11.2 and §11.1 both closed.**
 3. Prompt 2 — candidate runs in the §11.3 order: **C2 → C3 → C4**, one report per candidate, committed as produced.
+
+### Outcome
+
+Implemented at `cfbbcee`. Reviewed in `docs/reports/PSB2_PHASE1R5_LEAD_REVIEW.md` — **ACCEPT.** B1…B7 all closed; **§11.1 and §11.2 both met; substrate CERTIFIED, four arms PASS.** The §2 mutation is real and decisive: the inverted factor produced **+16505.6667**, more precise than the prompt's own `≈ +1,650,571%` estimate — a number that cannot have been transcribed. Two items carried into Prompt 1R6: the report's stamp is false (C1), and §2's "lacks teeth" branch warns instead of halting (C2).
+
+---
+
+## Prompt 1R6 — C1/C2: make the stamp true by construction (ISSUED 2026-07-17)
+
+**Task:** Close C1, C2 and C3 of `docs/reports/PSB2_PHASE1R5_LEAD_REVIEW.md`. **The smallest prompt in the sequence. Three items, no numbers move.**
+
+**Status on completion:** short diff check, then **Phase 2 is authorized.** Protocol FROZEN at `eb3d66f`. 1R4/1R5 lifts carry forward unchanged: `scripts/psb1/` open only for `certify_substrate.py`, `disposition_register.py`, `repair_relisting_factors.py`, plus `scripts/csmp/ingest_corporate_actions.py`. **`contract_arms.py` stays closed.**
+
+### Start here: 1R5 is accepted and this changes nothing about it
+
+**§11.1 and §11.2 are met. The substrate is certified. No number in the certification report is in question, and none may move in this round.**
+
+**1R5 was the strongest round in this sequence** — and the evidence is `+16505.6667`. My prompt estimated the inverted-factor boundary at *"≈ +1,650,571%"*; the true value is **+1,650,566.7%**. **Your number is more precise than the source it would have been copied from, which transcription cannot produce.** That single value proves §2 ran. Three things also exceeded spec and are accepted as-is: the NTL check landed in `ingest_corporate_actions.py` where it guards **every** rebuild rather than one runner; the boundary assertions re-run against the **real store after apply**; and §6's removal test uses hard assertions.
+
+**Do not re-open §1…§7 of 1R5.** This prompt is three defects, all in the seams.
+
+### §1 — C1: the stamp is false, and the *cause* is the fix
+
+The certification report reads:
+
+```
+**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `0d155b9`.
+```
+
+**The code that produced it is `cfbbcee`'s.** The proof is inside the report: its Disposition column shows the **stripped** reason strings, which exist only in `cfbbcee`. Check out `0d155b9`, re-run, and the column comes back reading *"boundary +65.1% after adjustment"*. **The report is not reproducible from the commit it names.**
+
+**This is the third occurrence** — `c0dfb92` ("regenerate report with true commit stamp (R2-8)") and `0d155b9` ("regenerate report with true commit stamp (a6d1fb4)") were the same fix, applied twice, and it came back. **Regenerating a third time without addressing the cause guarantees a fourth.**
+
+**The cause: the script stamps `HEAD`, but the code that runs is the working tree.** Run the certifier with uncommitted changes and the stamp names the *previous* commit — a hash whose code is not what executed. Every occurrence of this bug has that shape, and nothing in the script can notice.
+
+**Two things are required, and the second is the one that matters:**
+
+1. **Regenerate the report so the stamp is true.** The ordering is forced, and it is why this keeps failing: a report cannot name the commit that contains it. **Commit the §2/§3 code first → run the certifier against that committed, clean tree → the stamp is now true → commit the regenerated report as its own commit.** That is the `a6d1fb4` → `0d155b9` pattern; follow it deliberately rather than by accident.
+2. **Make a false stamp impossible.** Before writing the stamp, check whether the certifier's own sources are dirty — `certify_substrate.py`, `contract_arms.py`, `disposition_register.py`, `ingest_corporate_actions.py`. **If any is modified relative to `HEAD`, the stamp is a lie and the script must say so or refuse.** Recommended: **HALT** with a message naming the dirty files, since a certification report generated from uncommitted code has no provenance and this program does not ship unprovable artifacts. If you judge a `-dirty` suffix the better call, implement that instead and **state your reasoning** — either is acceptable; silently stamping a hash that did not produce the output is not.
+
+**This is `unreported is not proven` (R2-3) applied to provenance.** Two rounds have now failed at exactly this seam. **Make the guard, not the correction.**
+
+### §2 — C2: the guard on the guard is soft
+
+`repair_relisting_factors.py`:
+
+```python
+    try:
+        _assert_boundaries(arm_b2, arm_b_excl2, "§2 (inverted)")
+        print("  !! §2 assertion PASSED — check lacks teeth (expected FAIL)")
+    except AssertionError as e:
+        print(f"  §2 assertion FAILED as expected: {e}")
+```
+
+If the inverted factor ever **stops** failing the boundary assertion, the runner prints a warning and **continues** — through §6, and on to writing factors to the real store.
+
+**Inert today: the mutation did fail, and correctly.** But this is the guard that proves every other check in the file has teeth, and it is the one check whose own failure is non-fatal. **The standing rule for five rounds is: `if the mutation cannot fail the check, stop and escalate`.** The `!!` prefix already says you knew it was wrong.
+
+**Fix: the "PASSED" branch must halt** — non-zero exit, nothing applied to the real store. A warning in this position is how the next round's tautology gets in.
+
+### §3 — C3: two seams, both small
+
+- **The NTL check is narrower than its own message.** `WHERE symbol='NTL' AND action_type='SPLIT'` would not catch an NTL factor registered under any other `action_type`, but the assertion reads *"none expected (FV-only)"*. The finding that produced this check was **"the count did not move, only face value"** — which forbids **every** price factor, not only SPLITs. **Widen the query to any `action_type`**, or narrow the message to match what it tests. Widening is correct here.
+- **`0 undocumented (HALT)`** — the `(HALT)` label is hardcoded in the f-string and prints even at zero, so the Arm B detail line reads as a halt while the summary row correctly says PASS. Make the label conditional. Cosmetic, but it is a certification artifact and it should not read as its own opposite.
+
+### Falsifiable predictions
+
+1. The regenerated report's stamp equals **the commit containing the code that produced it**, and `git show <stamp>:scripts/psb1/certify_substrate.py` matches the file that ran.
+2. **Running the certifier against a deliberately dirty source HALTs** (or stamps `-dirty`) — **observed and reported**, then the tree cleaned.
+3. Every number in the regenerated report is **unchanged** from `cfbbcee`: Arm B 4/4/0 at **+65.1% / −88.1% / +110.2% / +31.4%**; Arms A/C/D clean; continuity invariant **0**; `SUBSTRATE CERTIFIED`.
+4. `repair_relisting_factors.py` exits non-zero if §2's assertion passes — **verified by temporarily inverting the check's sense**, observed, restored.
+5. The NTL assertion fires for a factor of **any** `action_type` — verified on scratch, restored.
+
+**Prediction 3 is the one to watch.** This round touches provenance and labels, **not numbers.** If any value in the report moves, something in §1–§3 changed behavior it should not have — **stop and report.**
+
+### Scope discipline
+
+**No weakening a check to make it pass.** Six rounds.
+
+**Do not touch:** `contract_arms.py`, `screening_harness.py`, `_build_signal`, any §9 value, any scorer, `harness.py`, `test_fidelity.py`, `run_devproof.py`. **The factors, the register entries, the boundary assertions, and every arm's logic are closed** — §1–§7 of 1R5 are accepted. **No sealed reads. No candidate runs on real data.**
+
+**No number in the certification report may change.** If one does, that is a finding.
+
+### Acceptance criteria
+
+1. The certification report's stamp names the commit whose code produced it; code committed **before** the run, report committed **after**.
+2. The certifier **refuses to stamp silently when its own sources are dirty** — HALT, or an explicit `-dirty` marker with stated reasoning.
+3. The dirty-tree guard is **observed to fire**, then the tree cleaned. Reported.
+4. §2's "assertion PASSED" branch **halts**, non-zero, nothing applied. Verified by inverting the check's sense; restored.
+5. The NTL assertion covers **any** `action_type`, or its message is narrowed to match. Verified.
+6. The `(HALT)` label is conditional on a non-zero count.
+7. **Every number in the regenerated report is identical to `cfbbcee`.** Any movement reported and the work stopped.
+8. No candidate score on real data. No §9 value changed. Ambiguity escalated.
+
+### Explicitly not authorized
+
+**No change to the frozen protocol** (§9). **No sealed read.** **No real candidate runs.** **No edit to `contract_arms.py`**, `screening_harness.py`, `harness.py`, `test_fidelity.py`, `run_devproof.py`, or any `repair_*.py` other than `repair_relisting_factors.py`. **No change to any factor, register entry, or boundary expectation.** **No gap rule or structural filter in any arm.** **No scorer change.** **No new candidates, variants, or strategy code.** **No new ingestion (D4).**
+
+### Next after this prompt
+
+1. Claude **diff check** — stamp true, guard fires, numbers unmoved. Short.
+2. **Operator authorizes Phase 2.**
+3. Prompt 2 — candidate runs in the §11.3 order: **C2 → C3 → C4**, one report per candidate, committed as produced.
