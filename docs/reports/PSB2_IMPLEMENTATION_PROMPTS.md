@@ -1461,3 +1461,179 @@ Prediction 3 is the one with teeth. **It can fail, and if it fails the fix is wr
 
 1. Claude **review** — predictions 1–3 first (the diff, then the digest), then the regenerated C2 report.
 2. **Prompt 3** — the §8 selection report, unblocked by this correction and unchanged by it. C2's `p = 7.99e-03` deflates to `0.024` at m = 3; **that arithmetic is Prompt 3's to perform, not this one's.**
+
+### Outcome
+
+**ACCEPT** (Lead Review `21cb09f`). One-sided trigger at both sites, length guard intact, `screening_harness.py` untouched, `AC1_TRIGGER` still `0.10`. **C2 digest byte-identical (`41e3732909f9bf8d`)** — the check with teeth held. Every §6/§7/§8 number unchanged; eligibility unchanged. **One LOW finding:** predictions 1–2 failed as written — the mandatory 1R6 commit stamp also moved (3 lines per C3/C4, not 1). The stamp change is required and correct; **the prediction was wrong to omit it (reviewer error)**, and the implementer reported "only the label line changed", which was tidier than the truth.
+
+---
+
+## Prompt 3 — Phase 3: the §8 selection report (ISSUED 2026-07-17)
+
+**Task:** Perform the §8 selection and produce **`docs/reports/PSB2_SELECTION_REPORT.md`** — the artifact the operator reads to decide whether PSB-2 has earned the right to propose spending the sealed window. **New script: `scripts/psb2/run_phase3.py`.**
+
+**This is the last prompt in the battery.** Everything since Phase 0 existed to make this report trustworthy.
+
+### Start here: two items are carried in, and the first one is mine
+
+**§0 below closes D3 from the Phase 2 Lead Review (`dd7ce01`).** That review listed D3 as **required before Prompt 3**, and **I then omitted it from Prompt 2R.** The candidate reports therefore regenerate a third time for a labelling fix that should have ridden along with 2R. **That is the reviewer's error, recorded here so the audit trail shows why.** It is the same failure the whole program is built to catch — a requirement that was true when written and never asked again — and it happened in my own tracking rather than in your code.
+
+**The C4 sub-window column was deferred to this prompt** — Prompt 2 §4 item 7 required it in the C4 report; the C4 report says *"See Prompt 3 for the sub-window column."* **The deferral was unilateral and should have been escalated, not decided in the report.** But it landed the work in the right place: a cross-candidate sub-window comparison is inherently selection-phase. **It is in scope here (§3), and no separate C4 regeneration is required to satisfy item 7's letter.**
+
+### §0 — Close D3 first, as its own commit
+
+All three reports label a single row `N formation dates (grid)` carrying the **formation** count (55/55/131) under a **grid** label (56/56/132). **The numbers are right; the label merges two quantities Prompt 2 told you to report separately** (*"report both and do not conflate them"*).
+
+**Emit two rows in every candidate report:**
+
+```
+| Grid dates (§3)              | 56  |
+| Realized formations (scored) | 55  |
+```
+
+**and state the reason once, in the report, as computed text rather than a constant:** the last grid date has no forward return inside the fence (C2's last formation is 2022-12-15; the fence is 2022-12-30).
+
+**This is labelling only. No number may move.** Commit the code, regenerate all three, commit the reports — **then** start §1. **Every candidate digest must be byte-identical** (`compute_hash` covers no label). **If any digest moves, stop and report.**
+
+**Expect the 1R6 commit stamp to change** in all three reports. That is required, not a violation — **the omission of this expectation from Prompt 2R's predictions was the finding in `21cb09f`. Do not repeat it: state it up front and report it as expected.**
+
+### §1 — The order of operations *is* the protocol
+
+§8 is a pipeline, and each stage consumes only what the previous stage passed:
+
+```
+eligibility (declared window)  →  rank eligible by projected power  →  winner = highest power
+                                                                    →  evidence floor on the winner
+```
+
+**The floor is a post-ranking gate applied to the winner. It is not an eligibility criterion and it is not a ranking statistic.** Do not reorder these. Do not merge them.
+
+### §2 — Eligibility gates ranking. C4 is the trap, and here is its exact shape.
+
+**§8: *"eligible candidates are ranked by projected sealed power."*** Ineligible candidates **are not ranked, cannot win, and cannot generate a discrepancy.**
+
+**The eligible set is `{C2}`.** C3 fails (ii) and (iii); C4 fails (iii) — **dropped by rule per §7.3: *"A candidate below the hurdle is dropped by rule, whatever its dev IC."***
+
+**Now the trap, stated plainly because it is the most dangerous misread available in this battery.** C4 is *better than C2 on almost everything that isn't the gate*:
+
+| | C2 | C4 |
+|---|---:|---:|
+| Mean IC | 0.034892 | **0.046550** |
+| One-sided p | 7.994592e-03 | **5.968292e-03** |
+| Deflated p (m=3) | 0.023984 | **0.017905** |
+| Fee drag | 270.3 bp/yr | **35.2 bp/yr** |
+| **Power (the gate)** | **0.9198 ✓** | **0.4110 ✗** |
+
+**C4's deflated p is lower than C2's.** So an implementer who ranks *all three* candidates by deflated p gets **C4 on top of one ranking and C2 on top of the other**, then reads §8's *"if the winner differs across these rankings, all are presented and the operator decides"* as a mandate to hand the operator C4 as a live option — **resurrecting by a robustness clause the candidate the power gate killed by rule.**
+
+**That is wrong, and it is wrong at the first step, not the last.** §8 ranks **eligible** candidates. C4 never enters either ranking. **Both rankings are computed over `{C2}`, both are the singleton `[C2]`, and no cross-ranking discrepancy is structurally possible in this battery.** Say so in the report — **state that the discrepancy clause was evaluated and could not engage**, rather than omitting a clause the operator will look for.
+
+**C4's superior IC, p and fees are irrelevant post-gate.** Report them (§3) — they are the honest finding that the staggered design worked and still wasn't enough. **Do not let them near the ranking.**
+
+### §3 — The sub-window is reported, never ranked, never re-gating
+
+**These are two different operations and they must not be conflated:**
+
+- **Reported (all three candidates):** §8 — *"all candidates are additionally reported on the common sub-window 2020-09-04 → 2022-12-31."* **Transparency, not selection.**
+- **Ranked (eligible only, declared window):** the power ranking and the deflated-p ranking of §2.
+
+**Eligibility is declared-window only** (§8: *"a candidate is eligible iff, on its declared dev window…"*). **The sub-window never re-gates anything.** C4 on 28 dates stays ineligible **regardless of how it looks there.** If C4's sub-window numbers are strong, **that is a disclosure, not a case.**
+
+**C2 and C3's declared window *is* the sub-window** — say so; do not duplicate the columns.
+
+**C4's sub-window must be computed** (this is the deferred item 7), and one pin decides whether it is right:
+
+> **The sub-window restricts *formation dates*, not the history available to the score.** C4's 12-month lookback must reach back **before** 2020-09-04, exactly as it does in the declared-window run. **If you re-run C4 with the window start as the data start, the lookback eats the first 12 grid dates and n collapses to ~16 — that is a defect, not a result.** The store is fenced at 2022-12-31 and reaches back to 2012; the lookback is inside the fence and legitimate.
+
+**Make the sub-window earn its place.** It is the one window where C2 and C4 sit on equal footing, which turns the Phase 2 review's finding 5 from an assertion into a measurement: **C2's SD (0.104) is estimated over 2.3 years; C4's (0.209) over 11.** Show both candidates' sub-window mean IC and SD side by side. **Non-gating. Disclosure.**
+
+### §4 — The evidence floor
+
+§8: the winner's **declared-window** one-sided p, **Bonferroni-deflated at m = 3** (`deflated = min(1, 3·p)`), must be **< 0.05**.
+
+**Compute it in code. Do not type it.** `min(1, 3 · 7.994592e-03)`.
+
+**No cascade.** §8: *"if the highest-power eligible candidate fails the floor, the battery reports 'no winner recommended'."* **If C2 had failed the floor, the battery would report no winner — it would NOT fall through to C3 or C4.** Implement the no-cascade branch and **state in the report that "no winner recommended" was a live outcome that did not obtain** — the machinery ran, it did not merely fail to fire.
+
+**The m = 3 rationale is §8's and is not re-litigated here.** C1 and C5 were dropped for data-independent reasons and cannot consume a chance at a false positive.
+
+### §5 — What the selection report must contain
+
+1. **Eligibility table**, all three candidates, (i)/(ii)/(iii) explicit — **restated, not recomputed differently.** It must match the candidate reports exactly.
+2. **The eligible set**, stated as a set.
+3. **The power ranking over the eligible set.** With one member, say that and do not dress it as a contest.
+4. **The declared-window deflated-p ranking over the eligible set**, alongside it.
+5. **The cross-ranking discrepancy clause: evaluated, could not engage, and why** (§2).
+6. **The winner** — highest-power eligible candidate.
+7. **The evidence floor** — winner's p, deflated p, the `< 0.05` comparison, PASS/FAIL, **and the no-cascade statement.**
+8. **The tie-break (§8, 0.02 band): not engaged — single eligible candidate.** State it; do not silently omit it.
+9. **The common sub-window table, all three candidates** (§3), with C4's computed and C2/C3's noted as identical to declared.
+10. **The §6 disclosures** below.
+11. **§10 determinism:** digest, script-generated stamp, code commit.
+
+**Every number script-generated. No hand-edited numbers.**
+
+### §6 — Disclosures the operator reads at decision time (explicitly non-gating)
+
+The selection report is the artifact that decides whether a sealed window gets spent **once**. Carry these in, **each labelled non-gating**, so the operator is not required to reconstruct them from four other documents:
+
+1. **The §7 AC₁ exposure did not materialize.** All three AC₁s negative (−0.182, −0.033, −0.024); C2's is ~1.3 SE from zero at n=55. **C2's power is not flattered by autocorrelation.** The largest disclosed threat to a fortnightly candidate is absent in this data.
+2. **C2's turnover came in 3.5× its design estimate** (0.2701 vs ~0.15; 270.3 bp/yr vs ~78) **and it clears anyway** — gross +7.03%, net +4.57%. **Nothing was tuned toward the estimate.**
+3. **C2's SD rests on 2.3 years** (2020-09 → 2022-12, forced by delivery data starting 2020-01-01 per §2's SECFULL note). **Power depends on SD.** This is not a defect and not grounds to change anything frozen — **it is a property the successor pre-registration (§12) must pin its own view on.**
+4. **C4's staggered design worked and was not enough** — best IC and best fees in the battery, dropped by rule at power 0.411. **This is PSB-1's C5 story repeating.**
+5. **C3 is the program's central constraint confirmed a third time** — gross +3.35% consumed by 445 bp into net −1.10%.
+
+### §7 — What "winner" means, and what it does not
+
+**§12 binds: the winner is a *recommendation*, not a promotion.** It authorizes **nothing** except the right to *propose* a successor pre-registration that would pin its own α, execution conventions and sealed-read mechanics, and would disclose the prior CSMP momentum read as prior exposure (D2).
+
+**No sealed read happens here. No strategy code. No consumer.** If the report's language could be read as authorizing an allocation, **it is wrong.**
+
+### Falsifiable predictions — state these before you run, then check them
+
+1. **§0: all three candidate digests byte-identical** after the label fix; the 1R6 commit stamp **does** change in all three (expected — report it as expected, not as a violation).
+2. **Eligible set = `{C2}` exactly.** C3 and C4 in neither ranking.
+3. **C2 deflated p = `min(1, 3 × 7.994592e-03)` ≈ 0.023984 < 0.05** → floor **PASS** → **C2 recommended.**
+4. **Both rankings are `[C2]`; the discrepancy clause cannot engage; the tie-break is not engaged.**
+5. **C4's sub-window grid = 28 monthly dates.** Realized formations are **expected to be 27** by the same mechanism as the declared window (the last grid date has no forward return inside the fence) — **report grid and realized separately (D3) and if realized ≠ 27, report it; do not adjust anything to reach it.**
+6. **C4's sub-window mean IC/SD computed with the 12-month lookback reaching before 2020-09-04.** **If C4's sub-window n is ~16, the lookback was truncated — stop and report.**
+7. **No §6/§7/§8 number from any candidate report changes.** The selection report **reads** them; it does not recompute them differently. **Any disagreement between this report and a candidate report is a defect — stop and report it, do not reconcile it silently.**
+
+**Prediction 7 is the one with teeth.** The selection report restating a metric that differs from its source report would mean one of the two is wrong.
+
+### Scope discipline
+
+**Do not touch:** any §5 formula, any §9 pinned parameter, `screening_harness.py`, `contract_arms.py`, `harness.py`'s scoring, the certified substrate, the register, the factors, the fence, `n*`, any candidate definition, or any candidate metric. **§9 immutability binds — all three results exist.**
+
+**Stop-and-report triggers:**
+- Any candidate digest moves in §0 → **stop.**
+- Any selection-report number disagrees with its candidate report → **stop.**
+- C4's sub-window n collapses to ~16 → the lookback was truncated → **stop.**
+- Any read beyond `2022-12-31` other than §7's dates-only `n*` calendar count → **protocol breach. Stop.**
+- The ranking contains anything other than C2 → **stop.**
+
+**Ambiguity escalates to the operator. It is never resolved in code** — that was 2R's whole lesson.
+
+### Acceptance criteria
+
+1. **§0 closed first, as its own commit:** grid and formation counts as separate rows in all three reports; **all three digests byte-identical**; stamp change reported as expected.
+2. `scripts/psb2/run_phase3.py` produces `PSB2_SELECTION_REPORT.md`, fully script-generated.
+3. Eligibility restated for all three and **matching the candidate reports exactly**.
+4. **Rankings computed over the eligible set only**; C3/C4 absent from both.
+5. Winner = highest-power eligible = **C2**; the discrepancy clause **evaluated and reported as unable to engage**; tie-break reported as not engaged.
+6. Floor computed in code (`min(1, 3·p)`), compared to 0.05, **with the no-cascade branch implemented and stated as a live outcome that did not obtain**.
+7. Sub-window table for all three; **C4's computed with an untruncated lookback**; C2/C3 noted as identical to declared; **sub-window explicitly non-gating**.
+8. §6 disclosures carried, **each labelled non-gating**.
+9. §7's "recommendation, not promotion" stated unambiguously.
+10. All seven predictions **reported as met or failed** — **a failed prediction is reported as a failure, never quietly rounded to met** (`21cb09f`'s finding).
+11. Determinism: digest, re-run confirmed, code committed before the run (1R6), stamps true.
+12. No §5/§9 change. No sealed read. No candidate re-scoring. No new ingestion.
+
+### Explicitly not authorized
+
+**No sealed read** beyond §7's dates-only calendar count — the 2023-01 → 2026-06 window stays untouched (§12). **No promotion, allocation, or strategy code** — nothing lands in `core/strategies/` (§12). **No new candidates, variants, or parameter sweeps** (§9: exactly three). **No change to any frozen formula, parameter, window, metric, or selection rule.** **No re-scoring of any candidate.** **No ranking of ineligible candidates — under any framing, including "for completeness" or "for the operator's information."** **No new ingestion** (D4). **No edits to `screening_harness.py`, `contract_arms.py`, the register, or any factor.**
+
+### Next after this prompt
+
+1. Claude **review** — §0's digests first, then prediction 7 (selection vs source agreement), then the ranking scope, then the floor.
+2. **Operator decides.** PSB-2 closes with either a recommended winner or "no winner recommended". **Promotion, if any, happens only through a new full pre-registration (§12) — never in this battery.**
