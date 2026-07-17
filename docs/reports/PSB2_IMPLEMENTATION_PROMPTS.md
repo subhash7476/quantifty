@@ -1392,7 +1392,7 @@ The trigger appears **twice**, and both are wrong in the same direction:
 1. **`scripts/psb2/harness.py:442`** — `if abs(ac1) > AC1_TRIGGER and len(ic_arr) > 4:` — gates **computation** of `nw_t`.
 2. **`scripts/psb2/run_phase2.py:176`** — `nw_triggered = abs(r.ac1) > 0.10` — gates **display** of the NW column, the Power-NW column, and the exposure paragraph.
 
-Both become the one-sided comparison: **`ac1 > AC1_TRIGGER`**.
+Both become the one-sided comparison: **`ac1 > AC1_TRIGGER`**. **Preserve `harness.py:442`'s trailing `and len(ic_arr) > 4` guard** — only the comparison changes.
 
 **`AC1_TRIGGER` keeps its value (0.1). Do not change the constant.** It lives in `scripts/psb1/screening_harness.py`, which is **frozen and must not be touched** — only the comparison changes, so no edit there is needed. If you find yourself opening that file, stop.
 
@@ -1401,6 +1401,8 @@ Both become the one-sided comparison: **`ac1 > AC1_TRIGGER`**.
 ### §2 — The label and the paragraph
 
 **The table label** (`run_phase2.py:223`) reads `NW t (|AC₁|>0.10)`. It must state the pin as pinned: **`NW t (AC₁ > 0.1)`**, derived from the constant, not retyped.
+
+**This line is unconditional — it renders in every report**, C3 and C4 included (both currently carry `| NW t (|AC₁|>0.10) | N/A |` at line 27). So the label fix **changes all three reports**, and the predictions below are written accordingly. **That is intended and in scope:** the label describes a two-sided trigger that will no longer exist, which is the same defect class as the paragraph.
 
 **The paragraph** (`run_phase2.py:276–280`): once the trigger is one-sided, it fires **only** when `AC₁ > 0.1` — genuinely positive autocorrelation, where "the simple-t projection may be optimistic" is **true by construction**. The prose does not need rewriting for correctness, and **do not add sign-branching logic for a branch that cannot execute** (no over-engineering).
 
@@ -1416,8 +1418,8 @@ Re-run all three candidates and commit the regenerated reports.
 
 ### Falsifiable predictions — state these before you run, then check them
 
-1. **`PSB2_C3_REPORT.md` and `PSB2_C4_REPORT.md` are byte-identical to their committed versions.** Their AC₁ (−0.033, −0.024) is inside the band either way — the trigger never fired for them and still does not. **A single changed byte in C3 or C4 means the fix reached past its scope. Stop and report.**
-2. **`PSB2_C2_REPORT.md` changes in exactly four places:** `NW t` → `N/A`; `Power-NW at δ` → `N/A`; the label `|AC₁|>0.10` → `AC₁ > 0.1`; the exposure paragraph **disappears** (AC₁ = −0.181762 is not > 0.1). **Nothing else.**
+1. **`PSB2_C3_REPORT.md` and `PSB2_C4_REPORT.md` change on exactly one line each — line 27, the NW-t label** — from `| NW t (|AC₁|>0.10) | N/A |` to `| NW t (AC₁ > 0.1) | N/A |`. The **value stays `N/A`**: their AC₁ (−0.033, −0.024) is inside the band either way, so the trigger never fired for them and still does not. **Any C3/C4 change anywhere other than that label line means the fix reached past its scope. Stop and report.**
+2. **`PSB2_C2_REPORT.md` changes in exactly four places:** `NW t` value → `N/A`; `Power-NW at δ` → `N/A`; the same label line 27; the exposure paragraph **disappears** (AC₁ = −0.181762 is not > 0.1). **Nothing else.**
 3. **C2's determinism digest is byte-identical.** `compute_hash` (`run_phase2.py:47–65`) covers `ac1` but **not** `nw_t` or `power_nw` — so a correct fix cannot move it. **If C2's digest changes, a gating number moved and the fix is wrong. Stop and report.**
 4. **Every §6/§7/§8 number in all three reports is unchanged**, including C2's `mean_ic`, `t = 2.487`, `p = 7.99e-03`, `power = 0.9198`, net spread, turnover, and fee drag. **§8 eligibility is unchanged: C2 eligible, C3 not, C4 not.**
 5. **Determinism (§10) re-confirmed** per candidate after the change.
@@ -1431,7 +1433,8 @@ Prediction 3 is the one with teeth. **It can fail, and if it fails the fix is wr
 **Do not touch:** any §5 formula, any §9 pinned parameter (**including `AC1_TRIGGER`'s value**), `screening_harness.py`, `contract_arms.py`, the certified substrate, the register, the factors, the fence, `n*`, or any candidate definition. **§9 immutability binds — results exist.**
 
 **Stop-and-report triggers:**
-- C3 or C4 report bytes change → **stop.**
+- C3 or C4 change **anywhere other than the line-27 NW-t label** → **stop.**
+- C3 or C4's NW-t **value** stops being `N/A` → the trigger is inverted, not narrowed → **stop.**
 - C2's digest changes → **stop.**
 - Any §6/§7/§8 number moves → **stop.**
 - The regenerated C2 report still emits the exposure paragraph → the trigger is still two-sided → **stop.**
@@ -1440,11 +1443,11 @@ Prediction 3 is the one with teeth. **It can fail, and if it fails the fix is wr
 
 ### Acceptance criteria
 
-1. Trigger one-sided (`ac1 > AC1_TRIGGER`) at **both** sites; `run_phase2.py` imports the constant instead of the literal.
+1. Trigger one-sided (`ac1 > AC1_TRIGGER`) at **both** sites, with `harness.py:442`'s length guard preserved; `run_phase2.py` imports the constant instead of the literal.
 2. `screening_harness.py` **unmodified**; `AC1_TRIGGER` value **unchanged at 0.1**.
 3. Label states `AC₁ > 0.1`, derived from the constant.
 4. Paragraph prints the **observed** `r.ac1`; **no sign-branching added**.
-5. Three reports regenerated and committed; **C3/C4 byte-identical**; C2 diff confined to prediction 2's four places.
+5. Three reports regenerated and committed; **C3/C4 diffs confined to the line-27 label, value still `N/A`**; C2 diff confined to prediction 2's four places.
 6. **C2's digest byte-identical**; every gating number unchanged; §8 eligibility unchanged.
 7. All five predictions checked **and reported as met or failed** — a failed prediction is reported as a failure, never quietly fixed.
 8. Determinism re-confirmed. Code committed before the run (1R6's rule); report stamps true.
