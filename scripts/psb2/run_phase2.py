@@ -113,6 +113,7 @@ def run_candidate(cid: str) -> H.CandidateResult:
     # -- Build scorer closures --
     if cid in ("C2", "C3"):
         fg = H.fortnightly_grid(panel.cal)
+        grid_count = len([d for d in fg if dev_lo <= d <= DEV_HI])
 
         def c2_fn(t: date) -> dict[str, float]:
             return H.score_c2_psb2(panel, t, fg=fg)
@@ -127,6 +128,7 @@ def run_candidate(cid: str) -> H.CandidateResult:
         score_fn = c3_fn
     elif cid == "C4":
         mg = monthly_grid(panel.cal)
+        grid_count = len([d for d in mg if dev_lo <= d <= DEV_HI])
 
         def c4_fn(t: date) -> dict[str, float]:
             g = mg.index(t) if t in mg else -1
@@ -144,7 +146,7 @@ def run_candidate(cid: str) -> H.CandidateResult:
     else:
         result = H.evaluate_candidate_psb2(panel, cid, score_fn, STORE, fortnightly_grid_dates=fg)
 
-    return result, panel, fenced_max, unfenced_max, store_rows, n_star_count, n_star_fg, n_star_mg
+    return result, panel, fenced_max, unfenced_max, store_rows, n_star_count, n_star_fg, n_star_mg, grid_count
 
 
 def generate_report(
@@ -156,6 +158,7 @@ def generate_report(
     n_star: int,
     n_star_fg: int,
     n_star_mg: int,
+    grid_count: int,
 ) -> str:
     r = result
     cid = r.cid
@@ -205,8 +208,11 @@ def generate_report(
     A(f"| Cadence | {cadence} ({ppy} ppy) |")
     A(f"| Dev window | {dev_lo} to {DEV_HI} |")
     realized_n = len(r.ic) if r.ic is not None and hasattr(r.ic, '__len__') else 0
-    A(f"| N formation dates (grid) | {r.n_dates} |")
-    A(f"| Realized n (scored formations) | {realized_n} |")
+    A(f"| Grid dates (§3) | {grid_count} |")
+    A(f"| Realized formations (scored) | {realized_n} |")
+    if grid_count != realized_n:
+        A(f"| Gap reason | Last grid date has no forward return inside the fence ({DEV_HI}). "
+          f"Grid={grid_count} dates in window; {realized_n} have a forward return. |")
     A("")
 
     # -- §6 Metrics --
@@ -341,12 +347,12 @@ def main():
     print(f"Store: {STORE}")
     print(f"Cutoff: {DEV_HI}")
 
-    result, panel, fenced_max, unfenced_max, store_rows, n_star, n_star_fg, n_star_mg = run_candidate(cid)
+    result, panel, fenced_max, unfenced_max, store_rows, n_star, n_star_fg, n_star_mg, grid_count = run_candidate(cid)
 
     report_path = ROOT / "docs" / "reports" / f"PSB2_{cid}_REPORT.md"
     report = generate_report(
         result, commit, store_rows, fenced_max, unfenced_max,
-        n_star, n_star_fg, n_star_mg,
+        n_star, n_star_fg, n_star_mg, grid_count,
     )
     report_path.write_text(report, encoding="utf-8")
     print(f"\nReport written: {report_path}")
