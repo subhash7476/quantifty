@@ -183,7 +183,7 @@ def score_c2_psb2(panel: Panel, t: date, fg: list[date] | None = None) -> dict[s
             continue
         base_mean = float(np.mean(base_dps))
         base_std = float(np.std(base_dps, ddof=1))
-        if base_std <= 0:
+        if base_std < 1e-12:
             continue
         scores[ent] = (dp_mean - base_mean) / base_std
 

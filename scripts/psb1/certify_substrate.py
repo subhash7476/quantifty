@@ -248,7 +248,7 @@ def main():
     rows, fenced, unfenced = _store_stamps(con)
     fbe = load_factors_by_entity(str(STORE), cutoff=date(9999, 12, 31))
     arm_a, arm_b, arm_c, arm_d = A.arm_a(con, fbe), A.arm_b(con), A.arm_c(con, fbe), A.arm_d(con)
-    arm_a_excl, arm_d_excl = build_register(con)
+    arm_a_excl, arm_d_excl, arm_b_excl = build_register(con)
     reg_guards = _regression_guards(con)
 
     # apply disposition register
@@ -262,7 +262,11 @@ def main():
         reason = arm_d_excl.get((sym, ex))
         d_residue.append((sym, ex, f, ft, reason))
     d_halt = [r for r in d_residue if r[4] is None]
-    b_halt = arm_b.splices  # ALL splices HALT (none dispositioned)
+    b_residue = []
+    for ent, ps, s, td, ret, pc, c in arm_b.splices:
+        reason = arm_b_excl.get((ent, td))
+        b_residue.append((ent, ps, s, td, ret, pc, c, reason))
+    b_halt = [r for r in b_residue if r[7] is None]
     c_halt = arm_c.violations  # should be 0
 
     w = []
@@ -285,7 +289,9 @@ def main():
       f"**{len(a_halt)}** undocumented); {len(arm_a.large_genuine)} large_genuine |")
     if a_halt: all_ok = False
     W(f"| **Arm B** cross-symbol handoff | {'PASS' if not b_halt else '**HALT**'} | "
-      f"{len(b_halt)} splice fabrications (|ret|>=20%) |")
+      f"{len(arm_b.splices)} splice fabrications "
+      f"({len(arm_b.splices) - len(b_halt)} dispositioned, "
+      f"**{len(b_halt)}** undocumented) |")
     if b_halt: all_ok = False
     W(f"| **Arm C** prev_close identity | {'PASS' if not c_halt else '**HALT**'} | "
       f"{len(c_halt)} violations |")
@@ -324,13 +330,16 @@ def main():
 
     # ── Arm B detail ──
     W("## Arm B — Cross-symbol handoff (shape-free)\n")
-    if b_halt:
-        W(f"**{len(b_halt)} splice fabrication(s)** — |adjusted return| >= 20% across a symbol "
-          "boundary. HALT for disposition.\n")
-        W("| Entity | From | To | Date | Return | |")
-        W("|--------|------|----|------|-------:|")
-        for ent, ps, s, td, ret, pc, c in b_halt:
-            W(f"| {ent} | {ps} | {s} | {td} | {ret:+.1%} |")
+    if arm_b.splices:
+        n_disp = len(b_residue) - len(b_halt)
+        W(f"**{len(arm_b.splices)} splice fabrication(s)** — |adjusted return| >= 20% across a symbol "
+          f"boundary. {n_disp} dispositioned; **{len(b_halt)}** undocumented (HALT).\n")
+        W("| Entity | From | To | Date | Return | Disposition |")
+        W("|--------|------|----|------|-------:|-------------|")
+        for r in b_residue:
+            ent, ps, s, td, ret, pc, c, reason = r
+            tag = reason or "**HALT**"
+            W(f"| {ent} | {ps} | {s} | {td} | {ret:+.1%} | {tag} |")
         W("")
     else:
         W("0 splice fabrications. All multi-ticker entity handoffs pass (< |20%|).\n")

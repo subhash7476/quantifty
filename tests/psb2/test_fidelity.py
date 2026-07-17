@@ -60,14 +60,15 @@ def test_c2_baseline_252_t21():
     con.execute("INSERT INTO universe_eligibility VALUES (?, ?)", ["S0001", "S0001"])
     con.execute("INSERT INTO universe_membership VALUES (?, ?, ?)", [date(2019, 1, 2), "S0001", 1])
 
-    # Give baseline structure along the length axis (R3-2).
+    # Give baseline structure along the length axis (R3-2, R3-4).
     # Most recent 200 days of baseline at 0.32, oldest 52 days at 0.28.
-    # At 252-day window: mean = (200*0.32 + 52*0.28) / 252 ≈ 0.3117, σ ≈ 0.02.
-    # At 200-day window (only the 0.32 region): mean ≈ 0.32, σ ≈ 0.
-    # z(252) = (0.80 - 0.3117) / 0.02 ≈ 24.4
-    # z(200) would differ because mean and σ both change.
+    # n_total = be_idx - bs_idx + 1 = 252 (the full baseline window).
+    # n_old = n_total - 200 = 52 days at 0.28.
+    # mean = (200*0.32 + 52*0.28) / 252 = (64 + 14.56) / 252 = 78.56/252 = 0.311746
+    # std = sqrt(((200*(0.32-0.311746)^2 + 52*(0.28-0.311746)^2) / 251) = 0.016220
+    # z = (0.80 - 0.311746) / 0.016220 = 30.1028
     n_total = be_idx - bs_idx + 1
-    n_old = n_total - 200  # ~52 days at 0.28
+    n_old = n_total - 200
     rows = []
     for i, d in enumerate(cal):
         if i >= len(cal) - 15:
@@ -85,8 +86,28 @@ def test_c2_baseline_252_t21():
     scores = H.score_c2_psb2(panel, t)
     assert "S0001" in scores, "S0001 not scored"
     z = scores["S0001"]
-    # Expected: ~(0.80 - 0.312) / 0.02 ≈ 24. Assert > 15.
-    assert z > 15, f"z={z:.2f} too low (expected ~24)"
+    assert abs(z - 30.1028) < 0.01, f"z={z:.4f} (expected 30.1028)"
+
+    # Mutation test: DELIV_BASE_DAYS = 200 → KeyError (E1 guard)
+    # DELIV_BASE_DAYS = 240 → assertion failure (z != 30.1028)
+    orig = H.DELIV_BASE_DAYS
+    try:
+        H.DELIV_BASE_DAYS = 200
+        scores200 = H.score_c2_psb2(panel, t)
+        assert "S0001" not in scores200, "Expected KeyError at 200 (E1 guard)"
+        print(f"  C2 baseline 252d t-21: z=30.1028; mutation 200 -> KeyError (E1 guard)")
+    finally:
+        H.DELIV_BASE_DAYS = orig
+
+    try:
+        H.DELIV_BASE_DAYS = 240
+        scores240 = H.score_c2_psb2(panel, t)
+        assert "S0001" in scores240, "S0001 not scored at 240"
+        z240 = scores240["S0001"]
+        assert abs(z240 - 30.1028) > 0.1, f"z240={z240:.4f} should differ from 30.1028"
+        print(f"  C2 mutation 240 -> z={z240:.4f} (differs from 30.1028: PASS)")
+    finally:
+        H.DELIV_BASE_DAYS = orig
 
 
 def test_c2_min_8_nonnull():

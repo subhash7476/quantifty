@@ -112,14 +112,39 @@ DEMERGERS = {
 # ──────────────────────────────────────────────────────────────────────────────
 # Register builder: merges committed lists with the store's exception tables.
 # ──────────────────────────────────────────────────────────────────────────────
+# Committed: relistings with verified capital events (Arm B).
+# These are cross-symbol entity handoffs that produce >20% adjusted returns even
+# after the correct factor is applied, because the gap contains real economic
+# changes (suspension, restructuring, re-listing). Each entry carries evidence:
+# old/new ISIN, NSE rename record, capital event (or its absence), missed sessions.
+# ──────────────────────────────────────────────────────────────────────────────
+RE_LISTINGS = {
+    ("INDOSOLAR", date(2025, 6, 19)):
+        "relisting_after_suspension: INDOSOLAR (INE866K01015) -> WAAREEINDO; "
+        "factor 100 applied; 1473 missed sessions; boundary +65.1% after adjustment",
+    ("CLCIND", date(2026, 1, 30)):
+        "relisting_after_suspension: SPENTEX (INE376C01020) -> CLCIND; "
+        "factor 100 applied; 1343 missed sessions; boundary -88.1% after adjustment",
+    ("NEUEON", date(2025, 12, 23)):
+        "relisting_after_suspension: NTL (INE333I01036) -> NEUEON (INE333I01044); "
+        "FV-only event, no factor; 315 missed sessions; boundary +110.2%",
+    ("DELPHIFX", date(2020, 4, 21)):
+        "relisting_after_suspension: WEIZFOREX -> EBIXFOREX (via DELPHIFX); "
+        "ISIN identical, no capital event; 33 missed sessions; boundary +31.4%",
+}
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 def build_register(con):
-    """Return (arm_a_excl, arm_d_excl) — the sole permitted exclusion sets.
+    """Return (arm_a_excl, arm_d_excl, arm_b_excl) — the sole permitted exclusion sets.
 
     arm_a_excl: {(entity, move_date): reason}
     arm_d_excl: {(symbol, ex_date): reason}
+    arm_b_excl: {(entity, handoff_date): reason}  (Prompt 1R4 §C/§E)
     """
     arm_a = {}
     arm_d = {}
+    arm_b = {}
 
     # 1. Committed ETF unit splits
     for ent, dt in ETF_SPLITS:
@@ -150,4 +175,8 @@ def build_register(con):
         """, [sym, ex]).fetchall():
             arm_a[(ent, ex)] = "evidence_exception"
 
-    return arm_a, arm_d
+    # 5. Committed relistings (Arm B — Prompt 1R4 §E)
+    for (ent, dt), reason in RE_LISTINGS.items():
+        arm_b[(ent, dt)] = reason
+
+    return arm_a, arm_d, arm_b
