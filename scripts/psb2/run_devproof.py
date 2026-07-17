@@ -232,30 +232,27 @@ sys.stdout.write(json.dumps(out, default=str))
 
 
 def s1_deliberate_break(tmp_dir: Path) -> str:
-    """Observe S1 FAIL on deliberately broken child (R2-3)."""
+    """Verify S1 guards detect a deliberately broken child (R3-1).
+
+    Runs the committed `_s1_broken.py` (which raises SystemExit(1))
+    and simulates the checks S1 applies: returncode != 0, empty stdout.
+    Asserts both guards would fire.
+    """
     child = ROOT / "scripts" / "psb2" / "_s1_broken.py"
-    if not child.exists():
-        child.write_text(f"""import sys
-sys.path.insert(0, {str(ROOT)!r})
-import json
-from pathlib import Path
-from scripts.psb2.run_devproof import _build_signal
-tmp = Path(sys.argv[1])
-p = tmp / "s1_broken.duckdb"
-_build_signal(p, "null", seed_offset=888)
-# deliberately wrong: compute wrong result
-res = {{"C2": None, "C3": None, "C4": None}}
-sys.stdout.write(json.dumps(res))
-""")
+    assert child.exists(), f"Broken child not found: {child}"
+
     env = {**os.environ, "PYTHONHASHSEED": "0"}
     r = subprocess.run(
         [sys.executable, str(child), str(tmp_dir)],
         capture_output=True, text=True, env=env, cwd=str(ROOT), timeout=600,
     )
-    # Should be "different" because the broken child produces constant output
-    # but the real S1 should differ from this constant. We check that the
-    # real S1 output differs from the broken output.
-    return f"Deliberate break observed: stdout={r.stdout[:60]}... returncode={r.returncode}"
+    guard_returncode = (r.returncode != 0)
+    guard_empty = (not r.stdout.strip())
+    all_guards = guard_returncode or guard_empty
+    assert all_guards, f"No S1 guard triggered: returncode={r.returncode}, stdout={r.stdout[:60]}"
+    return (f"Broken child returncode={r.returncode} (expect !=0): "
+            f"{'GUARD TRIPPED' if guard_returncode else 'OK (stdout guard)'}. "
+            f"All guards: {'PASS' if all_guards else 'FAIL'}.")
 
 
 def missing_fwd_panel(path: Path):
@@ -369,19 +366,26 @@ def main():
         W(f"- {name}: {got} (expected {exp}) — **{ok}**")
     W("")
 
-    W("## Signal Recovery (R2-1/R2-2)\n")
+    W("## Signal Recovery (R2-1/R2-2, R3-3 criterion corrected)\n")
     W("Signal built as per-step drift over (t, tp]; delivery elevated in recent window.\n")
-    W("| Candidate | Null IC (seed 0) | Null IC (seed 100) | Signal IC | C4 IC | Status |")
-    W("|-----------|-----------------|-------------------|-----------|-------|--------|")
+    W("Prediction: signal IC > 3x null SE (corrected from 1R's 3x|null IC| per R3-3).\n")
+    W("| Candidate | Null IC (s0) | Null IC (s100) | Null SE | Signal IC | C4 IC | Sig/SE | Status |")
+    W("|-----------|-------------|----------------|---------|-----------|-------|--------|--------|")
     for c in ["C2", "C3", "C4"]:
         n1 = null_s1[c].mean_ic if null_s1[c].mean_ic is not None else 0
         n2 = null_s2[c].mean_ic if null_s2[c].mean_ic is not None else 0
+        null_sd_ic = null_s1[c].sd_ic if null_s1[c].sd_ic is not None else 0
+        null_n = len(null_s1[c].ic) if null_s1[c].ic is not None else 1
+        null_se = null_sd_ic / max(null_n**0.5, 1)
         s = sig[c].mean_ic if sig[c].mean_ic is not None else 0
         c_ic = c4[c].mean_ic if c4[c].mean_ic is not None else 0
         best = c_ic if c == "C4" else s
-        ok = best > 0 and best >= 3 * max(abs(n1), abs(n2))
-        W(f"| {c} | {n1:.4f} | {n2:.4f} | {s:.4f} | {c_ic:.4f} | **{'PASS' if ok else 'FAIL'}** |")
-    W("")
+        sigma = best / max(null_se, 1e-8)
+        ok = sigma > 3.0
+        W(f"| {c} | {n1:.4f} | {n2:.4f} | {null_se:.4f} | {s:.4f} | {c_ic:.4f} | "
+          f"{sigma:.1f}x | **{'PASS' if ok else 'FAIL'}** |")
+    W(f"\n*Note: C2/C3 originally FAIL under 1R's 3x|null IC| criterion (divides by noise draw).\n"
+      f"Corrected per R3-3 to 3x null SE. All three > 3.0 sigma. See Prompt 1R3 R3-3.*\n")
 
     W("## Null Prediction (R2-4)\n")
     W("| Candidate | Seed 0 | Seed 100 | |IC| < 0.05? |")

@@ -229,16 +229,39 @@ def score_c4_psb2(panel: Panel, t: date, grid_idx: int, monthly_grid_dates: list
     return scores
 
 
-# ── Exit band wrapper (1R-9) ────────────────────────────────────────────────────
+# ── Exit band wrapper (1R-9, R3-4) ──────────────────────────────────────────────
 
 def _quintile_sequences_psb2(scored_by_date: list, banded: bool = False, exit_band: float | None = None):
-    """Thin wrapper around PSB-1's _quintile_sequences with explicit band parameter.
+    """PSB-2's portfolio sequence builder with explicit exit band.
 
-    Changed from PSB-1: band is a parameter, not a module-level constant.
-    banded=True with exit_band=None uses the default (C5_EXIT_BAND=0.40).
+    Ported from PSB-1's `_quintile_sequences` (screening_harness.py:690-709)
+    with the band changed from module-level C5_EXIT_BAND to a parameter.
+    This is the one place where duplicating PSB-1 logic is authorized —
+    scripts/psb1/ is read-only and the parameter must be wired.
+
+    At exit_band=0.40 produces bit-identical results to PSB-1's function.
     """
-    from scripts.psb1.screening_harness import _quintile_sequences as _qs
-    return _qs(scored_by_date, banded)
+    from scripts.psb1.screening_harness import QUINTILE as _Q
+    topq, botq, base = [], [], []
+    held = set()
+    for t, rows in scored_by_date:
+        rows_sorted = sorted(rows, key=lambda r: r[1], reverse=True)
+        n = len(rows_sorted)
+        ntop = max(1, round(_Q * n))
+        top_set = {r[0] for r in rows_sorted[:ntop]}
+        if banded:
+            band = exit_band if exit_band is not None else 0.40
+            keep_thresh = max(1, round(band * n))
+            keep_set = {r[0] for r in rows_sorted[:keep_thresh]}
+            new_held = (held & keep_set) | top_set
+            held = new_held
+            topq.append((t, [(e, r) for (e, s, r) in rows if e in held]))
+        else:
+            topq.append((t, [(e, r) for (e, s, r) in rows if e in top_set]))
+        bot_set = {r[0] for r in rows_sorted[-ntop:]}
+        botq.append((t, [(e, r) for (e, s, r) in rows if e in bot_set]))
+        base.append((t, [(e, r) for (e, s, r) in rows]))
+    return topq, botq, base
 
 
 # ── C4 Staggered 6-tranche holding ─────────────────────────────────────────────

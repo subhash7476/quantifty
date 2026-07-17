@@ -60,15 +60,21 @@ def test_c2_baseline_252_t21():
     con.execute("INSERT INTO universe_eligibility VALUES (?, ?)", ["S0001", "S0001"])
     con.execute("INSERT INTO universe_membership VALUES (?, ?, ?)", [date(2019, 1, 2), "S0001", 1])
 
-    rng = np.random.default_rng(42)
-    base_vals = rng.uniform(0.28, 0.32, be_idx - bs_idx + 1).tolist()
-
+    # Give baseline structure along the length axis (R3-2).
+    # Most recent 200 days of baseline at 0.32, oldest 52 days at 0.28.
+    # At 252-day window: mean = (200*0.32 + 52*0.28) / 252 ≈ 0.3117, σ ≈ 0.02.
+    # At 200-day window (only the 0.32 region): mean ≈ 0.32, σ ≈ 0.
+    # z(252) = (0.80 - 0.3117) / 0.02 ≈ 24.4
+    # z(200) would differ because mean and σ both change.
+    n_total = be_idx - bs_idx + 1
+    n_old = n_total - 200  # ~52 days at 0.28
     rows = []
     for i, d in enumerate(cal):
         if i >= len(cal) - 15:
             dp = 0.80
         elif bs_idx <= i <= be_idx:
-            dp = base_vals[i - bs_idx]
+            offset = i - bs_idx
+            dp = 0.32 if offset >= n_old else 0.28
         else:
             dp = None
         rows.append(["S0001", d.isoformat(), 100.0, 100.0, round(dp, 4) if dp is not None else None, 1e7])
@@ -79,8 +85,8 @@ def test_c2_baseline_252_t21():
     scores = H.score_c2_psb2(panel, t)
     assert "S0001" in scores, "S0001 not scored"
     z = scores["S0001"]
-    assert z > 10, f"z={z:.2f} too low"
-    print(f"  C2 baseline 252d t-21: z={z:.2f} (mutation: change 252 to 200, z changes)")
+    # Expected: ~(0.80 - 0.312) / 0.02 ≈ 24. Assert > 15.
+    assert z > 15, f"z={z:.2f} too low (expected ~24)"
 
 
 def test_c2_min_8_nonnull():
@@ -284,7 +290,20 @@ def test_arm_e_staggered():
         return H.score_c4_psb2(panel, t, g, mg) if g >= 0 else {}
     res = H.evaluate_candidate_psb2(panel, "C4", c4_fn, str(path), monthly_grid_dates=mg)
     assert res.turnover is not None, "No turnover"
-    print(f"  Arm E: C4 turnover={res.turnover:.4f} (expected ~0.125-0.20 for staggered 6-tranche)")
+    turnover_6 = res.turnover
+
+    # Mutation: C4_N_TRANCHES = 3 should increase turnover (R3-2)
+    # Fewer tranches means larger share replaced per rebalance.
+    orig_tranches = H.C4_N_TRANCHES
+    try:
+        H.C4_N_TRANCHES = 3
+        res3 = H.evaluate_candidate_psb2(panel, "C4", c4_fn, str(path), monthly_grid_dates=mg)
+        turnover_3 = res3.turnover
+        assert turnover_3 is not None and turnover_3 > turnover_6, (
+            f"Turnover at 3 tranches ({turnover_3:.4f}) not > at 6 ({turnover_6:.4f})")
+        print(f"  Arm E: turnover(6)={turnover_6:.4f} turnover(3)={turnover_3:.4f} (3 > 6: PASS)")
+    finally:
+        H.C4_N_TRANCHES = orig_tranches
 
 
 if __name__ == "__main__":
