@@ -1364,3 +1364,97 @@ C2 and C3's adjacent formations overlap in their 252-day delivery baseline, whic
 1. Claude **review** — the fence first, then each report against §6/§7/§8.
 2. Prompt 3 — the **§8 selection report**: eligibility, power ranking, Bonferroni-deflated evidence floor at **m = 3** (`p < 0.05`), the 0.02 tie band, and the declared-window vs sub-window ranking comparison. **"No winner recommended" is a valid and complete outcome** (§8; PSB-1's actual result).
 3. Operator decides. Promotion, if any, happens only through a new full pre-registration (§12) — **never in this battery.**
+
+### Outcome
+
+**ACCEPTED** (Lead Review `dd7ce01`). Three reports produced, every gating number independently re-derived and reconciled. **C2 eligible**; C3 not (net spread < 0); C4 not (power 0.406 < 0.80). Fence proven. Determinism holds. No report computed a ranking it was told not to. **One defect carried to Prompt 2R below — report-only, no gate moves, verdict unchanged.**
+
+---
+
+## Prompt 2R — Phase 2 correction: implement §9's AC₁ trigger as written (ISSUED 2026-07-17)
+
+**Task:** The AC₁/Newey–West trigger is implemented **two-sided** (`abs(ac1) > 0.1`). **§9 pins it one-sided** (`AC₁ > 0.1`). Implement the pin as written and regenerate the three reports.
+
+**Operator decision (2026-07-17):** the literal §9 pin. The alternative — widening §9 to two-sided to keep the Power-NW column — was **rejected**, and the reasoning binds your implementation: results already exist, so amending a pinned parameter now, in a direction chosen *because* AC₁ landed negative and the resulting column happens to favour C2, would be a data-dependent change to a frozen protocol. Report-only and gate-neutral do not launder that. **§9 is not edited. The code moves to meet it.**
+
+**This changes no verdict.** C2 remains eligible. This is a post-review correction to a report-only column, not a re-run of Phase 2.
+
+### Start here: this defect is mine, not yours
+
+You implemented **Prompt 2 §5** faithfully. That section handed you the protocol's exposure paragraph as finished prose — *"can clear the frozen 0.80 hurdle on a simple-t projection that its own reported AC₁ shows is optimistic"* — and told you to surface the tension. My §4 item 4 said `AC₁ > 0.1`, one-sided, and my §5 prose read as though any autocorrelation was the exposure. **Faced with that, `abs()` was a reasonable reading of an ambiguous spec.** The spec was the defect.
+
+**The rule it should have hit instead:** Prompt 2's acceptance criterion 10 — *"Ambiguity escalated."* A pinned §9 parameter that the data lands on the wrong side of is exactly that. **Resolving a §9 ambiguity inside the code, silently, is the failure here — not the choice of `abs()`.** If a pin and your data disagree again, stop and report it. That is always available and always correct.
+
+### §1 — The two sites
+
+The trigger appears **twice**, and both are wrong in the same direction:
+
+1. **`scripts/psb2/harness.py:442`** — `if abs(ac1) > AC1_TRIGGER and len(ic_arr) > 4:` — gates **computation** of `nw_t`.
+2. **`scripts/psb2/run_phase2.py:176`** — `nw_triggered = abs(r.ac1) > 0.10` — gates **display** of the NW column, the Power-NW column, and the exposure paragraph.
+
+Both become the one-sided comparison: **`ac1 > AC1_TRIGGER`**.
+
+**`AC1_TRIGGER` keeps its value (0.1). Do not change the constant.** It lives in `scripts/psb1/screening_harness.py`, which is **frozen and must not be touched** — only the comparison changes, so no edit there is needed. If you find yourself opening that file, stop.
+
+**Fold in the drift seam that caused this to need fixing twice:** `run_phase2.py:176` hardcodes the literal `0.10` instead of importing the constant. Change it to `H.AC1_TRIGGER`. One threshold, one definition, two call sites.
+
+### §2 — The label and the paragraph
+
+**The table label** (`run_phase2.py:223`) reads `NW t (|AC₁|>0.10)`. It must state the pin as pinned: **`NW t (AC₁ > 0.1)`**, derived from the constant, not retyped.
+
+**The paragraph** (`run_phase2.py:276–280`): once the trigger is one-sided, it fires **only** when `AC₁ > 0.1` — genuinely positive autocorrelation, where "the simple-t projection may be optimistic" is **true by construction**. The prose does not need rewriting for correctness, and **do not add sign-branching logic for a branch that cannot execute** (no over-engineering).
+
+**One change, and it is the whole point of this prompt:** the paragraph asserts a *threshold* (`AC₁ > 0.10.`) where it should print the *observed value*. **Make it print `r.ac1`.** That is precisely how it drifted: a sentence stating a condition it never evaluated, sitting two lines below a table that refuted it, true when written and never asked again.
+
+> **`**AC₁ exposure (§7):** AC₁ = {r.ac1:.6f} > {H.AC1_TRIGGER}. …`** — rest of the existing sentence unchanged.
+
+**A report must never state a condition without printing the number that satisfies it.**
+
+### §3 — Regenerate, and let the diff prove the scope
+
+Re-run all three candidates and commit the regenerated reports.
+
+### Falsifiable predictions — state these before you run, then check them
+
+1. **`PSB2_C3_REPORT.md` and `PSB2_C4_REPORT.md` are byte-identical to their committed versions.** Their AC₁ (−0.033, −0.024) is inside the band either way — the trigger never fired for them and still does not. **A single changed byte in C3 or C4 means the fix reached past its scope. Stop and report.**
+2. **`PSB2_C2_REPORT.md` changes in exactly four places:** `NW t` → `N/A`; `Power-NW at δ` → `N/A`; the label `|AC₁|>0.10` → `AC₁ > 0.1`; the exposure paragraph **disappears** (AC₁ = −0.181762 is not > 0.1). **Nothing else.**
+3. **C2's determinism digest is byte-identical.** `compute_hash` (`run_phase2.py:47–65`) covers `ac1` but **not** `nw_t` or `power_nw` — so a correct fix cannot move it. **If C2's digest changes, a gating number moved and the fix is wrong. Stop and report.**
+4. **Every §6/§7/§8 number in all three reports is unchanged**, including C2's `mean_ic`, `t = 2.487`, `p = 7.99e-03`, `power = 0.9198`, net spread, turnover, and fee drag. **§8 eligibility is unchanged: C2 eligible, C3 not, C4 not.**
+5. **Determinism (§10) re-confirmed** per candidate after the change.
+
+Prediction 3 is the one with teeth. **It can fail, and if it fails the fix is wrong** — that is why it is here.
+
+### Scope discipline
+
+**This is a report-only correction. Its entire authority is to make the code match a pin it already had.**
+
+**Do not touch:** any §5 formula, any §9 pinned parameter (**including `AC1_TRIGGER`'s value**), `screening_harness.py`, `contract_arms.py`, the certified substrate, the register, the factors, the fence, `n*`, or any candidate definition. **§9 immutability binds — results exist.**
+
+**Stop-and-report triggers:**
+- C3 or C4 report bytes change → **stop.**
+- C2's digest changes → **stop.**
+- Any §6/§7/§8 number moves → **stop.**
+- The regenerated C2 report still emits the exposure paragraph → the trigger is still two-sided → **stop.**
+
+**No sealed read. No re-run of the battery. No ranking, no winner, no Bonferroni — that is still Prompt 3.**
+
+### Acceptance criteria
+
+1. Trigger one-sided (`ac1 > AC1_TRIGGER`) at **both** sites; `run_phase2.py` imports the constant instead of the literal.
+2. `screening_harness.py` **unmodified**; `AC1_TRIGGER` value **unchanged at 0.1**.
+3. Label states `AC₁ > 0.1`, derived from the constant.
+4. Paragraph prints the **observed** `r.ac1`; **no sign-branching added**.
+5. Three reports regenerated and committed; **C3/C4 byte-identical**; C2 diff confined to prediction 2's four places.
+6. **C2's digest byte-identical**; every gating number unchanged; §8 eligibility unchanged.
+7. All five predictions checked **and reported as met or failed** — a failed prediction is reported as a failure, never quietly fixed.
+8. Determinism re-confirmed. Code committed before the run (1R6's rule); report stamps true.
+9. Ambiguity escalated, not resolved in code.
+
+### Explicitly not authorized
+
+**No §9 amendment** — the operator rejected widening the trigger. **No change to any frozen parameter, formula, window, metric, or selection rule.** **No sealed read.** **No re-scoring, no new candidates, no parameter sweeps** (§9: exactly three). **No §8 selection, ranking, or winner** — Prompt 3. **No edits to `screening_harness.py`, `contract_arms.py`, the register, or any factor.** **No consumer or strategy code** (§12). **No new ingestion** (D4).
+
+### Next after this prompt
+
+1. Claude **review** — predictions 1–3 first (the diff, then the digest), then the regenerated C2 report.
+2. **Prompt 3** — the §8 selection report, unblocked by this correction and unchanged by it. C2's `p = 7.99e-03` deflates to `0.024` at m = 3; **that arithmetic is Prompt 3's to perform, not this one's.**
