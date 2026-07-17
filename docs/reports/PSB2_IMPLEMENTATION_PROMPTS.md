@@ -767,3 +767,205 @@ And the standing rule, carried forward from 1R and 1R2 because it has held for t
 1. Claude **diff check** — not a full review round. R3-1 … R3-3 are diff-checkable; R3-4 needs its two verification results read.
 2. Operator authorizes Phase 2 — **with the §11.1 Arm B reconciliation closed or dispositioned first.** The 4 splice fabrications remain unreconciled against the committed disposition register, and `certify_substrate.py:265` treats Arm B as zero-tolerance by design. §11.1 gates "before any candidate score touches real data" — which is exactly what Phase 2 begins. **R3-4 and Arm B are both Phase 2 preconditions; verify them together.**
 3. Prompt 2 — candidate runs in the §11.3 order: **C2 → C3 → C4**, one report per candidate, committed as produced.
+
+### Outcome
+
+Implemented at `875f9e3`, report regenerated at `9cdbffa`. Diff-checked in `docs/reports/PSB2_PHASE1_DIFF_CHECK.md` — **ACCEPT with one corrective turn.** R3-1, R3-3, R3-4 and Arm E closed; R3-4 verified behavior-preserving at 0.40 and live at 0.10. **Criterion 8 not met** — `test_c2_baseline_252_t21` still accepts its own mutation; carried into Prompt 1R4 §A. Two reviewer errors recorded: **C4 recovers at 3.7σ, not 33σ** (Signal IC column misread; the implementer's number was right), and E1 escalated to the operator.
+
+---
+
+## Prompt 1R4 — Phase 1 close-out + Arm B substrate repair: the Phase 2 gate (ISSUED 2026-07-17)
+
+**Task:** Close the last Phase 1 item and repair the substrate defects Arm B has been halting on since PSB-1. On completion, **§11.2 and §11.1 are both met and Phase 2 is unblocked.** This is the last prompt before candidate runs touch real data.
+
+**Status on completion:** returns to Claude for review, then to the operator to authorize Phase 2. **No candidate runs on real data in this prompt.** Protocol remains FROZEN at `eb3d66f`. Ambiguity escalates rather than getting resolved in code.
+
+**Five items across two programs.** §A and §B are PSB-2 (harness/tests). §C, §D, §E are PSB-1 substrate. They ship together because Arm B gates Phase 2 and there is no reason to serialize them.
+
+### Two standing constraints are lifted — narrowly. Read this before anything else.
+
+Both have been absolute for every prompt in this sequence. **Operator-authorized 2026-07-17. The lift is scoped to exactly what is named here; everything else stands.**
+
+1. **`scripts/psb1/` is no longer blanket read-only** — but only for `certify_substrate.py` (the §C register lookup), `disposition_register.py` (the §E entries), and `ingest_corporate_actions.py` (the §D factors). **Every other file under `scripts/psb1/` stays read-only** — `contract_arms.py`, `screening_harness.py`, and the `repair_*.py` runners included. **Do not touch `contract_arms.py`.** Arm B's logic is correct and is not the defect; see §C.
+2. **One scorer change is authorized** — the §B guard, that line only. **No other scorer, formula, plant, or §9 value changes.** The escalation trigger is otherwise intact.
+
+**These lifts exist because the operator ratified two specific findings, not because the rules relaxed.** If a fix appears to need anything outside the three named files, **you have misread the item — stop and escalate.**
+
+### Start here: Arm B was right, and that is the whole lesson of this round
+
+For four rounds this program treated the four splices as a bookkeeping nuisance to be excused. External verification against NSE and NCLT records proved otherwise: **three of the four had real capital reductions our store never recorded.** Arm B has been reporting a genuine substrate defect the entire time.
+
+**The reason it could is the reason it must not change.** Arm B has **zero structural filters**, so it halts on everything and makes a human decide. That is why this was caught. **Do not "fix" Arm B. Give it the disposition path it has always lacked.**
+
+Three corrections to earlier specs, stated so you do not chase them as defects in yours:
+
+- **`PSB1_ARM_B_EXTERNAL_VERIFICATION.md` §E said a splice "may resolve on its own" once its factor is registered. Wrong, and derivably so.** The correct factor **flips the sign and keeps the magnitude** — SPENTEX goes +1094.7% → **−88.1%**, and −88.1% is *economically correct*: holders really did lose that much across the suspension. **All four boundaries still exceed the 20% bound after correct adjustment.** Factors and dispositions are **cumulative, not alternatives.** §D and §E are both required.
+- **NTL was classified a missing-factor case. It is not.** Share count is **flat at 5,65,44,552**; only face value moved (₹10 → ₹1). A face-value reduction with an unchanged count is an accounting write-off — the holder's economic claim is identical and **no price adjustment applies.** NTL's adjusted series is already correct. See §D.
+- **The `30.1028` pin in §A interacts with §B**, and the interaction changes how the mutation fails. **Read §B before implementing §A.**
+
+**Accepted; do not re-open:** everything accepted in Prompt 1R3, plus R3-1, R3-3, R3-4 and Arm E as closed at `875f9e3`/`9cdbffa`. The exit-band port is correct and verified in both directions. **Do not touch `_build_signal`.**
+
+### §A — R3-2: the C2 baseline test still accepts its own mutation
+
+Prompt 1R3 criterion 8 required `test_c2_baseline_252_t21` to assert an **exact value**, mutation-verified against `DELIV_BASE_DAYS = 200`. The fixture was restructured — that half is done. The assertion was not:
+
+```python
+assert z > 15, f"z={z:.2f} too low"
+```
+
+Observed directly across the mutation:
+
+```
+DELIV_BASE_DAYS=252   n=252  {0.28: 52, 0.32: 200}  mean=0.311746  std=0.016220  z=30.1028
+DELIV_BASE_DAYS=200   n=200  {0.32: 200}            mean=0.320000  std=0.000000  z=8.63e15
+```
+
+**`z > 15` accepts both.** `z` moves fourteen orders of magnitude and the test cannot tell. A lower bound is not a stylistic preference here — it is what makes the test blind to the one constant it exists to pin.
+
+**Fix:**
+
+1. Assert the exact value: `assert abs(z - 30.1028) < 0.01, f"z={z:.4f} (expected 30.1028)"`.
+2. **Correct the fixture comment.** It computes `z ≈ 24.4` from an assumed `σ ≈ 0.02`. The true σ is `0.016220`, so `z = 30.1028` — a 25% error that `z > 15` hid. An exact assertion catches this class for free.
+3. **Two mutations, both reported** — see §B for why one is not enough.
+
+### §B — E1: the scorer guard, and its interaction with §A
+
+`harness.py:186-188`:
+
+```python
+base_std = float(np.std(base_dps, ddof=1))
+if base_std <= 0:
+    continue
+scores[ent] = (dp_mean - base_mean) / base_std
+```
+
+**The guard cannot fire.** `np.std` of 200 identical `0.32` values is not `0.0` — it is ≈ `5.7e-17`, because `0.32` is not binary-representable and the mean carries rounding. So `base_std <= 0` is `False`, the guard is skipped, and the scorer emits `z ≈ 8.6e15`. **Operator-authorized fix, this line only:**
+
+```python
+if base_std < 1e-12:
+    continue
+```
+
+**Why it matters in Phase 2:** real `deliv_pct` will not be exactly constant across a 252-day baseline, so natural data will not trip this. The reachable case is a **constant fill or default value** for some name/window in the store. If that happens, the name's z is ±1e16, it dominates the top-quintile ranking outright, and the resulting spread is garbage that looks like a result.
+
+**Now the interaction — this is the part to get right.** Once the guard is fixed, `DELIV_BASE_DAYS = 200` no longer produces a huge `z`. The 200-day window lands entirely inside the `0.32` region, `base_std ≈ 5.7e-17 < 1e-12`, the entity is **dropped**, and the test fails with a **`KeyError`** rather than an assertion mismatch.
+
+**That is still a failure, so the `30.1028` pin holds. But it is not sufficient proof.** The mutation fails because the fixture went **degenerate**, not because the window length changed the statistic. A degenerate path shows the E1 guard works; it does **not** show that `DELIV_BASE_DAYS` is pinned.
+
+**So run two mutations and report both, with the mechanism for each:**
+
+| Mutation | Expected failure | What it proves |
+|---|---|---|
+| `DELIV_BASE_DAYS = 200` | `KeyError` — entity dropped by the E1 guard | The guard fires (§B works) |
+| `DELIV_BASE_DAYS = 240` | **Assertion fails** — `z ≠ 30.1028` | **The constant is genuinely pinned** |
+
+At 240 the window is a 240-day suffix of the 252 — 40 days at `0.28` plus 200 at `0.32` — so mean and σ both shift and `z` moves to a different **finite** value. **Non-degenerate, fails through the assertion. That is the one that proves the pin.**
+
+Restore `252` after both. **Report the observed failure of each** — an unrun mutation is not a verified one, and this program has already shipped one false "mutation-verified" claim.
+
+**Fold in (R3-4 minor):** the dev-proof report does not record the band-at-0.10 turnover result. The close-out asserted C2/C3 turnover moves at `0.10`; the script-generated artifact does not carry the number. **Unreported is not proven** (R2-3). Record it.
+
+### §C — Arm B has no disposition path. Wire it.
+
+`certify_substrate.py:265`:
+
+```python
+b_halt = arm_b.splices  # ALL splices HALT (none dispositioned)
+```
+
+Arms A and D read their exclusions from the committed register (`arm_a_excl`, `arm_d_excl`). **Arm B has no lookup at all** — no splice has ever been dispositioned, so the mechanism was never built. Wire the **same** register mechanism into Arm B, mirroring the existing arms' shape. **Match the established pattern; do not invent a new one.**
+
+**What must remain true after the change — this is the acceptance test, not a nicety:**
+
+- **A splice not in the register still HALTS.** The register is an allowlist of *named, evidenced* cases — never a filter, a rule, or a predicate.
+- **No `MAX_GAP_DAYS`. No gap rule. No structural filter of any kind.** `contract_arms.py:11` defines the suite by their absence, and `arm_b`'s docstring says **"Any gap (no MAX_GAP_DAYS)"** deliberately. The unfiltered arm plus the register is a **ratchet**: every future relisting halts until a human decides. A gap rule would make the next one pass **silently** — reintroducing exactly the blind spot the four-arm suite was built to remove. **The reviewer proposed this, the code refuted it, and it was withdrawn. Do not re-propose it.**
+- **`contract_arms.py` is not edited.** Arm B's logic is correct.
+
+**Falsifiable check:** after wiring, temporarily remove one disposition entry → that splice must HALT again. Restore. **If a splice can pass without a register entry, the wiring is wrong — stop and escalate.**
+
+### §D — Two factors. Not three.
+
+Operator-confirmed from NCLT orders and NSE circulars, 2026-07-17:
+
+| Entity | Factor | Record date | Basis |
+|---|---:|---|---|
+| **INDOSOLAR** (`INE866K01015`) | **100** | **2022-06-28** | 1:100 entitlement for existing public holders; promoter base extinguished |
+| **SPENTEX** (`INE376C01020`) | **100** | **2024-01-12** | 1:100 ledger conversion → 519,748 shares (NSE/CML/72500) |
+| **NTL** | **none** | — | Count flat at 5,65,44,552; FV ₹10 → ₹1 only |
+
+**NTL gets no factor, and the temptation to register one must be resisted.** Its ISIN bumped (`INE333I01036 → INE333I01044`) because face value changed — **an ISIN re-issue does not imply a price factor.** The count did not move, the holder's claim is unchanged, and a factor here would fabricate an adjusted series that is currently correct. Registering one is the DVL→DTIL failure mode in a new costume.
+
+**On SPENTEX's "95%":** NSE/CML/72500's `95%` is the public's **diluted stake** post-restructuring (519,748 of a 10,394,680 total base = 5.0%). The **ledger conversion** is 1:100. Both figures are true and measure different things. **The registered factor is 100.**
+
+**Do not infer either factor from total shares outstanding.** Both resolutions injected fresh equity for the applicant, so post ÷ pre blends the reduction with the new issue and yields a wrong number that looks derived. The entitlement ratios above are the operative figures.
+
+**Direction and convention: read `build_adjusted_view()` and follow the existing convention.** Do not assume multiply-vs-divide from this prompt. The **observable outcome** in the predictions below is the specification; the sign is yours to get right from the code.
+
+**Two hazards, flagged because they are reachable:**
+
+- **The evidence screen (f ≥ 0.75 no-reprice).** Both factors land on record dates **inside the trading gap** — neither entity traded on its record date, so there is **no reprice evidence** for the screen to find. If the screen rejects a factor for that reason, **that is a finding, not something to work around** — report it and stop. Do not weaken the screen.
+- **Arm A / continuity.** A 100× back-adjustment rewrites 2177 (INDOSOLAR) and 2584 (SPENTEX) rows. **Re-run the full four-arm suite.** Arms A, C, D must stay clean and the continuity invariant must still return **0 view-induced fabrications.** If registering a factor trips a different arm, stop and report — do not disposition your way out of it.
+
+**Copy-first discipline applies** (the `repair_*.py` validate-then-apply pattern): validate against a copy, state the predicted deltas, apply only after they match.
+
+### §E — Four dispositions. All four, because all four still halt.
+
+Class: **`relisting_after_suspension`**. Mirror the register's existing entry schema — **do not invent a new shape.** Each entry carries its evidence: old/new ISIN, the NSE rename record, the capital event (or its absence), and the gap in missed sessions.
+
+| Entity pair | Factor applied | Post-factor boundary return | Why it is not a fabrication |
+|---|---|---:|---|
+| INDOSOLAR → WAAREEINDO | 100 | **+65.1%** | Real move across 1,473 missed sessions; 1:100 reduction registered |
+| SPENTEX → CLCIND | 100 | **−88.1%** | Real loss across 1,343 missed sessions; 1:100 reduction registered |
+| NTL → NEUEON | none | **+110.2%** | Real move across 315 missed sessions; FV-only event carries no factor |
+| WEIZFOREX → EBIXFOREX | none | **+31.4%** | Real move across 33 missed sessions; ISIN identical, no capital event |
+
+**All four remain above the 20% bound after correct adjustment.** That is the expected outcome, not a failure — a correct multi-year unearnable move is still a >20% single-session print. **The dispositions clear Arm B; the factors make the substrate true.** Neither substitutes for the other.
+
+*Context, not a licence:* none of these nine tickers has ever been in NIFTY-200 — zero membership rows, so no candidate can score them and no Phase 2 number moves either way. **This does not lower the bar on the evidence.** §11.1 gates on the record being right.
+
+### Falsifiable predictions — state these before the run, then run
+
+Per `testing.md`: for data-audit work, a prediction stated before the run is the discipline. **These are the reviewer's derivations. If an observation disagrees, the derivation is what is wrong until proven otherwise — report the discrepancy and stop.**
+
+1. `INDOSOLAR → WAAREEINDO` adjusted boundary return = **+65.1%** (`173.32 / (1.05 × 100)`).
+2. `SPENTEX → CLCIND` adjusted boundary return = **−88.1%** (`8.96 / (0.75 × 100)`).
+3. `NTL → NEUEON` = **+110.2%**, unchanged — no factor registered.
+4. `WEIZFOREX → EBIXFOREX` = **+31.4%**, unchanged — no factor registered.
+5. **Arm B reports 4 splices, 4 dispositioned, 0 halting.** Arms A, C, D unchanged and clean.
+6. Continuity invariant: **0 view-induced fabrications.**
+7. `DELIV_BASE_DAYS = 240` **fails** `test_c2_baseline_252_t21` by assertion; `= 200` fails by `KeyError`.
+
+### Scope discipline
+
+**No weakening a check to make it pass.** This has held for four rounds and §D/§E will tempt it directly — the evidence screen may reject a factor, a different arm may trip, a residual may not land. **Every one of those is a result. Report it and stop.**
+
+**Do not touch:** `contract_arms.py`, `screening_harness.py`, `_build_signal`, any §9 value, any other scorer. **No sealed reads. No candidate runs on real data.** The three PSB-1 files named in the lift are the only ones open, and only for what §C/§D/§E specify.
+
+**Every number script-generated.** No hand-edited numbers — including the residuals above. They are predictions to be reproduced, not values to be typed into a report.
+
+### Acceptance criteria
+
+1. `test_c2_baseline_252_t21` asserts `abs(z - 30.1028) < 0.01`.
+2. Fixture comment's `24.4` corrected to the true `30.1028` / `σ = 0.016220`.
+3. **Both** mutations run, failures reported with mechanism: `200` → `KeyError` (E1 guard), `240` → assertion. `252` restored.
+4. E1 guard is `base_std < 1e-12`; **no other scorer line changed.**
+5. Band-at-0.10 turnover recorded in the dev-proof report.
+6. Arm B reads the register, mirroring `arm_a_excl` / `arm_d_excl`.
+7. **A splice absent from the register still HALTS** — verified by temporarily removing an entry.
+8. **No `MAX_GAP_DAYS`, no gap rule, no structural filter added.** `contract_arms.py` unedited.
+9. INDOSOLAR factor 100 @ 2022-06-28 and SPENTEX factor 100 @ 2024-01-12 registered. **NTL: no factor.**
+10. Full four-arm suite re-run: **Arms A, C, D clean; continuity invariant 0.**
+11. Four dispositions committed, class `relisting_after_suspension`, evidence attached.
+12. **Predictions 1–7 reproduced by script**, or the discrepancy reported and the work stopped.
+13. Substrate certification report regenerated with a true commit stamp.
+14. No candidate score on real data. No §9 value changed. Ambiguity escalated.
+
+### Explicitly not authorized
+
+**No change to the frozen protocol** (§9). **No sealed read.** **No real candidate runs.** **No edits to `scripts/psb1/` beyond `certify_substrate.py`, `disposition_register.py`, `ingest_corporate_actions.py`.** **No edit to `contract_arms.py`.** **No gap rule or structural filter in any arm.** **No scorer change beyond the E1 line.** **No changes to `_build_signal`.** **No new candidates or variants.** **No strategy code.** **No new ingestion (D4)** — the two factors are corporate-action registrations, not an ingestion path.
+
+### Next after this prompt
+
+1. Claude **review** — §C/§D/§E are substrate repairs against a certified suite and get a full round, not a diff check. §A/§B are diff-checkable.
+2. Operator authorizes Phase 2 — **§11.2 (dev-proof) and §11.1 (Arm B) both closed.**
+3. Prompt 2 — candidate runs in the §11.3 order: **C2 → C3 → C4**, one report per candidate, committed as produced.
