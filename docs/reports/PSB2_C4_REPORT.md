@@ -1,10 +1,10 @@
 # PSB-2 Phase 2 C4 Battery Report
 
-**Script-generated** — `scripts/psb2/run_phase2.py`. Deterministic run (§10). Code commit `1235b3d`.
+**Script-generated** — `scripts/psb2/run_phase2.py`. Deterministic run (§10). Code commit `a82190f`.
 
 | Field | Value |
 |---|---|
-| Code commit | `1235b3d` |
+| Code commit | `a82190f` |
 | Store row count | 7,030,920 |
 | Store fenced MAX(trade_date) | 2022-12-30 |
 | Store unfenced MAX | 2026-07-09 |
@@ -24,7 +24,7 @@
 | One-sided t | 2.5499 |
 | One-sided p | 5.968292e-03 |
 | AC₁ | -0.024403 |
-| NW t (|AC₁|>0.10) | N/A |
+| NW t (AC₁ > 0.1) | N/A |
 | Imputed mean IC (§4.2) | 0.046154 |
 | Sign flag | False |
 | Min-names skipped | 0 |

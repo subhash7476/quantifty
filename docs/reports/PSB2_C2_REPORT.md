@@ -1,10 +1,10 @@
 # PSB-2 Phase 2 C2 Battery Report
 
-**Script-generated** — `scripts/psb2/run_phase2.py`. Deterministic run (§10). Code commit `ca34557`.
+**Script-generated** — `scripts/psb2/run_phase2.py`. Deterministic run (§10). Code commit `a82190f`.
 
 | Field | Value |
 |---|---|
-| Code commit | `ca34557` |
+| Code commit | `a82190f` |
 | Store row count | 7,030,920 |
 | Store fenced MAX(trade_date) | 2022-12-30 |
 | Store unfenced MAX | 2026-07-09 |
@@ -24,7 +24,7 @@
 | One-sided t | 2.4874 |
 | One-sided p | 7.994592e-03 |
 | AC₁ | -0.181762 |
-| NW t (|AC₁|>0.10) | 2.8217 |
+| NW t (AC₁ > 0.1) | N/A |
 | Imputed mean IC (§4.2) | 0.034781 |
 | Sign flag | False |
 | Min-names skipped | 0 |
@@ -64,10 +64,9 @@ Observed turnover 0.2701; observed drag 270.3 bp/yr.
 | Noncentrality (δ√ n* / SD) | 3.0740 |
 | Power at δ | 0.9198 |
 | Power at δ/2 | 0.4521 |
-| Power-NW at δ | 0.9651 |
+| Power-NW at δ | N/A |
 | Power hurdle | ≥ 0.8 |
 
-**AC₁ exposure (§7):** AC₁ > 0.10. Adjacent fortnightly formations overlap in their 252-day delivery baseline. The simple-t projection may be optimistic — a fortnightly candidate can clear the 0.80 hurdle on a projection its own reported AC₁ shows is optimistic. The gating power remains simple-t. The operator reads every power number with this exposure in view.
 
 ## §8 Eligibility
 
