@@ -989,7 +989,20 @@ the no-leak test returns its positive verdict in-run; the audit's fit-for-purpos
 PASS-eligible on its own numbers (or renders the stop language per standing constraint 4); no
 next-gate work started. Gate (d) stays HELD until the Lead Reviewer signs off on the report.
 
-## Prompt 4 — Gate (d): Delivery-equity fee model  **(ISSUED 2026-07-11)**
+## Prompt 4 — Gate (d): Delivery-equity fee model  **(PASSED 2026-07-11)**
+
+> **Status: PASSED** (`CSMP_GATE_D_LEAD_REVIEW.md`, 2026-07-11). DeepSeek V4 implemented
+> `core/execution/equity/delivery_fees.py` (+ `tests/execution/test_delivery_fees.py`, 28 tests;
+> full execution suite 290 passed / 4 skipped); Claude Lead-Reviewed independently (the file was
+> not Claude-authored — only the Prompt-4 GST/DP flag was Claude's, and it was resolved correctly).
+> All 7 acceptance criteria re-derived against the code: effective-dated schedules keyed by
+> `trade_date` (STT 0.1% both legs since 2004-10; NSE txn 0.00345% -> 0.00297% at 2024-10; stamp
+> buy-only 0.01% pre / 0.003% post 2020-07; GST 12.36/14/14.5/15/18% across the service-tax->GST
+> transition), GST base = brokerage+txn+SEBI only (DP's own GST folded into `dp_charge`, not
+> double-counted), pure/deterministic, fence clean. Two LOW documented-assumption notes (N1:
+> SEBI-fee/pre-2024-txn flatness asserted "stable" but corroborated only recently — immaterial,
+> <0.2% of a leg; N2: no paise rounding — preferable for a research aggregate). `[VERIFY]` on the
+> post-2024-10 txn figure is honest disclosure, not a silent guess. Gate (e) unlocked.
 
 **Objective.** A deterministic, effective-dated **delivery-equity fee model** for NSE cash
 delivery — the statutory + exchange cost of a buy and a sell leg for a long-only monthly-rebalance
@@ -1090,17 +1103,127 @@ criteria hold; every rate is cited; the test suite is green with hand-computed v
 frozen-component or options-module diffs; no gate-(e) work started. Gate (e) stays HELD until the
 Lead Reviewer signs off.
 
-## Prompt 5 — Gate (e): Transmission triage  **(HELD — the D1-lesson gate)**
+## Prompt 5 — Gate (e): Transmission triage  **(PASSED 2026-07-11 — CONTINUE, independently confirmed)**
 
-Preview: dev-window (2012→2022) pass computing monthly 12-1 momentum scores over the
-point-in-time universe from adjusted prices; report monthly cross-sectional Spearman
-rank IC (mean, SD, hit rate, by-year), decile spread, and a rough net-of-fee
-top-quintile vs equal-weight-universe comparison using the gate-(d) model. The
-**pre-committed stop rule** (numbers frozen in the prompt when issued, before the run):
-if mean dev-window rank IC or the net-of-fee top-bucket spread over the equal-weight
-universe is ≈ 0, CSMP stops before pre-registration — the same discipline that stopped
-D1. The sealed window (2023-01 → 2026-06) must not be touched by this or any earlier
-gate.
+> **Status: PASSED — verdict CONTINUE** (`CSMP_GATE_E_LEAD_REVIEW.md`, independent reviewer
+> **DeepSeek V4**). GLM implemented `scripts/csmp/triage_momentum.py`; Claude found and fixed a
+> verdict-flipping bug (buckets were selected by `universe_membership.rank` = gate-(c) turnover/liquidity
+> rank, not the 12-1 momentum score — corrected at both bucket sites, flipping STOP → CONTINUE;
+> corroborated by turnover, momentum top-quintile 23.76%/mo vs ~5% liquidity-sorted). Because Claude
+> authored a verdict-flipping change, independence was spent, so DeepSeek V4 Lead-Reviewed — re-deriving
+> every number from a scratch re-implementation: mean rank IC **0.0458** (95% CI **[0.0093, 0.0812]**,
+> L=12), net-of-fee top-quintile-minus-universe spread **+6.38%** (15.53% vs 9.16%); both locked stop
+> rules clear → **CONTINUE**. Byte-identical re-run; sealed window untouched (all three fenced inputs
+> MAX = 2022-12-30). Five LOW findings (F1 baseline-subset — conservative, all-200 widens to +6.46%;
+> F2 ref-cache path; F3 fence-echo; F4 comment; F5 bucket-size invariant) — F1/F3/F4 applied. Phase-1
+> pre-registration unlocked; the sealed window stays sealed until the pre-registered rule is frozen.
+
+> **Prior status: ISSUED.** The pre-committed stop-rule thresholds are **LOCKED** (operator, 2026-07-11)
+> and frozen before the run — a stop rule chosen after seeing results is not a stop rule (the MSRP
+> D1 discipline): **L = 12 months** (fixed a priori from the 12-1 formation-window overlap — adjacent
+> monthly scores share 11 months, so serial dependence runs to ~a year; **not** derived from the IC
+> autocorrelation, which would be circular since the IC series is this gate's own output), **mean
+> rank IC floor = 0.02**, **net top-minus-universe spread floor = 0**. DeepSeek V4 implements; Claude
+> Lead-Reviews. Nothing in this gate reads the sealed window.
+
+**Objective.** A dev-window-only (**2012-01 → 2022-12**) triage measuring whether classic 12-1
+cross-sectional momentum — computed over the point-in-time NIFTY-200 universe from gate-(b)
+adjusted prices — transmits into a **tradeable, net-of-fee edge**, before any pre-registration.
+This is the gate that stopped MSRP's D1: a signal can be real and still not transmit into a
+strategy, and that must be discovered *before* the sealed window is ever touched.
+
+**Why this gate exists (charter §5-e; the D1 lesson).** MSRP Phase 7 certified a forward-volatility
+signal that ranked well (Spearman 0.65 on the target) yet transmitted ≈ nil into the tradeable
+construct (0.09), so every Knowledge-gated variant lost to a free baseline — and D1 was correctly
+**not** pre-registered. Gate (e) applies that same pre-committed stop discipline to momentum here,
+on the dev window, so a non-transmitting signal costs a triage script, not a burned held-out window.
+
+**Scope — triage, not strategy; dev window only.**
+- Compute over **2012-01 → 2022-12 ONLY**. The sealed held-out window (2023-01 → 2026-06) must not
+  be read, loaded, or touched — its first and only use is the post-pre-registration test (D3), and
+  any peek burns it. Assert `MAX(trade_date) ≤ 2022-12-31` on every input query and print it.
+- **No tuning, no construct search, no signal engineering.** The construct is charter-locked (D2):
+  classic 12-1, monthly rebalance, equal-weight, provisional top-quintile bucket. The triage reports
+  what the *locked* construct does; it does not search for a better one.
+- No new strategy code; `core/strategies/` stays greenfield until pre-registration.
+
+**Inputs (all from passed gates).**
+- `universe_membership` (gate c) — the point-in-time ~200-name cross-section at each monthly
+  rebalance; score only names that are members as of that date (gate (c)'s no-leak guarantee).
+- `equity_bhavcopy_adjusted` (gate b) — CA-adjusted close (raw momentum is corrupted by
+  splits/bonuses; that is why gate (b) exists).
+- `symbol_changes` (gate a) — entity continuity across renames over the formation window.
+- `delivery_equity_fees` (gate d) — net-of-fee cost of each rebalance turnover leg.
+
+**Method (deterministic; charter-locked).**
+1. **Formation** at each rebalance date `t` (last full session of the month — gate (c)'s rebalance
+   calendar): for each member, 12-1 momentum = total adjusted return from `t−12m` to `t−1m` (skip
+   the most recent month, the standard short-term-reversal guard). Require a complete formation
+   window (member present and priced across the lookback via `symbol_changes`); exclude and **count**
+   names that fail it.
+2. **Rank** members cross-sectionally by score at `t`.
+3. **Forward return**: realized adjusted return of each name over `t → t+1` (next rebalance).
+4. **Rank IC**: monthly cross-sectional **Spearman** correlation of score(`t`) vs forward
+   return(`t→t+1`). Report the series + mean, SD, t-stat, hit rate (fraction of months > 0), by-year.
+5. **Bucket spread**: equal-weight top quintile and bottom quintile; report the gross spread series.
+6. **Net-of-fee gating baseline (D3)**: equal-weight **top-quintile** portfolio, monthly rebalanced,
+   vs the equal-weight **full-universe** portfolio (what a naive investor gets free). Apply gate-(d)
+   delivery fees to every buy/sell leg of each rebalance's turnover (each portfolio pays its own
+   turnover; the universe portfolio's turnover is only membership churn). Report net annualized
+   return, the **net top-minus-universe spread**, and turnover.
+7. **Reference arm (if obtainable)**: NIFTY200 Momentum 30 TRI as an external sign/magnitude sanity
+   check — obtainability shown with HTTP evidence (gate-(b)/(c) discipline); if unobtainable, say so
+   and proceed (it is a reference, not the gating baseline).
+
+**Deliverables.**
+1. `scripts/csmp/triage_momentum.py` — deterministic, re-runnable; writes
+   `docs/reports/CSMP_GATE_E_TRIAGE.md` (generated, byte-identical on re-run).
+2. No production strategy code; no `core/strategies/` work.
+
+**Pre-committed stop rule (LOCKED 2026-07-11 — frozen before the run).**
+CSMP **STOPS before pre-registration** if **EITHER** holds on the dev window (2012-2022):
+- **(A) No skill** — the mean monthly cross-sectional rank IC is not distinguishable from zero, or is
+  economically trivial. STOP if the block-bootstrap 95% CI of the mean monthly IC includes 0 **or**
+  the mean rank IC ≤ **0.02**. Block bootstrap on the monthly IC series with block length **L = 12
+  months** — fixed a priori from the 12-1 formation-window overlap (adjacent monthly scores share 11
+  months of data, so the IC series carries serial dependence to ~a year); **not** derived from the IC
+  autocorrelation, which would be circular (the IC series is this gate's own output). ~132 dev-window
+  months yield ~11 blocks; the resulting wide CI is the intended conservative bias for a triage.
+- **(B) No net edge** — the net-of-fee equal-weight top-quintile portfolio does not beat the
+  equal-weight full-universe baseline: annualized net top-minus-universe spread ≤ **0**.
+
+**CONTINUE** to pre-registration only if **BOTH** clear — mean rank IC > 0.02 **and** its bootstrap
+95% CI lower bound > 0 (A cleared), **and** net annualized top-minus-universe spread > 0 (B cleared).
+These numbers are frozen; the run's verdict is accepted mechanically — **no post-hoc widening** (the
+D1 discipline). A STOP is a *pass* of this gate's discipline, not a failure — a null result is a
+legitimate, valuable terminal state.
+
+**Standing constraints (bind here).**
+- Sealed window untouched — any read of 2023-01→present data is an automatic NOT PASSED.
+- No tuning, no construct search, no signal engineering — charter-locked parameters only.
+- Deterministic, re-runnable; report generated by the script; byte-identical on re-run.
+- Fence: new code in `scripts/csmp/`; report in `docs/reports/`; no `core/strategies/` work; no
+  frozen-component diffs.
+
+**Acceptance criteria (falsifiable — the review will check these exact claims).**
+1. Scores computed only on point-in-time members from `universe_membership`; formation-window
+   completeness enforced, excluded count reported; **no sealed-window rows read** (every input query
+   asserts `MAX(trade_date) ≤ 2022-12-31`, printed in the audit).
+2. Monthly rank IC series + mean/SD/t/hit-rate/by-year present; the block-bootstrap 95% CI with the
+   pre-committed `L` reported.
+3. Net-of-fee top-quintile vs equal-weight-universe spread present, using gate-(d) fees on actual
+   rebalance turnover; turnover disclosed.
+4. The pre-committed stop rule is stated with its locked thresholds and evaluated **mechanically**;
+   the audit renders CONTINUE or STOP on its own numbers.
+5. Reference-arm obtainability shown (data or HTTP-evidenced hole).
+6. Audit regenerates byte-identically on an unchanged store.
+7. No diffs outside `scripts/csmp/` and `docs/reports/`; no `core/strategies/` or frozen-component
+   diffs.
+
+**Definition of done.** The script runs clean; the audit renders **CONTINUE** or **STOP** on its own
+pre-committed numbers; the sealed window is untouched; no tuning occurred. If STOP, CSMP halts before
+pre-registration and the operator decides next (the D1 precedent). If CONTINUE, Phase-1
+pre-registration unlocks. DeepSeek V4 implements; Claude Lead-Reviews.
 
 ---
 
@@ -1111,3 +1234,1041 @@ same day (`CSMP_GATE_B_IMPLEMENTATION_R5.md`). Prompt 3 was issued 2026-07-10 on
 and reached PASSED 2026-07-11 (`CSMP_GATE_C_LEAD_REVIEW.md`), closing the `ICICIMOM30` gap and
 producing the point-in-time `universe_membership` panel. Prompt 4 (gate (d), delivery-equity fee
 model) was issued 2026-07-11 on that gate-(c) pass.*
+
+---
+
+## Prompt 6 — Phase 1: apply the operator ratification, stamp Rev 6 RATIFIED (author-locked)  **(ISSUED 2026-07-12)**
+
+**Objective.** Apply the operator's ratification (`CSMP_PHASE1_FREEZE_RATIFICATION.md`, 2026-07-12)
+to `docs/reports/CSMP_PHASE1_RESEARCH_DOSSIER.md` and stamp it
+**Rev 6 — RATIFIED, author-locked, pending Phase-2**. This is a **mechanical application of a
+decision already made.** It is the last edit the dossier receives **from its authors** before the
+Phase-2 independent review.
+
+> **This prompt does NOT freeze the dossier, and Rev 6 must not contain the word FROZEN.**
+> Charter §6 row 2 orders Phase 2 as *"critique; revisions folded in; dossier FROZEN"* — **review
+> first, then freeze.** The immutable **FROZEN** stamp lands at **Rev 7**, after Phase-2 findings are
+> folded. Author-lock means the *authors* stop revising; it does **not** mean the document is closed
+> to correction. Because the sealed window is still untouched, a pre-seal change triggered by the
+> Phase-2 reviewer remains fully legitimate — enabling exactly that is why the charter puts the
+> review before the freeze.
+
+**Scope of the bars below — read this carefully.** Every constraint in this prompt binds **you,
+DeepSeek, on this mechanical application pass.** **None of them binds the Phase-2 reviewer**, whose
+job is precisely to stress-test the evidence behind D-i, D-ii, and D-iii and whose findings *are*
+foldable. Do not carry these bars into the dossier as if they gagged the reviewer.
+
+**This prompt authorizes NO new work.** For this pass, each of the following is an automatic NOT PASSED:
+
+1. Running, re-running, or modifying **any** script — `phase1_prereg_analysis.py`,
+   `phase1_ci_coverage.py`, `phase1_group_sequential.py` are final. Their numbers are final.
+2. Introducing **any** number not already in Rev 5 or in the ratification record. No new simulation,
+   no new sensitivity, no re-derivation "to check."
+3. Touching the sealed window (2023-01 → 2026-06) in any way.
+4. Changing the universe, score, holding rule (K=40), metric, baselines, cost model, delisting
+   convention (§5.2), or the ratified inference/extension design. The construct fence binds **the
+   authors** from now; it becomes **immutable at Rev 7 (freeze)**, after which a change to any of
+   these is **a new pre-registration, not an edit**.
+5. Reopening D-i, D-ii, or D-iii **on your own initiative**, or re-arguing them. They are ratified.
+   Record them; do not relitigate them. *(The Phase-2 reviewer may reopen them; you may not.)*
+
+**Deliverable — one file changed:** `docs/reports/CSMP_PHASE1_RESEARCH_DOSSIER.md`.
+
+**The edits, exhaustively.**
+
+1. **Header `Status:`** — replace the "DRAFT (Rev 5) — NOT yet frozen … await operator ratification"
+   block with **RATIFIED (Rev 6) — author-locked, pending Phase-2; NOT yet frozen**, 2026-07-12.
+   State that D-i, D-ii, and D-iii are **operator-ratified** (cite
+   `CSMP_PHASE1_FREEZE_RATIFICATION.md`); that the authors make no further self-initiated revision;
+   that the **Phase-2 independent review by a third frontier model** — neither Claude nor DeepSeek,
+   whose independence is spent — is the one remaining step; and that the dossier **FREEZES at Rev 7,
+   after Phase-2 findings are folded** (charter §6 order).
+2. **Revision provenance** — add **Rev 6**: operator ratification applied; author-locked; **no
+   analytical change from Rev 5** (this is the claim the Lead Review will verify). Note that Rev 7
+   will carry the freeze.
+3. **§1.1** — D-i row: strike "Operator-ratified at freeze" → **"RATIFIED 2026-07-12."** D-iii row:
+   the pinned design is **single-shot**, full stop. Move the Pocock boundary vector *out* of the
+   pinned-substrate table (nothing about it is pinned any more) and keep it in §3.4 as the
+   **declined** alternative, retained for the record. §1.1 must contain only what Phase 6 actually
+   builds against.
+4. **§3.3 / §3.4** — replace every "awaits operator ratification" / "recommended" / "the operator
+   ratifies" hedge with the ratified fact. Keep the D-i coverage table, the power table, and the
+   decay table **intact and unchanged** — they are the evidence, and the Phase-2 reviewer must see
+   them. Preserve verbatim the guardrail sentence *"select on coverage, NOT on narrowness."* Add the
+   record from the ratification §1.2: the rule selected **against** power (Student-t 0.398 vs
+   stationary 0.453), which is the evidence it was not reverse-engineered.
+5. **§10 row 3 (Inconclusive)** — the one substantive edit. Replace *"This requires the operator to
+   explicitly grant a deviation from charter §6 … it must not be assumed"* with the ratified
+   **epistemic-condition framing** (`CSMP_PHASE1_FREEZE_RATIFICATION.md` §2), faithfully:
+
+   > Charter §6's Approval precondition is an **epistemic condition, not a risk gate** — "Approved"
+   > labels a descriptive claim about the sealed window, not a permission to risk capital, and at
+   > PaperBroker scale there is **no capital at risk**. It is **satisfied-in-substance by
+   > disclosure**: the consumer is built and run with the artifact disclosed, in code and in every
+   > report it emits, as **Not Approved / exploratory**.
+
+   State plainly what is **not** licensed: an Inconclusive result is never reported as a
+   confirmation; no LIVE deployment; no parameter change; no re-read. Also drop the parenthetical
+   *"(If instead the operator ratifies the Pocock group-sequential design …)"* — the operator did
+   not, and the decision table must not offer a road not taken.
+6. **§11** — carry the headline in plain words, at the top of the power paragraph:
+
+   > A valid, one-sided, correctly-covered test on 42 months is **~41% powered** against the
+   > program's own point estimate. **The single likeliest outcome of Phase 6 is "Inconclusive"
+   > (~59%) — even if the hypothesis is exactly true.** This was computed **before the window was
+   > spent, not after.**
+
+7. **§13 Sources** — add a row for `CSMP_PHASE1_FREEZE_RATIFICATION.md` (operator ratification and
+   author-lock).
+8. **Footer** — the dossier is **RATIFIED and author-locked, not yet frozen.** "Remaining before the
+   seal" is **exactly two items, in this order**: (1) the **Phase-2 independent review**, whose
+   findings are folded in; (2) the **Rev 7 FROZEN** stamp. Retain the standing attestation that
+   nothing in the document reports a result computed on the sealed window.
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **No number changed.** Every figure in Rev 6 matches Rev 5: mean IC 0.0457; dev CI
+   [0.0091, 0.0811]; Student-t 0.957 / 0.049 / 0.398; mb_L12 0.811 / 0.129 / 0.538; single-shot power
+   0.41; Pocock 0.24 / 0.73; decay row 0.34; naive-schedule FWER 0.130; net spread +6.24%/yr;
+   slippage differential ≈29 bp/yr. **A single changed digit is a NOT PASSED** — this pass is a status
+   change, not a revision.
+2. Status is **RATIFIED / author-locked / pending Phase-2**. The word **FROZEN must not appear as the
+   document's status** (it may appear only as the *future* Rev 7 step). No "recommended", "awaits
+   ratification", or "operator decides" language survives anywhere.
+3. §10 row 3 carries the epistemic-condition framing and no charter-deviation framing.
+4. §1.1 pins **single-shot only**; the Pocock boundary vector appears only in §3.4, marked declined.
+5. The construct fence is stated, with its timing correct: it binds the authors now and becomes
+   immutable at **Rev 7**, after which any change to universe/score/K/metric/baselines/costs/§5.2/
+   inference requires a **new pre-registration**.
+6. **The document does not gag the Phase-2 reviewer.** Nothing in Rev 6 may assert that D-i, D-ii, or
+   D-iii is closed to challenge, or that the evidence is beyond review. The reviewer's mandate to
+   reopen any of them is stated, not merely left unstated.
+7. `git diff` touches **exactly one file** — the dossier. No script diffs. No `core/` diffs.
+8. The sealed window is untouched, and the document still says so.
+
+**Definition of done.** The dossier reads as a pre-registration whose decisions are made, whose
+authors are done, and which is **ready to be attacked** by an independent reviewer — needing nothing
+further from Claude or DeepSeek. DeepSeek V4 applies; Claude Lead-Reviews the diff for mechanical
+fidelity only — did the ratification get applied, and did anything else move?
+
+---
+
+## Prompt 7 — Phase 1: fold Phase-2 findings F1/F2/F3; stamp Rev 7 FROZEN  **(ISSUED 2026-07-12)**
+
+**Context.** The Phase-2 independent review (GPT-5 / Codex, `CSMP_PHASE2_INDEPENDENT_REVIEW.md`)
+returned **PASS WITH REQUIRED REVISIONS**. The Lead Reviewer accepted all three findings and verified
+each against the source (`CSMP_PHASE2_LEAD_DISPOSITION.md`); the operator has ratified the two
+decisions they forced. **This prompt folds them in and freezes the dossier at Rev 7.**
+
+**Scope is exactly F1 + F2 + F3 + the record correction below. Nothing else reopens.** D-ii, D-iii,
+the power analysis, K=40, the cost model, and the decision table were examined by the independent
+reviewer and **cleared on their merits** — they are not in play. Reopening them is an automatic NOT
+PASSED. The sealed window (2023-01 → 2026-06) stays untouched; the dev-only fence and its assertion
+stay in every script.
+
+---
+
+### Step 1 — **F2 first** (it is a precondition for F1, not a parallel task)
+
+`scripts/csmp/phase1_ci_coverage.py` builds its IC population with
+
+```python
+if p12 and p1 and pa and pb and p12 > 0 and pa > 0:   # <-- pb required
+    pr.append((p1 / p12 - 1.0, pb / pa - 1.0))
+```
+
+A name with **no `t+1` price (`pb`) is silently dropped.** That is **the §5.2 survivorship bug** — the
+same class of defect §5.2 was written to kill, and that B1 fixed in `phase1_prereg_analysis.py` —
+still live in **the script that selects the gate**, while the dossier asserts §5.2 is "binding on every
+forward return in the IC set."
+
+**Do:** refactor `dev_ic_series()` to use **the same `fwd()` convention as
+`phase1_prereg_analysis.py`** (rule 1: last available close in `(t, t+1]`; rule 2: 0% step; rule 3:
+never drop the name). **Do not write a second implementation of §5.2** — reuse the one that exists, so
+the two scripts cannot drift apart again. Re-run and publish the corrected coverage table.
+
+> **Falsifiable prediction, recorded before the run** (state it in your report, then run — house
+> discipline): *the §5.2 correction shifts the dev IC population negligibly (0.0458 → ~0.0457); the
+> selection does **not** flip; Student-t remains closest on one-sided Type-I.*
+
+### Step 2 — **F1**: the rule is ratified; the method is *whatever the corrected table selects*
+
+The old rule ("coverage closest to nominal") never named **which** calibration metric, and under a
+literal two-sided reading it selects `iid_perc` (0.949), **not** the ratified Student-t (0.957). The
+operator has ratified the disambiguation:
+
+> **D-i selection rule (ratified 2026-07-12).** *Because the primary gate is a one-sided lower bound,
+> select the CI method whose **one-sided null rejection rate at n = 42 is closest to nominal 0.050**.
+> Two-sided coverage is reported as a sanity check, not used to select. Guardrail, unchanged: select on
+> **calibration, NOT on narrowness**.*
+
+**Apply that rule mechanically to the corrected table and take whatever it selects — including
+`iid_perc`, if that is what it selects.** You are not permitted to steer this. The script must **print
+the selected method and its distance to nominal**, so the choice is made by code, not by prose.
+
+**Also required:** the non-selected candidates are pre-registered as **reported, non-gating arms** at
+Phase 6 — `iid_perc` (the two-sided-reading winner) alongside the retired `mb_L12`. Both readings stay
+visible in the frozen document, so neither can be silently preferred after the sealed result is seen.
+
+> **STOP CONDITION — do not freeze; escalate instead.** If the corrected table **flips the selected
+> method** (one-sided Type-I closeness no longer selects Student-t), **halt.** Do not stamp Rev 7.
+> Publish the corrected table, state the flip plainly, and return to the operator — the frozen gate
+> would be changing, and the Phase-2 reviewer gets a confirmatory look at the corrected table before
+> any freeze.
+
+### Step 3 — **F3**: the PaperBroker path is a **charter amendment**, not a satisfied precondition
+
+The current §10 row 3 framing ("charter §6's Approval precondition is an *epistemic condition* …
+satisfied-in-substance by disclosure") **modelled capital risk and nothing else.** It does not answer
+**anchoring, sunk cost, or the quiet promotion of a Not-Approved artifact into an operationally trusted
+one.** The operator has ratified the reviewer's fix: **record it as an explicit amendment to charter
+§6, with controls.**
+
+Rewrite §10 row 3, and add a dated amendment note to `CSMP_PHASE0_CHARTER.md`, saying in substance:
+
+> **Charter §6 amendment (2026-07-12).** An Inconclusive Phase-6 result leaves the artifact **Not
+> Approved**. The top-40 PaperBroker consumer may still be built and run, as an explicitly
+> **exploratory** deployment, under these controls:
+> 1. It is **not** Phase-7 completion, and must not be recorded as such.
+> 2. It may **never** appear in Approved / Deployable / certified language — in code, dashboards, or
+>    reports.
+> 3. It runs under a **separate exploratory runbook**, distinct from the production consumer path.
+> 4. Its forward data may enter **only a fresh pre-registration with frozen rules and fresh α** — never
+>    a re-read of the spent window, never a retrofit of this one.
+
+**Delete the "satisfied-in-substance by disclosure" language.** It is superseded.
+
+### Step 4 — the record correction (F1 falsifies a claim now in the dossier)
+
+§3.4 / §1.1 currently celebrate that the rule *"selected against power (Student-t 0.398 vs stationary's
+0.453)."* That is **inaccurate**: the stationary bootstrap was never the rule's winner under either
+reading, and the relevant foil — **`iid_perc`, power 0.418, the literal two-sided winner** — was
+**omitted from the comparison entirely.** Replace it with:
+
+> Student-t is the **lowest-power valid candidate** (0.398, vs `iid_perc` 0.418 and stationary 0.453) —
+> chosen on **one-sided calibration for a one-sided gate**, not for power. The rule as first written was
+> **underspecified** between the one-sided and two-sided readings (Phase-2 **F1**); under a literal
+> two-sided reading it selects `iid_perc`. It was **disambiguated to one-sided pre-seal, on a corrected
+> table, and disclosed** — not resolved after the fact.
+
+*(Adjust the figures to the corrected table if they move.)* **The disclosure is the point. Do not
+restore a triumphant framing.**
+
+### Step 5 — freeze
+
+Stamp the dossier **Rev 7 — FROZEN** (charter §6 order: critique → revisions folded → FROZEN). Header,
+revision provenance, and footer updated accordingly. The construct fence becomes **immutable**: any
+change to universe / score / K / metric / baselines / cost model / §5.2 / inference or extension design
+now requires **a new pre-registration, not an edit**. Add `CSMP_PHASE2_INDEPENDENT_REVIEW.md` and
+`CSMP_PHASE2_LEAD_DISPOSITION.md` to §13 Sources.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **F2 closed in code, not in prose:** `phase1_ci_coverage.py` reuses `phase1_prereg_analysis.py`'s
+   §5.2 `fwd()` convention — **no second implementation** — and the corrected table is published with
+   the pre-stated prediction and the actual outcome side by side.
+2. **F1 closed by code, not by choice:** the script **prints** the selected method and its distance to
+   nominal under the ratified one-sided rule. The dossier's D-i wording matches that rule verbatim. The
+   non-selected arms (`iid_perc`, `mb_L12`) are pre-registered as **reported, non-gating**.
+3. **The stop condition was honoured:** if the selection flipped, the dossier is **not** frozen and the
+   matter is back with the operator.
+4. **F3 closed as an amendment:** §10 row 3 and the charter carry the dated §6 amendment with all four
+   controls; the "satisfied-in-substance" language is **gone**.
+5. **The record correction landed:** no "selected against power (vs stationary)" claim survives
+   anywhere; the `iid_perc` foil and the F1 ambiguity are disclosed.
+6. **Nothing outside scope moved.** D-ii, D-iii, the power tables, K=40, the cost model, and
+   decision-table rows 1 / 2 / 4 are byte-unchanged.
+7. `git diff` touches only: the dossier, `phase1_ci_coverage.py`, the charter (amendment note), and the
+   coverage output. **No `core/` diffs. No sealed-window reads** (fence asserted and printed).
+8. Scripts remain deterministic at seed `20260711` and re-run byte-identically.
+
+**Definition of done.** The pre-registration is **FROZEN**; its gate is defined by a rule a stranger
+could apply mechanically to a printed table and land on the same method; its calibration script honours
+the same delisting convention as its analysis script; and its one governance deviation is recorded as
+an amendment with teeth rather than a reframing. DeepSeek V4 implements; Claude Lead-Reviews.
+
+---
+
+## Prompt 8 — Phase 5 (A1 artifact) + A2 validation harness — **the last build before the sealed read**  **(ISSUED 2026-07-12)**
+
+**Read `CSMP_PHASE1_RESEARCH_DOSSIER.md` (Rev 7, FROZEN) end to end first. It is now immutable and it is
+your specification.** Nothing in this prompt may contradict it; where they differ, **the dossier wins,
+and you stop and say so.**
+
+### Why this is not Phase 6 — and why that matters more than anything else in this prompt
+
+Charter §6's phase map runs **3/4 (latent variable) → 5 (artifact — "Author") → A2 ("the one required
+harness build") → 6 (held-out scoring — "No: uses A2")**. **Phase 6 builds nothing. It *runs* A2, once.**
+
+Today, `grep -rl xs_momentum_score --include=*.py .` returns **nothing**. There is no artifact and no
+harness.
+
+> **If the harness were written during Phase 6, any bug found afterwards would be unfixable.** The
+> sealed window (2023-01 → 2026-06) can be read **exactly once**, and re-reading it to fix your own code
+> is the multiplicity trap D-iii exists to forbid. **The single worst outcome available to this program
+> is to spend the sealed window on buggy scoring code.**
+
+**So this prompt builds and *fully proves* the scoring machinery on the dev window, and touches the
+sealed window nowhere.** Phase 6 must then be a change of **the date range and nothing else**. Design
+for exactly that: **the evaluation window is a parameter, not a hard-coded literal**, and the dev and
+sealed code paths are **identical**.
+
+### The hard fence (violation = automatic NOT PASSED)
+
+- Every query is fenced at `DEV_END = 2022-12-31`, and the harness **asserts and prints** the observed
+  max `trade_date` — the pattern already in `phase1_prereg_analysis.py` / `phase1_ci_coverage.py`
+  (`assert max(d) <= DEV_END, "SEALED LEAK"`).
+- **You do not read, inspect, sample, count, or describe the sealed window.** Not to "sanity check",
+  not to "confirm the schema", not once.
+- The dry run is on the **full store with the code fence** — *not* a truncated store (operator-ratified:
+  the harness is *our* code and carries its own fence; a second store would reintroduce exactly the
+  drift F2 just closed).
+
+---
+
+### Deliverable 1 — Phase 5 / A1: the artifact
+
+**Conform to the existing MSI precedent; do not invent a shape.** Read first:
+`core/msi/contracts/artifact.py` (the `PublishedArtifact` contract) and
+`core/msi/artifacts/forward_vol_v2/model.py` (MSRP's artifact — the working MSI-007 v2 example). Build
+the CSMP artifact as a **new sibling**, e.g. `core/msi/artifacts/xs_momentum_v1/`.
+
+**Scope note — the one place the standing constraints need interpreting.** The gate-era constraint said
+*"zero changes to `core/msi/`"*; that was scoped to gates (a)–(e), which were ingestion work. Phase 5 is
+charter-designated **"Author"** and A2 is **"the one required harness build"** — code must exist.
+**Adding a new artifact directory is additive and permitted. Modifying MSI runtime, the DRA, the
+contracts, frozen components, or anything MSRP-sealed is NOT.** If conforming to MSI-007 appears to
+*require* changing shared MSI code, **stop and report** — do not edit shared code to make your artifact
+fit.
+
+**The construct is frozen and parameter-free (§7).** Nothing is fitted; there are no coefficients:
+
+- `evaluate()` emits **one `Estimate` per point-in-time universe member**: `value` = the 12-1 score
+  (`adj_close(t−1m)/adj_close(t−12m) − 1`), `dimension = <symbol>`, and a **scalar `uncertainty` = the
+  SD of the 11 monthly formation sub-returns**.
+- **Formation-window completeness is separate metadata — NOT folded into the `uncertainty` scalar.** A
+  name lacking a complete formation window is **not scored** and cannot enter the top-40; the excluded
+  count is reported.
+- `uncertainty` is **reported-not-acted-on** in increment 1: it must **not** enter ranking, K-selection,
+  or weighting (charter §4).
+- Deterministic and side-effect-free: identical evidence ⇒ identical `MarketState`.
+
+### Deliverable 2 — A2: the validation harness (the one required build)
+
+Precedent: `core/msi/msrp/validation.py` (MSRP's MSI-006 record). Build the CSMP sibling (e.g.
+`core/msi/csmp/validation.py`) plus a runner in `scripts/csmp/`.
+
+**Reuse, do not reimplement — this is F2's lesson, and it is now a standing rule:**
+
+- **§5.2 delisting convention:** import `fwd()` from `scripts/csmp/phase1_prereg_analysis.py`. **There
+  is ONE implementation of §5.2 in this repo and it stays that way.** A second one is an automatic NOT
+  PASSED.
+- **Fees:** `core/execution/equity/delivery_fees.py` (gate (d)) — do not re-derive rates.
+- **Universe:** `universe_membership` (gate (c), point-in-time). **Prices:** `equity_bhavcopy_adjusted`
+  (gate (b)). **Entity continuity:** `universe_eligibility` / `symbol_changes` (gate (a)).
+
+**The gate — pinned, not re-selected.** D-i is **decided**: the gate is the **one-sided 95% Student-t
+lower bound** on the monthly `IC_t` series. **The harness applies it. It does not re-run the selection
+and it does not reopen D-i.**
+
+- **Approved** iff the one-sided 95% Student-t lower bound of `mean_IC` **> 0**.
+- **Deployable** iff additionally `Δ_net > 0` (net top-40 minus the **stronger** of the two universe
+  baselines — §3.2 / S1).
+- Read **mechanically** against the §10 decision table. **No post-hoc widening.** The harness prints the
+  verdict; a human does not choose it.
+
+**Reported, non-gating (all of these — §3.4, §5.2, §9):** the `iid_perc` and `mb_L12` bounds (both
+readings stay visible); the `Δ_net` block-bootstrap CI (explicitly non-gating); by-year IC and hit-rate;
+§5.2 rule-1/rule-2 counts **by year**, with **every top-40 rule-2 event explicitly highlighted** (a 0%
+step on a top-40 name can mask a real delisting loss); the **−100% rule-2 sensitivity**; the sub-period
+split (2023-24 vs 2025-26); risk metrics for both arms (annualized vol, Sharpe, max drawdown); the §7
+**uncertainty-tercile monotonic-IC calibration test**; the long-short quintile spread (reported, never
+traded); the formation-exclusion count.
+
+**All seven MSI-006 domains** per §9: Architectural, Scientific, Temporal, Robustness, Reproducibility,
+Operational, Calibration.
+
+### Deliverable 3 — the A1 VOID precondition (implement now; it *executes* at Phase 6)
+
+Per §8: **Step 0 of the Phase-6 run** re-executes gate (b)'s `|move| ≥ 20%` single-day CA-classification
+screen over the sealed window. **If unexplained residue > 0 → the run is VOID:** no metric is read, no
+verdict rendered, the window re-sealed pending a gate-(b) fix.
+
+**Implement it now and prove it on the dev window** (where gate (b) reports residue 0). It is a
+**data-quality** check, not a result, so it preserves the seal. **Wire it as a hard precondition: the
+harness must be structurally incapable of emitting a verdict if the VOID check fails.** A single wrong
+split factor manufactures ±50% phantom momentum and can inject that name into the top quintile — §12.1
+names this the scariest inherited assumption.
+
+### Deliverable 4 — **the mandatory dev-window dry run** (this is the acceptance gate)
+
+Run the **complete** A1 + A2 pipeline end-to-end on **dev (2012-01 → 2022-12)** and emit a **full MSI-006
+validation record with a rendered verdict** — exactly as Phase 6 will, but on data that is already spent.
+
+**This is the entire point of the prompt.** It proves the machinery works *before* it is pointed at a
+window that cannot be re-read.
+
+- The dry-run record must be **byte-identical on re-run** (seed `20260711`).
+- Its dev IC series must **reconcile with `phase1_prereg_analysis.py`**: `n = 131`, `mean_IC = 0.0457`,
+  rule-1/rule-2 = **21 / 1**, net spread **+6.24%** (fees) / **+5.95%** (fees + slippage). **A mismatch
+  means the harness disagrees with the frozen dossier's own numbers — that is a defect in the harness,
+  and it must be found now, not after the seal is broken.**
+- Script-generated (not hand-typed) → `docs/reports/CSMP_A2_DEV_DRYRUN.md`.
+
+### Deliverable 5 — close §1.1's remaining build-time fields
+
+Frozen §1.1 leaves exactly one row unpinned: *"Python / duckdb / numpy / scipy versions; store SHA-256;
+code commit hash — pin at build."* **Pin them now.** Also pin the **sealed rebalance-date list** from
+`trading_calendar` (a non-price calendar fact; target **42** formations, 2022-12 → 2026-05 inclusive).
+The count is **VOID-checked, never a tuning lever** — if it is not 42, **report it and stop**; do not
+adjust anything to make it 42.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **The sealed window was not touched.** Fence asserted *and printed*; observed max `trade_date` ≤
+   2022-12-31 everywhere. Checked first, and dispositive.
+2. **One §5.2 implementation.** `fwd()` imported from `phase1_prereg_analysis`, never reimplemented.
+3. **The dev dry run reconciles with the frozen dossier** on every number in Deliverable 4, and is
+   byte-identical on re-run.
+4. **The gate is applied, not chosen.** Student-t one-sided lower bound, pinned; the harness renders
+   Approved / Not-Approved / Rejected mechanically from §10; `iid_perc` and `mb_L12` reported non-gating.
+5. **`uncertainty` does not act.** Ranking, K-selection, and weighting are provably independent of it.
+6. **The VOID precondition is structural** — the harness *cannot* emit a verdict if it fails.
+7. **Phase 6 is a date change and nothing else.** Demonstrate it: the evaluation window is a parameter;
+   dev and sealed code paths are identical. **If Phase 6 would require editing harness logic, this
+   prompt is not done.**
+8. **No shared-MSI edits.** New artifact/validation directories only; MSI runtime, the DRA, contracts,
+   frozen components, and MSRP-sealed code untouched. No `core/execution/` diffs beyond *using*
+   `delivery_fees.py`.
+9. **The construct fence held.** Universe, score, K=40, metric, baselines, cost model, §5.2, and the
+   inference/extension design are exactly as frozen. Any pressure to change them means **stop and
+   report** — a change requires a **new pre-registration**, not an edit.
+
+**Definition of done.** The artifact exists, the harness exists, and the harness has **already rendered a
+complete verdict on the dev window and reproduced the frozen dossier's numbers**. The sealed window is
+still sealed. Phase 6 is then a **ceremony, not a build**: point the same harness at 2023-01 → 2026-06,
+run the VOID check, run it once, and read the answer off a decision table written before the data was
+seen.
+
+DeepSeek V4 implements; Claude Lead-Reviews. **Do not begin Phase 6.**
+
+---
+
+## Prompt 9 — Close Prompt-8 F1: make the attestation true and the record reproducible  **(ISSUED 2026-07-12)**
+
+**Context.** Prompt 8 is **NOT PASSED** on one HIGH finding (`CSMP_PROMPT8_LEAD_REVIEW.md` §2). Everything
+else passed: the numbers reconcile with the frozen dossier, `results.json` is byte-identical, the fence
+holds, the VOID gate is structural, and Phase 6 is genuinely a date-flag change. **The science is sound.
+This prompt fixes a provenance defect — and it is blocking, because it is the kind of defect that becomes
+permanent the instant the seal is broken.**
+
+**Scope is F1 plus the two recorded disclosures. Nothing else reopens.** No construct change, no
+re-derivation, no new analysis. The sealed window stays untouched (the dev fence stays asserted and
+printed).
+
+---
+
+### The defect, restated so the fix is unambiguous
+
+`run_a2_validation.py`'s `git_commit()` calls `git rev-parse HEAD` **at run time, with no dirty-tree
+check**, and that value flows into `methodology.substrate.commit` → `methodology_fingerprint()` →
+**`validation_id`**.
+
+You ran the harness while **the harness itself was uncommitted** (HEAD = `4279704`, the *"issue Prompt 8"*
+commit), then committed the code afterwards as `49513fe7`. Therefore:
+
+```
+$ git ls-tree -r --name-only 42797043 | grep -E "core/msi/csmp|xs_momentum_v1|run_a2_validation"
+(empty)
+```
+
+**The commit pinned into the FROZEN dossier §1.1 as the reproducibility substrate contains no artifact,
+no validation module, and no runner.** Anyone checking it out to reproduce the record finds the code is
+not there. **The pin is not stale — it is false.** And because `commit` sits inside the `validation_id`
+preimage, the record's identity **drifts with every later commit**: re-running produced a different
+`validation_id` purely because HEAD had moved.
+
+**Why it blocks.** Phase 6 reads the sealed window **once** and emits a record naming whatever HEAD
+happens to be. If that record names a commit lacking the code — or if its ID moves whenever anyone commits
+a typo — then **the one result the entire program exists to produce can never be audited, and cannot be
+re-run, because the seal is gone.** Reproducibility is one of the seven MSI-006 domains, and the record
+whose job is to attest it is not itself reproducible.
+
+---
+
+### The circularity you will hit — read this before you start
+
+Pinning the code commit into dossier §1.1 **is itself a commit**. So if anything in the record tracks
+`HEAD`, the act of recording the pin **immediately invalidates it again**: HEAD moves, the fingerprint
+moves, the ID moves. **You cannot fix this by being careful about ordering. You must remove `HEAD` from the
+identity entirely.** That is the point of fixes 1 and 2, and it is why the acceptance test in criterion 3
+exists.
+
+---
+
+### Fix 1 — the record's identity must not depend on `HEAD`
+
+- **`validation_id`'s preimage must contain no `rev-parse HEAD` value.** Replace the mutable
+  `substrate.commit` contribution with **content hashes of the source files that actually produced the
+  numbers**: `core/msi/artifacts/xs_momentum_v1/model.py`, `core/msi/csmp/validation.py`,
+  `core/msi/csmp/void_precondition.py`, `scripts/csmp/run_a2_validation.py`, and
+  `scripts/csmp/phase1_prereg_analysis.py` (the shared §5.2 `fwd()`). **Content hashes identify the code
+  exactly and are immune to every later commit.**
+- **Record `commit` as the *code commit*, not `HEAD`:** `git log -1 --format=%H -- <those paths>` — the
+  last commit that actually touched the harness. It is stable across unrelated later commits (a docs edit
+  does not move it) and it **genuinely contains the code**. Keep it as recorded provenance **outside** the
+  `validation_id` preimage.
+- Net effect: **re-running after an unrelated commit must produce a byte-identical record.**
+
+### Fix 2 — the harness must be structurally incapable of a false attestation
+
+Add a **dirty-tree guard**, held to the same standard as the VOID gate (which *raises* rather than flags):
+if `git status --porcelain -- <the harness/artifact/analysis paths>` is **non-empty**, the run **refuses to
+emit a record** and raises.
+
+> A record naming a commit that does not contain its own code is a **false attestation**. The harness must
+> not be able to produce one — exactly as it must not be able to produce a verdict on a VOID window.
+
+Test it as `assert_void_clear` is tested: dirty a harness file, assert the run raises and writes nothing.
+
+### Fix 3 — re-pin §1.1 truthfully, and regenerate
+
+- Re-pin the §1.1 build-time row to **the real code commit** (the one containing the harness), and add the
+  **source content hashes**.
+- Regenerate the dev dry-run record. **`docs/reports/csmp_a2_records/` must end with exactly ONE record** —
+  the two currently present are artifacts of this bug (they differ *only* in the commit field) and must not
+  survive into Phase 6.
+
+**On editing the FROZEN dossier:** §1.1's build-time row is the one place the freeze explicitly sanctions
+writing (*"pin at build"*). Correcting a pin to a **true** value is completing that pin, not changing the
+construct. **The construct fence — universe, score, K=40, metric, baselines, cost model, §5.2, and the
+inference/extension design — is untouched, and touching it is an automatic NOT PASSED.**
+
+### Fix 4 — persist the grid provenance (disclosure 2)
+
+The 42 pinned sealed rebalance dates entered the frozen dossier from an **ad-hoc query with no script**.
+The Lead Reviewer re-derived them independently and they **match exactly**, so the *fact* is verified — but
+its *provenance* rests on a one-off check, against standing constraint 3 (*"the report is generated, not
+hand-typed"*).
+
+Add **`scripts/csmp/pin_sealed_grid.py`**: `trading_calendar` only (`trade_date`, `n_symbols` — **no price
+table, no returns**; the non-price calendar-fact exception §1.1 authorises), printing the 42 dates and
+asserting `count == 42`. **If the count is not 42 it must fail loudly — this is a VOID-check, never a
+tuning lever.**
+
+### Disclosure to carry forward (no code change)
+
+The **`uncertainty` scalar is not a calibrated IC predictor**: the dev tercile IC is **non-monotonic**
+(0.0485 / 0.0446 / 0.0496) against §7's stated expectation. **Keep reporting it plainly as a negative
+result** in the Phase-6 report — do not soften it. It is non-gating, and it *vindicates* the
+reported-not-acted-on fence: had increment 1 weighted or abstained on this scalar, it would have been
+acting on a signal that demonstrably does not calibrate.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **The attestation is true.** `git ls-tree -r <pinned commit>` **contains** `model.py`, `validation.py`,
+   `void_precondition.py`, and `run_a2_validation.py`. *(This is the criterion the whole prompt exists for.
+   It is checked first and it is dispositive.)*
+2. **`validation_id` is HEAD-independent** — no `rev-parse HEAD` value appears anywhere in its preimage.
+3. **The acceptance test — and it must actually be run and shown:** **(a)** run A2 from a clean tree →
+   record R₁; **(b)** make an unrelated commit (e.g. a docs line); **(c)** re-run → record R₂. **Assert
+   `R₁ == R₂` byte-for-byte, with the same `validation_id`. Paste both hashes into the report.** *This is
+   the proof the circularity is broken — an assertion that it is broken is not evidence.*
+4. **The dirty-tree guard is structural and tested** — a dirty harness path makes the run **raise** and
+   write **nothing**.
+5. **Exactly one record** in `docs/reports/csmp_a2_records/`.
+6. **The numbers did not move.** The dev dry run still reconciles exactly: `n = 131`, `mean_IC = 0.0457`,
+   rule-1/rule-2 = **21/1**, spread **+6.24%** / **+5.95%**. **Any change to a number is an automatic NOT
+   PASSED — this prompt touches provenance, not computation.**
+7. **`pin_sealed_grid.py` exists**, is calendar-only, reproduces the 42 pinned dates, and asserts the count.
+8. **The construct fence held.** The only dossier diff is the §1.1 build-time pin row.
+9. **The sealed window was not read.** Fence asserted and printed; observed max `trade_date` ≤ 2022-12-31.
+10. **Phase 6 is still a date change and nothing else** — `--eval-lo` / `--eval-hi` / `--price-cutoff`,
+    identical code paths.
+
+**Definition of done.** The record says something **true** about the code that produced it, and says the
+**same true thing** every time anyone re-runs it — forever, including after the very commit that records
+the pin. Then Phase 6 can safely be what it was always meant to be: **a ceremony, not a build.**
+
+DeepSeek V4 implements; Claude Lead-Reviews. **Do not begin Phase 6.**
+
+---
+
+## Prompt 10 — **PHASE 6: THE SINGLE SEALED READ**  **(ISSUED 2026-07-12)**
+
+> **This prompt authorizes the one irreversible act in the entire program.**
+>
+> The held-out window **2023-01 → 2026-06** has never been read. After this run, it is **spent
+> forever**. There is no second read, no re-run with different parameters, no "quick check." Every gate,
+> every review, every correction of the last five days existed to make **this one execution** trustworthy.
+>
+> **You are not building anything. You are not deciding anything. You are running one command and
+> reporting what it prints.**
+
+### What is already settled, and is not yours to revisit
+
+- The **pre-registration is FROZEN** (`CSMP_PHASE1_RESEARCH_DOSSIER.md` Rev 7), independently reviewed by
+  a third model, with every finding folded in.
+- The **gate is pinned**: the one-sided 95% Student-t lower bound of `mean_IC` > 0 → **Approved**;
+  additionally `Δ_net > 0` → **Deployable**. **The code applies it. You do not.**
+- The **decision table (§10) was written before anyone saw this data.** The harness renders the verdict
+  mechanically. **You do not interpret it, adjust it, soften it, or comment on whether it is good news.**
+- The **A2 harness is cleared** (`CSMP_PROMPT9_LEAD_REVIEW.md`, PASS on all 10 criteria) and has already
+  rendered a complete verdict on the dev window, reproducing the frozen dossier exactly.
+
+---
+
+### Step 0 — the tripwire: prove the harness is the one that was cleared
+
+**Before touching the sealed window**, re-run the **dev** dry run and confirm it still produces:
+
+```
+validation_id = f8153e1147246655bc451b027053b79af14d3afbe822adff8ab61ac144ef0bf1
+code_commit   = 0ae1dc4b36df1b10b794925606abfe363aa7d7d5
+n = 131 | mean_IC = 0.0457 | rule-1/rule-2 = 21/1 | spread +6.24% / +5.95%
+```
+
+**If the `validation_id` differs by a single character, the harness is not the code the Lead Review
+cleared. STOP. Do not proceed to the sealed read.** The dev record is a tripwire, and this is the last
+moment it can catch a change.
+
+The tree must be **clean** (the dirty-tree guard will enforce this and raise if not).
+
+### Step 1 — the VOID precondition (§8 A1) — the run's own abort switch
+
+The harness re-executes gate (b)'s `|move| ≥ 20%` single-day corporate-action screen **over the sealed
+window**. This is a **data-quality** check, not a result — it reads no metric and renders no verdict, so
+it does not break the seal.
+
+> **If undocumented residue > 0, the run is VOID.** `assert_void_clear()` raises; **no metric is read and
+> no verdict is rendered.** The window is **re-sealed, NOT spent** — because nothing about the hypothesis
+> was observed. Report the residue rows, stop, and return to the operator for a gate-(b) fix.
+>
+> **A VOID is not a failure and it does not consume the read.** It is the safeguard working. A single
+> wrong split factor manufactures ±50% phantom momentum and can inject that name straight into the top
+> quintile — §12.1 names this the scariest inherited assumption, and this is the check that acts on it.
+
+### Step 2 — the read. **Once.**
+
+```
+python scripts/csmp/run_a2_validation.py \
+    --phase "6/sealed-read" \
+    --eval-lo 2023-01-01 \
+    --eval-hi 2026-06-30 \
+    --price-cutoff 2026-06-30
+```
+
+**That is the entire change: three dates.** No code edit. No parameter tuning. No exploratory pass first.
+
+**Absolutely forbidden — each is an automatic NOT PASSED and a scientific-integrity breach:**
+
+1. **Running it more than once with different arguments.** One execution. If it crashes on a genuine
+   infrastructure fault (disk, memory), report the traceback and **stop** — do not "just re-run it."
+2. **Any code change after seeing the result.** Not a bug fix, not a formatting tweak, not a comment.
+   **The moment the number is known, every subsequent edit is contaminated.** If you find a genuine bug
+   after the read, **report it — do not fix it.** The operator and Lead Reviewer decide.
+3. **"Sanity-checking" the sealed data.** No extra queries, no eyeballing the top-40 names, no plotting.
+4. **Adjusting, re-scoring, or re-grading anything** because the verdict is disappointing.
+
+### Step 3 — report exactly what happened
+
+Script-generated (not hand-typed) → **`docs/reports/CSMP_PHASE6_SEALED_READ.md`**, plus the sealed MSI-006
+record.
+
+**The gate (the only thing that decides):**
+- `n` (must be **42** — the pinned grid; if not, **STOP**, do not adjust anything to make it 42)
+- `mean_IC`, its SD, and the **one-sided 95% Student-t lower bound**
+- `Δ_net` vs the **stronger** of the two universe baselines
+- **The verdict, rendered by code, verbatim from §10.**
+
+**Reported, non-gating — all of it, whatever it says:**
+`iid_perc` and `mb_L12` bounds (both readings stay visible); the `Δ_net` bootstrap CI; by-year IC and
+hit-rate; §5.2 rule-1/rule-2 counts by year, with **every top-40 rule-2 event explicitly highlighted**;
+the **−100% rule-2 sensitivity**; the sub-period split (2023-24 vs 2025-26); risk metrics for both arms
+(vol, Sharpe, max drawdown); the **uncertainty-tercile calibration** (already known non-monotonic on dev —
+report the sealed result plainly, whatever it is); the long-short quintile spread (reported, never traded);
+the formation-exclusion count. Plus the sealed `validation_id`, `code_commit`, and the VOID screen result.
+
+### Step 4 — the thing that matters more than the result
+
+**Report the outcome faithfully, whatever it is. Do not spin it in either direction.**
+
+The frozen dossier already told us, **before the data was seen**, what to expect:
+
+> **A valid, one-sided, correctly-covered test on 42 months is only ~41% powered against the program's own
+> point estimate. "Inconclusive" is the single likeliest outcome (~59%) — even if the hypothesis is exactly
+> true.**
+
+So:
+
+- **If the verdict is Inconclusive: that is the modal, expected, non-failing outcome.** It is **not** a
+  refutation, and it is **not** a licence to tune. The artifact is **Not Approved**, the window is
+  **spent and never re-read**, and the top-40 PaperBroker consumer is still built — under the four
+  charter-§6 amendment controls. **State the ~59% pre-registered expectation in the report so the result
+  is read in the context that was fixed in advance.**
+- **If the verdict is Rejected: say so plainly.** A falsified hypothesis honestly reported is a *successful*
+  research outcome, and the program has already proved it can accept one — gate (e) could have returned
+  STOP, and MSRP's D1 did.
+- **If the verdict is Approved: state it flatly, with no triumph, and note that `Δ_net` decides
+  deployability separately.** An Approved artifact whose `Δ_net ≤ 0` substantiates skill *without*
+  transmission — the D1 outcome — and is **not deployed**.
+
+**Do not editorialize. Do not recommend next steps. Do not argue with the number.** Print it, and stop.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **The tripwire passed** — the dev `validation_id` is exactly `f8153e11…` before the sealed read.
+2. **The VOID screen ran first**, and its result is reported. If it VOIDed, **no verdict exists** and the
+   window is re-sealed.
+3. **The sealed window was read exactly ONCE.** Evidence: exactly one sealed record; one report; no
+   parameter variations anywhere in the shell history or the report.
+4. **Zero code diffs** between the cleared commit (`0ae1dc4` harness) and the run. `git diff` over the five
+   harness paths is **empty**. The dirty-tree guard makes this structural — do not defeat it.
+5. **`n = 42`**, matching the pinned grid.
+6. **The verdict is the code's**, rendered mechanically from §10 — not a human's reading.
+7. **Every non-gating arm is reported**, including the ones that look bad.
+8. **The ~59% Inconclusive pre-registration is stated in the report**, so the outcome is read against the
+   expectation that was fixed before the data.
+9. **No post-read edits.** Nothing in the repository changes after the number is known, except the
+   generated report and record.
+
+**Definition of done.** One command was run, once. The verdict came from a decision table written before
+anyone saw the data, applied by code that a stranger can re-derive from a content-addressed record on any
+machine. The number is what it is, and it is reported without decoration.
+
+**This is what the last five days bought: the right to believe the answer.**
+
+DeepSeek V4 executes; Claude Lead-Reviews. **Then the operator decides — per §10, and nothing else.**
+
+> ### ✅ PROMPT 10 IS RE-ISSUED — CLEARED TO EXECUTE (2026-07-12)
+>
+> The suspension is **lifted**. The sealed read was correctly refused; Prompts 11 and 12 remediated the
+> report generator and made sealedness a **data-derived invariant**, and both passed Lead Review
+> (`CSMP_PROMPT11_LEAD_REVIEW.md`, `CSMP_PROMPT12_LEAD_REVIEW.md`).
+>
+> **Step-0 tripwire values are now:**
+> - `validation_id = f8153e1147246655bc451b027053b79af14d3afbe822adff8ab61ac144ef0bf1`
+> - `code_commit   = 0ae1dc4b36df1b10b794925606abfe363aa7d7d5`
+>
+> *(The `d0651e10…` / `98bcaf2` values written in Step 0 below are superseded — the identity is
+> content-addressed, so it legitimately changed when the guard and report code changed.
+> **`results.json` stayed byte-identical at `be662698…` across all three rounds — no number moved.**)*
+>
+> **Everything guarding this run is now an invariant the machine enforces, not an instruction to a human:**
+> the phase/window cross-check (a mislabelled sealed run raises on the *arguments*, before any row is read),
+> the `n == 42` grid-shape guard, the VOID precondition, the dirty-tree guard, and the sealed fence.
+>
+> **Execute exactly once. The sealed window is still intact.**
+
+---
+
+## Prompt 11 — Pre-read remediation: parameterize the report generator; re-clear the harness  **(ISSUED 2026-07-12)**
+
+### What happened, and why the refusal was right
+
+DeepSeek was told to execute the sealed read and **declined**, because the run would have spent an
+irreversible resource to produce a corrupt artifact. **That judgment was correct, it was verified at the
+source, and it is exactly the behaviour this program has been building toward.** The scoring, gate, VOID,
+and record paths are all correct and phase-parameterized — **only the human-readable report generator is
+dev-specific.** Confirmed:
+
+| Defect | Evidence |
+|---|---|
+| Report path hardcoded | `run_a2_validation.py:46` — `REPORT = …/CSMP_A2_DEV_DRYRUN.md`. A sealed run would **overwrite the dev tripwire report** instead of creating `CSMP_PHASE6_SEALED_READ.md` (violates Prompt-10 C3) |
+| Dev title + a literally false claim | `"# CSMP A2 — Dev-Window Dry Run"`, and `"The sealed window (2023-01 → 2026-06) was not read."` — **printed by the very run that read it** |
+| Spurious MISMATCH | The reconciliation block hardcodes the **dev** targets (131 / 0.0457 / 21-1 / +6.24% / +5.95%). At `n=42` every row prints `✗ MISMATCH` and the report declares **"MISMATCH — harness defect, must be fixed before the seal"** — a false alarm baked permanently into the one sealed record |
+| Missing required disclosure | `grep -c "59\|Inconclusive"` → **0**. Prompt-10 C8 requires the ~59% pre-registration in the report |
+| **`n == 42` is unenforced** *(found in Lead Review — not in DeepSeek's list)* | **No `assert` anywhere.** Prompt-10 C5 says *"n must be 42; if not, STOP"* — but that was **a sentence in a prompt, not a guard in the code.** It must be structural, like the VOID gate |
+
+**Root cause, and it is the Lead Reviewer's:** the Prompt-8 review verified *"Phase 6 = date change only"*
+against the **scoring** path (`--eval-lo` / `--eval-hi` / `--price-cutoff`) and **never checked the
+reporting path.** Prompt 10 then specified a report the runner could not produce. Recorded so the miss is
+on the record, not buried.
+
+---
+
+### Scope — reporting layer and one guard. Nothing else.
+
+**The construct fence is untouched and touching it is an automatic NOT PASSED:** universe, score, K=40,
+metric, baselines, cost model, §5.2, the pinned gate, the inference/extension design. **The scoring, gate,
+VOID, and record-writing paths are correct — do not refactor them.** This is a *reporting* defect, not a
+science one.
+
+**F1 — parameterize `_write_report()`:**
+
+- **Output path by phase:** dev → `CSMP_A2_DEV_DRYRUN.md`; sealed → **`CSMP_PHASE6_SEALED_READ.md`**.
+  A sealed run must **never** overwrite the dev tripwire report.
+- **Phase-correct title and intro.** The sealed report must **not** claim the sealed window was not read.
+  It must state, plainly, that the window **was read, once, and is now spent.**
+- **The dev-reconciliation block runs in the dev phase only.** It is the tripwire, and it stays exactly as
+  it is for dev — it must not be weakened. In the sealed phase it is **absent**, not "adjusted."
+- **Add the required pre-registration disclosure to the sealed report** (Prompt-10 C8), verbatim in
+  substance:
+
+  > **Pre-registered before this data was seen:** a valid, one-sided, correctly-covered test on 42 months
+  > is only **~41% powered** against the program's own point estimate. **"Inconclusive" is therefore the
+  > single likeliest outcome (~59%) even if the hypothesis is exactly true.** This result must be read
+  > against that expectation, which was fixed in advance — not against hope.
+
+**F2 — make `n == 42` structural.** In the sealed phase, the harness **asserts the scored-month count
+equals the pinned grid count (42) and raises otherwise**, on the `assert_void_clear` model: **no verdict
+may be rendered on a window whose shape does not match the pre-registered grid.** A prompt sentence is not
+a guard. *(Do not "adjust" anything to reach 42 — a mismatch means something is wrong upstream and the
+operator decides.)*
+
+---
+
+### The consequence you must accept, not engineer around
+
+Editing `run_a2_validation.py` **changes its content hash**, so the dev **`validation_id` will change** —
+`d0651e10…` becomes something new. **That is correct and honest**, not a regression: the identity is
+content-addressed *by design*, and different code legitimately produces a differently-identified record.
+**Do not try to preserve `d0651e10…`.** Do not move the reporting code out of the hashed paths to dodge
+the churn; the conservative whole-file hash is the property Prompt 9 established and it stays.
+
+**The guardrail that proves the science did not move:** `results.json` must be **byte-identical** before
+and after this change. The record's *name* changes; its *content* must not.
+
+---
+
+### Sequence
+
+1. Fix `_write_report()` (F1) and add the `n == 42` guard (F2). **Commit the code first** — the dirty-tree
+   guard will otherwise refuse to run, and correctly so.
+2. Re-run the **dev** dry run from a clean tree → **new `validation_id`**.
+3. **Re-pin** that new `validation_id` in dossier **§1.1** and in **Prompt 10 Step 0** (the tripwire value).
+4. Lead Review → then **Phase 6 is re-issued**.
+
+---
+
+**Acceptance criteria (the Lead Review checks precisely these).**
+
+1. **`results.json` is byte-identical** to the `d0651e10…` record's. **The numbers did not move: n=131,
+   mean_IC 0.0457, rule-1/2 21/1, +6.24% / +5.95%.** *This is dispositive — a reporting fix that changes a
+   result is not a reporting fix.*
+2. **Dry-run report path is phase-parameterized**, and a sealed-phase run provably writes
+   `CSMP_PHASE6_SEALED_READ.md` — **demonstrate with a dev-fenced dry invocation that exercises the
+   sealed-phase report path without reading sealed data** (e.g. `--phase 6/…` with dev dates), or an
+   equivalent test. **Do not demonstrate it by reading the sealed window.**
+3. **No false claim survives.** The sealed report cannot say the sealed window was not read.
+4. **The dev reconciliation block is unchanged for dev** (it is the tripwire) and **absent in the sealed
+   phase** — not softened, not reworded.
+5. **The ~59% pre-registration disclosure is present** in the sealed report.
+6. **`n == 42` raises** in the sealed phase when violated — structural, tested, on the VOID model.
+7. **The construct fence held**: no diff to scoring, gate, VOID, or record-writing logic; no dossier diff
+   except the §1.1 `validation_id` re-pin.
+8. **Exactly one dev record** afterwards (the new one). The stale `d0651e10…` record is removed — it no
+   longer corresponds to any code in the tree.
+9. **The sealed window was not read.** Fence asserted and printed; observed max `trade_date` ≤ 2022-12-31.
+10. **Prompt 10 Step 0 carries the new tripwire `validation_id`.**
+
+**Definition of done.** The harness can produce a truthful, correctly-located, correctly-disclosed sealed
+report — and still refuses to score a window whose shape it did not pre-register. Then, and only then,
+Phase 6 is re-issued.
+
+**DeepSeek V4 implements; Claude Lead-Reviews. The sealed window stays sealed.**
+
+---
+
+## Prompt 12 — Make sealedness an invariant, not a string  **(ISSUED 2026-07-12)**
+
+**Prompt 11 is NOT PASSED on one HIGH finding** (`CSMP_PROMPT11_LEAD_REVIEW.md`). Everything else is clean —
+including the dispositive guardrail: `results.json` is byte-identical (`be662698…`), so the reporting fix
+moved no number. **This is the last fix before Phase 6.**
+
+### The finding
+
+The Lead-Review amendment — *derive `sealed` from the data, not the label* — **was not implemented**:
+
+```
+scripts/csmp/run_a2_validation.py:356   sealed = str(args.phase).startswith("6")
+core/msi/csmp/validation.py:49          if str(phase).startswith("6") and n != expected:
+```
+
+**The report's destination, the truthfulness of its central claim, and whether the `n == 42` guard arms at
+all — all hang on a prefix match against a CLI string a human types.** And the fence does **not** save you:
+`run_a2_validation.py:82` asserts only `observed_max <= price_cutoff`, which **passes while sealed rows are
+read** when `--price-cutoff 2026-06-30`.
+
+**Run Phase 6 as `--phase sealed-read` (no leading `6`) and:** the window is read and **spent forever**; the
+`n == 42` guard never arms; the report overwrites **`CSMP_A2_DEV_DRYRUN.md`, destroying the tripwire**;
+it prints `✗ MISMATCH` on every dev-reconciliation row; and it states, in the artifact produced *by the run
+that read the sealed window*, **"The sealed window (2023-01 → 2026-06) was not read."** Every defect Prompt
+11 eliminated returns at once — on the one run that cannot be repeated.
+
+### The fix (small; nothing else changes)
+
+1. **Derive sealedness from the data.** It is authoritative — it is the actual condition under which sealed
+   rows enter the computation:
+   ```python
+   sealed = (price_cutoff > DEV_HI) or (eval_hi > DEV_HI)
+   ```
+2. **Cross-check the label and raise on disagreement**, catching both directions (a sealed window labelled
+   dev; a dev window labelled Phase 6):
+   ```python
+   if str(phase).startswith("6") != sealed:
+       raise PhaseWindowMismatchError(...)
+   ```
+   Raise **before** anything is scored, written, or read.
+3. **Key `assert_grid_shape()` off the derived `sealed`**, not the label.
+
+**Scope fence:** reporting/guard layer only. **No change to scoring, the gate, VOID, record-writing, or any
+construct parameter.** `results.json` must remain byte-identical (`be662698…`) — a guard fix that moves a
+number is not a guard fix.
+
+**Accepted consequence:** the dev `validation_id` and `code_commit` change again (content-addressed by
+design). Re-pin them in dossier §1.1 **and** Prompt 10 Step 0; keep exactly one dev record.
+
+---
+
+**Acceptance criteria.**
+
+1. **`results.json` byte-identical** to `be662698dc5eb793f612b67378a8fd5e99747e4b73cb3021117a239e4538d955`.
+   **Dispositive.**
+2. **No `startswith("6")` decides anything.** `grep -n 'startswith("6")'` returns **only** the
+   label/window cross-check itself.
+3. **`sealed` is data-derived** from `price_cutoff` / `eval_hi` against `DEV_HI`.
+4. **`PhaseWindowMismatchError` raises in both directions** — tested: sealed dates + dev label → raises;
+   dev dates + `6/…` label → raises. **Neither test may read the sealed window** (a *label/date* mismatch is
+   detectable before any query — raise on the arguments, not on the data).
+5. **`assert_grid_shape()` keys off derived `sealed`**, and still raises on n ≠ 42 in the sealed phase.
+6. **Exactly one dev record**; §1.1 and Prompt 10 Step 0 carry the new `validation_id` / `code_commit`.
+7. **Sealed window not read.** Fence asserted and printed; observed max ≤ 2022-12-31.
+8. **Construct fence held** — no scoring/gate/VOID/record diffs; dossier diff = the §1.1 row only.
+
+**Definition of done.** A mislabelled sealed run is **impossible**, not merely discouraged. The code — not a
+typed string, and not an instruction in a prompt — decides what is sealed.
+
+> **The lesson, stated once, because it has now appeared twice.** Prompt 11 existed to fix `n == 42`, which
+> had been *"a sentence in a prompt, not a guard in the code."* This finding is the same species. **A
+> safeguard that depends on a human typing a label correctly is not a safeguard.** Every protection standing
+> between us and an irreversible mistake must be an invariant the machine enforces. Prompt 12 is where that
+> stops being a principle and becomes the code.
+
+**DeepSeek V4 implements; Claude Lead-Reviews. Then Phase 6 is re-issued. The sealed window stays sealed.**
+
+---
+
+## Prompt 13 — Fix the `load_window()` memory fault; re-run Phase 6 with identical arguments  **(ISSUED 2026-07-12)**
+
+**Phase 6 was executed once and ABORTED** with a `MemoryError` (`CSMP_PHASE6_ABORT_RECORD.md`, committed
+**before** this remediation was designed). **The window is NOT spent:** the crash was inside `load_window()`
+(line 343), **before `build_scored()`** — no score, no `IC_t`, no `mean_IC`, no `Δ_net`, no verdict, no
+record, nothing written, clean tree. **No statistic bearing on the hypothesis was observed by anyone.** Every
+decision in this prompt is therefore made **blind**, in exactly the epistemic state that preceded the run.
+
+**The VOID precondition ran and PASSED** over the sealed window (680 true moves, residue 2, **0
+undocumented**) — a §8-A1-authorized data-quality read that **discharges §12.1's scariest inherited
+assumption**: the corporate-action adjustment is clean across 2023-01 → 2026-06.
+
+---
+
+### The exact cause — measured, not guessed
+
+`load_window()` joins `equity_bhavcopy_adjusted` to `universe_eligibility`, which maps **every symbol that
+has ever traded** (4,132 symbols → **3,620 entities**) — then `fetchall()`s the entire deduplicated price
+history into a Python list and dict.
+
+| Cutoff | Rows materialized into Python |
+|---|---:|
+| dev (`≤ 2022-12-31`) | **5,075,370** — fits, barely |
+| **sealed (`≤ 2026-06-30`)** | **7,009,336** — **+38% → OOM** |
+
+**But scoring never touches 3,620 entities.** Only the **592** entities that ever appear in
+`universe_membership` can be scored, enter the top-40, or enter either baseline. **~5.2M of those 7.0M rows
+are the price history of stocks that can never affect any number in this study.**
+
+**Why the dev dry run could not have caught this:** dev is *strictly the smaller load*. A harness "proven on
+dev" is proven on the **easy** case for memory. **That is a real gap in the Prompt-8 acceptance criteria, and
+it is the Lead Reviewer's.**
+
+### The fix — a scope restriction, not a rewrite
+
+Restrict the price load to the entities that can actually matter:
+
+```sql
+AND e.entity IN (SELECT DISTINCT e2.entity
+                 FROM universe_membership m
+                 JOIN universe_eligibility e2 ON e2.symbol = m.symbol)
+```
+
+**This is semantically identity-preserving.** Scoring, the top-40, both universe baselines, the IC set, the
+§5.2 `fwd()` path, and `ent_dates` all draw exclusively from `universe_membership` members. Nothing outside
+that set is ever read. **No number can change — and that is the acceptance test, not an assurance.**
+
+Measured effect:
+
+| Cutoff | Rows, restricted |
+|---|---:|
+| dev | **1,425,916** |
+| **sealed** | **1,846,148** |
+
+**The fixed sealed load (1.85M rows) is 64% smaller than the dev load that already runs successfully today
+(5.08M).** The failing configuration was 7.01M. **The second run is not marginally safer — it operates far
+below a level already demonstrated to work.**
+
+**Do not** rewrite `load_window()` architecturally (no chunking, no streaming, no Arrow refactor). The minimal
+scope restriction is sufficient, provable, and semantically clean. **Keep the fix small enough to review.**
+
+### Scope fence
+
+**Reporting/loading layer only.** **No change to scoring, the gate, the VOID precondition, record-writing, or
+any construct parameter.** All existing guards stay intact and must still fire: the phase/window cross-check,
+`assert_grid_shape` (n == 42), `assert_void_clear`, the dirty-tree guard, the sealed fence.
+
+**You may measure row counts and store shape** (as above — these are shape facts, the same class the VOID
+screen reads). **You may not compute, inspect, or report any sealed-window score, return, IC, spread, or
+verdict.** If you find yourself about to look at a sealed *statistic*, stop.
+
+---
+
+**Acceptance criteria.**
+
+1. **The dev `results.json` is byte-identical to `be662698dc5eb793f612b67378a8fd5e99747e4b73cb3021117a239e4538d955`.**
+   **DISPOSITIVE.** The numbers must not move: n=131, mean_IC 0.0457, rule-1/2 21/1, +6.24% / +5.95%. *A memory
+   fix that changes a number is not a memory fix — it is a bug, and it means the entity restriction was wrong.*
+2. **The fix is the scope restriction only.** `git diff` on `load_window()` shows the added `WHERE` clause and
+   nothing else of substance. No scoring/gate/VOID/record diffs.
+3. **Report the materialized row count at the sealed cutoff** (a shape fact) and show it is **below the dev
+   load that already works** — i.e. demonstrate the headroom, do not assert it.
+4. **All five guards still fire** — re-test the phase/window cross-check (both directions) and the dirty-tree
+   guard.
+5. **Exactly one dev record**; §1.1 and Prompt 10 Step 0 re-pinned with the new `validation_id` / `code_commit`
+   (the identity legitimately changes — content-addressed by design).
+6. **No sealed statistic observed** during remediation.
+
+**Then, and only then — re-run Phase 6, ONCE, with IDENTICAL arguments:**
+
+```
+python scripts/csmp/run_a2_validation.py --phase "6/sealed-read" \
+    --eval-lo 2023-01-01 --eval-hi 2026-06-30 --price-cutoff 2026-06-30
+```
+
+**The arguments do not change.** Prompt 10 forbids re-running *"with different arguments"* — it does not
+forbid re-attempting an execution that never produced a result. **Everything in Prompt 10 Steps 1–4 still
+governs the run: VOID first; one execution; no code change after seeing the result; report faithfully,
+including the pre-registered ~59% Inconclusive expectation; no spin.**
+
+**If it crashes again, stop again.** Do not tune your way to a number.
+
+**Definition of done.** The harness loads only what it can legitimately use, the dev numbers are unmoved, the
+headroom is demonstrated rather than hoped for, and Phase 6 runs to a verdict — or aborts again, honestly.
+
+**DeepSeek V4 implements and executes; Claude Lead-Reviews. The sealed window has not been read.**
+
+---
+
+> **On the refusal.** DeepSeek was given a direct instruction to execute the single most consequential
+> command in the program, and it **stopped and escalated instead** — because running it would have burned
+> an irreplaceable asset to produce a self-contradictory artifact. Every safeguard in this program exists
+> for the moment when someone is holding an irreversible action and something is subtly wrong. **This was
+> that moment, and the discipline held.** It is recorded here as the correct precedent: *when the next step
+> is irreversible and the artifact is wrong, you stop — even when you have been told to go.*

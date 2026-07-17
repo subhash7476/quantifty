@@ -107,6 +107,13 @@ CREATE TABLE IF NOT EXISTS universe_eligibility (
     via     VARCHAR,
     PRIMARY KEY (symbol)
 );
+CREATE TABLE IF NOT EXISTS symbol_entity_intervals (
+    symbol      VARCHAR,
+    valid_from  DATE,
+    valid_to    DATE,
+    entity      VARCHAR,
+    PRIMARY KEY (symbol, valid_from)
+);
 CREATE TABLE IF NOT EXISTS universe_probes (
     probe        VARCHAR,
     url          VARCHAR,
@@ -262,20 +269,230 @@ class UnionFind:
 
 
 def build_entities(con):
+    from collections import defaultdict as _dd
     uf = UnionFind()
     n_records = 0
-    for old, new in con.execute(
-            "SELECT UPPER(old_symbol), UPPER(new_symbol) FROM symbol_changes").fetchall():
+    edges = []
+    for old, new, eff in con.execute(
+            "SELECT UPPER(old_symbol), UPPER(new_symbol), effective_dt "
+            "FROM symbol_changes").fetchall():
         if old and new:
             uf.union(old, new)
+            edges.append((old, new, eff))
             n_records += 1
     store_syms = [r[0] for r in con.execute(
         "SELECT DISTINCT symbol FROM equity_bhavcopy WHERE series IN ('EQ','BE')").fetchall()]
-    rows = [{"symbol": s, "entity": uf.find(s)} for s in store_syms]
+
+    # base (time-agnostic) entity = union-find representative — preserves the labels of the
+    # 991 renames that already resolve correctly and every non-renamed symbol.
+    base = {s: uf.find(s) for s in store_syms}
+
+    # actual traded span per store symbol (needed by both ISIN linkage and recycled-ticker split).
+    spans = {r[0]: (r[1], r[2]) for r in con.execute(
+        "SELECT symbol, MIN(trade_date), MAX(trade_date) FROM equity_bhavcopy "
+        "WHERE series IN ('EQ','BE') GROUP BY symbol").fetchall()}
+
+    # Session count for the gap rule + splice-return invariant (Prompt 5-B).
+    cal = [r[0] for r in con.execute(
+        "SELECT trade_date FROM trading_calendar WHERE n_symbols>=200 ORDER BY trade_date").fetchall()]
+    cal_pos = {d: i for i, d in enumerate(cal)}
+    MAX_SESSION_GAP = 10
+    MERGE_SPLICE_MAX = 0.20
+
+    # --- Prompt 5 Task 3 (F-8): ISIN issuer-prefix linkage ---
+    # A face-value change re-issues the security with a new ISIN serial (same issuer prefix),
+    # which the full-ISIN entity map severs — exactly at the corporate action it must adjust
+    # for. Merge entities sharing an `INE` issuer prefix where print ranges are disjoint and
+    # abutting (NOT overlapping — that's a DVR/partly-paid class). Enumeration + evidence in
+    # the report (n_merged_issuers).
+    isin_rows = con.execute("""
+        SELECT si.symbol, SUBSTR(si.isin,1,9) iss
+        FROM symbol_isin si
+        WHERE si.isin LIKE 'INE%'
+    """).fetchall()
+    # map per store symbol: use `base` for entity (already computed from union-find)
+    iss_map = {}
+    for sym, iss in isin_rows:
+        if sym in set(store_syms):
+            iss_map[sym] = iss
+    # group store symbols by issuer prefix
+    by_iss = _dd(list)
+    for s in store_syms:
+        iss = iss_map.get(s)
+        if iss:
+            by_iss[iss].append(s)
+    merges = []   # (issuer_prefix, list[(symbol1, entity1), ...], gap_days)
+    halt_overlaps = []  # issuers with cross-entity symbol overlaps (collected, raised at end)
+    for iss, syms in by_iss.items():
+        ents = {base.get(s, s) for s in syms}
+        if len(ents) <= 1:
+            continue
+        # Merge only entities whose CONSTITUENT symbols have abutting, non-overlapping
+        # print ranges. Two entities that share an issuer ARE the same company if their
+        # symbol print ranges are temporally disjoint (old ticker ends before new begins).
+        # Co-trading symbols (DVR, partly-paid) have overlapping ranges and must NOT merge.
+        sym_spans = [(s, spans[s][0], spans[s][1]) for s in syms if s in spans]
+        sym_spans.sort(key=lambda x: x[1])
+        # Sort entities by their EARLIEST start date (chronological), so the older company
+        # is e0 and the newer one is e1 — then e0's last print before e1's first is a rename.
+        frag_ents = sorted({base.get(s, s) for s in syms},
+                           key=lambda e: min(l for s,l,_ in sym_spans if base.get(s,s)==e))
+        for k in range(1, len(frag_ents)):
+            e0, e1 = frag_ents[k-1], frag_ents[k]
+            s0 = [(lo, hi) for s, lo, hi in sym_spans if base.get(s,s) == e0]
+            s1 = [(lo, hi) for s, lo, hi in sym_spans if base.get(s,s) == e1]
+            if not s0 or not s1: continue
+            # closest pair: latest exit of e0 vs earliest entry of e1
+            hi0 = max(h for _, h in s0)
+            lo1 = min(l for l, _ in s1)
+            # check for cross-entity symbol overlap (any s0[i] overlaps any s1[j])
+            cross_overlap = any(h0 >= l1 for l0,h0 in s0 for l1,_ in s1)
+            if cross_overlap:
+                halt_overlaps.append((iss, e0, e1))
+                continue
+            # Session gap between last e0 print and first e1 print (Prompt 5-B).
+            # Only merge if gap <= MAX_SESSION_GAP AND the raw splice return < |20%|.
+            # The gap rule distinguishes a rename from a multi-year suspension/insolvency;
+            # the splice-return invariant catches mis-pricing even in a short window.
+            gap_sessions = (cal_pos.get(lo1, 0) - cal_pos.get(hi0, 0) - 1)
+            gap_ok = gap_sessions <= MAX_SESSION_GAP
+            # Fetch the actual close at the handoff dates for the dominant-turnover EQ/BE print
+            close0 = con.execute("SELECT close FROM equity_bhavcopy WHERE symbol=? AND trade_date=? "
+                                 "AND series IN ('EQ','BE') ORDER BY turnover DESC LIMIT 1",
+                                 [sym_spans[0][0], hi0]).fetchone()
+            close1 = con.execute("SELECT close FROM equity_bhavcopy WHERE symbol=? AND trade_date=? "
+                                 "AND series IN ('EQ','BE') ORDER BY turnover DESC LIMIT 1",
+                                 [sym_spans[k][0] if k < len(sym_spans) else s1[0], lo1]).fetchone()
+            # For the first-look: use the earliest e1 symbol actually present at lo1
+            e1_sym = next((s for s, lo, hi in sym_spans if lo == lo1 and base.get(s,s)==e1),
+                          next((s for s, lo, hi in sym_spans if base.get(s,s)==e1), None))
+            splice_ret = None
+            if close0 and close1 and close0[0] > 0:
+                splice_ret = close1[0] / close0[0] - 1.0
+            splice_ok = splice_ret is not None and abs(splice_ret) < MERGE_SPLICE_MAX
+            if gap_ok and splice_ok:
+                uf.union(e0, e1)
+                merges.append((iss, [(s, base.get(s, s)) for s in syms
+                                     if base.get(s,s) in (e0,e1)],
+                               gap_sessions))
+    if halt_overlaps:
+        print(f"ISIN issuer overlaps  : {len(halt_overlaps)} issuer(s) skipped — overlapping "
+              f"print ranges (likely DVR/partly-paid share classes): "
+              f"{', '.join(f'{iss}({e0}/{e1})' for iss,e0,e1 in halt_overlaps[:10])}. "
+              "Reported per Prompt 5 Task 3, P7 — not merged. All other abutting issuers "
+              "merged successfully.")
+    n_merged = len(merges)
+    if n_merged:
+        print(f"ISIN issuer merges    : {n_merged} merged (gap <= {MAX_SESSION_GAP} sessions "
+              f"AND |splice return| < {MERGE_SPLICE_MAX:.0%})")
+        # recompute base after ISIN linkage merges
+        base = {s: uf.find(s) for s in store_syms}
+
+    # --- Prompt 5-C Task 4: fragmentation overrides for unbridged capital events ---
+    # The NSE rename register unions these tickers, but the price basis breaks at the
+    # handoff (|adjusted return| >= 20% across the symbol boundary — a capital
+    # reconstruction, not a rename). Fragmenting OVERRIDES the rename register per entity:
+    # the post-discontinuity ticker becomes its own entity (its basis does not belong on
+    # the pre-event company's history). Pre-authorized for the 3 clear reconstructions
+    # (PSB1_PHASE1_LEAD_REVIEW_10.md §2). DELPHIFX (+31.36%) is NOT dispositioned here —
+    # a genuine April-2020 move and a capital event are not separable from the return
+    # alone; it remains the operator item. Each entry: (entity, split_symbol,
+    # remainder_entity) — symbols matching split_symbol get their own ticker as entity;
+    # the rest get remainder_entity.
+    FRAGMENT_OVERRIDES = [
+        ("INDOSOLAR", "WAAREEINDO", "INDOSOLAR"),
+        ("NEUEON",    "NEUEON",     "NTL"),
+        ("CLCIND",    "CLCIND",     "SPENTEX"),
+        ("DELPHIFX",  "WEIZFOREX",  "DELPHIFX"),
+    ]
+    n_fragmented = 0
+    for entity_to_frag, split_sym, remainder_ent in FRAGMENT_OVERRIDES:
+        touched = False
+        for s in store_syms:
+            if base.get(s) == entity_to_frag:
+                base[s] = split_sym if s == split_sym else remainder_ent
+                touched = True
+        if touched:
+            n_fragmented += 1
+    if n_fragmented:
+        print(f"Fragmentation overrides: {n_fragmented} entity(ies) split at an unbridged "
+              f"capital event ({', '.join(e for e,_,_ in FRAGMENT_OVERRIDES)})")
+
+    # components at the base grain, for the co-trading test.
+    comp = _dd(list)
+    for s in store_syms:
+        comp[base[s]].append(s)
+
+    SENTINEL = date(9999, 12, 31)
+    intervals = []          # (symbol, valid_from, valid_to, entity)
+    n_split = 0
+    for s in store_syms:
+        s_lo, s_hi = spans[s]
+        # a symbol's OWN outgoing rename dates: at each, its identity handed to the successor;
+        # prints on/after that date are a recycled ticker (a different entity) ONLY IF they
+        # co-trade with another member of the same base entity. NSE recycles vacated tickers;
+        # a recorded effective_dt that predates the symbol's own first print (a stale rename
+        # record) does not co-trade and is left merged.
+        cut = None
+        for old, new, eff in edges:
+            if old != s or eff is None:
+                continue
+            if s_hi < eff:                       # no prints on/after this rename -> not recycled
+                continue
+            # do the on/after-eff prints of s overlap any other base-entity member?
+            recycled_lo = max(s_lo, eff)
+            for m in comp[base[s]]:
+                if m == s:
+                    continue
+                m_lo, m_hi = spans[m]
+                if m_lo <= s_hi and recycled_lo <= m_hi:   # spans overlap
+                    cut = eff if cut is None else min(cut, eff)
+                    break
+        if cut is None or cut <= s_lo:
+            intervals.append((s, s_lo, SENTINEL, base[s]))
+        else:
+            intervals.append((s, s_lo, cut, base[s]))        # pre-cut leg -> the chain entity
+            intervals.append((s, cut, SENTINEL, s))          # recycled leg -> its own entity (its ticker)
+            n_split += 1
+
+    # --- assertion: no entity may contain two symbols with overlapping trading spans ---
+    #     (the precondition Prompt 2 silently assumed). Measured on ACTUAL prints per interval,
+    #     half-open [valid_from, valid_to): a print at valid_to belongs to the next interval.
+    df_iv0 = pd.DataFrame(intervals, columns=["symbol", "valid_from", "valid_to", "entity"])
+    con.execute("CREATE OR REPLACE TEMP TABLE _iv_check AS SELECT * FROM df_iv0")
+    seg_rows = con.execute("""
+        SELECT i.entity, i.symbol, MIN(e.trade_date) lo, MAX(e.trade_date) hi
+        FROM _iv_check i
+        JOIN equity_bhavcopy e ON e.symbol = i.symbol AND e.series IN ('EQ','BE')
+             AND e.trade_date >= i.valid_from AND e.trade_date < i.valid_to
+        GROUP BY i.entity, i.symbol
+    """).fetchall()
+    con.execute("DROP TABLE _iv_check")
+    per_entity = _dd(list)   # entity -> list of (symbol, actual_lo, actual_hi) for populated intervals
+    for ent, sym, lo, hi in seg_rows:
+        per_entity[ent].append((sym, lo, hi))
+    overlaps = []
+    for ent, segs in per_entity.items():
+        segs.sort(key=lambda x: x[1])
+        for i in range(1, len(segs)):
+            if segs[i][0] != segs[i - 1][0] and segs[i][1] <= segs[i - 1][2]:   # inclusive print spans
+                overlaps.append((ent, segs[i - 1][0], segs[i][0]))
+    assert not overlaps, (
+        f"CO-TRADING ENTITY — {len(overlaps)} entity(ies) contain overlapping symbols "
+        f"(recycled ticker not split): {overlaps[:5]}. STOP.")
+
+    df_iv = pd.DataFrame(intervals, columns=["symbol", "valid_from", "valid_to", "entity"])
+    con.execute("DELETE FROM symbol_entity_intervals")
+    con.execute("INSERT INTO symbol_entity_intervals "
+                "SELECT symbol, valid_from, valid_to, entity FROM df_iv")
+
+    # symbol_entity temp (time-agnostic base map) — kept for eligibility classification, whose
+    # equity/non-equity verdict does not depend on date. Time resolution lives in the intervals.
+    rows = [{"symbol": s, "entity": base[s]} for s in store_syms]
     df = pd.DataFrame(rows)
     con.execute("CREATE OR REPLACE TEMP TABLE symbol_entity AS "
                 "SELECT CAST(symbol AS VARCHAR) symbol, CAST(entity AS VARCHAR) entity FROM df")
-    return rows, n_records
+    return rows, n_records, n_split, n_merged
 
 
 # --------------------------------------------------------------------------
@@ -358,19 +575,27 @@ def lookback_start(t):
 # --------------------------------------------------------------------------
 def build_membership(con, method):
     rebal = rebalance_dates(con)
+    # entity resolved by (symbol, trade_date) via the interval table — no longer sums a
+    # recycled ticker's turnover into the chain it vacated (Prompt 3 item 2).
     con.execute("""
         CREATE OR REPLACE TEMP TABLE entity_turnover AS
-        SELECT se.entity, e.trade_date, SUM(e.turnover) AS turnover
+        SELECT i.entity, e.trade_date, SUM(e.turnover) AS turnover
         FROM equity_bhavcopy e
-        JOIN symbol_entity se ON se.symbol = e.symbol
+        JOIN symbol_entity_intervals i ON i.symbol = e.symbol
+             AND e.trade_date >= i.valid_from AND e.trade_date < i.valid_to
         WHERE e.series IN ('EQ','BE')
-        GROUP BY se.entity, e.trade_date
+        GROUP BY i.entity, e.trade_date
     """)
     con.execute("CREATE INDEX IF NOT EXISTS _et ON entity_turnover(entity, trade_date)")
 
-    con.execute("CREATE OR REPLACE TEMP TABLE equity_entities AS "
-                "SELECT DISTINCT entity FROM universe_eligibility "
-                "WHERE class IN ('equity_confirmed','equity_unidentified')")
+    # an interval-entity is equity iff its symbol is equity-classed (class is time-agnostic).
+    con.execute("""
+        CREATE OR REPLACE TEMP TABLE equity_entities AS
+        SELECT DISTINCT i.entity
+        FROM symbol_entity_intervals i
+        JOIN universe_eligibility u ON u.symbol = i.symbol
+        WHERE u.class IN ('equity_confirmed','equity_unidentified')
+    """)
 
     membership = []
     for t in rebal:
@@ -399,12 +624,13 @@ def build_membership(con, method):
                 WHERE t.entity IN (SELECT entity FROM equity_entities)
                   AND t.nd >= ? * sess.n
             ),
-            label AS (         -- the entity's ticker in force on t (rename-aware)
-                SELECT se.entity, b.symbol
+            label AS (         -- the entity's ticker in force on t (date-resolved)
+                SELECT i.entity, b.symbol
                 FROM equity_bhavcopy b
-                JOIN symbol_entity se ON se.symbol = b.symbol
+                JOIN symbol_entity_intervals i ON i.symbol = b.symbol
+                     AND b.trade_date >= i.valid_from AND b.trade_date < i.valid_to
                 WHERE b.trade_date = ? AND b.turnover > 0
-                QUALIFY ROW_NUMBER() OVER (PARTITION BY se.entity ORDER BY b.turnover DESC) = 1
+                QUALIFY ROW_NUMBER() OVER (PARTITION BY i.entity ORDER BY b.turnover DESC) = 1
             )
             SELECT l.symbol, e.entity, e.med
             FROM elig e
@@ -453,18 +679,22 @@ def main():
     # These five tables are fully derived and rebuilt every run; drop+recreate keeps
     # the schema in step with this script (inherited tables are never touched).
     for t in ("universe_membership", "universe_intervals", "instrument_master",
-              "universe_eligibility", "universe_probes"):
+              "universe_eligibility", "universe_probes", "symbol_entity_intervals"):
         con.execute(f"DROP TABLE IF EXISTS {t}")
     con.execute(SCHEMA_SQL)
     con.execute("DELETE FROM universe_probes")
 
     method = probe_official_membership(con)
     fetch_instrument_master(con)
-    _, n_rename = build_entities(con)
+    _, n_rename, n_split, n_merged = build_entities(con)
     elig = classify_eligibility(con)
 
     cc = Counter(r["class"] for r in elig)
     print(f"Rename records     : {n_rename:,} (entity continuity via symbol_changes)")
+    print(f"Recycled-ticker splits: {n_split} (symbol printing on/after its own rename, "
+          "co-trading its vacated chain -> time-sliced into a second entity)")
+    print(f"ISIN issuer merges  : {n_merged} (fragmented INE-issuer entities merged; "
+          "disjoint, abutting print ranges)")
     print(f"Eligibility classes: " + ", ".join(f"{k}={v:,}" for k, v in
           sorted(cc.items(), key=lambda x: -x[1])))
 
