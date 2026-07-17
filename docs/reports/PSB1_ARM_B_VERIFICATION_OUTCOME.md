@@ -17,7 +17,7 @@ The dossier's framing was **"all four are real price moves measured across a hol
 | INDOSOLAR → WAAREEINDO | `INE866K01015` → **`INE866K01023`** | reduction (Waaree resolution plan) | **missing factor** |
 | SPENTEX → CLCIND | `INE376C01020` → **`INE376C01038`** | reduction, 1-for-100 | **missing factor** |
 | NTL → NEUEON | `INE333I01036` → **`INE333I01044`** | reduction, FV ₹10 → ₹1 | **missing factor** |
-| WEIZFOREX → EBIXFOREX | `INE726L01019` → **identical** | none | plain rename — but see §4 |
+| WEIZFOREX → EBIXFOREX | `INE726L01019` → **identical** | none | **plain rename — RESOLVED (§4), disposition, no factor** |
 
 **The ISIN test earned its keep.** Three serial bumps on unchanged issuer codes — precisely the PHILIPCARB pattern (`INE602A01015` → `INE602A01031`). Same company, security re-issued. Had we dispositioned these four as "renames across a suspension," we would have **filed three missing corporate actions as bookkeeping and moved on.** That is the outcome the ISIN check prevented, and it is the second time in this program that the issuer-prefix rule has caught something a plausible story would have buried.
 
@@ -61,20 +61,21 @@ The dossier's Decision 2 stands unchanged and is now the *second* step rather th
 
 ---
 
-## 4. WEIZFOREX — the stated reason does not explain the gap
+## 4. WEIZFOREX — **RESOLVED.** Plain rename across a real suspension
 
-Recorded as "plain rename across suspension," and the ISIN is genuinely identical, so **no factor is needed.** But the suspension reason does not survive contact with the dates.
+> **Update (2026-07-17, second lookup).** The exchange has **no prints for WEIZFOREX in early March 2020**; the stock was **suspended 2020-02-26 → 2020-04-21**. This resolves the case and **retracts the objection below.**
 
-Stated: *"Structural migration to the Trade-for-Trade (BE) segment alongside a formal name change processing window."*
+**The ingestion worry is closed, and that was the item with reach.** The open question was whether NSE held prints our store lacked — which would have made this an *ingestion* defect, and ingestion defects do not stay confined to one symbol. They do not exist. **Our store's gap matches the exchange's gap. Ingestion is correct here.**
 
-Two problems:
+**My "the dates don't align" objection was wrong, and the new fact explains why.** I argued that a "name change processing window" should bracket the 2020-03-20 rename, and ours brackets neither side — last WEIZFOREX print 17 sessions before it, first EBIXFOREX print a month after. **But if the suspension spans 2020-02-26 → 2020-04-21, the rename fell *inside* it.** A last print weeks before and a first print weeks after is then not an anomaly — it is the exact signature of a symbol changing while the stock is halted. The dates I called inconsistent are consistent; I had the causality backwards.
 
-- **BE migration does not stop trading.** Trade-for-Trade stocks trade normally, delivery-only. A move to BE cannot produce 33 sessions of no prints.
-- **The gap does not align with the rename on either side.** The rename was **2020-03-20**. Our last WEIZFOREX print is **2020-02-26** — about 17 sessions *before* it. Our first EBIXFOREX print is **2020-04-21** — about a month *after*. A "name change processing window" would bracket 2020-03-20. This gap does not.
+**Disposition class: plain rename across suspension. No factor needed.** The load-bearing fact is the **identical ISIN** (`INE726L01019` on both sides), which rules out a re-issue — the split / consolidation / face-value class that bumped the serial in all three other cases, and that bumped this very symbol's own serial later (`→ INE726L01027`, 2021). Strictly, ISIN identity does not by itself rule out a **bonus or rights issue** (those keep the ISIN). But both are dilutive and would push the boundary return *down*; neither explains a **+31.4% rise**. Their absence is consistent with the record.
 
-That asymmetry has a second candidate explanation the worksheet never considered: **this may be a hole in our store rather than a suspension.** WEIZFOREX should have been trading through early March 2020 under its old ticker. If the exchange has prints we lack, the defect is ingestion, not corporate actions — a different class again, and one that would not be confined to this symbol.
+**Still not credible, and it does not matter:** *"a formal name change processing window"* as the **cause** of a 2-month halt. Name changes do not suspend stocks — NSE rolls the symbol with the stock trading. The suspension was near-certainly for the underlying restructuring, and the rename merely happened during it. **This is a defect in the explanation, not in the substrate**, and it cannot change the disposition class: ISIN identity and "no capital event" already settle the only question the repair consumes.
 
-**This is the only case in the dev window** — the one that can touch a candidate number. It should be marked **UNCLEAR**, not "plain rename." Per the worksheet's own §D: *"do not round an ambiguity up to 'plain rename' to clear the gate."*
+**The +31.4% stands as a real, unearnable move.** The gap spans the COVID crash — the market fell roughly a third while NSE never closed — and this stock reopened 31.4% higher, on Trade-for-Trade, thin. That is what reopening after a halt looks like: the print is wherever it opens, not a return anyone could have earned. **Exactly what Arm B is built to catch, and exactly why it must be recorded rather than silenced.**
+
+**Residual result risk: nil.** WEIZFOREX has never been in NIFTY-200 — zero membership rows. Dev-window placement made it the case worth scrutinising; no candidate can score it either way.
 
 **Confirmed and useful, though:** the contemporaneous name was **EBIXCASH WORLD MONEY INDIA LIMITED** (NSE `NSE/CML/43889`, 2020-03-20). Our `symbol_changes` carries "DELPHI WORLD MONEY LIMITED" on that 2020 row — a name not adopted until **2021-08-09**. **Our rename table is retroactively backfilled with current names**, which is a real finding about the store's provenance and is not confined to this symbol.
 
