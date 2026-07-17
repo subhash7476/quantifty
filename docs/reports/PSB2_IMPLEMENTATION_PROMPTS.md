@@ -969,3 +969,163 @@ Per `testing.md`: for data-audit work, a prediction stated before the run is the
 1. Claude **review** — §C/§D/§E are substrate repairs against a certified suite and get a full round, not a diff check. §A/§B are diff-checkable.
 2. Operator authorizes Phase 2 — **§11.2 (dev-proof) and §11.1 (Arm B) both closed.**
 3. Prompt 2 — candidate runs in the §11.3 order: **C2 → C3 → C4**, one report per candidate, committed as produced.
+
+### Outcome
+
+Implemented at `a6d1fb4`, devproof stamped at `0d155b9`. Reviewed in `docs/reports/PSB2_PHASE1R4_LEAD_REVIEW.md` — **HALT.** §A, §B, §C and §E accepted (§A exceeds spec: in-code mutations that cannot rot; §E's entity keys are correct). **§D's verification is hollow and the certification suite was never re-run** — the four boundary returns were never computed, the residuals were typed into `RE_LISTINGS` as prose, and `p4_ok` is tautological. §11.2 met; **§11.1 not met.** Carried into Prompt 1R5.
+
+---
+
+## Prompt 1R5 — §D only: make the factor check the deliverable (ISSUED 2026-07-17)
+
+**Task:** Close B1–B7 of `docs/reports/PSB2_PHASE1R4_LEAD_REVIEW.md`. **This is a §D-and-artifact prompt. Nothing else is open.**
+
+**Status on completion:** returns to Claude for review, then to the operator to authorize Phase 2. **No candidate runs on real data.** Protocol FROZEN at `eb3d66f`. The 1R4 constraint lifts carry forward **unchanged and unextended**: `scripts/psb1/` open only for `certify_substrate.py`, `disposition_register.py`, `ingest_corporate_actions.py`, plus the `repair_relisting_factors.py` runner you added. **`contract_arms.py` stays closed.**
+
+**Small prompt. One theme.**
+
+### Start here: four of five sections are accepted, and one of them is the model for this round
+
+**Do not re-open, do not re-derive:**
+
+- **§A — accepted, and it exceeds the spec.** The in-code mutations (`200 → KeyError`, `240 → z differs`, both restored in `finally`) run on every suite invocation and **cannot rot**, which a one-time manual mutation can. I verified the fixture arithmetic independently: `200·(0.008254)² + 52·(−0.031746)² = 0.066032`, `/251 = 2.6307e-4`, `√ = 0.016219`. Correct.
+- **§B — accepted.** `base_std < 1e-12`, one line, no other scorer touched.
+- **§C — accepted.** The lookup mirrors `arm_a_excl`/`arm_d_excl` faithfully, `contract_arms.py` is untouched, no gap rule or structural filter crept in, and `b_halt` is residue-based. The ratchet is intact.
+- **§E's four keys — accepted, and this was the hard part.** `RE_LISTINGS` keys on `INDOSOLAR` (an old symbol) and `DELPHIFX` (adopted in 2021, after the 2020 handoff). That looks like two incompatible conventions and **it is correct** — those are the store's actual entity ids. You read them instead of assuming. That instinct is exactly what §D needs.
+
+**§A is the template for this entire round.** The difference between §A and §D was never care — **§A's spec made the check the deliverable, and §D's let a string stand in for it.** Fix that and §D is done.
+
+### The governing defect: the verification tests the register, not the factor
+
+```python
+    for ent, ps, s, td, ret, pc, c in arm_b.splices:
+        reason = arm_b_excl.get((ent, td))
+        if reason is None:
+            new_halt.append((ent, td, ret))
+    p4_ok = len(new_halt) == 0  # all 4 should be dispositioned
+```
+
+`arm_b_excl` is the register. It dispositions all four **by name**. So `new_halt` is empty **by construction** and `p4_ok` is `True` **regardless of the factor's value, direction, or existence.**
+
+**And `ret` — the boundary return, the one number that could verify the factor — is bound in that loop and discarded.** The check you need is already in your hands.
+
+**What this currently permits.** The factors register as `("INDOSOLAR", date(2022, 6, 28), 100.0, "SPLIT", ...)`. A `"SPLIT"` of 100 conventionally means 1→100 — **price ÷ 100** — which is the *inverse* of a 1:100 consolidation. Applied that way, INDOSOLAR's adjusted close becomes ₹0.0105 and the boundary is **≈ +1,650,571%**. It is still > 20%, still a splice, still keyed `("INDOSOLAR", 2025-06-19)`, still dispositioned by name. **`p4_ok` is still `True`. The script prints `ALL PREDICTIONS PASS` and writes it to the real store.**
+
+**This is not a claim that the direction is wrong.** It is a claim that **nothing in `0d155b9` could tell us either way** — and a 100× error in a certified substrate is the DVL→DTIL class this suite exists to catch.
+
+### §1 — Assert the boundary returns. This is the round. (B2, B4)
+
+`arm_b.splices` already yields `ret` per splice. **Assert it.**
+
+| Entity | Factor | **Expected boundary return** | Tolerance |
+|---|---:|---:|---:|
+| `INDOSOLAR` | 100 | **+0.6507** (`173.32 / (1.05 × 100) − 1`) | ±0.001 |
+| `CLCIND` | 100 | **−0.8805** (`8.96 / (0.75 × 100) − 1`) | ±0.001 |
+| `NEUEON` | none | **+1.1022** (`5.76 / 2.74 − 1`) | ±0.001 |
+| `DELPHIFX` | none | **+0.3136** (`514.80 / 391.90 − 1`) | ±0.001 |
+
+`NEUEON` and `DELPHIFX` take **no factor**, so their returns must be **unchanged** from the current committed report (`+110.2%`, `+31.4%`). **They are regression checks: if either moves, a factor was registered that should not have been.**
+
+**These four numbers are my derivation and they are already published — which is exactly why they cannot carry this round on their own.** A published number invites transcription; 1R4 proved that. **What makes the assertion meaningful is §2.** Assert these values, then prove the assertion can fail.
+
+**If an observed value disagrees with the table: the factor or my derivation is wrong. Report it and stop.** Do not adjust the expectation to match the observation — that is the tuning this program has forbidden for five rounds.
+
+### §2 — Mutate the factor direction. Without this, §1 proves nothing. (B4)
+
+**This is the load-bearing item of the prompt.** §1's assertion is only worth what its failure mode proves.
+
+On the **scratch copy only**, register INDOSOLAR's factor **inverted** — `0.01` in place of `100.0` — rebuild the adjusted view, and confirm the §1 assertion **FAILS**. Restore `100.0`. **Report the observed failure and the value it produced.**
+
+| Mutation (scratch only) | Expected | What it proves |
+|---|---|---|
+| INDOSOLAR factor `100.0 → 0.01` | §1 assertion **fails** | The boundary check has teeth and pins the direction |
+
+**If inverting the factor does not fail the check, the check is worthless — stop and escalate.** That is the same lens R3-2 applied to `DELIV_BASE_DAYS` and Arm E applied to `C4_N_TRANCHES`: *if a mutation cannot fail the test, the test does not pin the thing.*
+
+**Never write the inverted factor to the real store.** Scratch copy, then discard.
+
+### §3 — Take the numbers out of the register's prose (B3)
+
+```python
+("INDOSOLAR", date(2025, 6, 19)):
+    "relisting_after_suspension: INDOSOLAR (INE866K01015) -> WAAREEINDO; "
+    "factor 100 applied; 1473 missed sessions; boundary +65.1% after adjustment",
+```
+
+**`+65.1%` is a string literal transcribed from Prompt 1R4.** So are `−88.1%`, `+110.2%`, `+31.4%`. The register is **load-bearing** — these strings are the recorded justification for excusing a splice — so a typed residual means the register vouches for a number nobody observed.
+
+**Fix: strip the residuals from the reason strings.** A disposition's job is to record **why the splice is not a fabrication** — ISIN pair, the NSE rename record, the capital event or its absence, the missed-session count. **All of that is verified evidence and stays.** The boundary return is a *computed observation*, and it already has a generated home: the Arm B table in the certification report prints a `Return` column per splice. **Let the report carry the number and the register carry the evidence.**
+
+### §4 — `P3` is a literal (B5)
+
+```python
+("P3", "NTL has no factor (FV-only)", True),  # verified by not in FACTORS list
+```
+
+**A PASS label that is a literal rather than a computed verdict** — the anti-pattern named in 1R, 1R2 and 1R3, and closed out as eliminated in R3-1. **Delete it or make it real:** assert that the store contains **no factor for NTL** after the run. `P1`/`P2` are also mislabelled — `not existing_factors.get(...)` is a *precondition* ("not yet registered"), not a confirmation that registration worked. §1 is what confirms registration; rename or drop them so the labels stop overstating.
+
+### §5 — Put the factors in code, not in store data (B6)
+
+**`ingest_corporate_actions.py` was never modified.** Both factors live only in the store's `adjustment_factors` table, written by the runner.
+
+**Why this is the most dangerous finding in the review:** `RE_LISTINGS` is committed and permanent; the factors are not. **Rebuild the store from source and the factors vanish while the dispositions survive.** INDOSOLAR's boundary returns to **+16,406.7%** and the register **silently excuses it**. Arm B passes. Certification passes. **The fabrication is back and the tripwire has been taught to ignore it** — strictly worse than before 1R4, when Arm B halted loudly.
+
+**The rule this establishes, and it is general: a disposition may only depend on state that is committed.**
+
+**Fix:** register both factors in `ingest_corporate_actions.py` as committed overrides, **following the DVL→DTIL override precedent** — read how that one is declared and match it. A store rebuild must then reproduce both factors with no manual step. The runner's job reduces to: rebuild the view → verify §1 → report.
+
+**If the DVL→DTIL mechanism is not a suitable home for these two, say so and escalate. Do not invent a third mechanism.**
+
+### §6 — Run criterion 7 (B7)
+
+Temporarily remove one `RE_LISTINGS` entry → **that splice must HALT again** → restore. **Report it.**
+
+Given §D's defect — the register is the *only* thing between a splice and a pass — this is the single most important check in the suite, and it is the one 1R4 did not run.
+
+### §7 — Regenerate the certification report (B1)
+
+`PSB1_SUBSTRATE_CERTIFICATION.md` is **absent from `0b30800..0d155b9`.** Its last commits are `187056f`/`680139f` — PSB-1 era. The committed copy still reads **HALT** with `INDOSOLAR | +16406.7%` in the old format.
+
+**Re-run the full four-arm suite and commit the regenerated report with a true stamp.** Arms A/C/D clean, continuity invariant **0**, Arm B **4 splices / 4 dispositioned / 0 halting**, and the `Return` column showing the **post-factor** boundaries.
+
+**Until this artifact exists and is committed, §11.1 is unmet by definition.** Note the working tree holds an unrelated dirty copy of this file predating 1R4 (stamp + HDFCSENETF row drift) — **regenerate from the run; do not build on the dirty copy.**
+
+### Falsifiable predictions — state, then run
+
+1. `INDOSOLAR` boundary = **+0.6507** ±0.001. 2. `CLCIND` = **−0.8805** ±0.001. 3. `NEUEON` = **+1.1022** ±0.001 (unchanged). 4. `DELPHIFX` = **+0.3136** ±0.001 (unchanged).
+5. **Inverting INDOSOLAR's factor to `0.01` fails prediction 1** — reported with the value it produced.
+6. Arm B: **4 splices, 4 dispositioned, 0 halting.** Arms A/C/D clean. Continuity invariant **0**.
+7. Removing one register entry **HALTs** that splice; restored.
+8. Both factors survive a view rebuild driven **only** by committed code.
+
+### Scope discipline
+
+**No weakening a check to make it pass.** Five rounds. §1 will tempt it directly: if a boundary lands off the prediction, **that is a result — report it and stop.** The expectation does not move to meet the observation.
+
+**Do not touch:** `contract_arms.py`, `screening_harness.py`, `_build_signal`, any §9 value, any scorer (E1 is done), `harness.py`, `test_fidelity.py`, `run_devproof.py`. **§A/§B/§C/§E are closed.** **No sealed reads. No candidate runs on real data.**
+
+**Every number script-generated.** The four residuals above are **predictions to be reproduced and to be provably falsifiable** — not values to be typed anywhere. 1R4 typed them; that is the whole reason this prompt exists.
+
+### Acceptance criteria
+
+1. The four boundary returns are **computed from `arm_b.splices`'s `ret` and asserted** against the §1 table.
+2. **Inverting INDOSOLAR's factor on the scratch copy fails that assertion** — observed, reported, restored. The inverted factor never reaches the real store.
+3. `RE_LISTINGS` reason strings carry **evidence only** — no transcribed residuals.
+4. `P3`'s literal `True` is gone; NTL's absence of a factor is **asserted against the store**, or the check is dropped.
+5. Both factors registered in `ingest_corporate_actions.py` per the DVL→DTIL precedent; **a rebuild from committed code alone reproduces them.**
+6. Criterion 7 run and reported: one entry removed → splice HALTs → restored.
+7. `PSB1_SUBSTRATE_CERTIFICATION.md` **regenerated from the run and committed**, true stamp, Arm B 4/4/0, post-factor returns in the `Return` column.
+8. Arms A/C/D clean; continuity invariant **0**.
+9. Predictions 1–8 reproduced by script, or the discrepancy reported and the work stopped.
+10. No hand-edited numbers anywhere — register, report, or runner.
+11. No candidate score on real data. No §9 value changed. Ambiguity escalated.
+
+### Explicitly not authorized
+
+**No change to the frozen protocol** (§9). **No sealed read.** **No real candidate runs.** **No edit to `contract_arms.py`**, `screening_harness.py`, or any `repair_*.py` other than `repair_relisting_factors.py`. **No gap rule or structural filter in any arm.** **No scorer change** — E1 is closed. **No edits to `harness.py`, `test_fidelity.py`, or `run_devproof.py`** — §A/§B are accepted. **No changes to `_build_signal`.** **No new candidates or variants.** **No strategy code.** **No new ingestion (D4)** — registering committed factor overrides is not an ingestion path.
+
+### Next after this prompt
+
+1. Claude **review** — focused on §1/§2 (does the check fail when it should?) and §7 (does the artifact exist?).
+2. Operator authorizes Phase 2 — **§11.2 and §11.1 both closed.**
+3. Prompt 2 — candidate runs in the §11.3 order: **C2 → C3 → C4**, one report per candidate, committed as produced.
