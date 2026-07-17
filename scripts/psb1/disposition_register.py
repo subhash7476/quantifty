@@ -121,16 +121,16 @@ DEMERGERS = {
 RE_LISTINGS = {
     ("INDOSOLAR", date(2025, 6, 19)):
         "relisting_after_suspension: INDOSOLAR (INE866K01015) -> WAAREEINDO; "
-        "factor 100 applied; 1473 missed sessions; boundary +65.1% after adjustment",
+        "factor 100 applied; 1473 missed sessions",
     ("CLCIND", date(2026, 1, 30)):
         "relisting_after_suspension: SPENTEX (INE376C01020) -> CLCIND; "
-        "factor 100 applied; 1343 missed sessions; boundary -88.1% after adjustment",
+        "factor 100 applied; 1343 missed sessions",
     ("NEUEON", date(2025, 12, 23)):
         "relisting_after_suspension: NTL (INE333I01036) -> NEUEON (INE333I01044); "
-        "FV-only event, no factor; 315 missed sessions; boundary +110.2%",
+        "FV-only event, no factor; 315 missed sessions",
     ("DELPHIFX", date(2020, 4, 21)):
         "relisting_after_suspension: WEIZFOREX -> EBIXFOREX (via DELPHIFX); "
-        "ISIN identical, no capital event; 33 missed sessions; boundary +31.4%",
+        "ISIN identical, no capital event; 33 missed sessions",
 }
 
 

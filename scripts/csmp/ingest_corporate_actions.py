@@ -585,6 +585,37 @@ def apply_factor_overrides(con):
     return n_applied
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Prompt 1R4/1R5 — Committed relisting factors (INDOSOLAR, SPENTEX).
+# NCLT/NSE-verified capital reductions. Survives store rebuild.
+# Follows the DVL->DTIL committed-data pattern: constant list, inserted in main().
+# NTL gets no factor (FV-only, count unchanged).
+# ──────────────────────────────────────────────────────────────────────────────
+RELISTING_FACTORS = [
+    ("INDOSOLAR", date(2022, 6, 28), 100.0, "SPLIT",
+     "nclt_order_2022_06_28_1to100_entitlement_for_existing_public_holders"),
+    ("SPENTEX", date(2024, 1, 12), 100.0, "SPLIT",
+     "nse_cml_72500_2024_01_12_1to100_ledger_conversion"),
+]
+
+
+def register_relisting_factors(con):
+    """Insert committed relisting factors. Idempotent: INSERT OR REPLACE."""
+    n = 0
+    for sym, ex, factor, atype, src in RELISTING_FACTORS:
+        con.execute(
+            "INSERT OR REPLACE INTO adjustment_factors VALUES (?, ?, ?, ?, ?)",
+            [sym, ex, factor, atype, src])
+        n += 1
+    ntl = con.execute(
+        "SELECT COUNT(*) FROM adjustment_factors WHERE symbol='NTL' AND action_type='SPLIT'"
+    ).fetchone()[0]
+    assert ntl == 0, f"NTL has {ntl} factor(s) — none expected (FV-only)"
+    if n:
+        print(f"Relisting factors      : {n} registered")
+    return n
+
+
 def assert_no_orphan_factors(con):
     """F-9 / Prompt 5 Task 1 — HALT if any `adjustment_factors` row resolves to ZERO
     entities (its ex_date falls outside every interval for that symbol AND the symbol maps
@@ -815,6 +846,7 @@ def main():
     ingest_etf_splits(con)
     ingest_special_dividends(con)
     apply_factor_overrides(con)            # Prompt 4 Task 1 — re-key confirmed feed errors
+    register_relisting_factors(con)        # Prompt 1R4/1R5 — INDOSOLAR, SPENTEX factors
     assert_no_orphan_factors(con)          # Prompt 5 Task 1 — HALT on silently-dropped factors
     build_adjusted_view(con)
     n_tested, n_exceptions, n_ex_dates = record_evidence_exceptions(con)

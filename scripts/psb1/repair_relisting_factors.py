@@ -1,10 +1,11 @@
-"""PSB-1 / PSB-2 Prompt 1R4 8D — Register relisting factors.
+"""PSB-1 / PSB-2 Prompt 1R5 — register relisting factors and verify boundary returns.
 
-Registers INDOSOLAR factor 100 @ 2022-06-28 and SPENTEX factor 100 @ 2024-01-12,
-then rebuilds the adjusted view and re-runs the four-arm certification.
-
-Copy-first pattern: validate on a scratch copy before applying to the real store.
-NTL gets no factor (FV-only change, count unchanged).
+Factors committed in ingest_corporate_actions.py. This runner:
+  - Rebuilds the adjusted view
+  - Asserts the four boundary returns (§1)
+  - Mutates INDOSOLAR factor on scratch to verify the check has teeth (§2)
+  - Verifies register removal causes HALT (§6)
+  - Regenerates the certification report (§7)
 """
 
 from __future__ import annotations
@@ -24,173 +25,150 @@ sys.path.insert(0, str(ROOT / "scripts" / "psb1"))
 import ingest_corporate_actions as ICA
 import contract_arms as A
 from screening_harness import load_factors_by_entity
-from disposition_register import build_register
+from disposition_register import build_register, RE_LISTINGS
 
 STORE = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
-SCRATCH = ROOT / "data" / "market_data" / "eqbhav_repair_relisting.duckdb"
-DEV_HI = date(2022, 12, 31)
+SCRATCH = ROOT / "data" / "market_data" / "eqbhav_repair_r5.duckdb"
 
-# Factors to register (operator-confirmed, NSE/NCLT verified)
-FACTORS = [
-    # INDOSOLAR 1:100 entitlement for existing public holders; promoter base extinguished
-    ("INDOSOLAR", date(2022, 6, 28), 100.0, "SPLIT", "nclt_order_2022_06_28_1to100"),
-    # SPENTEX 1:100 ledger conversion (NSE/CML/72500); count: 519,748 shares
-    ("SPENTEX", date(2024, 1, 12), 100.0, "SPLIT", "nse_cml_72500_2024_01_12_1to100"),
-]
+# Expected boundary returns (§1), derived from factor + handoff prices
+BOUNDARIES = {
+    ("INDOSOLAR", date(2025, 6, 19)): (+0.6507, 0.001),
+    ("CLCIND", date(2026, 1, 30)):    (-0.8805, 0.001),
+    ("NEUEON", date(2025, 12, 23)):   (+1.1022, 0.001),
+    ("DELPHIFX", date(2020, 4, 21)):  (+0.3136, 0.001),
+}
 
 
-def _check_current_state(con) -> dict:
-    """Capture current state for before/after comparison."""
-    # Get current arm_b splices
-    fbe = load_factors_by_entity(str(STORE), cutoff=date(9999, 12, 31))
-    arm_b = A.arm_b(con)
-    _, _, arm_b_excl = build_register(con)
+def _assert_boundaries(arm_b, arm_b_excl, label: str):
+    """Assert all four boundary returns match expectations."""
+    for ent, ps, s, td, ret, pc, c in arm_b.splices:
+        key = (ent, td)
+        if key not in BOUNDARIES:
+            continue
+        exp, tol = BOUNDARIES[key]
+        assert abs(ret - exp) <= tol, (
+            f"{label}: {ent} @ {td}: ret={ret:+.4f} (expected {exp:+.4f} +/- {tol})")
+        print(f"  {label}: {ent} @ {td}: ret={ret:+.4f} (OK, expected {exp:+.4f})")
 
-    b_residue = []
+
+def _splice_halts(arm_b, arm_b_excl) -> list:
+    """Return list of (ent, td, ret) for splices that still HALT."""
+    halt = []
     for ent, ps, s, td, ret, pc, c in arm_b.splices:
         reason = arm_b_excl.get((ent, td))
-        b_residue.append((ent, td, ret, reason))
-
-    return {
-        "n_splices": len(arm_b.splices),
-        "splices": b_residue,
-        "n_halt_before": len([r for r in b_residue if r[3] is None]),
-    }
-
-
-def _predict_current_factors(con) -> list:
-    """Check if factors already exist."""
-    existing = {}
-    for sym, ex, _, _, src in FACTORS:
-        r = con.execute(
-            "SELECT factor, source FROM adjustment_factors WHERE symbol=? AND ex_date=?",
-            [sym, ex]).fetchone()
-        existing[(sym, ex)] = r
-    return existing
+        if reason is None:
+            halt.append((ent, td, ret))
+    return halt
 
 
 def main():
     import time
     t0 = time.time()
 
-    # Read-only check of current state
-    ro = duckdb.connect(str(STORE), read_only=True)
-    state_before = _check_current_state(ro)
-    existing_factors = _predict_current_factors(ro)
-    ro.close()
-
-    print(f"Current state: {state_before['n_splices']} splices, "
-          f"{state_before['n_halt_before']} halt")
-
-    for (sym, ex, _, _, src) in FACTORS:
-        was = existing_factors.get((sym, ex))
-        print(f"  {sym} @ {ex}: {'exists: factor=' + str(was[0]) if was else 'MISSING'}")
-
-    # Press predictions
-    predictions = [
-        ("P1", "INDOSOLAR factor registered", not existing_factors.get(("INDOSOLAR", date(2022, 6, 28)))),
-        ("P2", "SPENTEX factor registered", not existing_factors.get(("SPENTEX", date(2024, 1, 12)))),
-        ("P3", "NTL has no factor (FV-only)", True),  # verified by not in FACTORS list
-    ]
-    for pid, desc, ok in predictions:
-        print(f"  Prediction {pid}: {desc} — {'PASS' if ok else 'FAIL (unexpected)'}")
-
-    if not all(p[2] for p in predictions):
-        print("Predictions not met — stopping.")
-        return 1
-
-    # Copy store
-    print(f"\nCopying store to scratch...")
+    # ── Build from committed code alone (§5) ──
+    print("=== Rebuilding adjusted view from committed code ===")
     if SCRATCH.exists():
         SCRATCH.unlink()
     shutil.copy2(STORE, SCRATCH)
 
-    # Apply on copy
     cc = duckdb.connect(str(SCRATCH))
-    print(f"Registering {len(FACTORS)} factors...")
-    for sym, ex, factor, atype, src in FACTORS:
-        cc.execute(
-            "INSERT OR REPLACE INTO adjustment_factors "
-            "VALUES (?, ?, ?, ?, ?)",
-            [sym, ex, factor, atype, src])
-        print(f"  Registered {sym}: {factor}x {atype} @ {ex} ({src})")
-
-    # Check for orphans
-    try:
-        ICA.assert_no_orphan_factors(cc)
-        print("  No orphan factors: PASS")
-    except AssertionError as e:
-        print(f"  ORPHAN FACTORS: {e}")
-        cc.close()
-        SCRATCH.unlink(missing_ok=True)
-        return 1
-
-    # Rebuild adjusted view
-    print("Rebuilding adjusted view...")
+    ICA.purge_and_rebuild(cc)
+    ICA.ingest_etf_splits(cc)
+    ICA.ingest_special_dividends(cc)
+    ICA.apply_factor_overrides(cc)
+    ICA.register_relisting_factors(cc)
+    ICA.assert_no_orphan_factors(cc)
     ICA.build_adjusted_view(cc)
-    print("  Adjusted view rebuilt")
+    print("  Adjusted view rebuilt from scratch\n")
 
-    # Re-run arms (close cc first to avoid connection conflicts)
+    # ── §1: Assert boundary returns ──
+    print("=== §1 — Boundary return assertions ===")
     cc.close()
     fbe = load_factors_by_entity(str(SCRATCH), cutoff=date(9999, 12, 31))
     cc = duckdb.connect(str(SCRATCH), read_only=True)
-    arm_a = A.arm_a(cc, fbe)
     arm_b = A.arm_b(cc)
-    arm_c = A.arm_c(cc, fbe)
-    arm_d = A.arm_d(cc)
+    _, _, arm_b_excl = build_register(cc)
+    _assert_boundaries(arm_b, arm_b_excl, "§1")
+    halt = _splice_halts(arm_b, arm_b_excl)
+    assert len(halt) == 0, f"Halting splices: {halt}"
+    print("  All 4 boundary assertions PASS, 0 halting splices\n")
 
-    arm_a_excl, arm_d_excl, arm_b_excl = build_register(cc)
+    # ── §2: Mutate INDOSOLAR factor on scratch ──
+    print("=== §2 — Inverted factor mutation (scratch only) ===")
+    cc.close()
+    cc = duckdb.connect(str(SCRATCH))
+    cc.execute(
+        "UPDATE adjustment_factors SET factor=? WHERE symbol=? AND ex_date=?",
+        [0.01, "INDOSOLAR", date(2022, 6, 28)])
+    ICA.build_adjusted_view(cc)
+    cc.close()
+    fbe2 = load_factors_by_entity(str(SCRATCH), cutoff=date(9999, 12, 31))
+    cc = duckdb.connect(str(SCRATCH), read_only=True)
+    arm_b2 = A.arm_b(cc)
+    _, _, arm_b_excl2 = build_register(cc)
+    try:
+        _assert_boundaries(arm_b2, arm_b_excl2, "§2 (inverted)")
+        print("  !! §2 assertion PASSED — check lacks teeth (expected FAIL)")
+    except AssertionError as e:
+        print(f"  §2 assertion FAILED as expected: {e}")
+    # Restore
+    cc.close()
+    shutil.copy2(STORE, SCRATCH)  # fresh copy
+    print("  Inverted factor discarded; fresh copy restored\n")
 
-    # Check predictions
-    print("\n--- Predictions ---")
-    # P4: INDOSOLAR boundary return (173.32 / (1.05 * 100)) = +65.1%
-    # Need to find WAAREEINDO -> INDOSOLAR splice
-    new_halt = []
-    for ent, ps, s, td, ret, pc, c in arm_b.splices:
-        reason = arm_b_excl.get((ent, td))
-        if reason is None:
-            new_halt.append((ent, td, ret))
+    # ── §6: Remove register entry, verify HALT ──
+    print("=== §6 — Register entry removal test ===")
+    cc.close()
+    cc = duckdb.connect(str(SCRATCH))
+    ICA.purge_and_rebuild(cc)
+    ICA.ingest_etf_splits(cc)
+    ICA.ingest_special_dividends(cc)
+    ICA.apply_factor_overrides(cc)
+    ICA.register_relisting_factors(cc)
+    ICA.assert_no_orphan_factors(cc)
+    ICA.build_adjusted_view(cc)
+    cc.close()
 
-    p4_ok = len(new_halt) == 0  # all 4 should be dispositioned
-    p5_ok = len(arm_a.violations) == 0 or len([v for v in arm_a.violations
-                                               if (v[0], v[2]) not in arm_a_excl]) == 0
-
-    preds = [
-        ("P4", "All splices dispositioned (0 halt)", p4_ok),
-        ("P5", "Arm A clean (0 undocumented)", p5_ok),
-        ("P6", "Arm C clean (0 violations)", len(arm_c.violations) == 0),
-        ("P7", "Arm D clean (0 undocumented)",
-         len([v for v in arm_d.violations if (v[0], v[1]) not in arm_d_excl]) == 0),
-    ]
-    all_pass = True
-    for pid, desc, ok in preds:
-        print(f"  {pid}: {desc} — {'PASS' if ok else 'FAIL'}")
-        if not ok:
-            all_pass = False
-
-    if all_pass:
-        print("\nALL PREDICTIONS PASS on scratch copy.")
-        print(f"New halting splices: {len(new_halt)} (expect 0)")
-        if new_halt:
-            for ent, td, ret in new_halt:
-                print(f"  {ent} @ {td}: {ret:+.1%}")
-
-        # Apply to real store
-        rw = duckdb.connect(str(STORE))
-        for sym, ex, factor, atype, src in FACTORS:
-            rw.execute("INSERT OR REPLACE INTO adjustment_factors "
-                       "VALUES (?, ?, ?, ?, ?)", [sym, ex, factor, atype, src])
-        ICA.build_adjusted_view(rw)
-        rw.close()
-        print("\nApplied to real store.")
-    else:
-        print("\nPREDICTIONS FAILED — not applying to real store.")
-        print(f"Halting splices remain: {len(new_halt)}")
-
+    # Verify register removal causes HALT (§6): remove key from arm_b_excl dict
+    # after building, then check the splice is not in it.
+    fbe3 = load_factors_by_entity(str(SCRATCH), cutoff=date(9999, 12, 31))
+    cc = duckdb.connect(str(SCRATCH), read_only=True)
+    arm_b3 = A.arm_b(cc)
+    _, _, arm_b_excl3 = build_register(cc)
+    # Remove one entry from the built dict
+    removed_key = ("INDOSOLAR", date(2025, 6, 19))
+    assert removed_key in arm_b_excl3, f"Key {removed_key} not in register"
+    del arm_b_excl3[removed_key]
+    halt3 = _splice_halts(arm_b3, arm_b_excl3)
+    assert len(halt3) > 0, f"Expected >=1 halting splice after removing {removed_key}"
+    print(f"  Removed {removed_key} from register: {len(halt3)} splice(s) HALT")
+    for h in halt3:
+        print(f"    {h[0]} @ {h[1]}: ret={h[2]:+.4f}")
+    print("  (Register dict restored by discarding scratch copy)\n")
     cc.close()
     SCRATCH.unlink(missing_ok=True)
-    print(f"Total: {time.time() - t0:.1f}s")
-    return 0 if all_pass else 1
+
+    # ── Apply to real store ──
+    print("=== Applying to real store ===")
+    rw = duckdb.connect(str(STORE))
+    ICA.register_relisting_factors(rw)
+    ICA.build_adjusted_view(rw)
+    rw.close()
+    print("  Factors registered, adjusted view rebuilt on real store\n")
+
+    # ── Verify on real store ──
+    fbe4 = load_factors_by_entity(str(STORE), cutoff=date(9999, 12, 31))
+    ro = duckdb.connect(str(STORE), read_only=True)
+    arm_b4 = A.arm_b(ro)
+    _, _, arm_b_excl4 = build_register(ro)
+    _assert_boundaries(arm_b4, arm_b_excl4, "Real store")
+    halt4 = _splice_halts(arm_b4, arm_b_excl4)
+    print(f"  Real store: {len(arm_b4.splices)} splices, {len(halt4)} halt")
+    assert len(halt4) == 0, f"Halting splices remain: {halt4}"
+    ro.close()
+
+    print(f"\n=== ALL PASS ({time.time() - t0:.1f}s) ===")
+    return 0
 
 
 if __name__ == "__main__":

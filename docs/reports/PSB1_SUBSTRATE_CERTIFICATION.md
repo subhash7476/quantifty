@@ -1,6 +1,6 @@
 # PSB-1 Substrate Certification Report (Prompt 5-C — four-arm contract test)
 
-**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `680139f`.
+**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `0d155b9`.
 Real store, read-only. Store stamps: rows **7,030,920**, fenced MAX(trade_date) **2022-12-30**, unfenced MAX **2026-07-09**.
 
 Governing analysis: `PSB1_CERTIFICATION_METHODOLOGY.md` (operator-endorsed 2026-07-15). The suite tests the ONE continuity contract via four complementary arms with zero structural filters; the sole permitted exclusion is a committed disposition register.
@@ -10,7 +10,7 @@ Governing analysis: `PSB1_CERTIFICATION_METHODOLOGY.md` (operator-endorsed 2026-
 | Check | Result | Detail |
 |---|:--:|---|
 | **Arm A** intra-symbol CA-shape | PASS | 78 residue (78 dispositioned, **0** undocumented); 2720 large_genuine |
-| **Arm B** cross-symbol handoff | **HALT** | 4 splice fabrications (|ret|>=20%) |
+| **Arm B** cross-symbol handoff | PASS | 4 splice fabrications (4 dispositioned, **0** undocumented) |
 | **Arm C** prev_close identity | PASS | 0 violations |
 | **Arm D** factor evidence | PASS | 1116 tested, 16 flagged (16 dispositioned, **0** undocumented) |
 | Structural: co-trading | PASS | 0 overlapping entities |
@@ -113,14 +113,14 @@ Large genuine moves (|ret|>=40%, non-CA-shaped, not CA-explained): **2720** — 
 
 ## Arm B — Cross-symbol handoff (shape-free)
 
-**4 splice fabrication(s)** — |adjusted return| >= 20% across a symbol boundary. HALT for disposition.
+**4 splice fabrication(s)** — |adjusted return| >= 20% across a symbol boundary. 4 dispositioned; **0** undocumented (HALT).
 
-| Entity | From | To | Date | Return | |
-|--------|------|----|------|-------:|
-| INDOSOLAR | INDOSOLAR | WAAREEINDO | 2025-06-19 | +16406.7% |
-| CLCIND | SPENTEX | CLCIND | 2026-01-30 | +1094.7% |
-| NEUEON | NTL | NEUEON | 2025-12-23 | +110.2% |
-| DELPHIFX | WEIZFOREX | EBIXFOREX | 2020-04-21 | +31.4% |
+| Entity | From | To | Date | Return | Disposition |
+|--------|------|----|------|-------:|-------------|
+| NEUEON | NTL | NEUEON | 2025-12-23 | +110.2% | relisting_after_suspension: NTL (INE333I01036) -> NEUEON (INE333I01044); FV-only event, no factor; 315 missed sessions |
+| CLCIND | SPENTEX | CLCIND | 2026-01-30 | -88.1% | relisting_after_suspension: SPENTEX (INE376C01020) -> CLCIND; factor 100 applied; 1343 missed sessions |
+| INDOSOLAR | INDOSOLAR | WAAREEINDO | 2025-06-19 | +65.1% | relisting_after_suspension: INDOSOLAR (INE866K01015) -> WAAREEINDO; factor 100 applied; 1473 missed sessions |
+| DELPHIFX | WEIZFOREX | EBIXFOREX | 2020-04-21 | +31.4% | relisting_after_suspension: WEIZFOREX -> EBIXFOREX (via DELPHIFX); ISIN identical, no capital event; 33 missed sessions |
 
 ## Arm C — prev_close identity
 
@@ -189,5 +189,5 @@ Fragmenting INDOSOLAR/WAAREEINDO, SUJANATWR/NTL/NEUEON, SPENTEX/CLCIND, EBIXFORE
 - `scripts/psb1/historical_backtest.py` — the Task 2 completeness proof
 
 
-**CERTIFICATION INCOMPLETE — HALT items above must be resolved.**
+**SUBSTRATE CERTIFIED — the four-arm contract holds.**
 
