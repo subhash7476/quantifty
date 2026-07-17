@@ -62,8 +62,23 @@ EXPECTED_ROWS = 7030920
 def _git_commit():
     import subprocess
     try:
+        # Check for dirty sources before stamping (C1)
+        sources = ["scripts/psb1/certify_substrate.py",
+                   "scripts/psb1/contract_arms.py",
+                   "scripts/psb1/disposition_register.py",
+                   "scripts/csmp/ingest_corporate_actions.py"]
+        for src in sources:
+            status = subprocess.check_output(
+                ["git", "status", "--porcelain", src],
+                cwd=str(ROOT)).decode().strip()
+            if status:
+                print(f"DIRTY SOURCE: {src} ({status}) — certification has no provenance.")
+                print("HALT. Commit dirty sources before re-running.")
+                raise SystemExit(1)
         return subprocess.check_output(["git", "rev-parse", "--short", "HEAD"],
                                        cwd=str(ROOT)).decode().strip()
+    except SystemExit:
+        raise
     except Exception:
         return "unknown"
 
@@ -317,7 +332,7 @@ def main():
     W("## Arm A — Intra-symbol CA-shape\n")
     W(f"{len(arm_a.violations)} CA-shaped moves with no matching factor. "
       f"Dispositioned: {len(a_residue) - len(a_halt)}. "
-      f"**Undocumented (HALT): {len(a_halt)}**.\n")
+      f"**Undocumented{' (HALT)' if a_halt else ''}: {len(a_halt)}**.\n")
     if a_residue:
         W("| Entity | Symbol | Date | Return | Class | Disposition |")
         W("|--------|--------|------|-------:|-------|-------------|")
@@ -333,7 +348,8 @@ def main():
     if arm_b.splices:
         n_disp = len(b_residue) - len(b_halt)
         W(f"**{len(arm_b.splices)} splice fabrication(s)** — |adjusted return| >= 20% across a symbol "
-          f"boundary. {n_disp} dispositioned; **{len(b_halt)}** undocumented (HALT).\n")
+          f"boundary. {n_disp} dispositioned; **{len(b_halt)}** undocumented"
+          f"{' (HALT)' if b_halt else ''}.\n")
         W("| Entity | From | To | Date | Return | Disposition |")
         W("|--------|------|----|------|-------:|-------------|")
         for r in b_residue:
@@ -359,7 +375,7 @@ def main():
     W("## Arm D — Factor evidence\n")
     W(f"{arm_d.n_tested} factors with adjacent-session evidence tested. "
       f"{len(arm_d.violations)} flagged ({len(d_residue) - len(d_halt)} dispositioned, "
-      f"**{len(d_halt)}** undocumented).\n")
+      f"**{len(d_halt)}** undocumented{' (HALT)' if d_halt else ''}).\n")
     if d_residue:
         W("| Symbol | Ex-date | Factor | Failure | Disposition |")
         W("|--------|---------|-------:|---------|-------------|")

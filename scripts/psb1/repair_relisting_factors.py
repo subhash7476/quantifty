@@ -108,7 +108,10 @@ def main():
     _, _, arm_b_excl2 = build_register(cc)
     try:
         _assert_boundaries(arm_b2, arm_b_excl2, "§2 (inverted)")
-        print("  !! §2 assertion PASSED — check lacks teeth (expected FAIL)")
+        print("  !! §2 assertion PASSED — check lacks teeth. HALTING.")
+        cc.close()
+        SCRATCH.unlink(missing_ok=True)
+        raise SystemExit(1)
     except AssertionError as e:
         print(f"  §2 assertion FAILED as expected: {e}")
     # Restore

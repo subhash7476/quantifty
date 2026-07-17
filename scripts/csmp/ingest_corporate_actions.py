@@ -608,7 +608,7 @@ def register_relisting_factors(con):
             [sym, ex, factor, atype, src])
         n += 1
     ntl = con.execute(
-        "SELECT COUNT(*) FROM adjustment_factors WHERE symbol='NTL' AND action_type='SPLIT'"
+        "SELECT COUNT(*) FROM adjustment_factors WHERE symbol='NTL'"
     ).fetchone()[0]
     assert ntl == 0, f"NTL has {ntl} factor(s) — none expected (FV-only)"
     if n:
