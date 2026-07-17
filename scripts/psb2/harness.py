@@ -439,7 +439,7 @@ def evaluate_candidate_psb2(
     _, _, t_stat, p_val = _one_sided_t(ic_arr)
     ac1 = _ac1(ic_arr)
     nw_t = None
-    if abs(ac1) > AC1_TRIGGER and len(ic_arr) > 4:
+    if ac1 > AC1_TRIGGER and len(ic_arr) > 4:
         nw_se = _nw_se(ic_arr, NW_LAG)
         if nw_se > 0:
             nw_t = float(mean_ic / nw_se)

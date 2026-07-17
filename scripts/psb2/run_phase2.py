@@ -173,7 +173,7 @@ def generate_report(
         design_turnover = "~0.17"
         design_fee_drag = "~2.5 pp/yr"
 
-    nw_triggered = abs(r.ac1) > 0.10
+    nw_triggered = r.ac1 > H.AC1_TRIGGER
 
     # §8 eligibility
     eligible_i = r.mean_ic > 0
@@ -220,7 +220,7 @@ def generate_report(
     A(f"| One-sided p | {r.pvalue:.6e} |")
     A(f"| AC\u2081 | {r.ac1:.6f} |")
     nw_str = f"{r.nw_t:.4f}" if (nw_triggered and r.nw_t is not None) else "N/A"
-    A(f"| NW t (|AC\u2081|>0.10) | {nw_str} |")
+    A(f"| NW t (AC\u2081 > {H.AC1_TRIGGER}) | {nw_str} |")
     A(f"| Imputed mean IC (§4.2) | {r.mean_ic_imputed:.6f} |")
     A(f"| Sign flag | {r.sign_flag} |")
     A(f"| Min-names skipped | {r.min_names_skipped} |")
@@ -273,7 +273,7 @@ def generate_report(
     A("")
 
     if nw_triggered:
-        A("**AC\u2081 exposure (§7):** AC\u2081 > 0.10. Adjacent fortnightly formations overlap in "
+        A(f"**AC\u2081 exposure (§7):** AC\u2081 = {r.ac1:.6f} > {H.AC1_TRIGGER}. Adjacent fortnightly formations overlap in "
           "their 252-day delivery baseline. The simple-t projection may be optimistic — "
           "a fortnightly candidate can clear the 0.80 hurdle on a projection its own "
           "reported AC\u2081 shows is optimistic. The gating power remains simple-t. "
