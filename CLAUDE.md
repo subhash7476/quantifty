@@ -165,8 +165,52 @@ The `equity_bhavcopy_adjusted` view (7,030,920 rows) is certified by the four-ar
 | `docs/reports/PSB1_SUBSTRATE_CERTIFICATION.md` | Substrate certification report (four-arm contract) |
 | `tests/psb1/` | 38 tests (scoring unit tests + contract arm unit tests) |
 
-### PSB-2 — authorized, pending Phase 0
-A fee-survivable battery. Every candidate must clear the cost structure by construction: monthly cadence, banded exits, low turnover, or entry/exit asymmetry that avoids STT on both sides. Substrate and harness reused. Pending a Phase 0 research record with candidate slate + operator decisions.
+### PSB-2 — authorized, executed, CLOSED
+See the PSB-2 section below.
+
+---
+
+## PSB-2 — Panel Screening Battery, Increment 2
+
+**Status:** CLOSED 2026-07-17. Outcome: **C2 recommended** — the battery's sole eligible candidate cleared all three §8 criteria and the evidence floor. A recommendation only: no sealed read consumed, no strategy code, no allocation.
+
+### Summary
+The fee-survivable successor to PSB-1. Three constructs (C2–C4), each designed to clear the cost structure *by construction* rather than hoping a signal outruns it. Substrate (`equity_bhavcopy_adjusted`, 7,030,920 rows) and harness reused from PSB-1. Dev data fenced at 2022-12-30 (fence proven each run: fenced MAX ≠ unfenced MAX 2026-07-09); the 2023–2026 window remains **sealed and unread**. Ran against frozen `PSB2_PROTOCOL.md`: §7 power projection vs. the sealed window (≥0.80 hurdle), Bonferroni-deflated selection at **m = 3** (pinned pre-results; C1/C5 dropped for data-independent reasons and so cannot inflate the penalty).
+
+### Phase 2 / §8 Results
+
+| Cand | Construct | Cadence | n | Mean IC | Net spread | Power | Fee drag | Outcome |
+|---|---|---|--:|--:|--:|--:|--:|---|
+| **C2** | Delivery-% anomaly (delivery z), banded 0.40 | fortnightly | 55 | **+0.0349** | **+4.57%** | **0.9198** | 270.3 bp | **ELIGIBLE — recommended** |
+| C3 | Delivery-conditioned reversal | fortnightly | 55 | +0.0083 | −1.10% | 0.1816 | 444.7 bp | Not eligible (net<0, power) |
+| C4 | Momentum, long-only, staggered 6-mo hold | monthly | 131 | +0.0466 | +2.87% | 0.4110 | **35.2 bp** | Not eligible (power) |
+
+n* = 84 fortnightly / 42 monthly. C2 deflated p = min(1, 3 × 7.994592e-03) = **0.023984 < 0.05** → evidence floor PASS.
+
+### What the battery found
+- **The fee constraint held a third time.** C3 (fortnightly delivery-conditioned reversal) died exactly as PSB-1's weekly C3 did — turnover 0.4683 → 444.7 bp/yr drag → net −1.10%. Across two batteries, sub-monthly delivery signals do not survive STT.
+- **C4 is PSB-1's C5 story repeating.** Best mean IC (+0.0466) and best fee structure (35.2 bp/yr) in the battery, dropped **by rule** at power 0.4110 — SD_IC 0.208949 over 131 formations is too noisy to project 0.80 at n* = 42. A good construct is not the same as a demonstrable one.
+- **C2 cleared fees despite missing its own design estimate.** Turnover came in 0.2701 vs. ~0.15 designed (drag 270.3 vs. ~78 bp/yr) and the net spread survived anyway. Disclosed, not buried; no parameter was tuned toward the estimate.
+- **The AC₁ threat did not materialize.** All three AC₁ negative (C2 −0.1818). The largest disclosed threat to a fortnightly candidate — inflated simple-t from overlapping formations — is absent in this data, so C2's power is not flattered by autocorrelation.
+
+### Carry-forward caveats (do not lose these)
+- **C2's recommendation is a power projection resting on a 55-observation, 2.3-year SD estimate.** `deliv_pct` begins 2020-01-01 and the 252-day baseline pushes the earliest feasible formation to 2020-09-04, so this is the *entire* available span — nothing held in reserve. Power is a function of SD. The successor pre-registration must pin its own view on this estimate.
+- **Known limitation in the selection artifact (documented, frozen — not repaired).** `PSB2_SELECTION_REPORT.md`'s §10 digest (`fad88aac14decee3`) covers only the report body through §7; the "Predictions verified" section is appended after the hash and sits outside the seal, and predictions 1/2/4/7 are hardcoded PASS strings rather than computed. **The claims were independently verified true** in lead review — the report's stated mechanism is overstated, its numbers are not wrong. Left frozen rather than re-run, since a fix moves the digest on a terminal artifact. Full detail: `PSB2_PROMPT3_LEAD_REVIEW.md`.
+
+### Key files
+| File | Purpose |
+|------|---------|
+| `scripts/psb2/harness.py` | PSB-2 harness: grids, C2–C4 scoring, §6 metrics, §7 power, selection constants |
+| `scripts/psb2/run_phase2.py` | Candidate battery runner → `PSB2_C{2,3,4}_REPORT.md` |
+| `scripts/psb2/run_phase3.py` | §8 selection runner → `PSB2_SELECTION_REPORT.md` |
+| `docs/reports/PSB2_PROTOCOL.md` | **FROZEN** — the pre-registered protocol (§8 selection rule, m=3 rationale) |
+| `docs/reports/PSB2_PHASE0_RESEARCH_RECORD.md` | Phase 0 slate + operator decisions (incl. D2 prior-exposure, D11/D12) |
+| `docs/reports/PSB2_C{2,3,4}_REPORT.md` | Script-generated candidate reports |
+| `docs/reports/PSB2_SELECTION_REPORT.md` | Script-generated §8 selection report — **C2 recommended** |
+| `docs/reports/PSB2_PROMPT3_LEAD_REVIEW.md` | Lead review of the selection report (ACCEPT; MEDIUM-1 digest finding) |
+
+### Successor — authorized to *propose* only
+Per §12, C2's win authorizes **nothing** except the right to propose a successor pre-registration — pending operator ratification. It is not a promotion and not a PSB-3 authorization. Any successor must pin its own α, execution conventions, and sealed-read mechanics, must state its own view on C2's 55-observation SD, and must disclose the prior CSMP momentum read as prior exposure (D2). **Promotion never happens inside a screening battery.**
 
 ---
 
