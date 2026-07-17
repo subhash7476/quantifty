@@ -112,6 +112,7 @@ def run_candidate(cid: str) -> H.CandidateResult:
 
     # -- Build scorer closures --
     if cid in ("C2", "C3"):
+        dev_lo = H.C2_DEV_LO if cid == "C2" else H.C3_DEV_LO
         fg = H.fortnightly_grid(panel.cal)
         grid_count = len([d for d in fg if dev_lo <= d <= DEV_HI])
 
@@ -127,6 +128,7 @@ def run_candidate(cid: str) -> H.CandidateResult:
 
         score_fn = c3_fn
     elif cid == "C4":
+        dev_lo = H.C4_DEV_LO
         mg = monthly_grid(panel.cal)
         grid_count = len([d for d in mg if dev_lo <= d <= DEV_HI])
 
