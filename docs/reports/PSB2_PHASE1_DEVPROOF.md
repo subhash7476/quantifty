@@ -1,5 +1,5 @@
 # PSB-2 Phase 1 — Dev-Proof Report (Prompt 1R2, Round 3)
-**Script-generated** — `scripts/psb2/run_devproof.py`. Commit `4dae4bd`.
+**Script-generated** — `scripts/psb2/run_devproof.py`. Commit `875f9e3`.
 Seed `20260716`. 30 entities, 3500 calendar days. 2026-07-17.
 
 ## Grid Identity (R2-11)
@@ -63,4 +63,4 @@ Null C4: net=-0.0037 < gross=-0.0011 drag=28.0bp to=0.0692 PASS
 
 ## Summary
 
-Time: 146.0s.
+Time: 178.7s.
