@@ -1,6 +1,6 @@
 # PSB-1 Substrate Certification Report (Prompt 5-C — four-arm contract test)
 
-**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `0d155b9`.
+**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `3c5092b`.
 Real store, read-only. Store stamps: rows **7,030,920**, fenced MAX(trade_date) **2022-12-30**, unfenced MAX **2026-07-09**.
 
 Governing analysis: `PSB1_CERTIFICATION_METHODOLOGY.md` (operator-endorsed 2026-07-15). The suite tests the ONE continuity contract via four complementary arms with zero structural filters; the sole permitted exclusion is a committed disposition register.
@@ -26,7 +26,7 @@ Governing analysis: `PSB1_CERTIFICATION_METHODOLOGY.md` (operator-endorsed 2026-
 
 ## Arm A — Intra-symbol CA-shape
 
-78 CA-shaped moves with no matching factor. Dispositioned: 78. **Undocumented (HALT): 0**.
+78 CA-shaped moves with no matching factor. Dispositioned: 78. **Undocumented: 0**.
 
 | Entity | Symbol | Date | Return | Class | Disposition |
 |--------|--------|------|-------:|-------|-------------|
@@ -113,7 +113,7 @@ Large genuine moves (|ret|>=40%, non-CA-shaped, not CA-explained): **2720** — 
 
 ## Arm B — Cross-symbol handoff (shape-free)
 
-**4 splice fabrication(s)** — |adjusted return| >= 20% across a symbol boundary. 4 dispositioned; **0** undocumented (HALT).
+**4 splice fabrication(s)** — |adjusted return| >= 20% across a symbol boundary. 4 dispositioned; **0** undocumented.
 
 | Entity | From | To | Date | Return | Disposition |
 |--------|------|----|------|-------:|-------------|
