@@ -1,10 +1,10 @@
 # PSB-2 Phase 2 C4 Battery Report
 
-**Script-generated** — `scripts/psb2/run_phase2.py`. Deterministic run (§10). Code commit `a82190f`.
+**Script-generated** — `scripts/psb2/run_phase2.py`. Deterministic run (§10). Code commit `dbdbcd4`.
 
 | Field | Value |
 |---|---|
-| Code commit | `a82190f` |
+| Code commit | `dbdbcd4` |
 | Store row count | 7,030,920 |
 | Store fenced MAX(trade_date) | 2022-12-30 |
 | Store unfenced MAX | 2026-07-09 |
@@ -12,8 +12,9 @@
 | Candidate | C4 |
 | Cadence | monthly (12 ppy) |
 | Dev window | 2012-01-01 to 2022-12-31 |
-| N formation dates (grid) | 131 |
-| Realized n (scored formations) | 131 |
+| Grid dates (§3) | 132 |
+| Realized formations (scored) | 131 |
+| Gap reason | Last grid date has no forward return inside the fence (2022-12-31). Grid=132 dates in window; 131 have a forward return. |
 
 ## §6 Metrics
 
