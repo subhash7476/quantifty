@@ -1235,11 +1235,17 @@ If the inverted factor ever **stops** failing the boundary assertion, the runner
 
 ---
 
-## Prompt 2 — Phase 2: the candidate runs (DRAFTED 2026-07-17 — issue after 1R6 clears)
+## Prompt 2 — Phase 2: the candidate runs (ISSUED 2026-07-17)
 
 **Task:** Run C2, C3 and C4 on real dev data per the FROZEN protocol (`PSB2_PROTOCOL.md` Rev 4, `eb3d66f`). **One report per candidate, committed as produced, in the §11.3 order: C2 → C3 → C4.**
 
-**Do not start until both gates are closed:** §11.1 (substrate certified — `cfbbcee` + 1R6's true stamp) and §11.2 (dev-proof + Lead Review — `0d155b9`). **Both are met; 1R6 is the last bookkeeping turn.**
+**Both gates are closed. Phase 2 is authorized by the operator (2026-07-17).**
+
+- **§11.1** — substrate **CERTIFIED** at `fe01255`: four arms PASS, Arm B 4 splices / 4 dispositioned / 0 undocumented, continuity invariant 0, true stamp, dirty-source guard verified to fire.
+- **§11.2** — harness dev-proof + Lead Review at `0d155b9`: C2 6.9σ, C3 4.7σ, C4 3.7σ; fidelity suite mutation-verified.
+- Closing diff check: `docs/reports/PSB2_PHASE1R6_DIFF_CHECK.md` (`dc5db10`).
+
+**This is the first time a candidate score touches real data.** Everything before this prompt existed to earn that.
 
 **Status on completion:** returns to Claude for review, then Prompt 3 — the §8 selection report. **This prompt does not select a winner.**
 
