@@ -208,6 +208,7 @@ n* = 84 fortnightly / 42 monthly. C2 deflated p = min(1, 3 × 7.994592e-03) = **
 | `docs/reports/PSB2_C{2,3,4}_REPORT.md` | Script-generated candidate reports |
 | `docs/reports/PSB2_SELECTION_REPORT.md` | Script-generated §8 selection report — **C2 recommended** |
 | `docs/reports/PSB2_PROMPT3_LEAD_REVIEW.md` | Lead review of the selection report (ACCEPT; MEDIUM-1 digest finding) |
+| `tests/psb2/test_fidelity.py` | 6 fidelity tests (scoring parity vs. pinned fixtures) — green at close |
 
 ### Successor — authorized to *propose* only
 Per §12, C2's win authorizes **nothing** except the right to propose a successor pre-registration — pending operator ratification. It is not a promotion and not a PSB-3 authorization. Any successor must pin its own α, execution conventions, and sealed-read mechanics, must state its own view on C2's 55-observation SD, and must disclose the prior CSMP momentum read as prior exposure (D2). **Promotion never happens inside a screening battery.**
