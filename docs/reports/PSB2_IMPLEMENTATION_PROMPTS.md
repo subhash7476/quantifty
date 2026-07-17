@@ -1232,3 +1232,129 @@ If the inverted factor ever **stops** failing the boundary assertion, the runner
 1. Claude **diff check** — stamp true, guard fires, numbers unmoved. Short.
 2. **Operator authorizes Phase 2.**
 3. Prompt 2 — candidate runs in the §11.3 order: **C2 → C3 → C4**, one report per candidate, committed as produced.
+
+---
+
+## Prompt 2 — Phase 2: the candidate runs (DRAFTED 2026-07-17 — issue after 1R6 clears)
+
+**Task:** Run C2, C3 and C4 on real dev data per the FROZEN protocol (`PSB2_PROTOCOL.md` Rev 4, `eb3d66f`). **One report per candidate, committed as produced, in the §11.3 order: C2 → C3 → C4.**
+
+**Do not start until both gates are closed:** §11.1 (substrate certified — `cfbbcee` + 1R6's true stamp) and §11.2 (dev-proof + Lead Review — `0d155b9`). **Both are met; 1R6 is the last bookkeeping turn.**
+
+**Status on completion:** returns to Claude for review, then Prompt 3 — the §8 selection report. **This prompt does not select a winner.**
+
+### Start here: this prompt contains no expected values, and that is deliberate
+
+**Every prompt in this sequence until now supplied the answer.** 1R4 handed you four exact residuals labelled "predictions" and they were transcribed rather than computed — my fault, as the 1R5 review records. **That failure mode does not exist here.**
+
+> **This prompt states no expected mean IC, no expected spread, no expected power, and no expected p-value for any candidate. There is nothing to reproduce and nothing to match. The first real number is the result.**
+
+**The only numbers below are structural** — grid-date counts, the fence date, `n*` — and each is derivable from `trading_calendar` before any score is computed.
+
+**What that changes for you:** a candidate metric that looks wrong cannot be checked against an expectation, because there isn't one. **If something looks wrong, it is either a defect or a result, and the difference is decided by the code, not by whether the number is pleasing.** PSB-1 ran five candidates and recommended **none** — "no winner recommended" was the protocol working, not failing. **A null result here is a complete and successful outcome. Do not chase one away.**
+
+### §1 — Run order and commit discipline (§11.3)
+
+**C2 → C3 → C4. One report per candidate. Each committed as produced, before the next runs.**
+
+- `docs/reports/PSB2_C2_REPORT.md` → commit → `PSB2_C3_REPORT.md` → commit → `PSB2_C4_REPORT.md` → commit.
+- **Follow the PSB-1 precedent** (`PSB1_C{1..5}_REPORT.md`) for report shape.
+- **§9 immutability is live the moment C2's report exists.** No definition, parameter, window, or metric may change afterward — **including for C3 and C4.** If C2's result suggests a better C3, **that is a PSB-3, not an edit.**
+- **C3 consumes C2's *scorer*, not C2's *result*** (§5: `p_i(t)` is the percentile rank of the C2 score). That dependency is by design. Their null ICs are **not independent** — C3 reads C2's percentile rank — which is already recorded and is not a defect.
+- **Report stamp:** apply 1R6's lesson. **Commit the code first, run against a clean tree, then commit the report.** A report cannot name the commit that contains it.
+
+### §2 — The fence. This is the item with teeth.
+
+**The dev fence is the only thing between this battery and a sealed read**, and §1 of the protocol makes it the first prohibition: *"Any load of price, delivery, volume, or universe data with `trade_date` or `rebalance_date` ≥ 2023-01-01"* is prohibited. Every loader **asserts and prints its observed `MAX(trade_date)`**.
+
+**The dev-proof's fence check is a disclosed tautology and must not be carried into Phase 2 as-is.** `PSB2_PHASE1_DEVPROOF.md` records: *"Known limitation: load_panel tautology. Flag for operator."* `load_panel` applies the cutoff and the check then verifies the cutoff was applied — **it cannot fail.** On synthetic data that was tolerable. **On real data it is the whole fence.**
+
+**Required:** the fence must be verified **against the store**, not against the loaded panel — i.e. the assertion's subject is the data the query could have returned, not the data a cutoff already removed. Concretely: **prove the fence by showing that a deliberately unfenced read of the same source returns rows beyond 2022-12-31 while the fenced read does not**, and that the fenced `MAX(trade_date)` equals the expected **2022-12-30** (the last dev full session, per the certification report's store stamps: fenced MAX `2022-12-30`, unfenced MAX `2026-07-09`).
+
+**If the fenced and unfenced reads return the same `MAX`, the fence is not doing anything — stop and escalate.**
+
+**Every candidate report prints its observed fenced `MAX(trade_date)`.** Unreported is not proven (R2-3).
+
+### §3 — `n*` and the sole sealed exception (§7.1, §1)
+
+`n*` requires counting grid dates in **2023-01-01 → 2026-06-30** — the sealed window. The protocol permits this and **only this**:
+
+> *"Sole exception: §7's sealed-grid count reads **dates only** from `trading_calendar` (no prices, no symbols' data)."*
+
+**Be surgical.** The query reads `trade_date` (and `n_symbols` for the full-session convention) from `trading_calendar` and **nothing else**. No join to prices, no join to universe, no symbol list, no aggregate over any priced column. **Compute `n*` exactly — do not use §7's `≈ 84` / `≈ 42`; those are the protocol's estimates, not values to reproduce.** Print both counts and the query that produced them.
+
+**Any read of a priced or universe column beyond 2022-12-31 is a protocol breach — stop and escalate immediately.** This is the one place in the battery where a sealed read is even syntactically possible.
+
+### §4 — What each report must contain (§6, §7, §8)
+
+Per candidate, on its **declared window** (§3: C2/C3 `2020-09-04 → 2022-12-31`, 56 fortnightly dates; C4 `2012-01-01 → 2022-12-31`, 132 monthly dates):
+
+1. **Mean IC** (Spearman rank), its **SD**, **t**, one-sided **p**, and **realized n** — the number of grid dates actually scored. §3 warns *"Realized per-name n will be lower"* than the grid count; **report both and do not conflate them.**
+2. **Gross and net annualized top-quintile spread**, **turnover**, and **fee drag in bp/yr** — fees per §2 (`delivery_equity_fees`, era-accurate) plus **κ = 5 bp/side**.
+3. **§7 projected power** — noncentral-t, noncentrality `δ / (SD_dev / √n*)`, `P(T ≥ t_{0.95, n*−1})`, against the **≥ 0.80** hurdle.
+4. **AC₁ and Newey–West (lag 4) if AC₁ > 0.1** — **report-only, never gating** (§7.4). See §5 below.
+5. **§4.2 imputed-forward-return robustness column** — delisting imputation = the date's worst realized forward return among scored names.
+6. **§8 eligibility, stated explicitly:** (i) mean IC > 0; (ii) annualized net top-quintile spread > 0; (iii) power ≥ 0.80. **All three, or not eligible.**
+7. **The common robustness sub-window** `2020-09-04 → 2022-12-31` (28 monthly grid dates for C4; for C2/C3 this is their entire declared window — **say so rather than duplicating the column**).
+8. **The observed fenced `MAX(trade_date)`** (§2) and **`n*` with its exact count** (§3).
+
+**Do not compute the §8 winner, the ranking, or the Bonferroni-deflated evidence floor.** That is Prompt 3. **Each report states its own eligibility and stops.**
+
+### §5 — The AC₁ exposure must be visible, not repaired (§7)
+
+The protocol discloses this and forbids fixing it:
+
+> *"a fortnightly candidate with inflated AC₁ **can clear the frozen 0.80 hurdle on a simple-t projection that its own reported AC₁ shows is optimistic**. … The gating rule is not changed — this paragraph exists to state the exposure, not to repair it."*
+
+C2 and C3's adjacent formations overlap in their 252-day delivery baseline, which changes slowly against a 15-day grid. **If C2 or C3 clears 0.80 on simple-t while its AC₁ says the projection is optimistic, report both numbers and the tension between them.** **Do not substitute the NW-adjusted power for the gating power** — that would be a §9 metric change and it is prohibited. **State the exposure; let the operator read it.**
+
+### §6 — The turnover and fee-drag figures in §3 are rationale, not predictions
+
+§3 and §5 carry design estimates — C2 *"turnover ~0.15 → fee drag ~78 bp/yr"*, C4 *"turnover ~0.17 … → ~2.5pp/yr"*. **These are the arguments for why the cadences were chosen. They are not predictions, and nothing may be tuned toward them.**
+
+**This is the reviewer's own recurring error, stated so you do not inherit it:** four times this session I pinned a number I had not derived — the C4 33σ, the turnover ≈ 1/6, the gap rule, the "splice may resolve on its own." **Each was a plausible mechanism written as a conclusion.** If observed turnover comes in at 0.30 and drag at 200 bp/yr, **that is the result**, and the candidate's eligibility is decided by §8's three criteria — **not by whether it matched a parenthetical in the protocol.** Report the observed values and say plainly how they compare to the design estimate.
+
+### Structural predictions — the only things predictable before the run
+
+1. **Fenced `MAX(trade_date)` = 2022-12-30** on every loader; unfenced source reaches **2026-07-09**; **the two differ.**
+2. **Grid dates:** C2/C3 fortnightly = **56**; C4 monthly = **132**; common sub-window = **28**. (Verified in Phase 1's grid-identity check; a mismatch means the real calendar disagrees with the synthetic one — **that is a finding, report it.**)
+3. **`n*`** computed exactly from `trading_calendar` over `2023-01-01 → 2026-06-30`, dates only, both cadences printed.
+4. **Determinism** (§10): same inputs → byte-identical outputs. Re-run each candidate and confirm.
+5. **Nothing else is predicted.** Every candidate metric is a result.
+
+### Scope discipline
+
+**No weakening a check to make it pass. No tuning toward any estimate. Six rounds.**
+
+**The stop-and-report triggers, and they are not negotiable:**
+- Fenced and unfenced `MAX` agree → **the fence is dead. Stop.**
+- Any sealed read beyond the §3 dates-only calendar count → **protocol breach. Stop.**
+- Grid counts differ from 56/132/28 → **stop and report.**
+- A candidate metric that looks implausible → **stop and report.** Do not adjust anything to make it plausible.
+
+**Do not touch:** any §5 formula, any §9 pinned parameter, `contract_arms.py`, `screening_harness.py`, the certified substrate, the register, the factors. **§9 immutability binds from C2's first result.**
+
+**Every number script-generated. No hand-edited numbers.**
+
+### Acceptance criteria
+
+1. Three reports — `PSB2_C2_REPORT.md`, `PSB2_C3_REPORT.md`, `PSB2_C4_REPORT.md` — **each committed as produced**, in order.
+2. Each carries §4's items 1–8 in full.
+3. **The fence is proven, not asserted** — fenced vs unfenced `MAX` shown to differ; `2022-12-30` observed; printed per loader.
+4. `n*` computed exactly, dates-only, both cadences, query shown.
+5. AC₁/NW reported; **gating power remains simple-t**; any tension stated.
+6. Observed turnover and fee drag reported **and compared to** §3's design estimate, with no tuning toward it.
+7. Each report states its own **§8 eligibility** (i/ii/iii) and **stops** — no ranking, no winner, no Bonferroni.
+8. Determinism confirmed per candidate.
+9. Report stamps true — code committed before the run (1R6's rule).
+10. No §5/§9 change. No sealed read. No new ingestion. Ambiguity escalated.
+
+### Explicitly not authorized
+
+**No change to the frozen protocol** (§9) — no formula, parameter, window, metric, or selection rule. **No sealed read** beyond §3's dates-only calendar count. **No §8 selection, ranking, or winner** — that is Prompt 3. **No new candidates, variants, or parameter sweeps** (§9: exactly three). **No consumer or strategy code** — nothing lands in `core/strategies/` (§12). **No new ingestion** (D4). **No edits to `contract_arms.py`, `screening_harness.py`, the disposition register, or any factor.** **No tuning of anything toward any estimate.**
+
+### Next after this prompt
+
+1. Claude **review** — the fence first, then each report against §6/§7/§8.
+2. Prompt 3 — the **§8 selection report**: eligibility, power ranking, Bonferroni-deflated evidence floor at **m = 3** (`p < 0.05`), the 0.02 tie band, and the declared-window vs sub-window ranking comparison. **"No winner recommended" is a valid and complete outcome** (§8; PSB-1's actual result).
+3. Operator decides. Promotion, if any, happens only through a new full pre-registration (§12) — **never in this battery.**
