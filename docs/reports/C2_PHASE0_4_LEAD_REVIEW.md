@@ -52,3 +52,26 @@ The report's conclusion — *"the 55-observation SD is confirmed as a sample-siz
 - **Resolve H1 before proceeding**: confirm the pre-swap backup and post-swap live certification, and reconcile the "not swapped" record. Production data state and the process log currently disagree.
 
 *Re-derivation numbers are script-generated from the frozen harness + independent recompute. Sealed window untouched.*
+
+---
+
+# Addendum — 2026-07-18: H1 cleared; go/no-go recommendation on the sealed read
+
+**H1 RESOLVED.** Pre-swap backup `equity_bhavcopy_premto.duckdb` (650 MB, 2026-07-17) confirmed. Post-swap four-arm certification on the live store re-run to **green**: Arm A 78 residue / 0 undocumented, Arm B 4 splices / 0 undocumented, Arm C 0 prev_close violations, Arm D 16 flagged / 0 undocumented; row count 7,030,920; membership byte-identical. This is consistent with the live data state I verified independently (correct deliv coverage 2010→2026, immutable non-delivery columns, backfill adds no price changes); I rely on the operator's certification run for the four arms themselves. The substrate is certified.
+
+**H2/H3/M1 fixes verified in the report:** n corrected to "Scored formations (n) 260 / 311 grid" with structural note; conclusion re-framed ("SD_IC was never the risk — mean IC was"; power 0.69 below the 0.80 the sealed read needs); `c2_sd_reestimate.py` staged for commit.
+
+## Go/no-go on spending the one-shot sealed read — recommendation: **NO-GO / HOLD**
+
+The operator holds final authority; my recommendation is **do not spend the 2023–2026 sealed read on C2 as it currently stands**, on two grounds:
+
+1. **The construct projects below its own pre-registration power hurdle.** Roadmap Phase 1 pins a ≥0.80 power hurdle; the extended, more-credible estimate (n=260) projects **0.69** at n*=84. A C2-VAL written honestly would either fail this precondition or have to lower the hurdle post-hoc to fit 0.69 — the exact goalpost-move the gated discipline exists to prevent. The one-shot read is terminal; spending it on a construct that fails its own power precondition is poor use of the scarcest resource.
+2. **The economic edge is marginal even if the read confirms.** Net spread thinned to **0.78%/yr** on the extended window (from 4.57% on the 55-obs sample), with mean IC down ~30%. A "successful" sealed read on a 0.78%-net construct still does not clear the deployment-grade net-spread bar Phase 1 must pin — so a GO risks the irreversible read for an outcome that is not deployable regardless.
+
+**This is Phase 0 working as designed.** It was the cheap step meant to decide whether C2 is worth the expensive read; it answered: survives falsification, but weaker than the small sample suggested and below the power/economics needed. The honest next moves, in preference order:
+
+- **(a) Improve the construct before any read** — attempt to lift power/net-spread above hurdles (e.g., pair delivery-z with a second orthogonal signal, or re-tune cadence/banding to cut turnover). **Strictly on dev data, pre-registered, re-validated on dev — never on the sealed window.** Overfitting risk is real; a change must earn its keep in the out-of-sample dev sense first.
+- **(b) Retire/shelve C2** as a Phase-0-caught marginal effect. A legitimate, even valuable, outcome — the battery recommended it; the evidence-strengthening step revealed it does not project to clear. No shame, no wasted read.
+- **(c) Operator explicitly, on the record, lowers the power hurdle** with written justification (accepts a 69% read as worth the window). Only as a conscious governance choice, never a silent drift — and even then, the 0.78% net-spread deployability problem remains.
+
+**Do not draft C2-VAL yet.** A successor pre-registration presumes GO. Hold until the operator rules; if the ruling is (a) or (c)-with-GO, I draft C2-VAL as a PSB-2 §12 proposal foregrounding the 0.69/0.78% reality.

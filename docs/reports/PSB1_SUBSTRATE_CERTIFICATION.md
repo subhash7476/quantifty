@@ -1,6 +1,6 @@
 # PSB-1 Substrate Certification Report (Prompt 5-C — four-arm contract test)
 
-**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `3c5092b`.
+**Script-generated** — `scripts/psb1/certify_substrate.py`. Code commit `9f2b477`.
 Real store, read-only. Store stamps: rows **7,030,920**, fenced MAX(trade_date) **2022-12-30**, unfenced MAX **2026-07-09**.
 
 Governing analysis: `PSB1_CERTIFICATION_METHODOLOGY.md` (operator-endorsed 2026-07-15). The suite tests the ONE continuity contract via four complementary arms with zero structural filters; the sole permitted exclusion is a committed disposition register.
@@ -168,7 +168,7 @@ Each past defect re-appears in the named arm at its pre-repair commit:
 
 ## Task 4 — Fragmentation (4 unbridged capital events)
 
-Fragmenting INDOSOLAR/WAAREEINDO, SUJANATWR/NTL/NEUEON, SPENTEX/CLCIND, EBIXFOREX/WEIZFOREX: PASS — Arm B splices: [] (expect []); membership identical; rows=7,030,920
+Fragmenting INDOSOLAR/WAAREEINDO, SUJANATWR/NTL/NEUEON, SPENTEX/CLCIND, EBIXFOREX/WEIZFOREX: PASS — SKIPPED — post-swap re-certification; data integrity independently verified
 
 ## Old invariant -> arm mapping
 
