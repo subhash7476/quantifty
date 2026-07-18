@@ -68,3 +68,118 @@ Your task: backfill `deliv_qty`/`deliv_pct` for pre-2020 EQ rows from those file
 ### Deliverable report
 
 Reply with the audit report path plus a short cover note: what was built, any deviations from this prompt (each flagged NEEDS-DECISION, not silently resolved), test counts, and the digest. The Lead Review will re-derive arm results independently before any swap is authorized.
+
+---
+
+## Prompt 0.2-R2 — B1 Determinism Seal (ISSUED 2026-07-18, CLOSED 2026-07-18)
+
+### Context
+
+Lead Review (0.2-R) authorized the store swap on data-integrity grounds and re-verified five of six findings fixed (B2 M1 M2 L1 N1). B1 is **partially closed**: digest integrity is proven (recomputed SHA-256 = `45856cb1…558b07b`, timestamp/digest lines confirmed outside the seal), but **cross-run reproducibility** is not yet demonstrable. The Arm B `mismatch_detail` is sliced `[:20]` from an unordered SELECT (`backfill_mto_delivery.py:212-219`, no `ORDER BY`) that sits inside the sealed region — DuckDB's parallel hash join has no stable row order, so a re-run can reorder those 20 rows and move the digest despite the timestamp fix. The determinism test demanded by the original Prompt 0.2 fix-item-1 was not among the 4 delivered tests.
+
+This is the **PSB-2 MEDIUM-1 discipline**: a terminal artifact's digest must be demonstrably reproducible on re-run. The exact class the B1 finding flagged in the first review.
+
+### Fixes (bounded — no data change, no re-backfill)
+
+1. **Add `ORDER BY m.trade_date, m.symbol`** to the Arm B mismatch query (`backfill_mto_delivery.py:212-219`). This is the sole source of nondeterminism in the sealed content region — `missing_dates` is already sorted. Audit the report generator for any other unordered list emitted into `content_lines` before the digest is computed; if you find any, order them and flag them.
+2. **Add a determinism test** to `tests/csmp/test_mto_backfill.py`: build a synthetic mini-store, run the full `generate_report(arms, stats)` path twice on the same inputs, assert byte-identical report content **and** identical SHA-256 digest. The test must fail if the Arm B query or any other list changes ordering between runs.
+3. **Re-run `backfill_mto_delivery.py` once** and confirm the digest reproduces exactly against the regenerated copy. The audit report's stated digest updates to the locked value — this is the reproducibility demonstration, not a data change.
+
+### Prohibitions
+
+- No store swap (already authorized separately; operator action).
+- No data re-backfill — the copy's values are certified sound.
+- No changes to score, formation, or IC code.
+- No opening the 2023–2026 sealed window.
+
+### Deliverable
+
+Reply with: the locked digest, the determinism test passing, and the audit report path (updated digest). Short cover note confirming the Arm B query is now ordered and no other source of nondeterminism was found (or itemize any found and fixed).
+
+**Closure:** All six findings independently verified fixed. Audit artifact sealed with reproducible digest (`4e038464…`). 11 backfill+parser tests green; 97 across csmp/psb1/psb2, no regressions. Prompt 0.2 passes in full.
+
+---
+
+## Prompt 0.3 — Store Swap (ISSUED 2026-07-18, HELD on operator execution)
+
+### Context
+
+The backfill `equity_bhavcopy_mto_backfill.duckdb` is certified sound (two independent re-derivations by Lead Review), the audit artifact is sealed with a reproducible digest, and all 97 tests are green. This prompt replaces the live production store with the backfilled copy. **Operator must execute or ratify — irreversible on production.**
+
+### Deliverables
+
+Write and run a swap script at `scripts/csmp/swap_mto_backfill.py`:
+
+1. **Pre-swap backup:** rename the live `data/market_data/equity_bhavcopy.duckdb` → `data/market_data/equity_bhavcopy_preswap_20260718.duckdb` (timestamped, never deleted).
+2. **Swap:** move `data/market_data/equity_bhavcopy_mto_backfill.duckdb` → `data/market_data/equity_bhavcopy.duckdb`.
+3. **Post-swap verification (REFUSE + ROLLBACK if any check fails):**
+   - Row count == `7,030,920` (SELECT COUNT(*) FROM equity_bhavcopy)
+   - Non-NULL `deliv_pct` span == `2010-01-04` → `2026-07-09` (MIN/MAX on deliv_pct)
+   - `certify_substrate.py` green on the now-live store (all 4 arms pass)
+   - **If any check fails:** move the backup back into place, delete the failed swap file, and report the failure. Do not leave a broken live store.
+
+### Prohibitions
+
+- No deleting the backup — keep it.
+- No touching scoring, formation, or IC code.
+- No opening the 2023–2026 sealed window.
+
+### Deliverable reply
+
+Swap script path, post-swap verification status (row count, deliv span, certification arms), and confirmation the live store is now `equity_bhavcopy.duckdb` with pre-2020 delivery data.
+
+---
+
+## Prompt 0.4 — C2 SD Re-Estimation on Extended Dev Window (HELD — gated on successful Prompt 0.3 swap)
+
+### Pre-flight
+
+**STOP if `equity_bhavcopy.duckdb` still lacks pre-2020 delivery data** — the swap (Prompt 0.3) must be complete and verified before this run.
+
+### Context
+
+PSB-2 closed with C2 (fortnightly delivery-% anomaly) recommended; its known weakness is a power projection resting on a 55-observation, 2.3-year SD estimate because `deliv_pct` was non-NULL only from 2020-01-01. With the MTO backfill now certified and the store swapped, the dev window extends from 2010-01-04 to 2022-12-30, yielding ~230+ fortnightly formations — roughly 4× the PSB-2 sample.
+
+This prompt runs C2 formation on the **extended dev window** against a pre-registered tolerance gate (G0). It does not promote C2, does not touch scoring code, and does not open the sealed window. It produces a re-estimated IC and SD for the successor pre-registration to pin its view on.
+
+### Pinned facts
+
+- Store: `data/market_data/equity_bhavcopy.duckdb` (swapped — operator action complete before you run).
+- Dev window: 2010-01-04 → 2022-12-30 (fence proven: `MAX(trade_date)` used ≤ `'2022-12-30'`).
+- PSB-2 C2 estimates (the baseline you are re-estimating against): **Mean IC = +0.0349, SD_IC = 0.099396, Net spread = +4.57%, Power δ = 0.9198** (55 formations, fortnightly, banded 0.40 exit).
+- C2 formation: exactly as frozen in `scripts/psb2/harness.py` — fortnightly, `deliv_pct` ranked within NIFTY-200 point-in-time universe, long-only, banded exit at 0.40. No parameter changes.
+- `deliv_pct` baseline: 252-day rolling window (same as PSB-2).
+- 2023–2026 window: **sealed and unread** — your code must fence at `≤ '2022-12-30'` and assert the fence holds (computed MAX != actual MAX of the store's post-2022 data must differ).
+
+### Gate G0 — tolerance pinned before the run
+
+| Criterion | Baseline (PSB-2, n=55) | Tolerance | Gate passes if |
+|---|---|---|---|
+| Mean IC | +0.0349 | Absolute change ≤ 1.5 × baseline SE | `abs(μ_new − μ_old) ≤ 1.5 × (0.099396 / sqrt(55))` = ≤ 0.0201 |
+| SD_IC | 0.099396 | Within [baseline × 0.5, baseline × 2.0] | SD ∈ [0.0497, 0.1988] |
+| Net spread | +4.57% | Must stay positive | Net spread > 0 |
+| AC₁ | −0.1818 (from PSB-2) | Must stay negative (no positive autocorrelation threat) | AC₁ < 0 |
+
+G0 is a **consistency gate**, not a victory gate. It tests whether the extended-window estimates are consistent with the PSB-2 baseline that C2 was recommended on. A gate failure does not invalidate C2 — it means the larger sample reveals something the smaller sample didn't, and that must be disclosed to the successor.
+
+### Deliverables
+
+1. **Re-run C2 formation** against the swapped store, dev window 2010-01-04 → 2022-12-30, using the frozen `scripts/psb2/harness.py` C2 scoring path. Compute:
+   - Number of fortnightly formations (n)
+   - Mean IC, SD_IC, AC₁ (Newey–West as in PSB-2)
+   - Net quintile spread (Q1–Q5, fee-adjusted per PSB-2 fee model)
+   - Power projection against the PSB-2 n* formula (n* = 84 fortnightly formations in a ~3.2-year live window)
+2. **Evaluate G0** against the pinned tolerances above — pass/fail each criterion, flag any that fail.
+3. **Assert the 2023–2026 fence**: computed `MAX(trade_date)` in your formation window must be `'2022-12-30'` and must differ from the store's actual `MAX(trade_date) > '2022-12-30'`.
+4. **Emit a script-generated report** — `docs/reports/C2_PHASE0_4_SD_REESTIMATION.md`.
+
+### Prohibitions
+
+- No parameter changes to C2 scoring.
+- No reading the 2023–2026 sealed window — fence assertion only (counts of rows used, no values extracted from sealed rows).
+- No touching `scripts/psb2/harness.py` scoring logic, only the dev-window bounds in the runner.
+- No promoting C2 — this is a pre-registration input, not a promotion.
+
+### Deliverable report
+
+Reply with the report path plus a short cover note: n, μ_IC, SD_IC, AC₁, net spread, power, which G0 criteria passed/failed, and the fence assertion result.
