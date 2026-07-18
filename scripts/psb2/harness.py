@@ -271,22 +271,25 @@ def _staggered_sequences(
     scored_by_date: list[tuple[date, list[tuple[str, float, float]]]],
     monthly_grid_dates: list[date],
     monthly_grid: list[date],
+    n_tranches: int | None = None,
 ) -> tuple[
     list[tuple[date, list[tuple[str, float]]]],
     list[tuple[date, list[tuple[str, float]]]],
 ]:
-    """C4 staggered 6-tranche holding.
+    """Staggered multi-tranche holding.
 
-    6 tranches, 1/6th rebalanced per month. A name entering a tranche stays
-    until that tranche's next rebalance (6 months later), regardless of rank drift.
-    Even if a name stops scoring, it remains in its tranche — its forward return
-    for that period is recorded as the actual return (or None if truly untradeable).
+    n_tranches tranches, 1/n_tranches rebalanced per period. A name entering
+    a tranche stays until that tranche's next rebalance (n_tranches periods later),
+    regardless of rank drift. Even if a name stops scoring, it remains in its
+    tranche — its forward return for that period is recorded as the actual return.
 
     scored_by_date: list of (t, [(ent, score, fwd)]) for each formation date.
-    monthly_grid_dates: full monthly grid for forward-return period lookup.
-    monthly_grid: the panel's monthly grid for computing forward periods.
+    monthly_grid_dates: full grid for forward-return period lookup.
+    monthly_grid: the panel's monthly grid (unused, kept for signature compat).
+    n_tranches: number of tranches. Default 6 (C4 convention).
     """
-    n_tranches = C4_N_TRANCHES
+    if n_tranches is None:
+        n_tranches = C4_N_TRANCHES
     tranches: list[set[str]] = [set() for _ in range(n_tranches)]
     topq_held_seq: list[tuple[date, list[tuple[str, float]]]] = []
     base_seq: list[tuple[date, list[tuple[str, float]]]] = []
@@ -338,6 +341,8 @@ def evaluate_candidate_psb2(
     db_path: str,
     monthly_grid_dates: list[date] | None = None,
     fortnightly_grid_dates: list[date] | None = None,
+    staggered_n_tranches: int | None = None,
+    force_staggered: bool = False,
 ) -> CandidateResult:
     if cid == "C2":
         cadence = "fortnightly"
@@ -364,6 +369,9 @@ def evaluate_candidate_psb2(
             raise ValueError("C4 requires monthly_grid_dates")
     else:
         raise ValueError(f"Unknown candidate: {cid}")
+
+    if force_staggered:
+        is_staggered = True
 
     cal = panel.cal
     if cadence == "fortnightly":
@@ -454,7 +462,8 @@ def evaluate_candidate_psb2(
 
     if is_staggered:
         topq_seq, base_seq = _staggered_sequences(
-            panel, scored_by_date, monthly_grid_dates or grid, monthly_grid(cal))
+            panel, scored_by_date, monthly_grid_dates or grid, monthly_grid(cal),
+            n_tranches=staggered_n_tranches)
     else:
         topq_seq, botq_seq, base_seq = _quintile_sequences_psb2(scored_by_date, banded=True, exit_band=exit_band)
 
