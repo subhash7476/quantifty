@@ -172,7 +172,11 @@ See the PSB-2 section below.
 
 ## PSB-2 — Panel Screening Battery, Increment 2
 
-**Status:** CLOSED 2026-07-17. Outcome: **C2 recommended** — the battery's sole eligible candidate cleared all three §8 criteria and the evidence floor. A recommendation only: no sealed read consumed, no strategy code, no allocation.
+**Status:** CLOSED 2026-07-17. PSB-2 outcome: **C2 recommended** — the battery's sole eligible candidate cleared all three §8 criteria and the evidence floor. A recommendation only: no sealed read consumed, no strategy code, no allocation.
+
+> **⚠️ C2 RETIRED 2026-07-18 — this is the terminal state.** After PSB-2's recommendation, C2 was carried into pre-sealed-read Phase 0 evidence-strengthening (0.4 delivery-backfill + SD re-estimation, 0.5 turnover-reduction mini-battery). It did not survive: on extended-history TRAIN 2011–2018, **no variant cleared power ≥ 0.80**, and net spread stayed negative under delivery-equity STT *even at reduced turnover* (V2's 0.288→0.168 lifted net only −0.43%→−0.14%). This is the PSB-1/PSB-2 fee-dominance result a third time — no turnover setting rescues a sub-gross-of-fees construct. Phase 0 killed C2 **before a single sealed read was spent**: the **2023–2026 window remains sealed and unread; HOLDOUT 2019–2022 unspent.** No successor is authorized by this outcome — any new construct starts its own pre-registration. Terminal artifacts: `docs/reports/C2_PHASE0_5_MINIBATTERY.md` + `C2_PHASE0_5_LEAD_REVIEW.md` (commit `394b2d6`).
+>
+> The Phase 2 / §8 record below is preserved as PSB-2's *own* finding as of 2026-07-17; read it as history, not as a live recommendation.
 
 ### Summary
 The fee-survivable successor to PSB-1. Three constructs (C2–C4), each designed to clear the cost structure *by construction* rather than hoping a signal outruns it. Substrate (`equity_bhavcopy_adjusted`, 7,030,920 rows) and harness reused from PSB-1. Dev data fenced at 2022-12-30 (fence proven each run: fenced MAX ≠ unfenced MAX 2026-07-09); the 2023–2026 window remains **sealed and unread**. Ran against frozen `PSB2_PROTOCOL.md`: §7 power projection vs. the sealed window (≥0.80 hurdle), Bonferroni-deflated selection at **m = 3** (pinned pre-results; C1/C5 dropped for data-independent reasons and so cannot inflate the penalty).
@@ -194,7 +198,7 @@ n* = 84 fortnightly / 42 monthly. C2 deflated p = min(1, 3 × 7.994592e-03) = **
 - **The AC₁ threat did not materialize.** All three AC₁ negative (C2 −0.1818). The largest disclosed threat to a fortnightly candidate — inflated simple-t from overlapping formations — is absent in this data, so C2's power is not flattered by autocorrelation.
 
 ### Carry-forward caveats (do not lose these)
-- **C2's recommendation is a power projection resting on a 55-observation, 2.3-year SD estimate.** `deliv_pct` begins 2020-01-01 and the 252-day baseline pushes the earliest feasible formation to 2020-09-04, so this is the *entire* available span — nothing held in reserve. Power is a function of SD. The successor pre-registration must pin its own view on this estimate.
+- **C2's recommendation is a power projection resting on a 55-observation, 2.3-year SD estimate.** `deliv_pct` begins 2020-01-01 and the 252-day baseline pushes the earliest feasible formation to 2020-09-04, so this is the *entire* available span — nothing held in reserve. Power is a function of SD. *(This caveat was borne out: when Phase 0.5 re-estimated on extended-history TRAIN 2011–2018, the mean IC weakened to +0.023 and no variant projected power ≥ 0.80 — the retirement above. The projection did not survive a wider SD estimate.)*
 - **Known limitation in the selection artifact (documented, frozen — not repaired).** `PSB2_SELECTION_REPORT.md`'s §10 digest (`fad88aac14decee3`) covers only the report body through §7; the "Predictions verified" section is appended after the hash and sits outside the seal, and predictions 1/2/4/7 are hardcoded PASS strings rather than computed. **The claims were independently verified true** in lead review — the report's stated mechanism is overstated, its numbers are not wrong. Left frozen rather than re-run, since a fix moves the digest on a terminal artifact. Full detail: `PSB2_PROMPT3_LEAD_REVIEW.md`.
 
 ### Key files
@@ -208,10 +212,15 @@ n* = 84 fortnightly / 42 monthly. C2 deflated p = min(1, 3 × 7.994592e-03) = **
 | `docs/reports/PSB2_C{2,3,4}_REPORT.md` | Script-generated candidate reports |
 | `docs/reports/PSB2_SELECTION_REPORT.md` | Script-generated §8 selection report — **C2 recommended** |
 | `docs/reports/PSB2_PROMPT3_LEAD_REVIEW.md` | Lead review of the selection report (ACCEPT; MEDIUM-1 digest finding) |
-| `tests/psb2/test_fidelity.py` | 6 fidelity tests (scoring parity vs. pinned fixtures) — green at close |
+| `scripts/c2_phase0_5_minibattery.py` | Phase 0.5 turnover-reduction mini-battery runner (S4 slate: V1–V3) |
+| `docs/reports/C2_PHASE0_5_MINIBATTERY.md` | Phase 0.5 report — **NO WINNER** (no variant power ≥ 0.80 on TRAIN) |
+| `docs/reports/C2_PHASE0_5_LEAD_REVIEW.md` | Phase 0.5 lead review — **retire C2 CONFIRMED**, sealed window preserved |
+| `tests/csmp/test_phase0_5.py` + `tests/psb2/test_fidelity.py` | Phase 0.5 + fidelity tests — 15/15 green at close |
 
-### Successor — authorized to *propose* only
-Per §12, C2's win authorizes **nothing** except the right to propose a successor pre-registration — pending operator ratification. It is not a promotion and not a PSB-3 authorization. Any successor must pin its own α, execution conventions, and sealed-read mechanics, must state its own view on C2's 55-observation SD, and must disclose the prior CSMP momentum read as prior exposure (D2). **Promotion never happens inside a screening battery.**
+### Successor — none authorized (C2 retired)
+PSB-2 §12 gave C2's win the right to *propose* a successor pre-registration — but C2 was retired in Phase 0 before that path was taken (see the retirement banner above), so **no successor is authorized by PSB-2's outcome.** Any future construct starts its own pre-registration from scratch: pin its own α, execution conventions, and sealed-read mechanics; state its own view on the SD estimate; disclose the prior CSMP momentum read as prior exposure (D2); and **not** inherit C2's substrate assumptions as settled. **Promotion never happens inside a screening battery, and a retired candidate hands nothing forward.**
+
+> Recurring temptation to guard against: reopening C2 with post-hoc, in-sample-tuned execution overlays (e.g. intraday TP/SL brackets fitted to observed 2012–2022 MFE/MAE excursions). This was raised and declined 2026-07-18 — brackets can only *add* delivery round-trips (turnover floor is set by formation cadence), so they worsen the exact STT constraint that retired C2. If path-dependent exits are worth testing, they are a **new pre-registered candidate** with train/holdout/sealed structure and an exit rule pinned *before* seeing path data — never a C2 reopen or bolt-on.
 
 ---
 
