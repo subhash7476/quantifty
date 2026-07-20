@@ -245,7 +245,7 @@ def test_handler_parse_calls_confined_to_audited_functions():
 _CONSTRUCT_ALLOWED = {
     "instruments/instrument_parser.py":   # the legacy parser (carve-out/dead surfaces)
         "InstrumentParser.parse internal Option(lot=1)",
-    "execution/futures.py":               # whitelisted derive-to-legacy boundary
+    "execution/futures/resolve.py":       # whitelisted derive-to-legacy boundary
         "resolve_future → Future derived from CanonicalInstrument (ADR-003 fallback)",
     "execution/options/selector.py":      # whitelisted derive-to-legacy boundary
         "select → Option derived from CanonicalInstrument (O1; INDEX fallback)",
@@ -277,7 +277,7 @@ def test_derivation_points_resolve_through_canonical():
     (InstrumentResolver + resolve_future/resolve_option) — proving live derivative
     identity flows through CanonicalInstrument and is derived to legacy, not
     hand-built from a symbol string."""
-    for rel in ("execution/futures.py", "execution/canonical_restore.py",
+    for rel in ("execution/futures/resolve.py", "execution/canonical_restore.py",
                 "execution/options/selector.py"):
         src = (CORE / rel).read_text(encoding="utf-8")
         assert "InstrumentResolver" in src, f"{rel} does not use the resolver"

@@ -38,7 +38,7 @@ class MarginTracker:
         # lot_size=ci.lot_size but multiplier=1.0 on restored Option positions,
         # so pos.instrument.multiplier under-counts NIFTY ~75x / BANKNIFTY ~30x.
         # Option carries lot_size; Future already folds lot_size into multiplier
-        # (core/execution/futures.py:49); Equity has neither (defaults to 1.0).
+        # (core/execution/futures/resolve.py:49); Equity has neither (defaults to 1.0).
         lot_size = getattr(pos.instrument, 'lot_size', None) or pos.instrument.multiplier
         return pos.quantity * current_price * lot_size
 

@@ -7,7 +7,7 @@ Three surgical repairs (spec §10, Slice MM9.2-S2):
    so restored Option positions (canonical_restore sets lot_size=ci.lot_size but
    multiplier=1.0) compute exposure as ``qty × price × lot_size`` instead of
    ``qty × price × 1``. Futures already fold lot_size into multiplier
-   (core/execution/futures.py:49); Equity has neither (defaults to 1.0).
+    (core/execution/futures/resolve.py:49); Equity has neither (defaults to 1.0).
 
 2. ``get_exposure`` guard changed from ``if price:`` to ``if price is not None:``
    so a zero-priced leg (deep OTM near expiry) stays in the sum, contributing 0
@@ -78,7 +78,7 @@ def _option(symbol, underlying, lot_size, strike=22500.0,
 
 def _future(symbol, underlying, lot_size, expiry=date(2026, 6, 30)):
     """Mimics core/execution/futures.resolve_future master-present path: lot_size
-    folded into multiplier (core/execution/futures.py:49)."""
+    folded into multiplier (core/execution/futures/resolve.py:49)."""
     return Future(
         symbol=symbol,
         underlying=underlying,
