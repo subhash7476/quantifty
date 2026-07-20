@@ -1,0 +1,67 @@
+from scripts.rfa.gate import POWER_HURDLE
+
+
+def render(decl, verdict, digest):
+    meaning = (
+        "The construct cannot be demonstrated at the declared bands. Do not build it."
+        if verdict.decision == "ABANDON"
+        else "not provably infeasible — this is a floor, not authorization to build."
+    )
+    lines = [
+        f"# {decl.name} — Research Feasibility Assessment",
+        "",
+        f"**VERDICT: {verdict.decision}** — {meaning}",
+        "",
+        f"- Methodology version: `{verdict.methodology_version}`",
+        f"- Declaration SHA-256: `{digest}`",
+        f"- Metric: {decl.metric} | Test: {decl.test_type} | Power hurdle: {POWER_HURDLE}",
+        f"- Formations available: {decl.n_available} ({decl.cadence}, {decl.window})",
+        "",
+        "## Optimistic corner",
+        "",
+        "| Quantity | Value |",
+        "|---|---|",
+        f"| delta (high) | {verdict.corner_delta} |",
+        f"| SD (low) | {verdict.corner_sd} |",
+        f"| n (raw, no AC haircut) | {verdict.n_available} |",
+        f"| **Max achievable power** | **{verdict.max_power:.4f}** |",
+        "",
+        "The corner is **intentionally unrealistic.** Because the bands are declared",
+        "independently, (delta_hi, sd_lo) may describe a large edge with unusually stable",
+        "outcomes — the least plausible combination in practice and the most generous to the",
+        "construct. This is deliberate: it maximizes the burden of proof for ABANDON, so a",
+        "firing gate is unarguable, while correspondingly weakening PROCEED to its stated",
+        "meaning of *not provably infeasible*.",
+        "",
+        "## Formations required for power 0.80",
+        "",
+        "| Band point | n required |",
+        "|---|---|",
+        f"| Optimistic corner | {verdict.n_required_corner} |",
+        f"| Central | {verdict.n_required_central} |",
+        f"| Pessimistic | {verdict.n_required_pessimistic} |",
+        f"| **Available** | **{verdict.n_available}** |",
+        "",
+        "## Declared bands and provenance",
+        "",
+        f"**delta: [{decl.delta_lo}, {decl.delta_hi}]**",
+        "",
+        decl.delta_provenance,
+        "",
+        f"**SD: [{decl.sd_lo}, {decl.sd_hi}]**",
+        "",
+        decl.sd_provenance,
+        "",
+        "**Prior exposure**",
+        "",
+        decl.prior_exposure,
+        "",
+        "## Scope",
+        "",
+        "This assessment covers **demonstrability only.** It does not evaluate fees, MaxDD,",
+        "turnover, or economic significance. A construct can clear this gate and still fail",
+        "on transaction costs, as PSB-1's C1-C4 did. ABANDON is dispositive; PROCEED is not",
+        "clearance.",
+        "",
+    ]
+    return "\n".join(lines)
