@@ -224,6 +224,63 @@ PSB-2 §12 gave C2's win the right to *propose* a successor pre-registration —
 
 ---
 
+## SFB-1 / F1 — Stock-Futures Battery, Increment 1
+
+**Status:** CLOSED 2026-07-20. Outcome: **NO-GO on the vendor-data spend.** No futures history was purchased, no battery was pre-registered, no strategy code exists. **The 2023→present sealed window remains untouched; HOLDOUT 2019–2022 was spent only inside the cash-synthesized screen, never on a real futures panel.**
+
+> **⚠️ Verdict override — read before citing the report.** `docs/reports/F1_FEASIBILITY_SCREEN_REPORT.md` (run 2026-07-20T16:09:08) prints **GO**. **That verdict is superseded and must not be acted on.** The screen's `decide()` implements only two of spec §6's three GO conditions — it never evaluates the "MaxDD-scaled return a power-deflated battery could plausibly clear" clause, which this run fails outright (TRAIN return/MaxDD ≈ 0.23 on a −45.7% drawdown). Full reasoning: `docs/reports/F1_FEASIBILITY_SCREEN_VERDICT_REVIEW.md`. The report was left as-generated rather than re-run, because re-deriving a threshold *after* seeing the results table is the same post-hoc sin the review faulted elsewhere.
+
+### Why F1 closed
+
+Four findings, in decreasing order of weight (`F1_FEASIBILITY_SCREEN_VERDICT_REVIEW.md`):
+
+- **§6's MaxDD condition was never evaluated.** TRAIN: ~+10.3%/yr net against a **−45.7%** MaxDD on a ≤10-name book (return/MaxDD 0.23). HOLDOUT clears (1.06); TRAIN does not.
+- **The bracket was selected into near-inactivity — so F1 reduced to the thing it was meant to differ from.** TRAIN grid search picked `n=5` (window minimum) with `k_sl=2.5`/`k_tp=5.0` (both maxima). Since only the month-end fallback can produce a hold beyond 5 bars, the reported `DaysH` of **18.8** means the large majority of trades never triggered the bracket. Strip it and F1 is plain monthly-rebalanced 12-1 cross-sectional momentum. Note the grid-boundary result is **not** "the optimum lies outside the grid" — with levels wide enough never to be touched the objective is *flat* in that dimension, so the argmax is noise.
+- **TRAIN expectancy is not statistically distinguishable from zero at any slippage setting** — bootstrap CI includes zero at optimistic, mid, and pessimistic alike. (This is *not* a §4 conservatism-invariant violation: point estimates are positive across the full band, so §4 is satisfied. It is the reason §6's undefined "robustly" must be pinned before any real battery.)
+- **The GO rested on one favorable regime.** HOLDOUT 2019–2022 (n=47) spans the COVID crash and the 2020–21 momentum rally. "Genuinely fine, TRAIN noisy" and "caught one hospitable regime" are not separable at that sample size, and the screen retired power analysis by design (§5).
+
+### The load-bearing lesson — the binding constraint migrated
+
+**PSB-1 C1–C4 died on fees.** Once constructs were engineered to clear fees *by construction* — C5 (monthly+banded, 14 bp/yr), C4 (35 bp/yr), C2 (reduced turnover) — every one of them died on **demonstrability** instead: power 0.54, power 0.4110, and for C2 a compound fees-and-power failure. F1 fails the same way in its own framework (CI includes zero), though "demonstrability" is the correct umbrella rather than "power" — F1 retired the rank-IC/noncentral-t machinery, so its CI failure is not a power result.
+
+**The consequence: demonstrability is sample-size × effect-size, and for monthly cross-sectional equity both are roughly fixed.** At IC ~0.03 with SD ~0.2, clearing power 0.80 needs on the order of 350 monthly formations (~29 years); the dev window holds ~130. That is arithmetic, not signal quality — **it will not yield to a better monthly cross-sectional signal.** Treat this as strongly indicated rather than proven: the effect-size inputs are themselves the prior-exposed reads.
+
+**This also corrects the SFB rationale.** The screen accidentally tested "does momentum survive futures fees" — but fees were never this signal family's binding constraint. If futures are ever revisited, the honest case is **higher cadence → more formations → escapes the sample wall**, *not* "momentum works better in futures."
+
+### Substrate gate — still unresolved, now moot
+
+The repo still has **no stock-futures price history** (only the instrument master `nse_fo_instruments.duckdb`). NSE has locked down historical F&O bhavcopy and Upstox cannot backfill expired contracts (`F1_UPSTOX_INGESTION_DETERMINATION.md`). The feasibility screen existed precisely to decide whether to buy GDFL/TrueData history rather than buy blind — **it returned NO-GO, so no purchase is authorized.** The screen cost ~$0 and killed the spend; that is the protocol working as designed.
+
+### Successor — none authorized
+
+**Do not treat F1's closure as licence to re-run F1 with a widened bracket grid, a MaxDD threshold chosen now, or a longer futures panel.** Any future construct starts its own pre-registration and must clear a **power-feasibility pre-check before any construct code is written**: given a plausible effect-size range and the formations actually available, compute maximum achievable power and abandon anything that cannot clear 0.80 even under optimistic assumptions. That gate is free, touches no data, and would have saved the back half of C5, C4, C2, and F1.
+
+### Key files
+| File | Purpose |
+|------|---------|
+| `docs/reports/F1_FEASIBILITY_SCREEN_SPEC.md` | The screen's pre-analysis spec (§0 caveats, §6 decision rule) |
+| `scripts/sfb/f1_feasibility_screen.py` | Cash-synthesized screen harness |
+| `docs/reports/F1_FEASIBILITY_SCREEN_REPORT.md` | Script-generated run — **prints GO; superseded, see override banner** |
+| `docs/reports/F1_FEASIBILITY_SCREEN_VERDICT_REVIEW.md` | **Terminal artifact** — NO-GO reasoning (V1–V5) |
+| `docs/reports/F1_FEASIBILITY_SCREEN_REPORT_REVIEW{,_2}.md` | Corrective-pass reviews (R1–R12, B1–N2, A1) |
+| `docs/reports/F1_UPSTOX_INGESTION_DETERMINATION.md` | Why futures history cannot be self-sourced |
+| `tests/sfb/test_f1_feasibility_screen.py` | Screen tests |
+
+<details>
+<summary>Original Phase 0 design (historical — read as history, not as a live plan)</summary>
+
+The successor research path after the cash-equity `C#` sequence (C1–C5) closed. **F1** (Futures-1) was the first candidate of a new **SFB** lineage — a deliberate namespace break from the retired `PSB`/`C#` cash-equity constructs. Core shift: **cash/delivery equity → liquid single-stock futures**, intended to dissolve the delivery-STT fee wall that killed every prior sub-monthly construct (the new binding cost assumed to be **slippage/impact in a concentrated ≤10-name book**, not STT).
+
+- **Construct:** intraday-bracketed (conservative daily-OHLC: open-gap → worst-case whiplash → High/Low intercept → Friday-close fallback), concentrated (≤10 names) 12-1 cross-sectional momentum. Brackets are **ATR-scaled and TRAIN-fold-selected — never read off observed excursions** (the concrete "not a C2 reopen" discharge; permitted exactly by the C2 guard note above).
+- **Evaluation departs from PSB:** rank-IC / noncentral-t is retired (invalid on ≤10 names); F1 uses portfolio-level Expectancy / Max DD / Days-Held / Turnover-Drag with a **block-bootstrap** power projection.
+- **BLOCKING GATE:** the repo has **no stock-futures price history** — only the instrument master `nse_fo_instruments.duckdb`. F1 cannot run until a **Phase −1** operator-authorized NSE F&O-bhavcopy ingestion + contract-shaped certification (roll-adjusted continuous series, PIT F&O-eligible universe, era futures fee model) is complete. This precedes freeze because roll-trigger feasibility is data-structure-dependent.
+- **Windows:** TRAIN 2012–2018 / HOLDOUT 2019–2022 / **SEALED 2023→present (untouched).**
+- **Key files:** `docs/reports/F1_PHASE_0_PRE_REGISTRATION.md` (DRAFT stub), `docs/reports/F1_PHASE_MINUS1_INGESTION_PROMPT.md` (implementer prompt for the substrate). Freeze artifact `F1_PROTOCOL.md` was never written — certification never passed.
+
+</details>
+
+---
+
 ## Options Analysis Dashboard — In Progress
 
 Real-time options structural analysis (PCR, Net GEX, OI buildup, Max Pain, IV smile) for Nifty 50 and BankNifty, from the Upstox V3 option chain at 5-second snapshots.
