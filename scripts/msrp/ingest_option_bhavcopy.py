@@ -506,8 +506,8 @@ def main():
     if n_removed > 0:
         print(f"Purged {n_removed:,} non-NIFTY rows (NIFTYNXT50 contamination)")
 
-    end = date.today() - timedelta(days=1)
-    start = date(2023, 1, 1)
+    end = date.fromisoformat(sys.argv[2]) if len(sys.argv) > 2 else date.today() - timedelta(days=1)
+    start = date.fromisoformat(sys.argv[1]) if len(sys.argv) > 1 else date(2016, 2, 11)
 
     total_inserted = 0
     total_skipped = 0
