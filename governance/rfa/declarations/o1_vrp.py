@@ -38,11 +38,15 @@ DECLARATION = Declaration(
         "PSB-1 C5 and PSB-2 C2 reports, neither of which bear on this "
         "construct."
     ),
-    n_available=520,
+    n_available=380,
     cadence="weekly",
     window=(
-        "2016-02 to 2026-07 (contingent on PSB-O0 options-bhavcopy "
-        "substrate extension; NSE weekly Nifty options launched Feb 2016)"
+        "2019-02-11 to 2026-07-17 (NSE F&O bhavcopy backfilled to 2016-02-11 "
+        "during PSB-O0 on 2026-07-20; data inspection showed weekly Nifty "
+        "options did not list until 2019-02-11 -- pre-2019 data has only "
+        "monthly expiries. Original declaration assumed Feb 2016 launch and "
+        "n=520; corrected post-backfill to n=380. Verdict unchanged: the "
+        "optimistic corner clears comfortably either way.)"
     ),
     test_type="one_sided",
     metric="per_trade_pnl",

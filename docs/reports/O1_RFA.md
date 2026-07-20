@@ -3,9 +3,9 @@
 **VERDICT: PROCEED** — not provably infeasible — this is a floor, not authorization to build.
 
 - Methodology version: `1.0.0`
-- Declaration SHA-256: `75074982b9bdd25e2b002bcefcd53481eac49372e4973a5407121e70b7b49ca1`
+- Declaration SHA-256: `25d4a723679ade9dedcabcf94d9968074e3e0e350f158630e301f697b64f2dad`
 - Metric: per_trade_pnl | Test: one_sided | Power hurdle: 0.8
-- Formations available: 520 (weekly, 2016-02 to 2026-07 (contingent on PSB-O0 options-bhavcopy substrate extension; NSE weekly Nifty options launched Feb 2016))
+- Formations available: 380 (weekly, 2019-02-11 to 2026-07-17 (NSE F&O bhavcopy backfilled to 2016-02-11 during PSB-O0 on 2026-07-20; data inspection showed weekly Nifty options did not list until 2019-02-11 -- pre-2019 data has only monthly expiries. Original declaration assumed Feb 2016 launch and n=520; corrected post-backfill to n=380. Verdict unchanged: the optimistic corner clears comfortably either way.))
 
 ## Optimistic corner
 
@@ -13,8 +13,8 @@
 |---|---|
 | delta (high) | 0.005 |
 | SD (low) | 0.025 |
-| n (raw, no AC haircut) | 520 |
-| **Max achievable power** | **0.9982** |
+| n (raw, no AC haircut) | 380 |
+| **Max achievable power** | **0.9877** |
 
 The corner is **intentionally unrealistic.** Because the bands are declared
 independently, (delta_hi, sd_lo) may describe a large edge with unusually stable
@@ -30,7 +30,7 @@ meaning of *not provably infeasible*.
 | Optimistic corner | 156 |
 | Central | 913 |
 | Pessimistic | 5566 |
-| **Available** | **520** |
+| **Available** | **380** |
 
 ## Declared bands and provenance
 
