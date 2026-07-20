@@ -253,7 +253,7 @@ The repo still has **no stock-futures price history** (only the instrument maste
 
 ### Successor — none authorized
 
-**Do not treat F1's closure as licence to re-run F1 with a widened bracket grid, a MaxDD threshold chosen now, or a longer futures panel.** Any future construct starts its own pre-registration and must clear a **power-feasibility pre-check before any construct code is written**: given a plausible effect-size range and the formations actually available, compute maximum achievable power and abandon anything that cannot clear 0.80 even under optimistic assumptions. That gate is free, touches no data, and would have saved the back half of C5, C4, C2, and F1.
+**Do not treat F1's closure as licence to re-run F1 with a widened bracket grid, a MaxDD threshold chosen now, or a longer futures panel.** Any future construct starts its own pre-registration and must clear a **power-feasibility pre-check before any construct code is written**: given a plausible effect-size range and the formations actually available, compute maximum achievable power and abandon anything that cannot clear 0.80 even under optimistic assumptions. That gate is free, touches no data, and would have saved the back half of C5, C4, and F1 — tested, not assumed; see `docs/reports/RFA_RETROSPECTIVE.md`. C2 is the exception: as PSB-2 recorded it, C2 clears the hurdle and the gate would have said PROCEED.
 
 ### Key files
 | File | Purpose |
@@ -278,6 +278,41 @@ The successor research path after the cash-equity `C#` sequence (C1–C5) closed
 - **Key files:** `docs/reports/F1_PHASE_0_PRE_REGISTRATION.md` (DRAFT stub), `docs/reports/F1_PHASE_MINUS1_INGESTION_PROMPT.md` (implementer prompt for the substrate). Freeze artifact `F1_PROTOCOL.md` was never written — certification never passed.
 
 </details>
+
+---
+
+## RFA — Research Feasibility Assessment (power pre-check)
+
+**Status:** Active gate. Every new research construct must clear it **before any construct
+code is written.**
+
+The RFA answers one question: given the formations actually available and an independently
+defended effect-size band, can this construct reach power 0.80 even under assumptions more
+generous than anyone believes? It reads no market data, so it is free.
+
+- **ABANDON is dispositive.** **PROCEED means "not provably infeasible"** — a floor, never
+  authorization, and never a statement about fees or MaxDD.
+- Binding inputs are **independent defended bands on delta and SD**, each with required
+  provenance. Historical PSB/SFB reads are prior-exposed and **must not** define them.
+- Bands are **frozen at approval** (SHA-256 over the whole declaration file) and cannot be
+  revised in response to results.
+
+| File | Purpose |
+|---|---|
+| `governance/rfa/declaration.py` | Frozen input contract + validation |
+| `governance/rfa/declarations/` | One declaration module per candidate |
+| `scripts/rfa/power.py` | Noncentral-t power + formation-count inversion |
+| `scripts/rfa/gate.py` | Optimistic-corner verdict; `METHODOLOGY_VERSION` |
+| `scripts/rfa/report.py`, `run_rfa.py` | Report generation |
+| `scripts/rfa/retrospective.py` | Non-binding retrospective |
+| `docs/reports/RFA_RETROSPECTIVE.md` | Retrospective output |
+| `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
+
+**Retrospective correction.** This repo previously implied the pre-check would have saved C5,
+C4, C2, and F1. Tested: it fires on C5, C4, and F1, but **not** on C2 as PSB-2 recorded it
+(power 0.9198 — the gate would have said PROCEED). C2 fails only on the extended-history SD
+re-estimate. The gate's verdict is only as good as the declared SD, which is why SD must be
+independently defended rather than inherited from a short in-sample read.
 
 ---
 
