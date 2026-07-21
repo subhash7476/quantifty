@@ -83,7 +83,8 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
   - 3,548 daily files spanning **2012-02-21 → present** after the CARRY G1-R re-ingest (`scripts/ingest_index_history.py`); `timestamp` is uniformly `TIMESTAMP`
   - **`NSE_INDEX|Nifty 50` only resolves from 2013-02-08.** The 241 sessions 2012-02-21 → 2013-02-07 are stored under the index's pre-rebrand name `NSE_INDEX|S&P CNX Nifty` — real Nifty history, invisible to a `symbol = 'NSE_INDEX|Nifty 50'` query. **Open defect, prompt G1-R2** (`CARRY_G1_R_VERIFICATION.md`)
 - **Stock/index futures**: FUTSTK + FUTIDX bhavcopy, **2016-02-11 → 2026-07-20**, 363 stock + 13 index underlyings (`scripts/sfb/ingest_futures_bhavcopy_v2.py`). Pre-2016 history is not obtainable
-- **Options**: full OPTSTK/OPTIDX bhavcopy (`scripts/sfb/ingest_stock_options_bhavcopy.py`) — ingest was in progress at last record; verify span before use
+- **Stock options**: `data/market_data/stock_options_bhavcopy.duckdb` — **98,320,092 rows, 2016-02-11 → 2026-07-20, 363 underlyings, zero index names** (`scripts/sfb/ingest_stock_options_bhavcopy.py`). The ingest is **complete**; `SIGNAL_ENGINE_DESIGN.md` §2.1's open check ("verify OPTSTK, not index-only") is **verified true**, so the Skew sleeve is data-unblocked
+- **Index options**: `data/market_data/options_bhavcopy.duckdb` — 5,490,319 rows, 2016-02-11 → 2026-07-17
 - **Symbol format**: `NSE_EQ|INE...` (equities), `NSE_INDEX|Nifty 50` / `NSE_INDEX|Nifty Bank` (index)
 - **ALL NSE_INDEX symbols have volume=0** — never use VWAP or vol_z filters on index data
 - **BankNifty ingest script**: `scripts/fetch_intermarket_data.py --include-1m` (uses 10-day chunks for 1m — 29-day chunks cause sporadic 400s)
