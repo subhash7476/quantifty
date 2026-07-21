@@ -1,0 +1,364 @@
+symbol,sector,source
+360ONE,Financial Services,NSE_index
+AARTIIND,Chemicals,NSE_index
+ABB,Capital Goods,NSE_index
+ABBOTINDIA,Healthcare,NSE_index
+ABCAPITAL,Financial Services,NSE_index
+ABFRL,Consumer Services,NSE_index
+ACC,Construction Materials,NSE_index
+ADANIENSOL,Power,NSE_index
+ADANIENT,Metals & Mining,NSE_index
+ADANIGREEN,Power,NSE_index
+ADANIPORTS,Services,NSE_index
+ADANIPOWER,Power,NSE_index
+AJANTPHARM,Healthcare,NSE_index
+ALKEM,Healthcare,NSE_index
+AMBER,Consumer Durables,NSE_index
+AMBUJACEM,Construction Materials,NSE_index
+ANGELONE,Financial Services,NSE_index
+APLAPOLLO,Capital Goods,NSE_index
+APOLLOHOSP,Healthcare,NSE_index
+APOLLOTYRE,Automobile and Auto Components,NSE_index
+ASHOKLEY,Capital Goods,NSE_index
+ASIANPAINT,Consumer Durables,NSE_index
+ASTRAL,Capital Goods,NSE_index
+ATGL,Oil Gas & Consumable Fuels,NSE_index
+ATUL,Chemicals,NSE_index
+AUBANK,Financial Services,NSE_index
+AUROPHARMA,Healthcare,NSE_index
+AXISBANK,Financial Services,NSE_index
+BAJAJ-AUTO,Automobile and Auto Components,NSE_index
+BAJAJFINSV,Financial Services,NSE_index
+BAJAJHLDNG,Financial Services,NSE_index
+BAJFINANCE,Financial Services,NSE_index
+BALKRISIND,Automobile and Auto Components,NSE_index
+BALRAMCHIN,Fast Moving Consumer Goods,NSE_index
+BANDHANBNK,Financial Services,NSE_index
+BANKBARODA,Financial Services,NSE_index
+BANKINDIA,Financial Services,NSE_index
+BATAINDIA,Consumer Durables,NSE_index
+BDL,Capital Goods,NSE_index
+BEL,Capital Goods,NSE_index
+BEML,Capital Goods,NSE_index
+BERGEPAINT,Consumer Durables,NSE_index
+BHARATFORG,Automobile and Auto Components,NSE_index
+BHARTIARTL,Telecommunication,NSE_index
+BHEL,Capital Goods,NSE_index
+BIOCON,Healthcare,NSE_index
+BLUESTARCO,Consumer Durables,NSE_index
+BOSCHLTD,Automobile and Auto Components,NSE_index
+BPCL,Oil Gas & Consumable Fuels,NSE_index
+BRITANNIA,Fast Moving Consumer Goods,NSE_index
+BSE,Financial Services,NSE_index
+BSOFT,Information Technology,NSE_index
+CAMS,Financial Services,NSE_index
+CANBK,Financial Services,NSE_index
+CANFINHOME,Financial Services,NSE_index
+CASTROLIND,Oil Gas & Consumable Fuels,NSE_index
+CDSL,Financial Services,NSE_index
+CEATLTD,Automobile and Auto Components,NSE_index
+CESC,Power,NSE_index
+CGPOWER,Capital Goods,NSE_index
+CHAMBLFERT,Chemicals,NSE_index
+CHENNPETRO,Oil Gas & Consumable Fuels,NSE_index
+CHOLAFIN,Financial Services,NSE_index
+CIPLA,Healthcare,NSE_index
+COALINDIA,Oil Gas & Consumable Fuels,NSE_index
+COCHINSHIP,Capital Goods,NSE_index
+COFORGE,Information Technology,NSE_index
+COLPAL,Fast Moving Consumer Goods,NSE_index
+CONCOR,Services,NSE_index
+COROMANDEL,Chemicals,NSE_index
+CROMPTON,Consumer Durables,NSE_index
+CUB,Financial Services,NSE_index
+CUMMINSIND,Capital Goods,NSE_index
+CYIENT,Information Technology,NSE_index
+DABUR,Fast Moving Consumer Goods,NSE_index
+DALBHARAT,Construction Materials,NSE_index
+DEEPAKNTR,Chemicals,NSE_index
+DELHIVERY,Services,NSE_index
+DIVISLAB,Healthcare,NSE_index
+DIXON,Consumer Durables,NSE_index
+DLF,Realty,NSE_index
+DMART,Consumer Services,NSE_index
+DRREDDY,Healthcare,NSE_index
+EICHERMOT,Automobile and Auto Components,NSE_index
+ENGINERSIN,Construction,NSE_index
+ESCORTS,Capital Goods,NSE_index
+ETERNAL,Consumer Services,NSE_index
+EXIDEIND,Automobile and Auto Components,NSE_index
+FEDERALBNK,Financial Services,NSE_index
+FORCEMOT,Automobile and Auto Components,NSE_index
+FORTIS,Healthcare,NSE_index
+FSL,Services,NSE_index
+GAIL,Oil Gas & Consumable Fuels,NSE_index
+GLENMARK,Healthcare,NSE_index
+GMRAIRPORT,Services,NSE_index
+GODFRYPHLP,Fast Moving Consumer Goods,NSE_index
+GODREJCP,Fast Moving Consumer Goods,NSE_index
+GODREJIND,Diversified,NSE_index
+GODREJPROP,Realty,NSE_index
+GRANULES,Healthcare,NSE_index
+GRASIM,Construction Materials,NSE_index
+GVT&D,Capital Goods,NSE_index
+HAL,Capital Goods,NSE_index
+HAVELLS,Consumer Durables,NSE_index
+HCLTECH,Information Technology,NSE_index
+HDFCAMC,Financial Services,NSE_index
+HDFCBANK,Financial Services,NSE_index
+HDFCLIFE,Financial Services,NSE_index
+HEROMOTOCO,Automobile and Auto Components,NSE_index
+HFCL,Telecommunication,NSE_index
+HINDALCO,Metals & Mining,NSE_index
+HINDCOPPER,Metals & Mining,NSE_index
+HINDPETRO,Oil Gas & Consumable Fuels,NSE_index
+HINDUNILVR,Fast Moving Consumer Goods,NSE_index
+HINDZINC,Metals & Mining,NSE_index
+HONAUT,Capital Goods,NSE_index
+HUDCO,Financial Services,NSE_index
+HYUNDAI,Automobile and Auto Components,NSE_index
+ICICIBANK,Financial Services,NSE_index
+ICICIGI,Financial Services,NSE_index
+ICICIPRULI,Financial Services,NSE_index
+IDBI,Financial Services,NSE_index
+IDEA,Telecommunication,NSE_index
+IDFCFIRSTB,Financial Services,NSE_index
+IEX,Financial Services,NSE_index
+IFCI,Financial Services,NSE_index
+IGL,Oil Gas & Consumable Fuels,NSE_index
+IIFL,Financial Services,NSE_index
+INDHOTEL,Consumer Services,NSE_index
+INDIACEM,Construction Materials,NSE_index
+INDIAMART,Consumer Services,NSE_index
+INDIANB,Financial Services,NSE_index
+INDIGO,Services,NSE_index
+INDUSINDBK,Financial Services,NSE_index
+INDUSTOWER,Telecommunication,NSE_index
+INFY,Information Technology,NSE_index
+INOXWIND,Capital Goods,NSE_index
+INTELLECT,Information Technology,NSE_index
+IOB,Financial Services,NSE_index
+IOC,Oil Gas & Consumable Fuels,NSE_index
+IPCALAB,Healthcare,NSE_index
+IRB,Construction,NSE_index
+IRCTC,Consumer Services,NSE_index
+IREDA,Financial Services,NSE_index
+IRFC,Financial Services,NSE_index
+ITC,Fast Moving Consumer Goods,NSE_index
+JINDALSTEL,Metals & Mining,NSE_index
+JIOFIN,Financial Services,NSE_index
+JKCEMENT,Construction Materials,NSE_index
+JSL,Metals & Mining,NSE_index
+JSWENERGY,Power,NSE_index
+JSWSTEEL,Metals & Mining,NSE_index
+JUBLFOOD,Consumer Services,NSE_index
+KAJARIACER,Consumer Durables,NSE_index
+KALYANKJIL,Consumer Durables,NSE_index
+KAYNES,Capital Goods,NSE_index
+KEI,Capital Goods,NSE_index
+KFINTECH,Financial Services,NSE_index
+KOTAKBANK,Financial Services,NSE_index
+KPITTECH,Information Technology,NSE_index
+LALPATHLAB,Healthcare,NSE_index
+LAURUSLABS,Healthcare,NSE_index
+LICHSGFIN,Financial Services,NSE_index
+LICI,Financial Services,NSE_index
+LODHA,Realty,NSE_index
+LT,Construction,NSE_index
+LTF,Financial Services,NSE_index
+LTM,Information Technology,NSE_index
+LTTS,Information Technology,NSE_index
+LUPIN,Healthcare,NSE_index
+M&M,Automobile and Auto Components,NSE_index
+M&MFIN,Financial Services,NSE_index
+MANAPPURAM,Financial Services,NSE_index
+MANKIND,Healthcare,NSE_index
+MARICO,Fast Moving Consumer Goods,NSE_index
+MARUTI,Automobile and Auto Components,NSE_index
+MAXHEALTH,Healthcare,NSE_index
+MAZDOCK,Capital Goods,NSE_index
+MCX,Financial Services,NSE_index
+MFSL,Financial Services,NSE_index
+MGL,Oil Gas & Consumable Fuels,NSE_index
+MOTHERSON,Automobile and Auto Components,NSE_index
+MOTILALOFS,Financial Services,NSE_index
+MPHASIS,Information Technology,NSE_index
+MRF,Automobile and Auto Components,NSE_index
+MRPL,Oil Gas & Consumable Fuels,NSE_index
+MUTHOOTFIN,Financial Services,NSE_index
+NAM-INDIA,Financial Services,NSE_index
+NATIONALUM,Metals & Mining,NSE_index
+NAUKRI,Consumer Services,NSE_index
+NAVINFLUOR,Chemicals,NSE_index
+NBCC,Construction,NSE_index
+NCC,Construction,NSE_index
+NESTLEIND,Fast Moving Consumer Goods,NSE_index
+NHPC,Power,NSE_index
+NMDC,Metals & Mining,NSE_index
+NTPC,Power,NSE_index
+NUVAMA,Financial Services,NSE_index
+NYKAA,Consumer Services,NSE_index
+OBEROIRLTY,Realty,NSE_index
+OFSS,Information Technology,NSE_index
+OIL,Oil Gas & Consumable Fuels,NSE_index
+ONGC,Oil Gas & Consumable Fuels,NSE_index
+PAGEIND,Textiles,NSE_index
+PATANJALI,Fast Moving Consumer Goods,NSE_index
+PAYTM,Financial Services,NSE_index
+PERSISTENT,Information Technology,NSE_index
+PETRONET,Oil Gas & Consumable Fuels,NSE_index
+PFC,Financial Services,NSE_index
+PFIZER,Healthcare,NSE_index
+PGEL,Consumer Durables,NSE_index
+PHOENIXLTD,Realty,NSE_index
+PIDILITIND,Chemicals,NSE_index
+PIIND,Chemicals,NSE_index
+PNB,Financial Services,NSE_index
+PNBHOUSING,Financial Services,NSE_index
+POLICYBZR,Financial Services,NSE_index
+POLYCAB,Capital Goods,NSE_index
+POONAWALLA,Financial Services,NSE_index
+POWERGRID,Power,NSE_index
+POWERINDIA,Capital Goods,NSE_index
+PPLPHARMA,Healthcare,NSE_index
+PREMIERENE,Capital Goods,NSE_index
+PRESTIGE,Realty,NSE_index
+PVRINOX,Media Entertainment & Publication,NSE_index
+RADICO,Fast Moving Consumer Goods,NSE_index
+RAMCOCEM,Construction Materials,NSE_index
+RBLBANK,Financial Services,NSE_index
+RECLTD,Financial Services,NSE_index
+RELIANCE,Oil Gas & Consumable Fuels,NSE_index
+RPOWER,Power,NSE_index
+RVNL,Construction,NSE_index
+SAIL,Metals & Mining,NSE_index
+SAMMAANCAP,Financial Services,NSE_index
+SBICARD,Financial Services,NSE_index
+SBILIFE,Financial Services,NSE_index
+SBIN,Financial Services,NSE_index
+SHREECEM,Construction Materials,NSE_index
+SHRIRAMFIN,Financial Services,NSE_index
+SIEMENS,Capital Goods,NSE_index
+SJVN,Power,NSE_index
+SOLARINDS,Chemicals,NSE_index
+SONACOMS,Automobile and Auto Components,NSE_index
+SRF,Chemicals,NSE_index
+SUNPHARMA,Healthcare,NSE_index
+SUNTV,Media Entertainment & Publication,NSE_index
+SUPREMEIND,Capital Goods,NSE_index
+SUZLON,Capital Goods,NSE_index
+SWIGGY,Consumer Services,NSE_index
+SYNGENE,Healthcare,NSE_index
+TATACHEM,Chemicals,NSE_index
+TATACOMM,Telecommunication,NSE_index
+TATACONSUM,Fast Moving Consumer Goods,NSE_index
+TATAELXSI,Information Technology,NSE_index
+TATAPOWER,Power,NSE_index
+TATASTEEL,Metals & Mining,NSE_index
+TATATECH,Information Technology,NSE_index
+TCS,Information Technology,NSE_index
+TECHM,Information Technology,NSE_index
+TIINDIA,Automobile and Auto Components,NSE_index
+TITAGARH,Capital Goods,NSE_index
+TITAN,Consumer Durables,NSE_index
+TMPV,Automobile and Auto Components,NSE_index
+TORNTPHARM,Healthcare,NSE_index
+TORNTPOWER,Power,NSE_index
+TRENT,Consumer Services,NSE_index
+TVSMOTOR,Automobile and Auto Components,NSE_index
+UBL,Fast Moving Consumer Goods,NSE_index
+UCOBANK,Financial Services,NSE_index
+ULTRACEMCO,Construction Materials,NSE_index
+UNIONBANK,Financial Services,NSE_index
+UNITDSPR,Fast Moving Consumer Goods,NSE_index
+UNOMINDA,Automobile and Auto Components,NSE_index
+UPL,Chemicals,NSE_index
+VBL,Fast Moving Consumer Goods,NSE_index
+VEDL,Metals & Mining,NSE_index
+VMM,Consumer Services,NSE_index
+VOLTAS,Consumer Durables,NSE_index
+WAAREEENER,Capital Goods,NSE_index
+WHIRLPOOL,Consumer Durables,NSE_index
+WIPRO,Information Technology,NSE_index
+WOCKPHARMA,Healthcare,NSE_index
+YESBANK,Financial Services,NSE_index
+ZEEL,Media Entertainment & Publication,NSE_index
+ZYDUSLIFE,Healthcare,NSE_index
+ABIRLANUVO,,unsourced
+ALBK,,unsourced
+AMARAJABAT,,unsourced
+ANDHRABANK,,unsourced
+APLLTD,,unsourced
+ARVIND,,unsourced
+BHARATFIN,,unsourced
+CADILAHC,,unsourced
+CAIRN,,unsourced
+CAPF,,unsourced
+CENTURYTEX,,unsourced
+CROMPGREAV,,unsourced
+DALMIABHA,,unsourced
+DCBBANK,,unsourced
+DELTACORP,,unsourced
+DHFL,,unsourced
+DISHTV,,unsourced
+EQUITAS,,unsourced
+GMRINFRA,,unsourced
+GNFC,,unsourced
+GSFC,,unsourced
+GSPL,,unsourced
+GUJGASLTD,,unsourced
+HCC,,unsourced
+HDFC,,unsourced
+HDIL,,unsourced
+HEXAWARE,,unsourced
+IBREALEST,,unsourced
+IBULHSGFIN,,unsourced
+ICIL,,unsourced
+IDFC,,unsourced
+IDFCBANK,,unsourced
+INFIBEAM,,unsourced
+INFRATEL,,unsourced
+JETAIRWAYS,,unsourced
+JISLJALEQS,,unsourced
+JPASSOCIAT,,unsourced
+JUSTDIAL,,unsourced
+KPIT,,unsourced
+KSCL,,unsourced
+KTKBANK,,unsourced
+L&TFH,,unsourced
+LTI,,unsourced
+LTIM,,unsourced
+MCDOWELL-N,,unsourced
+MCLEODRUSS,,unsourced
+METROPOLIS,,unsourced
+MINDTREE,,unsourced
+MOTHERSUMI,,unsourced
+NIITTECH,,unsourced
+ORIENTBANK,,unsourced
+PCJEWELLER,,unsourced
+PEL,,unsourced
+PTC,,unsourced
+PVR,,unsourced
+RAIN,,unsourced
+RAYMOND,,unsourced
+RCOM,,unsourced
+RDEL,,unsourced
+RELCAPITAL,,unsourced
+RELINFRA,,unsourced
+REPCOHOME,,unsourced
+RNAVAL,,unsourced
+SINTEX,,unsourced
+SKSMICRO,,unsourced
+SOUTHBANK,,unsourced
+SREINFRA,,unsourced
+SRTRANSFIN,,unsourced
+STAR,,unsourced
+SYNDIBANK,,unsourced
+TATAGLOBAL,,unsourced
+TATAMOTORS,,unsourced
+TATAMTRDVR,,unsourced
+TV18BRDCST,,unsourced
+UJJIVAN,,unsourced
+UNITECH,,unsourced
+VGUARD,,unsourced
+ZOMATO,,unsourced
