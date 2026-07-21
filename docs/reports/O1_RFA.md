@@ -1,5 +1,13 @@
 # O1 — Research Feasibility Assessment
 
+> **⚠️ WITHDRAWN 2026-07-21 — this verdict must not be cited.** The PROCEED below is an artifact
+> of a crossed optimistic corner. `delta` was derived from `sd` via a Sharpe translation, making
+> the bands coupled; the gate assumed independence and evaluated `(delta_hi, sd_lo)`, implying
+> annualized Sharpe **1.442** — above the declaration's own stated ceiling of 1.0. Read coherently,
+> the declared endpoints both sit at Sharpe ≈ 0.59 → max power ≈ 0.49 → **ABANDON**. Reasoning:
+> `RFA_GATE_O1_REVIEW.md` §1. The declaration file is preserved unedited so its digest still
+> verifies. **No successor declaration is authorized by this withdrawal.**
+
 **VERDICT: PROCEED** — not provably infeasible — this is a floor, not authorization to build.
 
 - Methodology version: `1.0.0`
