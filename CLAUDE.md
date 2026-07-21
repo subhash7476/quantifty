@@ -94,23 +94,6 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 - **Position stacking guard**: handler must block new entry while a position is open on same symbol
 - **Position tracker must update on paper fills**: `FillEvent` → `position_tracker.update_from_fill()`
 - **Fee model**: NSE equity intraday — Rs 20 brokerage + STT 0.025% + exchange/SEBI/GST/stamp
-
----
-
-## DayTypeEngine — Feature Blocks
-
-| Block | Features | Notes |
-|-------|----------|-------|
-| A | gap_pct, prev_day_return, etc. | Excluded from 13pm prod model |
-| B | open_5m_ret, open_30m_range, etc. | Opening structure |
-| C–F | partial_return, partial_clv, TWAP, rotation | Intraday Nifty structure |
-| **H** | **bn_nf_open_5m_spread, bn_nf_correlation_5m, etc.** | **BankNifty intermarket (new)** |
-
-- **logistic_13pm_prod**: 41 features, Block A excluded, trained 2023–2025, **80% val accuracy**
-- **Block H** computed in `build_intraday_features.py` + `DayTypeEngine._compute_block_h()`
-- Live: `DayTypeEngine.on_bn_bar(bar)` feeds BN bars; `v9_pm_runner` fetches BN from live buffer
-- Retrain: `python scripts/build_intraday_features.py && python scripts/train_daytype_classifier.py`
-
 ---
 
 ## Production Strategy Status
@@ -245,7 +228,7 @@ Four findings, in decreasing order of weight (`F1_FEASIBILITY_SCREEN_VERDICT_REV
 
 **The consequence: demonstrability is sample-size × effect-size, and for monthly cross-sectional equity both are roughly fixed.** At IC ~0.03 with SD ~0.2, clearing power 0.80 needs on the order of 350 monthly formations (~29 years); the dev window holds ~130. That is arithmetic, not signal quality — **it will not yield to a better monthly cross-sectional signal.** Treat this as strongly indicated rather than proven: the effect-size inputs are themselves the prior-exposed reads.
 
-**This also corrects the SFB rationale.** The screen accidentally tested "does momentum survive futures fees" — but fees were never this signal family's binding constraint. If futures are ever revisited, the honest case is **higher cadence → more formations → escapes the sample wall**, *not* "momentum works better in futures."
+**This also corrects the SFB rationale.** The screen accidentally tested "does momentum survive futures fees" — but fees were never this signal family's binding constraint. If futures are ever revisited, the honest case is that their **fee structure** permits strategies cash equity cannot support — *never* because of cadence. Higher cadence buys no statistical power: `ncp = (delta/sd)·√n = S·√T` — cadence `c` cancels because multiplying formations by `c` divides per-formation Sharpe by `√c` (see the RFA section). The only escapes from the demonstrability wall are a longer calendar window or a genuinely higher Sharpe.
 
 ### Substrate gate — still unresolved, now moot
 
@@ -292,8 +275,23 @@ generous than anyone believes? It reads no market data, so it is free.
 
 - **ABANDON is dispositive.** **PROCEED means "not provably infeasible"** — a floor, never
   authorization, and never a statement about fees or MaxDD.
-- Binding inputs are **independent defended bands on delta and SD**, each with required
-  provenance. Historical PSB/SFB reads are prior-exposed and **must not** define them.
+- **Contract v2 / `METHODOLOGY_VERSION` 2.0.0** (2026-07-21). For
+  `metric="per_trade_pnl"` the declared quantity is an **annualized Sharpe band plus
+  `cadence_per_year`** — *not* separate delta and SD bands (supplying both is rejected).
+  For `metric="rank_ic"` the original delta/SD bands remain, because IC mean and IC
+  dispersion are separately estimable and independence is defensible.
+- **Why Sharpe for PnL:** mean and SD of per-trade P&L are estimated off the same series,
+  so "high mean **and** low SD" is itself a Sharpe claim. Declaring them separately is
+   over-parameterised and lets a crossed corner smuggle in an effect size nobody defended.
+   Since `ncp = (delta/sd)·√n = S·√T`, cadence cancels and only Sharpe matters.
+- **Cadence invariance:** because `ncp = S·√T`, trading weekly instead of monthly
+  multiplies formation count by ~4 but divides per-formation Sharpe by √4 — the two
+  exactly offset. **Higher cadence buys no statistical power.** The only escape from
+  the demonstrability wall is a longer calendar window or a genuinely higher Sharpe
+  (see SFB-1/F1 section for this finding applied to futures).
+- **O1 is WITHDRAWN** (2026-07-21) — the sole real declaration (Nifty VRP, `o1_vrp.py`)
+  returned PROCEED via a crossed-corner artifact (see `RFA_GATE_O1_REVIEW.md` §S1).
+  Withdrawal preserves the declaration file and its digest; no successor is authorized.
 - Bands are **frozen at approval** (SHA-256 over the whole declaration file) and cannot be
   revised in response to results.
 
@@ -306,6 +304,8 @@ generous than anyone believes? It reads no market data, so it is free.
 | `scripts/rfa/report.py`, `run_rfa.py` | Report generation |
 | `scripts/rfa/retrospective.py` | Non-binding retrospective |
 | `docs/reports/RFA_RETROSPECTIVE.md` | Retrospective output |
+| `docs/reports/RFA_GATE_O1_REVIEW.md` | O1 review — withdrawal finding (S1) |
+| `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
 
 **Retrospective correction.** This repo previously implied the pre-check would have saved C5,
