@@ -80,6 +80,10 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
   - `NSE_INDEX|Nifty 50`: 2023-01-02 to present
   - `NSE_INDEX|Nifty Bank`: 2023-01-02 to present (backfilled Feb 2026, 292K bars)
 - **Daily intermarket**: `data/market_data/nse/candles/1d/{date}.duckdb` (Nifty 50, Bank Nifty, India VIX)
+  - 3,548 daily files spanning **2012-02-21 → present** after the CARRY G1-R re-ingest (`scripts/ingest_index_history.py`); `timestamp` is uniformly `TIMESTAMP`
+  - **`NSE_INDEX|Nifty 50` only resolves from 2013-02-08.** The 241 sessions 2012-02-21 → 2013-02-07 are stored under the index's pre-rebrand name `NSE_INDEX|S&P CNX Nifty` — real Nifty history, invisible to a `symbol = 'NSE_INDEX|Nifty 50'` query. **Open defect, prompt G1-R2** (`CARRY_G1_R_VERIFICATION.md`)
+- **Stock/index futures**: FUTSTK + FUTIDX bhavcopy, **2016-02-11 → 2026-07-20**, 363 stock + 13 index underlyings (`scripts/sfb/ingest_futures_bhavcopy_v2.py`). Pre-2016 history is not obtainable
+- **Options**: full OPTSTK/OPTIDX bhavcopy (`scripts/sfb/ingest_stock_options_bhavcopy.py`) — ingest was in progress at last record; verify span before use
 - **Symbol format**: `NSE_EQ|INE...` (equities), `NSE_INDEX|Nifty 50` / `NSE_INDEX|Nifty Bank` (index)
 - **ALL NSE_INDEX symbols have volume=0** — never use VWAP or vol_z filters on index data
 - **BankNifty ingest script**: `scripts/fetch_intermarket_data.py --include-1m` (uses 10-day chunks for 1m — 29-day chunks cause sporadic 400s)
@@ -231,9 +235,11 @@ Four findings, in decreasing order of weight (`F1_FEASIBILITY_SCREEN_VERDICT_REV
 
 **This also corrects the SFB rationale.** The screen accidentally tested "does momentum survive futures fees" — but fees were never this signal family's binding constraint. If futures are ever revisited, the honest case is that their **fee structure** permits strategies cash equity cannot support — *never* because of cadence. Higher cadence buys no statistical power: `ncp = (delta/sd)·√n = S·√T` — cadence `c` cancels because multiplying formations by `c` divides per-formation Sharpe by `√c` (see the RFA section). The only escapes from the demonstrability wall are a longer calendar window or a genuinely higher Sharpe.
 
-### Substrate gate — still unresolved, now moot
+### Substrate gate — resolved after the fact, and not by a purchase
 
-The repo still has **no stock-futures price history** (only the instrument master `nse_fo_instruments.duckdb`). NSE has locked down historical F&O bhavcopy and Upstox cannot backfill expired contracts (`F1_UPSTOX_INGESTION_DETERMINATION.md`). The feasibility screen existed precisely to decide whether to buy GDFL/TrueData history rather than buy blind — **it returned NO-GO, so no purchase is authorized.** The screen cost ~$0 and killed the spend; that is the protocol working as designed.
+> **⚠️ SUPERSEDED 2026-07-21 by the CARRY track's ingest.** The paragraph below was true when F1 closed and is false now: **stock-futures history exists in the repo** — FUTSTK/FUTIDX bhavcopy 2016-02-11 → 2026-07-20, 363 stock + 13 index underlyings, ingested free from NSE (`scripts/sfb/ingest_futures_bhavcopy_v2.py`). What remains true is the part that mattered: **history before 2016 is still not obtainable**, so the calendar lever is exhausted at n*≈42 monthly formations, and **no vendor purchase was ever authorized or made.** F1's NO-GO stands on its own reasoning (§6 MaxDD, CI includes zero) — it is not rehabilitated by the data arriving.
+
+At F1's close the repo had **no stock-futures price history** (only the instrument master `nse_fo_instruments.duckdb`). NSE has locked down historical F&O bhavcopy and Upstox cannot backfill expired contracts (`F1_UPSTOX_INGESTION_DETERMINATION.md`). The feasibility screen existed precisely to decide whether to buy GDFL/TrueData history rather than buy blind — **it returned NO-GO, so no purchase is authorized.** The screen cost ~$0 and killed the spend; that is the protocol working as designed.
 
 ### Successor — none authorized
 
@@ -317,6 +323,62 @@ independently defended rather than inherited from a short in-sample read.
 
 ---
 
+## Signal Engine / CARRY — Active track (substrate stage)
+
+**Status:** ACTIVE, pre-registration **DRAFT and unfrozen**, substrate build in progress.
+**No RFA declaration exists yet** (`governance/rfa/declarations/` holds only the withdrawn `o1_vrp.py`). **No signal code exists.** SEALED 2023-01-01 → 2026-07-20 unread; HOLDOUT 2021–2022 unspent; **no TRAIN read taken.**
+
+### The thesis — breadth, the one lever the prior batteries never pulled
+PSB-1, PSB-2 and SFB-1/F1 each died on **demonstrability**, and the RFA section proves cadence cannot fix it (`ncp = S·√T` — cadence cancels). `SIGNAL_ENGINE_DESIGN.md` argues the remaining lever is **breadth across weakly-correlated sleeves**: composite `IR ≈ √(N_signals) × per-sleeve IR`. That is a wider *sample*, not a higher cadence, so it does not contradict the `S·√T` result.
+
+Four sleeves over the ~180-name single-stock-futures universe: **Carry** (residual basis), **Trend** (vol-scaled TS momentum), **Flow** (NSE participant-wise OI — blocked on a separate free ingest), **Skew** (per-name risk-reversal). Central-assumption composite power at n*=42: 2 sleeves ≈ 0.6 · 3 ≈ 0.75 · **4 ≈ 0.86**.
+
+> **The 0.80 hurdle binds at the COMBINED-engine level, not per sleeve.** A single monthly cross-sectional sleeve at n*=42 cannot clear 0.80 standalone — requiring it would kill genuinely additive sleeves for the same arithmetic that killed C5/C4. The single-sleeve RFA bar is **PROCEED** (permission to build), and the standalone TRAIN/HOLDOUT read is a sign + magnitude + fee + persistence check. **This is a design decision, and it is the track's largest structural risk: it defers the binding gate to a composite that does not yet exist.** Do not let a sleeve's PROCEED be read as evidence the engine will clear.
+
+### Carry — sleeve #1
+Hypothesis, sign **declared and unflippable**: cross-sectional residual futures basis (annualized `F−S`, dividend-adjusted, cross-sectionally demeaned to strip common financing) predicts forward returns — **short high residual carry, long low**. Beta- and sector-neutralized, monthly, ADV-capped, banded. Metric is **`rank_ic`**, chosen deliberately: RFA contract v2 permits independent delta/SD bands only for `rank_ic`, so this is the contract-legal corner rather than O1's crossed-corner artifact.
+
+Declared bands (frozen at approval, not yet frozen): delta `[0.020, 0.045]`, SD `[0.10, 0.18]`, n* = 42.
+
+### Substrate status — what is done and what is broken
+| Gap | State |
+|---|---|
+| Futures↔spot join | **99.69% clean**; every miss in the 2026-07 equity tail |
+| G2 sector classification | Fatal two-taxonomy defect **closed** — single NSE 20-label vocabulary, 0 unclassified. Cleanup open: hand register unsourced with a **measured 17.6% error rate** on the checkable subset |
+| **G1 index history** | **Gate A2 + A4 FAIL** — see below |
+| G3 equity tail | Deferred — NSE had not published CM bhavcopy for 2026-07-10 → 07-20 |
+| P2 substrate certification | **Unrun** |
+
+> **⚠️ Open G1 defect — `S&P CNX Nifty` is the Nifty 50.** The re-ingest backfilled to 2012-02-21 and then wrote 241 sessions under the index's pre-rebrand name, because the hard-fail guard at `scripts/ingest_index_history.py:120` is prefix-anchored on `"CNX "` and `"S&P CNX Nifty"` does not match it. Consequences: 1,919 CNX rows (Gate A4 requires 0) and a 252-session beta computable only from **2014-02-14** (Gate A2 requires ≤ 2013-06-30) — so **§4 beta neutralization is not computable as pre-registered** for TRAIN's early formations. **This is a naming bug, not missing data**: a re-key fixes it, no re-download, and TRAIN stays pinned at 2016-03-31. Prompt **G1-R2** is ready in `CARRY_G1_R_VERIFICATION.md` §5.
+
+### Before freeze (blocking, operator)
+1. Run **G1-R2**; re-run Gate set A and report every check.
+2. Correct pre-reg §9's *"beta warms up off 2010+ adjusted spot"* — true of the stock leg, **false of the market leg**, which comes from the 1d index store. A free, formation-neutral wording fix; must land **before** freeze, never after a TRAIN read.
+3. Run **G2-R** cleanup (widen Tier 1 with `ind_niftytotalmarket_list`, adopt NSE labels over the hand register, add `evidence` column, fix Tier-2 interval handling).
+4. Write and freeze `governance/rfa/declarations/carry.py`, then run the RFA gate. **ABANDON is dispositive.**
+5. Run the P2 substrate certification. Only then is any TRAIN read authorized.
+
+### The recurring lesson this track keeps re-learning
+**A report of absence produced by code that cannot distinguish absence from failure is not evidence of absence.** A bare `except: pass` recorded 46 downloadable sessions as permanent NSE archive gaps, and that claim was written into a governance report as a fact about the world. Round 2 then verified the *count* but not the *conclusion*. Every round of this track has found the previous round wrong by re-measuring rather than re-reading — including round 3, which found the numbers in the prior session's own summary were never checked against the gate the same script implements. **Re-measure; do not accept a prior report's claim, including your own.**
+
+### Key files
+| File | Purpose |
+|---|---|
+| `docs/reports/SIGNAL_ENGINE_DESIGN.md` | Engine architecture, four sleeves, breadth thesis (DRAFT) |
+| `docs/reports/CARRY_PHASE0_PRE_REGISTRATION.md` | Carry pre-registration — **DRAFT, unfrozen** |
+| `docs/reports/CARRY_SUBSTRATE_CERTIFICATION_SPEC.md` | Two-leg basis contract suite (P2) — **unrun** |
+| `docs/reports/CARRY_DATA_GAP_AUDIT.md` | Read-only substrate gap audit (G1–G6) |
+| `docs/reports/CARRY_INDEX_REINGEST_SPEC.md` | G1-R acquisition spec + Gate A/B contract |
+| `docs/reports/CARRY_G1_G2_VERIFICATION_REVIEW{,_2}.md` | Verification rounds 1–2 |
+| `docs/reports/CARRY_G1_R_VERIFICATION.md` | **Round 3 — Gate A2/A4 FAIL, prompt G1-R2** |
+| `docs/reports/CARRY_IMPLEMENTATION_PROMPTS.md` | Implementer prompts for the substrate work |
+| `scripts/ingest_index_history.py` | 1d index store ingest + Gate A/B |
+| `scripts/g2_ingest_sector_classification.py` | Sector master (3 tiers, NSE taxonomy) |
+| `scripts/sfb/ingest_futures_bhavcopy_v2.py` | FUTSTK/FUTIDX bhavcopy ingest |
+| `scripts/sfb/ingest_stock_options_bhavcopy.py` | OPTSTK/OPTIDX bhavcopy ingest |
+
+---
+
 ## Options Analysis Dashboard — In Progress
 
 Real-time options structural analysis (PCR, Net GEX, OI buildup, Max Pain, IV smile) for Nifty 50 and BankNifty, from the Upstox V3 option chain at 5-second snapshots.
@@ -340,6 +402,8 @@ Real-time options structural analysis (PCR, Net GEX, OI buildup, Max Pain, IV sm
 - **Fabricated adjusted returns from CA mis-keys survive both screens** — a factor registered to the wrong symbol (DVL→DTIL), dropped by the events CTE (PHILIPCARB/PCBL ISIN fragmentation), or spanning a recycling ticker (DTIL/DVL entity union) produces a false >|20%| return invisible to R1's gap filter. The four-arm contract suite catches all three classes at entity grain with zero structural filters.
 - **An entity is not one symbol for all time** — NSE recycles vacated tickers (DTIL→tea business). Time-aware entity resolution via `symbol_entity_intervals` is required; union-find alone is not sufficient.
 - **An ISIN is not one entity for all time** — face-value changes re-issue the security with a new ISIN serial (PHILIPCARB/PCBL, INE602A01015→INE602A01031). ISIN issuer-prefix linkage is required; full-ISIN matching severs a company at exactly the corporate action it must adjust for.
+- **An index is not one name for all time either** — Nifty 50 was `S&P CNX Nifty`, then `CNX Nifty`, then `Nifty 50`. A canonicalization guard anchored on `startswith("CNX ")` misses `"S&P CNX Nifty"` and writes a year of real index history through as a separate identity, silently. Match legacy names by *containment*, not prefix, and hard-fail unmapped rather than falling through to `f"NSE_INDEX|{raw_name}"`.
+- **A bare `except: pass` around a download turns "we failed" into "the source doesn't have it"** — and that claim then gets written into a governance report as a fact about the world. 46 downloadable NSE sessions were recorded as permanent archive gaps this way. Catch only the specific exception intended (`requests.RequestException` around the fetch); classify a date MISSING **only** on a non-200 status, never on a parse or write failure.
 
 ---
 
