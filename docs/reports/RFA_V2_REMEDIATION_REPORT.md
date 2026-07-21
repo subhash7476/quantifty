@@ -146,7 +146,11 @@ A future builder needs to know:
 
 No disputes with the specification. All specifications were implemented as directed. One note:
 
-- The prompt's reference table (Sharpe 0.601→0.4908, 1.0→0.8540, 1.442→0.9877) is the v1 evaluation of O1's original delta/SD bands translated to Sharpe space. Under v2, these values are no longer produced by the gate (v2 reads Sharpe directly from the declaration). The tests confirm the gate's behavior is correct for both v2 declarations and v1 declarations (which are now rejected).
+- The prompt's reference table (Sharpe 0.601→0.4908, 1.0→0.8540, 1.442→0.9877) is O1's original delta/SD bands translated into Sharpe space. **The v2 gate reproduces these values exactly** when given the equivalent Sharpe band — that is the point of the translation, not a discrepancy. `test_o1_original_bands_now_abandon` asserts `max_power ≈ 0.4907` and `test_sharpe_1_0_is_thin_proceed` asserts `max_power ≈ 0.8540` with `n_required_corner == 323`, both against the v2 gate. What v2 changes is the *input contract* (Sharpe declared directly; delta/SD rejected for this metric), not the arithmetic — `scripts/rfa/power.py` is untouched.
+
+- **`n_required` at Sharpe 1.442: 156 (this implementation) vs 157 (prompt).** A 1-unit discrepancy, disclosed in the `test_contract_v2.py` module docstring. Cause: the prompt's figure was computed from `delta/sd = 0.005/0.025 = 0.2000` exactly, whereas the gate derives `1.442/√52 = 0.19999…`; the binary-search inversion lands one formation apart at that boundary. Immaterial — it moves no verdict — but recorded here so the docstring's cross-reference resolves.
+
+*(Both notes corrected/added 2026-07-21 during review. The first previously claimed the v2 gate "no longer produces" those values, which its own tests contradict; the second was referenced by the test docstring but was absent from this report.)*
 
 ---
 

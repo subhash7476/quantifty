@@ -94,6 +94,7 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 - **Position stacking guard**: handler must block new entry while a position is open on same symbol
 - **Position tracker must update on paper fills**: `FillEvent` → `position_tracker.update_from_fill()`
 - **Fee model**: NSE equity intraday — Rs 20 brokerage + STT 0.025% + exchange/SEBI/GST/stamp
+
 ---
 
 ## Production Strategy Status
@@ -290,7 +291,7 @@ generous than anyone believes? It reads no market data, so it is free.
   the demonstrability wall is a longer calendar window or a genuinely higher Sharpe
   (see SFB-1/F1 section for this finding applied to futures).
 - **O1 is WITHDRAWN** (2026-07-21) — the sole real declaration (Nifty VRP, `o1_vrp.py`)
-  returned PROCEED via a crossed-corner artifact (see `RFA_GATE_O1_REVIEW.md` §S1).
+  returned PROCEED via a crossed-corner artifact (see `RFA_GATE_O1_REVIEW.md` §1).
   Withdrawal preserves the declaration file and its digest; no successor is authorized.
 - Bands are **frozen at approval** (SHA-256 over the whole declaration file) and cannot be
   revised in response to results.
@@ -304,7 +305,7 @@ generous than anyone believes? It reads no market data, so it is free.
 | `scripts/rfa/report.py`, `run_rfa.py` | Report generation |
 | `scripts/rfa/retrospective.py` | Non-binding retrospective |
 | `docs/reports/RFA_RETROSPECTIVE.md` | Retrospective output |
-| `docs/reports/RFA_GATE_O1_REVIEW.md` | O1 review — withdrawal finding (S1) |
+| `docs/reports/RFA_GATE_O1_REVIEW.md` | O1 review — withdrawal finding (§1) |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
 

@@ -53,7 +53,7 @@ Ranked by expected robustness × fit to existing infrastructure. Each entry stat
 
 **Mechanism:** (If rebuilt) The platform's classifier would call afternoon day-type at 13:00 with targeted validation accuracy. Map classification → option structure for the 13:00→15:25 session: trend-day call → directional debit vertical (defined risk, cheap afternoon theta); range-day call → short iron fly harvesting the steepest part of weekly theta decay. Flat by close: **zero overnight risk, zero delivery risk, minimal STT** (intraday, premium-based).
 
-**Why it's attractive:** converts an already-validated 80% classifier into P&L through the one venue where 2.5-hour holding periods are fee-viable. The classifier's edge was proven on 2023–2025 data; the options overlay is *expression*, not new signal discovery. **Kill risks:** the 80% is validation accuracy on classification, not P&L — payoff asymmetry between right/wrong must be measured; afternoon option spreads and slippage at 13:00 entry; classifier decay.
+**Why it would be attractive (conditional on rebuild):** converts a classifier into P&L through the one venue where 2.5-hour holding periods are fee-viable, with the options overlay as *expression* rather than new signal discovery. **The prior 80% figure is not available as evidence** — it was recorded against a codebase that no longer exists here, was never re-validated, and cannot be audited. Treat O2's edge as **unmeasured**, not as validated-and-awaiting-expression. **Kill risks:** classification accuracy is not P&L — payoff asymmetry between right/wrong must be measured; afternoon option spreads and slippage at 13:00 entry; classifier decay; and the rebuild may simply not reproduce the claimed accuracy.
 
 ### O3 — GEX-regime filter (overlay, not standalone)
 
@@ -76,6 +76,14 @@ Where C2's top-quintile names intersect the F&O list, express the position as a 
 An archived implementation plan exists (`docs/archive/DISPERSION_RESEARCH_IMPLEMENTATION_PLAN.md`). Correlation risk premium is real but the construct needs simultaneous multi-leg execution across index + N stock options — operationally the hardest thing in this document. Parked indefinitely.
 
 ## 4. The find — stated plainly
+
+> **⚠️ O1's RFA verdict was WITHDRAWN 2026-07-21.** The recommendation below predates the
+> power-feasibility gate. O1 was declared to the RFA and returned PROCEED — but that verdict
+> was an artifact of a crossed optimistic corner; read coherently its own declared bands imply
+> annualized Sharpe ≈ 0.59 against a demonstrability threshold of **0.92** at the 380 weekly
+> formations available. See `RFA_GATE_O1_REVIEW.md` §1 and the withdrawal banner on `O1_RFA.md`.
+> **No successor is authorized.** Any pursuit of O1 requires a fresh declaration under contract
+> v2 with an independently defended Sharpe band — not a re-reading of the paragraph below.
 
 > **The reliably strong opportunity is not a new signal; it is a venue arbitrage against our own cost findings.** Two batteries proved that Indian cash-equity alpha drowns in delivery STT at any cadence faster than monthly. Index options are the one NSE venue where transaction cost per unit of exposure falls by roughly two orders of magnitude — and they are also the venue where the platform already holds an unfair infrastructure position in **two of three** claimed assets: a certified SPAN engine for exact margin-aware sizing (`core/risk/nse_margin_engine.py`) and live GEX/PCR/max-pain analytics (`core/analytics/options_analytics.py`). The third — a validated 80% day-type classifier — does not exist in this repository (see O2 caveat). **O1 (regime-filtered Nifty VRP) harvests a structural risk premium that cannot be arbitraged away because it is compensation for tail risk; O2 would monetize proprietary IP if rebuilt and re-validated.** O1 with O3 as a shared filter is the recommended core slate; O2's inclusion is contingent on classifier rebuild and independent validation, not inherited.
 
