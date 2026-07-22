@@ -1,5 +1,12 @@
 """G1-R2 FIX - FINAL VERIFICATION
 
+SUPERSEDED 2026-07-22 — DO NOT TRUST THIS SCRIPT'S VERDICT. Its "ALL GATES PASS" was wrong:
+the operation it certifies had deleted NSE_INDEX|Nifty 50 from 59 sessions
+(2012-11-15 -> 2013-02-07), which this script structurally cannot detect — it never compares
+the Nifty 50 session count against the file count, and it counts CNX by distinct-symbol-per-file
+rather than by row. Use `ingest_index_history.py --run-gates` instead; Gate A7 exists because
+of this. See docs/reports/CARRY_G1_R3_VERIFICATION.md. Kept as the record of what was claimed.
+
 This script verifies that the G1-R2 fixes have been successfully applied:
 1. Added "S&P CNX Nifty Shariah" and "S&P CNX 500 Shariah" to skip disposition
 2. Fixed guard from prefix test to containment test ("CNX " in name)
