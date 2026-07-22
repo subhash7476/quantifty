@@ -237,7 +237,47 @@ If (1) or (3) fails, Carry is not a viable sleeve and the engine proceeds with T
 
 ---
 
-## 13. Freeze
+## 13. Engine viability — empirical, not projected (freeze discipline)
+
+The freeze pins **construction**, not a viability verdict. The composite engine's power is
+decided **empirically from realized quantities after TRAIN**, never from a pre-freeze
+projection — because the composite `IR ≈ √(Σ IR_i²)` (correlation-adjusted) requires realized
+per-sleeve ICs and the realized cross-sleeve correlation matrix, neither of which exists before
+a TRAIN read. Projecting it from defended bands is a planning aid, **not a gate**: the RFA code
+(`scripts/rfa/gate.py`) enforces no composite gate — it evaluates one declaration at a time
+against 0.80 at its optimistic corner. The design-doc figures (2-sleeve ≈ 0.6, 3 ≈ 0.75,
+4 ≈ 0.86) are planning arithmetic, superseded by realized numbers.
+
+"Viability stays empirical" is a **discipline, not a licence to build-and-hope.** It is bounded
+by four rules, pinned here at freeze:
+
+1. **Per-sleeve RFA PROCEED is a hard pre-build gate.** No sleeve receives a TRAIN read until
+   its own frozen declaration clears the optimistic-corner test in `scripts/rfa/gate.py`.
+   ABANDON is dispositive.
+2. **Freeze pins construction and bands.** Basis formula (§3), neutralization (§4), fee model
+   (§8), per-sleeve RFA bands (§7), cadence/caps (§6), and the combination rule (equal
+   risk-contribution, `SIGNAL_ENGINE_DESIGN.md` §5) are immutable after freeze. Nothing is
+   tunable post-hoc.
+3. **The composite faces 0.80 after TRAIN, before any sealed read.** Once ≥2 sleeves have TRAIN
+   reads, compute the realized composite IR from realized per-sleeve ICs and the realized
+   correlation matrix, and evaluate it against the 0.80 hurdle. This is the engine's go/no-go,
+   computed with real inputs at the one point where they exist.
+4. **Failure action is pre-committed — no weight-tuning to manufacture 0.80.** If the realized
+   composite < 0.80, the engine does **not** advance to the sealed window. The only permitted
+   responses are (a) add a separately-defended sleeve that clears its own RFA, or (b) stop.
+   Re-weighting the existing sleeves to reach 0.80 is prohibited — it is the post-hoc fitting
+   the RFA gate exists to prevent.
+
+**Acknowledged structural risk.** This defers the binding (composite) gate to a construct that
+does not yet exist — `CLAUDE.md` records this as the track's largest structural risk, and the
+Flow finding (per-name OI without participant attribution → expected ABANDON → a 3-sleeve
+engine at ~0.75 central projection) makes it more acute, not less. A 3-sleeve engine whose
+viability is settled empirically post-TRAIN is an honest outcome; a fourth sleeve forced in to
+rescue a projection is not (rule 4).
+
+---
+
+## 14. Freeze
 
 On approval: compute SHA-256 over this file, record it here and in `carry.py`, and treat §1
 (sign), §3 (construction), §4 (neutralization), §6 (cadence/caps), §7 (bands), and §9

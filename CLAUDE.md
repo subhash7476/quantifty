@@ -300,6 +300,15 @@ generous than anyone believes? It reads no market data, so it is free.
 - **O1 is WITHDRAWN** (2026-07-21) — the sole real declaration (Nifty VRP, `o1_vrp.py`)
   returned PROCEED via a crossed-corner artifact (see `RFA_GATE_O1_REVIEW.md` §1).
   Withdrawal preserves the declaration file and its digest; no successor is authorized.
+- **FLOW: ABANDON** (2026-07-22, `flow.py`, SHA-256 `d7a54cfb…`) — **the gate's first real
+  kill, and it worked exactly as designed.** Max achievable power **0.6053** at n*=42; even
+  the optimistic corner (δ=0.030 / SD=0.10) needs **71** monthly formations, central 241,
+  pessimistic 892. Futures history cannot predate 2016, so n* cannot be raised. **Verified
+  independently — all four figures reproduce exactly from `scripts/rfa/power.py`.** Flow
+  receives **no TRAIN read**. Cost: one declaration file, zero data reads.
+  *Consequence:* the engine is the **3-sleeve case** (Carry+Trend+Skew, central ≈ 0.75), and
+  0.80 is now faced empirically by the composite after ≥2 TRAIN reads. A 3-sleeve engine
+  settled on realized ICs is a valid outcome; the 4th sleeve was correctly **not** forced in.
 - Bands are **frozen at approval** (SHA-256 over the whole declaration file) and cannot be
   revised in response to results.
 
@@ -313,6 +322,8 @@ generous than anyone believes? It reads no market data, so it is free.
 | `scripts/rfa/retrospective.py` | Non-binding retrospective |
 | `docs/reports/RFA_RETROSPECTIVE.md` | Retrospective output |
 | `docs/reports/RFA_GATE_O1_REVIEW.md` | O1 review — withdrawal finding (§1) |
+| `governance/rfa/declarations/flow.py` | **FLOW declaration — frozen, ABANDON** (SHA-256 `d7a54cfb…`) |
+| `docs/reports/FLOW_RFA.md` | FLOW gate report — max power 0.6053, verified reproducible |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
 
@@ -332,7 +343,7 @@ independently defended rather than inherited from a short in-sample read.
 ### The thesis — breadth, the one lever the prior batteries never pulled
 PSB-1, PSB-2 and SFB-1/F1 each died on **demonstrability**, and the RFA section proves cadence cannot fix it (`ncp = S·√T` — cadence cancels). `SIGNAL_ENGINE_DESIGN.md` argues the remaining lever is **breadth across weakly-correlated sleeves**: composite `IR ≈ √(N_signals) × per-sleeve IR`. That is a wider *sample*, not a higher cadence, so it does not contradict the `S·√T` result.
 
-Four sleeves over the ~180-name single-stock-futures universe: **Carry** (residual basis), **Trend** (vol-scaled TS momentum), **Flow** (NSE participant-wise OI — blocked on a separate free ingest), **Skew** (per-name risk-reversal). Central-assumption composite power at n*=42: 2 sleeves ≈ 0.6 · 3 ≈ 0.75 · **4 ≈ 0.86**.
+**Three** sleeves over the ~180-name single-stock-futures universe: **Carry** (residual basis), **Trend** (vol-scaled TS momentum), **Skew** (per-name risk-reversal). **Flow is ABANDONED** — the RFA gate killed it 2026-07-22 at max power 0.6053 (see the RFA section). Central-assumption composite power at n*=42: 2 sleeves ≈ 0.6 · **3 ≈ 0.75** — *below the 0.80 hurdle*, so the composite must clear it on realized ICs and the realized correlation matrix, not on projection.
 
 > **The 0.80 hurdle binds at the COMBINED-engine level, not per sleeve.** A single monthly cross-sectional sleeve at n*=42 cannot clear 0.80 standalone — requiring it would kill genuinely additive sleeves for the same arithmetic that killed C5/C4. The single-sleeve RFA bar is **PROCEED** (permission to build), and the standalone TRAIN/HOLDOUT read is a sign + magnitude + fee + persistence check. **This is a design decision, and it is the track's largest structural risk: it defers the binding gate to a composite that does not yet exist.** Do not let a sleeve's PROCEED be read as evidence the engine will clear.
 

@@ -43,7 +43,7 @@ combining four orthogonal sleeves under **robust fixed risk-weights** (not weigh
 |---|---|---|---|---|
 | **Carry / basis** | annualized (F−S), residual after common financing | compensation for financing leveraged longs / stock-borrow demand | monthly roll | futures + spot |
 | **Trend** | vol-scaled multi-horizon time-series momentum | under-reaction + risk transfer (MOP 2012) | daily-computed, monthly-held | futures history |
-| **Flow** ⚠️ | per-name futures OI dynamics (ΔOI signed against Δprice) | positioning build/unwind — **weaker economics than originally specced; see §2.2** | daily | `futures_bhavcopy.open_int` / `chg_in_oi` (already ingested) |
+| ~~**Flow**~~ ❌ | ~~per-name futures OI dynamics~~ | **ABANDONED 2026-07-22 by the RFA gate** — max power 0.6053, needs 71 formations against 42. No TRAIN read. See §2.2 | — | — |
 | **Skew** | per-name option risk-reversal / IV−RV | put-skew = informed pessimism; rich vol = insurance premium | daily | existing option-chain engine |
 
 **Why these four.** Carry and Trend are the non-negotiable backbone — the two most-validated
@@ -77,14 +77,31 @@ sleeves (`composite IR ≈ √(N_signals) × per-sleeve IR`). Futures history ca
 come from breadth of sleeves:
 - **2 sleeves** (Carry+Trend) → composite power ≈ **0.6** at n*=42 (central) — short.
 - **3 sleeves** (+Skew) → ≈ **0.75** — near the hurdle.
-- **4 sleeves** (+Flow) → ≈ **0.86** — clears, **but see §2.2: the 4th sleeve no longer has the
-  economic justification this number was written against.**
+- ~~**4 sleeves** (+Flow) → ≈ 0.86~~ — **VOID. Flow was ABANDONED by the RFA gate 2026-07-22**
+  (max power **0.6053**; the optimistic corner needs 71 formations against 42 available). **The
+  engine is the 3-sleeve case, planning number ≈ 0.75 — below the hurdle.** See §2.2.
 
 The index-options subset (NIFTY) remains the basis for the **later index increment** (VRP, GEX,
 term-structure). *(All power figures are central-assumption projections; upper-band realized
 IRs clear with fewer sleeves.)*
 
-### 2.2 Correction (2026-07-22) — participant-wise OI cannot build Flow
+### 2.2 Correction (2026-07-22) — Flow: respecced, then ABANDONED by the gate
+
+> **RESOLUTION.** The respec below was carried through to a frozen RFA declaration
+> (`governance/rfa/declarations/flow.py`, SHA-256 `d7a54cfb…`) declaring `rank_ic`, one-sided,
+> n*=42, δ ∈ [0.015, 0.030], SD ∈ [0.10, 0.18] — a band argued deliberately **below** Carry's
+> because the replacement carries no participant attribution. **Verdict: ABANDON, max
+> achievable power 0.6053.** Formations needed for 0.80: **71** optimistic · 241 central · 892
+> pessimistic, against **42** available, and futures history cannot predate 2016. Independently
+> reproduced from `scripts/rfa/power.py`. **Flow receives no TRAIN read.**
+>
+> **The gate did its job.** The suspicion recorded below — that the replacement's economics were
+> too weak to carry the 4th sleeve — was converted into a declared band and killed on arithmetic
+> *before any data was touched*. Total cost: one declaration file, zero sealed or TRAIN reads.
+> This is the outcome the RFA exists to produce, and the first time it has fired on a live
+> construct rather than in retrospect.
+
+
 
 **Measured, not assumed.** A live file was fetched
 (`nsearchives.nseindia.com/content/nsccl/fao_participant_oi_20072026.csv`). It contains a title
@@ -139,11 +156,9 @@ existing train / holdout / sealed walk-forward discipline.
    (~one number per name), so it is the most honest first read and the natural anchor.
 2. **Trend** — vol-scaled, multi-horizon, standard construction. Confirms the backbone before
    effort is spent on the novel sleeves.
-3. **Flow** ⚠️ — **respecced, see §2.2.** Not participant-wise OI (market-level, cannot rank).
-   Build on per-name `open_int`/`chg_in_oi`, already ingested — **no data blocker**. The open
-   item is not plumbing but **evidence**: its effect-size band must be defended on its own
-   footing, since the informed-positioning economics do not survive the loss of participant
-   attribution.
+3. ~~**Flow**~~ ❌ — **ABANDONED 2026-07-22 by the RFA gate** (max power 0.6053; §2.2). Not
+   built, not read, no successor authorized by this outcome. Build order is now
+   **Carry → Trend → Skew**.
 4. **Skew** — wire the option surface into name selection. Highest novelty, validated last.
    **Unblocked once the full options ingest completes** (§2.1); computable on the liquid
    options subset (~top 50–100 names), so lower breadth than Carry/Trend.
@@ -179,7 +194,36 @@ Validation       train / holdout / sealed walk-forward; breadth-based power proj
 
 ---
 
-## 6. Out of scope for v1 (recorded, not dropped)
+## 6. Viability discipline — empirical, not projected
+
+The planning figures in §2.1 (2-sleeve ≈ 0.6, 3 ≈ 0.75, 4 ≈ 0.86) are **arithmetic, not
+gates.** `scripts/rfa/gate.py` enforces no composite gate — it evaluates one declaration at a
+time against 0.80 at its optimistic corner. The composite `IR ≈ √(Σ IR_i²)`
+(correlation-adjusted) can only be computed honestly from **realized** per-sleeve ICs and the
+**realized** cross-sleeve correlation matrix, neither of which exists before a TRAIN read.
+Engine viability is therefore an **empirical, post-TRAIN** question, not a number asserted at
+freeze.
+
+This is a discipline, not build-and-hope. Four rules, frozen in
+`CARRY_PHASE0_PRE_REGISTRATION.md` **§13 (authoritative source of truth)**:
+
+1. **Per-sleeve RFA PROCEED is a hard pre-build gate.** No sleeve gets a TRAIN read without it;
+   ABANDON is dispositive.
+2. **Freeze pins construction + bands** (§3, §4, §5 here plus each sleeve's pre-reg); nothing is
+   tunable post-hoc.
+3. **After ≥2 TRAIN reads, the realized composite faces 0.80** — computed from realized ICs and
+   the realized correlation matrix — **before any sealed read.**
+4. **Failure action pre-committed:** if the realized composite < 0.80, add a separately-defended
+   sleeve or stop. **Weights are never tuned to manufacture 0.80.**
+
+**Largest structural risk (named, per `CLAUDE.md`):** this defers the binding gate to a
+composite that does not yet exist, and the Flow correction (§2.2) sharpens it — a 3-sleeve
+engine at ~0.75 central is the honest case. A 3-sleeve engine settled empirically is a valid
+outcome; a fourth sleeve forced in to rescue a projection is not (rule 4).
+
+---
+
+## 7. Out of scope for v1 (recorded, not dropped)
 
 - **Index directional timing** (Nifty/BankNifty futures) — deferred to a later increment;
   smaller sample, different validation, does not benefit from cross-sectional breadth.
@@ -189,9 +233,21 @@ Validation       train / holdout / sealed walk-forward; breadth-based power proj
 
 ---
 
-## 7. Next step
+## 8. Next step
 
-Draft the **Carry sleeve pre-registration**: the RFA declaration (Sharpe + breadth bands,
-independently defended and frozen), the exact basis construction and financing-component
-removal, the beta/sector neutralization, and the net-of-cost acceptance gate — ready to run
-the moment the futures data finishes downloading.
+Carry pre-registration (`CARRY_PHASE0_PRE_REGISTRATION.md`) and substrate spec
+(`CARRY_SUBSTRATE_CERTIFICATION_SPEC.md`) are drafted; the freeze discipline is fixed in the
+pre-reg §13/§14. Immediate sequence:
+
+1. **Flow per-name-OI RFA** — draft `governance/rfa/declarations/flow.py` (metric `rank_ic`,
+   **reversal sign** — crowding-unwind, negative IC; band delta [0.015, 0.030], sd [0.10, 0.18],
+   n*=42; `prior_exposure` states the informed-flow framing is withdrawn). Run the gate.
+   Expected **ABANDON** (~0.60 optimistic corner) — dispositive closure of the Flow question,
+   not a failure.
+2. **Freeze Carry** — pin the §14 SHA-256, write `governance/rfa/declarations/carry.py`, run the
+   gate (expected PROCEED).
+3. **Carry P2 substrate certification** (`CARRY_SUBSTRATE_CERTIFICATION_SPEC.md`) → then the
+   Carry TRAIN read.
+4. **Trend** and **Skew** each run their own RFA + standalone pre-reg when reached.
+
+The composite gets its first honest number after 2–3 TRAIN reads (§6, rule 3).
