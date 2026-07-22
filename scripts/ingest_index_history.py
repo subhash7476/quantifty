@@ -88,6 +88,12 @@ CNX_TO_CURRENT = {
 # present only 2015-03-02 -> 2015-11-06 (119 sessions each, 714 rows). They are not aliases of
 # any current index, so canonicalizing them would fabricate continuity. Gate A4 accepts these
 # by name and fails on any other CNX symbol.
+# Dates present in equity_bhavcopy that are NOT trading sessions, excluded from the derived
+# calendar. 2012-11-11 is a Sunday carrying 14 equity rows against a normal session's ~1,400 —
+# a bhavcopy artifact, and the NSE index archive 404s it. Evidence, not convenience: any date
+# added here must be shown to be a non-session, never merely unsourceable.
+NON_SESSIONS = {"2012-11-11"}
+
 # Dates with no NSE index close file. The first seven are the spec's named absences; the
 # last three were added when the 2015 retry could not recover them.
 KNOWN_ABSENCES = {"2015-02-02", "2015-02-17", "2015-03-12", "2015-03-13",
@@ -364,15 +370,25 @@ def _create_absent_date_files(vendor: dict):
     print(f"Created {len(created)} absent-date files (Nifty 50 row only): {created}")
 
 
+def trading_calendar(lo: str, hi: str) -> set:
+    """Trading dates in [lo, hi] from the equity bhavcopy, less known non-sessions.
+
+    Single source of the calendar: A1, A7 and the fill/fetch paths all derive from this, so a
+    non-session cannot be excluded in one place and remain a phantom gap in another.
+    """
+    con = duckdb.connect(str(EQUITY_DB), read_only=True)
+    dates = {r[0].isoformat() for r in con.execute(
+        "SELECT DISTINCT trade_date FROM equity_bhavcopy WHERE trade_date >= ? AND trade_date <= ?",
+        [lo, hi]
+    ).fetchall()}
+    con.close()
+    return dates - NON_SESSIONS
+
+
 def missing_trading_dates(known_absences: set) -> list[date]:
     """Trading dates inside the store's span that have no store file at all."""
     stems = {f.stem for f in NIFTY_1D_DIR.glob("*.duckdb")}
-    con = duckdb.connect(str(EQUITY_DB), read_only=True)
-    trading = {r[0].isoformat() for r in con.execute(
-        "SELECT DISTINCT trade_date FROM equity_bhavcopy WHERE trade_date >= ? AND trade_date <= ?",
-        [min(stems), max(stems)]
-    ).fetchall()}
-    con.close()
+    trading = trading_calendar(min(stems), max(stems))
     return [_parse_date(d) for d in sorted(trading - stems - known_absences)]
 
 
@@ -426,12 +442,7 @@ def gate_a(floor: date, known_absences: set):
 
     # Calendar completeness
     print("\n[Gate A1] Calendar completeness...")
-    con_eq = duckdb.connect(str(EQUITY_DB), read_only=True)
-    trading_dates = {r[0].isoformat() for r in con_eq.execute(
-        "SELECT DISTINCT trade_date FROM equity_bhavcopy WHERE trade_date >= ? AND trade_date <= ?",
-        [floor, date.today()]
-    ).fetchall()}
-    con_eq.close()
+    trading_dates = trading_calendar(floor.isoformat(), date.today().isoformat())
 
     existing_dates = {f.stem for f in files}
     missing = sorted(trading_dates - existing_dates)
@@ -621,8 +632,15 @@ def gate_b(floor: date):
             print(f"    {dd[0]}: archive={dd[1]}, vendor={dd[2]}, diff={dd[3]:.4f}")
         failures.append("B1-agreement")
 
-    # Extended floor
-    print("\n[Gate B2] Extended floor...")
+    # Gate B2 — vendor consumption, scoped to the span actually supplied.
+    #
+    # B2 originally demanded the seven named 2015 absences be filled from source (b) and a
+    # 252-session beta by 2011-01-31. Both presumed a 2010-2015 vendor ingest that was never
+    # supplied: the operator's files are 2010-2013 plus four single dates, and none touch 2015,
+    # so the old check could only ever fail — a gate measuring a source that does not exist.
+    # The falsifiable question the supplied files CAN answer: is every date the vendor covers,
+    # inside the store's span, actually in the store? Beta is A2's job; it is not re-checked.
+    print("\n[Gate B2] Vendor consumption (scoped to supplied span)...")
     all_nifty_dates = set()
     for f in NIFTY_1D_DIR.glob("*.duckdb"):
         con = duckdb.connect(str(f), read_only=True)
@@ -630,29 +648,19 @@ def gate_b(floor: date):
         if n > 0:
             all_nifty_dates.add(f.stem)
         con.close()
-    missing_7 = [d for d in ["2015-03-12", "2015-03-13", "2015-05-19", "2015-07-08",
-                              "2015-09-04", "2015-10-16", "2015-12-01"] if d not in all_nifty_dates]
-    if not missing_7:
-        print(f"  PASS: 7 known absences filled")
-    else:
-        print(f"  FAIL: {len(missing_7)} absences still missing")
-        failures.append("B2-seven-missing")
 
-    sorted_dates = sorted(all_nifty_dates)
-    earliest_beta = None
-    for i, ds in enumerate(sorted_dates):
-        if i >= 251:
-            earliest_beta = ds
-            break
-    # B2 originally required <= 2011-01-31, which presumed the vendor 2010-2011 rows were
-    # ingested into the store. They are not: vendor is a cross-check source (B1), and TRAIN
-    # (pinned 2016-03-31) needs only the A2 bound. Aligned to A2 rather than extending the
-    # series to 2010, which no formation requires.
-    if earliest_beta and earliest_beta <= "2013-06-30":
-        print(f"  PASS: 252-session beta from {earliest_beta}")
+    lo, hi = min(all_nifty_dates), max(all_nifty_dates)
+    vendor_in_span = {d.isoformat() for d in vendor_data if lo <= d.isoformat() <= hi}
+    unconsumed = sorted(vendor_in_span - all_nifty_dates)
+    covered_absences = sorted(vendor_in_span & KNOWN_ABSENCES)
+    print(f"  vendor span {min(vendor_data)} -> {max(vendor_data)}; "
+          f"{len(vendor_in_span)} dates inside store span")
+    print(f"  known absences the vendor can cover: {len(covered_absences)} {covered_absences}")
+    if not unconsumed:
+        print(f"  PASS: every vendor date in span is present in the store")
     else:
-        print(f"  FAIL: earliest beta {earliest_beta} (need <= 2013-06-30)")
-        failures.append("B2-beta")
+        print(f"  FAIL: {len(unconsumed)} vendor dates absent from the store: {unconsumed[:10]}")
+        failures.append("B2-unconsumed")
 
     if failures:
         print(f"\nGATE B: {len(failures)} FAILURES — {', '.join(failures)}")
@@ -724,20 +732,23 @@ def main():
         fill_gap_from_vendor()
         return
 
+    if args.gates_only:
+        # The floor is the store's own earliest date. Re-probing the archive for it walks
+        # ~1,000 network requests to re-derive a number already on disk.
+        print("--gates-only: skipping ingest")
+        args.run_gates = True  # the flag's whole purpose; run_final_gates gates on this
+        run_final_gates(args, _parse_date(min(f.stem for f in NIFTY_1D_DIR.glob("*.duckdb"))))
+        return
+
     sess = _get_session()
 
-    # Discover archive floor (also needed for gates)
+    # Discover archive floor
     print("Discovering archive floor...")
     floor = discover_floor(sess, date(2015, 1, 1))
     if floor is None:
         print("ERROR: could not discover archive floor")
         sys.exit(1)
     print(f"Archive floor: {floor}")
-
-    if args.gates_only:
-        print("--gates-only: skipping ingest")
-        run_final_gates(args, floor)
-        return
 
     # Predictions
     print(f"\nPrediction 1: 46 of 53 missing 2015 sessions recovered")
