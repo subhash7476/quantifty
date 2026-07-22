@@ -64,7 +64,16 @@ stock-options store is complete at 98.3m rows, 2016-02-11 → 2026-07-20, 363 un
 
 ---
 
-## 2. G1 — No index history for the beta leg (**new, hard blocker**)
+## 2. G1 — No index history for the beta leg (**CLOSED 2026-07-22 — read the banner first**)
+
+> **⚠️ SUPERSEDED. This section describes the store as of 2026-07-21 and is now false.**
+> The 1d index store holds **3,563 files, 2012-02-21 → 2026-07-21**, with
+> `NSE_INDEX|Nifty 50` on every one; 252-session beta is computable from **2013-02-19**, so
+> §4 beta neutralization runs on TRAIN and HOLDOUT as pre-registered. **Gate A and Gate B
+> both ALL PASS**, including B1 cross-source agreement at **0.0000** index points against
+> operator CSVs. Getting here took six verification rounds and cost 59 sessions to an ad-hoc
+> deletion along the way — see `CARRY_G1_R4_VERIFICATION.md` and the `CARRY_G1_R*` chain.
+> **Do not re-fetch index history on the strength of the text below.**
 
 Pre-reg §4 requires residualizing against **trailing 252-day beta to Nifty**. The only index
 series in the repo is `data/market_data/nse/candles/1d/{date}.duckdb` — 867 daily files
