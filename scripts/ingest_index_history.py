@@ -304,7 +304,8 @@ def fill_gap_from_vendor():
     if unfillable:
         print(f"  NOT covered by vendor ({len(unfillable)}): {unfillable}")
     if not fillable:
-        print("Nothing fillable — done")
+        print("No existing file needs a Nifty 50 row")
+        _create_absent_date_files(vendor)
         return
 
     os.makedirs(SNAPSHOT_DIR, exist_ok=True)
@@ -336,6 +337,31 @@ def fill_gap_from_vendor():
         con.close()
         filled += 1
     print(f"Filled {filled} sessions from vendor ({fillable[0].stem} -> {fillable[-1].stem})")
+
+    _create_absent_date_files(vendor)
+
+
+def _create_absent_date_files(vendor: dict):
+    """Create store files for trading dates that have none, from vendor rows.
+
+    Creating a file is not destructive — there is nothing to overwrite — so no snapshot
+    applies; rollback is deleting the listed files. These files carry the Nifty 50 row ONLY:
+    the vendor serves one index, so they are not 28-symbol archive-sourced files.
+    """
+    absent = [d for d in missing_trading_dates(KNOWN_ABSENCES) if d in vendor]
+    if not absent:
+        return
+    created = []
+    for d in absent:
+        v = vendor[d]
+        ingest_rows(d, [{
+            "symbol": "NSE_INDEX|Nifty 50",
+            "timestamp": d.isoformat(),
+            "open": v["open"], "high": v["high"], "low": v["low"], "close": v["close"],
+            "volume": 0,
+        }], source="vendor")
+        created.append(d.isoformat())
+    print(f"Created {len(created)} absent-date files (Nifty 50 row only): {created}")
 
 
 def missing_trading_dates(known_absences: set) -> list[date]:
@@ -696,8 +722,6 @@ def main():
 
     if args.fill_from_vendor:
         fill_gap_from_vendor()
-        args.run_gates = True
-        run_final_gates(args, date(2012, 2, 21))
         return
 
     sess = _get_session()

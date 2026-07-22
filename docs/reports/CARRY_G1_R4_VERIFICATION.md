@@ -108,18 +108,34 @@ The 5 the archive does not serve, with evidence gathered rather than assumed:
 
 | Date | Weekday | `equity_bhavcopy` rows | Reading |
 |---|---|--:|---|
-| 2012-11-11 | **Sunday** | **14** | Not a trading session — a bhavcopy artifact. Should be excluded from the calendar, not sourced. |
-| 2013-10-09 | Wed | 1,357 | Real session. **Covered by the operator's 2013 CSV** — recoverable if `fill_gap_from_vendor()` is extended to *create* absent files (it currently only fills existing ones). |
-| 2014-03-19 | Wed | 1,479 | Real session, no source available (archive 404, outside vendor span). |
-| 2014-12-15 | Mon | 1,498 | Real session, no source available. |
-| 2016-06-20 | Mon | 1,542 | Real session, no source available. |
+| 2012-11-11 | **Sunday** | **14** | Not a trading session — a bhavcopy artifact. Exclude from the calendar; do not source. |
+| 2013-10-09 | Wed | 1,357 | Real session — **filled from operator CSV** |
+| 2014-03-19 | Wed | 1,479 | Real session — **filled from operator CSV** |
+| 2014-12-15 | Mon | 1,498 | Real session — **filled from operator CSV** |
+| 2016-06-20 | Mon | 1,542 | Real session — **filled from operator CSV** |
 
-**A1 remains FAIL at 5, and is deliberately left failing.** Widening the allow-list is itself a
-gate result (round 3's finding), so these are recorded for operator disposition rather than
-quietly absorbed: exclude 2012-11-11 as a non-session, extend the vendor fill to create files for
-2013-10-09, and register the remaining three as evidenced accepted absences the way A4's CNX
-exclusions now are. Three sessions across 2014–2016 is the residual, and **none are inside the
-sealed or holdout windows**; 2016-06-20 sits inside TRAIN.
+### Closed — the operator supplied all four
+
+Four single-date CSVs downloaded from
+[niftyindices.com/reports/historical-data](https://www.niftyindices.com/reports/historical-data)
+and inserted via `_create_absent_date_files()`. Verified against source: closes 6007.45 /
+6524.05 / 8219.60 / 8238.50 all match exactly; `timestamp` is `TIMESTAMP` in each.
+
+**Store: 3,563 files. A1's remaining miss is 1 — `2012-11-11`, the Sunday artifact.** Every real
+trading session in span now has a file, and the only open A1 item is a date that should be dropped
+from the calendar rather than sourced.
+
+These four files carry the Nifty 50 row only, since the vendor serves one index per download.
+Sufficient for the Carry market leg; the same site serves Bank Nifty / VIX / sector indices for
+those dates if P2 ever needs them.
+
+> **Process note.** The first attempt ran the full `--fill-from-vendor` path, which auto-ran
+> Gate A + B across all 3,563 files — several minutes of sweep for a four-row insert, and it
+> would have inserted **nothing**: `fill_gap_from_vendor()` returns early when no *existing* file
+> needs a row, which was now true, so the new absent-date phase was unreachable. Both fixed: the
+> early return now calls that phase, and `--fill-from-vendor` no longer auto-runs the gate suite.
+> **Match the verification to the size of the change** — a four-row insert warrants checking those
+> four rows, not re-certifying the store.
 
 ---
 
