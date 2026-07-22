@@ -628,7 +628,8 @@ def main():
         if n > 0:
             print(f"{d}  {src:<7} {n:>5} rows")
             con.execute(
-                "INSERT INTO ingest_meta VALUES (?, ?) "
+                "INSERT INTO ingest_meta (trade_date, source, deliv_source) "
+                "VALUES (?, ?, NULL) "
                 "ON CONFLICT (trade_date) DO UPDATE SET source = EXCLUDED.source",
                 [d, src])
             inserted += n

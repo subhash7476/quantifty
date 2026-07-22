@@ -7,6 +7,21 @@ machinery, sector, index. Options coverage checked as a by-product (Skew readine
 
 ---
 
+> **⚠️ STATUS 2026-07-22 — G1, G2, G3 and G5 are all CLOSED. Re-measured, not assumed.**
+> · **G1** index history: 3,563 files 2012-02-21 → 2026-07-21, Gate A + Gate B both ALL PASS
+>   (see §2 banner and `CARRY_G1_R4_VERIFICATION.md`).
+> · **G2** sector: Tier 1 285→302, hand register 60→43, `evidence` column added, 0 unclassified.
+>   The 17.6% error rate had a root cause — a bare `except: pass` hid a 404 on
+>   `ind_niftyconsumerdgoodslist`, so real names fell into the hand register.
+> · **G3** equity tail: `equity_bhavcopy` now 2010-01-04 → 2026-07-21 (7,052,381 rows, 0 duplicate
+>   keys); the adjusted VIEW auto-propagated. **The futures↔spot join in §1.1 is now
+>   100.00% — 0 misses across all 477,577 FUTSTK cells**, up from 99.69%.
+> · **G5** ISIN: all 11 mapped from the NSE listed master (3,628 → 3,639 rows, 0 lost, 0 changed).
+>
+> **Still open:** G4 needs nothing (option (a), settled) · G6 is document-only · the 43 delisted
+> sector names remain unsourced · **participant-wise OI (§6) is not ingested** and remains the
+> highest-value remaining fetch in the project.
+
 ## Verdict
 
 **The futures + spot substrate is in far better shape than the design docs assumed.** The

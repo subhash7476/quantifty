@@ -345,9 +345,11 @@ Declared bands (frozen at approval, not yet frozen): delta `[0.020, 0.045]`, SD 
 | Gap | State |
 |---|---|
 | Futures↔spot join | **99.69% clean**; every miss in the 2026-07 equity tail |
-| G2 sector classification | Fatal two-taxonomy defect **closed** — single NSE 20-label vocabulary, 0 unclassified. Cleanup open: hand register unsourced with a **measured 17.6% error rate** on the checkable subset |
-| **G1 index history** | Gap **closed** (vendor fill + 11 archive fetches); **A2–A7 + B1 all PASS** (B1 diff 0.0000) · open: A1 FAIL at 5 unavailable dates, B2 source coverage — see below |
-| G3 equity tail | Deferred — NSE had not published CM bhavcopy for 2026-07-10 → 07-20 |
+| Futures↔spot join | **100.00% — 0 misses across all 477,577 FUTSTK cells** (was 99.69%), measured after G3 closed |
+| G2 sector classification | **G2-R done** — Tier 1 285→302, hand register 60→43, `evidence` column, 0 unclassified. Root cause of the 17.6% error rate was a bare `except: pass` hiding a 404, not typing. Residual: the 43 delisted names remain unsourced |
+| **G1 index history** | Gap **closed** (vendor fill + 11 archive fetches + 4 operator CSVs); **Gate A and Gate B both ALL PASS** (B1 diff 0.0000, A7 contiguity green) |
+| G3 equity tail | **Closed** — `equity_bhavcopy` 2010-01-04 → **2026-07-21**, 7,052,381 rows, 0 duplicate keys; `equity_bhavcopy_adjusted` is a VIEW so it auto-propagated to 7,052,344 |
+| G5 ISIN linkage | **Closed** — all 11 sealed-window F&O underlyings mapped from the NSE listed master (3,628 → 3,639 rows, 0 lost, 0 changed) |
 | P2 substrate certification | **Unrun** |
 
 > **⚠️ G1 — gap closed and tick-verified; 16 sessions still absent.** History worth keeping: `S&P CNX Nifty` is the Nifty 50's pre-2013 name; its 241 hidden sessions were re-keyed by ad-hoc SQL (2026-07-21, not retained), a second ad-hoc deletion (2026-07-22) destroyed 59 of them, and **all six original Gate-A checks passed over that hole** — A1 tests file existence, A2 reads only the 252nd session's *date*, A5 tests `>1`, A6's seam across a 3-month gap was +4.17%. **Gate A7 (series contiguity) exists because of this and must never be removed.** The gap was refilled from the operator's 2010–2013 niftyindices CSVs through committed code (`--fill-from-vendor`: insert-only, snapshots to `1d_snapshots/` before writing). **B1 measures max close diff 0.0000 across all 401 overlapping dates**, retiring the values-provenance question even though the ad-hoc SQL itself stays unreconstructable. **Open: 16 real sessions have no store file at all** (Saturday specials + Diwali Muhurat; 2020-11-14 is inside TRAIN) — A1 FAILs at 16 and had been silently failing for rounds. B2 FAILs only because the vendor files stop at 2013 and cannot cover 2015. Full measurement: `CARRY_G1_R4_VERIFICATION.md`.
