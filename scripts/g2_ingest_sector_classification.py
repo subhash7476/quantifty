@@ -42,29 +42,46 @@ NSE_INDEX_FILES = [
     "ind_niftyrealtylist",
     "ind_niftyoilgaslist",
     "ind_niftyhealthcarelist",
-    "ind_niftyconsumerdgoodslist",
+    # "ind_niftyconsumerdgoodslist" 404s — the correct NSE name is consumerdurables. The old
+    # name sat here behind a bare `except: pass`, so its absence was invisible and its names
+    # fell through to the Tier 3 hand register instead of being sourced.
+    "ind_niftyconsumerdurableslist",
+    "ind_niftycommoditieslist",
+    "ind_niftyinfralist",
+    "ind_niftypsubanklist",
+    # Widest NSE list (751 names). Listed first so narrower, more specific sectoral files
+    # overwrite it on conflict.
+    "ind_niftytotalmarket_list",
 ]
 
 
-def download_nse_industry() -> dict:
-    """Download all NSE index constituent files and return {symbol: industry}."""
-    result = {}
+def download_nse_industry() -> tuple[dict, dict]:
+    """Download NSE index constituent files.
+
+    Returns ({symbol: industry}, {symbol: source_file}). Fails loudly: a non-200 raises, as
+    does a transport error. A silently-skipped file demotes real names into the hand register,
+    which is exactly how that register grew an error rate nobody could see.
+    """
+    result, evidence = {}, {}
     sess = requests.Session()
     sess.headers.update({"User-Agent": "Mozilla/5.0"})
     for fname in NSE_INDEX_FILES:
         url = f"https://nsearchives.nseindia.com/content/indices/{fname}.csv"
-        try:
-            resp = sess.get(url, timeout=30)
-            if resp.status_code == 200:
-                for line in resp.text.strip().split("\n")[1:]:
-                    parts = line.split(",")
-                    if len(parts) >= 4:
-                        sym, ind = parts[2].strip(), parts[1].strip()
-                        if sym and ind:
-                            result[sym] = ind
-        except Exception:
-            pass
-    return result
+        resp = sess.get(url, timeout=30)
+        if resp.status_code != 200:
+            raise RuntimeError(f"{fname}: HTTP {resp.status_code} — fix the name or remove it "
+                               f"from NSE_INDEX_FILES; do not let it fail silently")
+        n = 0
+        for line in resp.text.strip().split("\n")[1:]:
+            parts = line.split(",")
+            if len(parts) >= 4:
+                sym, ind = parts[2].strip(), parts[1].strip()
+                if sym and ind:
+                    result[sym] = ind
+                    evidence[sym] = fname
+                    n += 1
+        print(f"  {fname}: {n} names")
+    return result, evidence
 
 
 # --- Tier 3: Manual register for genuinely dead/delisted names ---
@@ -152,13 +169,15 @@ def get_entity_map_time_aware(con) -> dict:
     return dict(result)
 
 
-def get_entity_industry(entity: str, tier1: dict, entity_to_symbols: dict) -> str | None:
-    """Get industry for an entity by checking its sibling symbols in Tier 1."""
-    siblings = entity_to_symbols.get(entity, [])
-    for sibling in siblings:
+def get_entity_industry(entity: str, tier1: dict, entity_to_symbols: dict):
+    """Industry for an entity, via its sibling symbols in Tier 1.
+
+    Returns (industry, sibling) so the inheritance can be evidenced, or (None, None).
+    """
+    for sibling in entity_to_symbols.get(entity, []):
         if sibling in tier1:
-            return tier1[sibling]
-    return None
+            return tier1[sibling], sibling
+    return None, None
 
 
 def main():
@@ -183,7 +202,7 @@ def main():
 
     # Tier 1: NSE sourced industry
     print("\n=== Tier 1: Downloading NSE industry classification ===")
-    tier1_raw = download_nse_industry()
+    tier1_raw, tier1_evidence = download_nse_industry()
     tier1 = {k: v for k, v in tier1_raw.items() if k in fo_names}
     print(f"  {len(tier1)}/{len(fo_names)} names sourced from NSE index files")
 
@@ -202,20 +221,19 @@ def main():
                 entity_to_symbols[ent].append(sym)
     con.close()
 
+    # One entry per (symbol, entity interval), not one per symbol. A recycled ticker (DTIL)
+    # is two different companies across its intervals, so a single blanket sector for all
+    # time would attach the successor's industry to the predecessor's history.
     tier2 = {}
-    # For each remaining name, find its entity and check siblings for industry
+    tier2_intervals = defaultdict(list)
     for name in sorted(remaining):
-        intervals = entity_map.get(name, [])
-        if not intervals:
-            continue
-        # Use the most recent entity assignment
-        entity = intervals[-1][2] if intervals else None
-        if entity is None:
-            continue
-        # Check if any sibling in the same entity has Tier 1 industry
-        industry = get_entity_industry(entity, tier1, entity_to_symbols)
-        if industry:
-            tier2[name] = industry
+        for vf, vt, entity in entity_map.get(name, []):
+            if entity is None:
+                continue
+            industry, sibling = get_entity_industry(entity, tier1, entity_to_symbols)
+            if industry:
+                tier2_intervals[name].append((vf, vt, industry, f"inherit:{entity} via {sibling}"))
+                tier2[name] = industry
 
     print(f"\n=== Tier 2: Entity inheritance (time-aware) ===")
     print(f"  {len(tier2)}/{len(remaining)} names inherited")
@@ -266,13 +284,26 @@ def main():
         print(f"\nStatus: ALL CLEAR — 100% coverage")
 
     # Write output with time-aware schema
+    # Tier 1 and 3 are static by design — a current snapshot used as a non-PIT control
+    # (OPEN-2(a), disclosed). Tier 2 carries the real entity intervals it was inherited over.
     out_path = OUTPUT_DIR / "sector_classification.csv"
+    rows = 0
     with open(out_path, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["symbol", "sector", "tier", "valid_from", "valid_to"])
+        w.writerow(["symbol", "sector", "tier", "valid_from", "valid_to", "evidence"])
         for sym, (sec, tier_label) in sorted(all_sectors.items()):
-            w.writerow([sym, sec, tier_label, "2016-02-11", "9999-12-31"])
-    print(f"\nWritten to {out_path}")
+            if tier_label == "2" and tier2_intervals.get(sym):
+                for vf, vt, industry, ev in tier2_intervals[sym]:
+                    w.writerow([sym, industry, "2", vf, vt, ev])
+                    rows += 1
+                continue
+            evidence = {
+                "1": tier1_evidence.get(sym, ""),
+                "3": "manual-register",
+            }.get(tier_label, "")
+            w.writerow([sym, sec, tier_label, "2016-02-11", "9999-12-31", evidence])
+            rows += 1
+    print(f"\nWritten to {out_path} ({rows} rows, {len(all_sectors)} symbols)")
 
     # Print tier 1 labels for reference
     tier1_labels = sorted(set(tier1.values()))

@@ -1,364 +1,364 @@
-symbol,sector,tier,valid_from,valid_to
-360ONE,Financial Services,1,2016-02-11,9999-12-31
-AARTIIND,Chemicals,1,2016-02-11,9999-12-31
-ABB,Capital Goods,1,2016-02-11,9999-12-31
-ABBOTINDIA,Healthcare,1,2016-02-11,9999-12-31
-ABCAPITAL,Financial Services,1,2016-02-11,9999-12-31
-ABFRL,Consumer Services,1,2016-02-11,9999-12-31
-ABIRLANUVO,Textiles,3,2016-02-11,9999-12-31
-ACC,Construction Materials,1,2016-02-11,9999-12-31
-ADANIENSOL,Power,1,2016-02-11,9999-12-31
-ADANIENT,Metals & Mining,1,2016-02-11,9999-12-31
-ADANIGREEN,Power,1,2016-02-11,9999-12-31
-ADANIPORTS,Services,1,2016-02-11,9999-12-31
-ADANIPOWER,Power,1,2016-02-11,9999-12-31
-AJANTPHARM,Healthcare,1,2016-02-11,9999-12-31
-ALBK,Financial Services,3,2016-02-11,9999-12-31
-ALKEM,Healthcare,1,2016-02-11,9999-12-31
-AMARAJABAT,Automobile and Auto Components,3,2016-02-11,9999-12-31
-AMBER,Consumer Durables,1,2016-02-11,9999-12-31
-AMBUJACEM,Construction Materials,1,2016-02-11,9999-12-31
-ANDHRABANK,Financial Services,3,2016-02-11,9999-12-31
-ANGELONE,Financial Services,1,2016-02-11,9999-12-31
-APLAPOLLO,Capital Goods,1,2016-02-11,9999-12-31
-APLLTD,Healthcare,3,2016-02-11,9999-12-31
-APOLLOHOSP,Healthcare,1,2016-02-11,9999-12-31
-APOLLOTYRE,Automobile and Auto Components,1,2016-02-11,9999-12-31
-ARVIND,Textiles,3,2016-02-11,9999-12-31
-ASHOKLEY,Capital Goods,1,2016-02-11,9999-12-31
-ASIANPAINT,Consumer Durables,1,2016-02-11,9999-12-31
-ASTRAL,Capital Goods,1,2016-02-11,9999-12-31
-ATGL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-ATUL,Chemicals,1,2016-02-11,9999-12-31
-AUBANK,Financial Services,1,2016-02-11,9999-12-31
-AUROPHARMA,Healthcare,1,2016-02-11,9999-12-31
-AXISBANK,Financial Services,1,2016-02-11,9999-12-31
-BAJAJ-AUTO,Automobile and Auto Components,1,2016-02-11,9999-12-31
-BAJAJFINSV,Financial Services,1,2016-02-11,9999-12-31
-BAJAJHLDNG,Financial Services,1,2016-02-11,9999-12-31
-BAJFINANCE,Financial Services,1,2016-02-11,9999-12-31
-BALKRISIND,Automobile and Auto Components,1,2016-02-11,9999-12-31
-BALRAMCHIN,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-BANDHANBNK,Financial Services,1,2016-02-11,9999-12-31
-BANKBARODA,Financial Services,1,2016-02-11,9999-12-31
-BANKINDIA,Financial Services,1,2016-02-11,9999-12-31
-BATAINDIA,Consumer Durables,1,2016-02-11,9999-12-31
-BDL,Capital Goods,1,2016-02-11,9999-12-31
-BEL,Capital Goods,1,2016-02-11,9999-12-31
-BEML,Capital Goods,1,2016-02-11,9999-12-31
-BERGEPAINT,Consumer Durables,1,2016-02-11,9999-12-31
-BHARATFIN,Financial Services,3,2016-02-11,9999-12-31
-BHARATFORG,Automobile and Auto Components,1,2016-02-11,9999-12-31
-BHARTIARTL,Telecommunication,1,2016-02-11,9999-12-31
-BHEL,Capital Goods,1,2016-02-11,9999-12-31
-BIOCON,Healthcare,1,2016-02-11,9999-12-31
-BLUESTARCO,Consumer Durables,1,2016-02-11,9999-12-31
-BOSCHLTD,Automobile and Auto Components,1,2016-02-11,9999-12-31
-BPCL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-BRITANNIA,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-BSE,Financial Services,1,2016-02-11,9999-12-31
-BSOFT,Information Technology,1,2016-02-11,9999-12-31
-CADILAHC,Healthcare,2,2016-02-11,9999-12-31
-CAIRN,Oil Gas & Consumable Fuels,3,2016-02-11,9999-12-31
-CAMS,Financial Services,1,2016-02-11,9999-12-31
-CANBK,Financial Services,1,2016-02-11,9999-12-31
-CANFINHOME,Financial Services,1,2016-02-11,9999-12-31
-CAPF,Financial Services,3,2016-02-11,9999-12-31
-CASTROLIND,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-CDSL,Financial Services,1,2016-02-11,9999-12-31
-CEATLTD,Automobile and Auto Components,1,2016-02-11,9999-12-31
-CENTURYTEX,Textiles,3,2016-02-11,9999-12-31
-CESC,Power,1,2016-02-11,9999-12-31
-CGPOWER,Capital Goods,1,2016-02-11,9999-12-31
-CHAMBLFERT,Chemicals,1,2016-02-11,9999-12-31
-CHENNPETRO,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-CHOLAFIN,Financial Services,1,2016-02-11,9999-12-31
-CIPLA,Healthcare,1,2016-02-11,9999-12-31
-COALINDIA,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-COCHINSHIP,Capital Goods,1,2016-02-11,9999-12-31
-COFORGE,Information Technology,1,2016-02-11,9999-12-31
-COLPAL,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-CONCOR,Services,1,2016-02-11,9999-12-31
-COROMANDEL,Chemicals,1,2016-02-11,9999-12-31
-CROMPGREAV,Capital Goods,2,2016-02-11,9999-12-31
-CROMPTON,Consumer Durables,1,2016-02-11,9999-12-31
-CUB,Financial Services,1,2016-02-11,9999-12-31
-CUMMINSIND,Capital Goods,1,2016-02-11,9999-12-31
-CYIENT,Information Technology,1,2016-02-11,9999-12-31
-DABUR,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-DALBHARAT,Construction Materials,1,2016-02-11,9999-12-31
-DALMIABHA,Construction Materials,3,2016-02-11,9999-12-31
-DCBBANK,Financial Services,3,2016-02-11,9999-12-31
-DEEPAKNTR,Chemicals,1,2016-02-11,9999-12-31
-DELHIVERY,Services,1,2016-02-11,9999-12-31
-DELTACORP,Consumer Durables,3,2016-02-11,9999-12-31
-DHFL,Financial Services,3,2016-02-11,9999-12-31
-DISHTV,Media Entertainment & Publication,3,2016-02-11,9999-12-31
-DIVISLAB,Healthcare,1,2016-02-11,9999-12-31
-DIXON,Consumer Durables,1,2016-02-11,9999-12-31
-DLF,Realty,1,2016-02-11,9999-12-31
-DMART,Consumer Services,1,2016-02-11,9999-12-31
-DRREDDY,Healthcare,1,2016-02-11,9999-12-31
-EICHERMOT,Automobile and Auto Components,1,2016-02-11,9999-12-31
-ENGINERSIN,Construction,1,2016-02-11,9999-12-31
-EQUITAS,Financial Services,3,2016-02-11,9999-12-31
-ESCORTS,Capital Goods,1,2016-02-11,9999-12-31
-ETERNAL,Consumer Services,1,2016-02-11,9999-12-31
-EXIDEIND,Automobile and Auto Components,1,2016-02-11,9999-12-31
-FEDERALBNK,Financial Services,1,2016-02-11,9999-12-31
-FORCEMOT,Automobile and Auto Components,1,2016-02-11,9999-12-31
-FORTIS,Healthcare,1,2016-02-11,9999-12-31
-FSL,Services,1,2016-02-11,9999-12-31
-GAIL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-GLENMARK,Healthcare,1,2016-02-11,9999-12-31
-GMRAIRPORT,Services,1,2016-02-11,9999-12-31
-GMRINFRA,Services,2,2016-02-11,9999-12-31
-GNFC,Chemicals,3,2016-02-11,9999-12-31
-GODFRYPHLP,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-GODREJCP,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-GODREJIND,Diversified,1,2016-02-11,9999-12-31
-GODREJPROP,Realty,1,2016-02-11,9999-12-31
-GRANULES,Healthcare,1,2016-02-11,9999-12-31
-GRASIM,Construction Materials,1,2016-02-11,9999-12-31
-GSFC,Chemicals,3,2016-02-11,9999-12-31
-GSPL,Oil Gas & Consumable Fuels,3,2016-02-11,9999-12-31
-GUJGASLTD,Oil Gas & Consumable Fuels,3,2016-02-11,9999-12-31
-GVT&D,Capital Goods,1,2016-02-11,9999-12-31
-HAL,Capital Goods,1,2016-02-11,9999-12-31
-HAVELLS,Consumer Durables,1,2016-02-11,9999-12-31
-HCC,Construction,3,2016-02-11,9999-12-31
-HCLTECH,Information Technology,1,2016-02-11,9999-12-31
-HDFC,Financial Services,3,2016-02-11,9999-12-31
-HDFCAMC,Financial Services,1,2016-02-11,9999-12-31
-HDFCBANK,Financial Services,1,2016-02-11,9999-12-31
-HDFCLIFE,Financial Services,1,2016-02-11,9999-12-31
-HDIL,Realty,3,2016-02-11,9999-12-31
-HEROMOTOCO,Automobile and Auto Components,1,2016-02-11,9999-12-31
-HEXAWARE,Information Technology,3,2016-02-11,9999-12-31
-HFCL,Telecommunication,1,2016-02-11,9999-12-31
-HINDALCO,Metals & Mining,1,2016-02-11,9999-12-31
-HINDCOPPER,Metals & Mining,1,2016-02-11,9999-12-31
-HINDPETRO,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-HINDUNILVR,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-HINDZINC,Metals & Mining,1,2016-02-11,9999-12-31
-HONAUT,Capital Goods,1,2016-02-11,9999-12-31
-HUDCO,Financial Services,1,2016-02-11,9999-12-31
-HYUNDAI,Automobile and Auto Components,1,2016-02-11,9999-12-31
-IBREALEST,Realty,3,2016-02-11,9999-12-31
-IBULHSGFIN,Financial Services,2,2016-02-11,9999-12-31
-ICICIBANK,Financial Services,1,2016-02-11,9999-12-31
-ICICIGI,Financial Services,1,2016-02-11,9999-12-31
-ICICIPRULI,Financial Services,1,2016-02-11,9999-12-31
-ICIL,Textiles,3,2016-02-11,9999-12-31
-IDBI,Financial Services,1,2016-02-11,9999-12-31
-IDEA,Telecommunication,1,2016-02-11,9999-12-31
-IDFC,Financial Services,3,2016-02-11,9999-12-31
-IDFCBANK,Financial Services,2,2016-02-11,9999-12-31
-IDFCFIRSTB,Financial Services,1,2016-02-11,9999-12-31
-IEX,Financial Services,1,2016-02-11,9999-12-31
-IFCI,Financial Services,1,2016-02-11,9999-12-31
-IGL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-IIFL,Financial Services,1,2016-02-11,9999-12-31
-INDHOTEL,Consumer Services,1,2016-02-11,9999-12-31
-INDIACEM,Construction Materials,1,2016-02-11,9999-12-31
-INDIAMART,Consumer Services,1,2016-02-11,9999-12-31
-INDIANB,Financial Services,1,2016-02-11,9999-12-31
-INDIGO,Services,1,2016-02-11,9999-12-31
-INDUSINDBK,Financial Services,1,2016-02-11,9999-12-31
-INDUSTOWER,Telecommunication,1,2016-02-11,9999-12-31
-INFIBEAM,Information Technology,3,2016-02-11,9999-12-31
-INFRATEL,Telecommunication,2,2016-02-11,9999-12-31
-INFY,Information Technology,1,2016-02-11,9999-12-31
-INOXWIND,Capital Goods,1,2016-02-11,9999-12-31
-INTELLECT,Information Technology,1,2016-02-11,9999-12-31
-IOB,Financial Services,1,2016-02-11,9999-12-31
-IOC,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-IPCALAB,Healthcare,1,2016-02-11,9999-12-31
-IRB,Construction,1,2016-02-11,9999-12-31
-IRCTC,Consumer Services,1,2016-02-11,9999-12-31
-IREDA,Financial Services,1,2016-02-11,9999-12-31
-IRFC,Financial Services,1,2016-02-11,9999-12-31
-ITC,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-JETAIRWAYS,Services,3,2016-02-11,9999-12-31
-JINDALSTEL,Metals & Mining,1,2016-02-11,9999-12-31
-JIOFIN,Financial Services,1,2016-02-11,9999-12-31
-JISLJALEQS,Chemicals,3,2016-02-11,9999-12-31
-JKCEMENT,Construction Materials,1,2016-02-11,9999-12-31
-JPASSOCIAT,Construction,3,2016-02-11,9999-12-31
-JSL,Metals & Mining,1,2016-02-11,9999-12-31
-JSWENERGY,Power,1,2016-02-11,9999-12-31
-JSWSTEEL,Metals & Mining,1,2016-02-11,9999-12-31
-JUBLFOOD,Consumer Services,1,2016-02-11,9999-12-31
-JUSTDIAL,Services,3,2016-02-11,9999-12-31
-KAJARIACER,Consumer Durables,1,2016-02-11,9999-12-31
-KALYANKJIL,Consumer Durables,1,2016-02-11,9999-12-31
-KAYNES,Capital Goods,1,2016-02-11,9999-12-31
-KEI,Capital Goods,1,2016-02-11,9999-12-31
-KFINTECH,Financial Services,1,2016-02-11,9999-12-31
-KOTAKBANK,Financial Services,1,2016-02-11,9999-12-31
-KPIT,Information Technology,2,2016-02-11,9999-12-31
-KPITTECH,Information Technology,1,2016-02-11,9999-12-31
-KSCL,Chemicals,3,2016-02-11,9999-12-31
-KTKBANK,Financial Services,3,2016-02-11,9999-12-31
-L&TFH,Financial Services,2,2016-02-11,9999-12-31
-LALPATHLAB,Healthcare,1,2016-02-11,9999-12-31
-LAURUSLABS,Healthcare,1,2016-02-11,9999-12-31
-LICHSGFIN,Financial Services,1,2016-02-11,9999-12-31
-LICI,Financial Services,1,2016-02-11,9999-12-31
-LODHA,Realty,1,2016-02-11,9999-12-31
-LT,Construction,1,2016-02-11,9999-12-31
-LTF,Financial Services,1,2016-02-11,9999-12-31
-LTI,Information Technology,2,2016-02-11,9999-12-31
-LTIM,Information Technology,2,2016-02-11,9999-12-31
-LTM,Information Technology,1,2016-02-11,9999-12-31
-LTTS,Information Technology,1,2016-02-11,9999-12-31
-LUPIN,Healthcare,1,2016-02-11,9999-12-31
-M&M,Automobile and Auto Components,1,2016-02-11,9999-12-31
-M&MFIN,Financial Services,1,2016-02-11,9999-12-31
-MANAPPURAM,Financial Services,1,2016-02-11,9999-12-31
-MANKIND,Healthcare,1,2016-02-11,9999-12-31
-MARICO,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-MARUTI,Automobile and Auto Components,1,2016-02-11,9999-12-31
-MAXHEALTH,Healthcare,1,2016-02-11,9999-12-31
-MAZDOCK,Capital Goods,1,2016-02-11,9999-12-31
-MCDOWELL-N,Fast Moving Consumer Goods,2,2016-02-11,9999-12-31
-MCLEODRUSS,Textiles,3,2016-02-11,9999-12-31
-MCX,Financial Services,1,2016-02-11,9999-12-31
-METROPOLIS,Healthcare,3,2016-02-11,9999-12-31
-MFSL,Financial Services,1,2016-02-11,9999-12-31
-MGL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-MINDTREE,Information Technology,3,2016-02-11,9999-12-31
-MOTHERSON,Automobile and Auto Components,1,2016-02-11,9999-12-31
-MOTHERSUMI,Automobile and Auto Components,2,2016-02-11,9999-12-31
-MOTILALOFS,Financial Services,1,2016-02-11,9999-12-31
-MPHASIS,Information Technology,1,2016-02-11,9999-12-31
-MRF,Automobile and Auto Components,1,2016-02-11,9999-12-31
-MRPL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-MUTHOOTFIN,Financial Services,1,2016-02-11,9999-12-31
-NAM-INDIA,Financial Services,1,2016-02-11,9999-12-31
-NATIONALUM,Metals & Mining,1,2016-02-11,9999-12-31
-NAUKRI,Consumer Services,1,2016-02-11,9999-12-31
-NAVINFLUOR,Chemicals,1,2016-02-11,9999-12-31
-NBCC,Construction,1,2016-02-11,9999-12-31
-NCC,Construction,1,2016-02-11,9999-12-31
-NESTLEIND,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-NHPC,Power,1,2016-02-11,9999-12-31
-NIITTECH,Information Technology,2,2016-02-11,9999-12-31
-NMDC,Metals & Mining,1,2016-02-11,9999-12-31
-NTPC,Power,1,2016-02-11,9999-12-31
-NUVAMA,Financial Services,1,2016-02-11,9999-12-31
-NYKAA,Consumer Services,1,2016-02-11,9999-12-31
-OBEROIRLTY,Realty,1,2016-02-11,9999-12-31
-OFSS,Information Technology,1,2016-02-11,9999-12-31
-OIL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-ONGC,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-ORIENTBANK,Financial Services,3,2016-02-11,9999-12-31
-PAGEIND,Textiles,1,2016-02-11,9999-12-31
-PATANJALI,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-PAYTM,Financial Services,1,2016-02-11,9999-12-31
-PCJEWELLER,Consumer Durables,3,2016-02-11,9999-12-31
-PEL,Financial Services,3,2016-02-11,9999-12-31
-PERSISTENT,Information Technology,1,2016-02-11,9999-12-31
-PETRONET,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-PFC,Financial Services,1,2016-02-11,9999-12-31
-PFIZER,Healthcare,1,2016-02-11,9999-12-31
-PGEL,Consumer Durables,1,2016-02-11,9999-12-31
-PHOENIXLTD,Realty,1,2016-02-11,9999-12-31
-PIDILITIND,Chemicals,1,2016-02-11,9999-12-31
-PIIND,Chemicals,1,2016-02-11,9999-12-31
-PNB,Financial Services,1,2016-02-11,9999-12-31
-PNBHOUSING,Financial Services,1,2016-02-11,9999-12-31
-POLICYBZR,Financial Services,1,2016-02-11,9999-12-31
-POLYCAB,Capital Goods,1,2016-02-11,9999-12-31
-POONAWALLA,Financial Services,1,2016-02-11,9999-12-31
-POWERGRID,Power,1,2016-02-11,9999-12-31
-POWERINDIA,Capital Goods,1,2016-02-11,9999-12-31
-PPLPHARMA,Healthcare,1,2016-02-11,9999-12-31
-PREMIERENE,Capital Goods,1,2016-02-11,9999-12-31
-PRESTIGE,Realty,1,2016-02-11,9999-12-31
-PTC,Services,3,2016-02-11,9999-12-31
-PVR,Media Entertainment & Publication,2,2016-02-11,9999-12-31
-PVRINOX,Media Entertainment & Publication,1,2016-02-11,9999-12-31
-RADICO,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-RAIN,Chemicals,3,2016-02-11,9999-12-31
-RAMCOCEM,Construction Materials,1,2016-02-11,9999-12-31
-RAYMOND,Textiles,3,2016-02-11,9999-12-31
-RBLBANK,Financial Services,1,2016-02-11,9999-12-31
-RCOM,Telecommunication,3,2016-02-11,9999-12-31
-RDEL,Capital Goods,3,2016-02-11,9999-12-31
-RECLTD,Financial Services,1,2016-02-11,9999-12-31
-RELCAPITAL,Financial Services,3,2016-02-11,9999-12-31
-RELIANCE,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31
-RELINFRA,Power,3,2016-02-11,9999-12-31
-REPCOHOME,Financial Services,3,2016-02-11,9999-12-31
-RNAVAL,Services,3,2016-02-11,9999-12-31
-RPOWER,Power,1,2016-02-11,9999-12-31
-RVNL,Construction,1,2016-02-11,9999-12-31
-SAIL,Metals & Mining,1,2016-02-11,9999-12-31
-SAMMAANCAP,Financial Services,1,2016-02-11,9999-12-31
-SBICARD,Financial Services,1,2016-02-11,9999-12-31
-SBILIFE,Financial Services,1,2016-02-11,9999-12-31
-SBIN,Financial Services,1,2016-02-11,9999-12-31
-SHREECEM,Construction Materials,1,2016-02-11,9999-12-31
-SHRIRAMFIN,Financial Services,1,2016-02-11,9999-12-31
-SIEMENS,Capital Goods,1,2016-02-11,9999-12-31
-SINTEX,Textiles,3,2016-02-11,9999-12-31
-SJVN,Power,1,2016-02-11,9999-12-31
-SKSMICRO,Financial Services,3,2016-02-11,9999-12-31
-SOLARINDS,Chemicals,1,2016-02-11,9999-12-31
-SONACOMS,Automobile and Auto Components,1,2016-02-11,9999-12-31
-SOUTHBANK,Financial Services,3,2016-02-11,9999-12-31
-SREINFRA,Financial Services,3,2016-02-11,9999-12-31
-SRF,Chemicals,1,2016-02-11,9999-12-31
-SRTRANSFIN,Financial Services,2,2016-02-11,9999-12-31
-STAR,Healthcare,3,2016-02-11,9999-12-31
-SUNPHARMA,Healthcare,1,2016-02-11,9999-12-31
-SUNTV,Media Entertainment & Publication,1,2016-02-11,9999-12-31
-SUPREMEIND,Capital Goods,1,2016-02-11,9999-12-31
-SUZLON,Capital Goods,1,2016-02-11,9999-12-31
-SWIGGY,Consumer Services,1,2016-02-11,9999-12-31
-SYNDIBANK,Financial Services,3,2016-02-11,9999-12-31
-SYNGENE,Healthcare,1,2016-02-11,9999-12-31
-TATACHEM,Chemicals,1,2016-02-11,9999-12-31
-TATACOMM,Telecommunication,1,2016-02-11,9999-12-31
-TATACONSUM,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-TATAELXSI,Information Technology,1,2016-02-11,9999-12-31
-TATAGLOBAL,Fast Moving Consumer Goods,2,2016-02-11,9999-12-31
-TATAMOTORS,Automobile and Auto Components,2,2016-02-11,9999-12-31
-TATAMTRDVR,Automobile and Auto Components,3,2016-02-11,9999-12-31
-TATAPOWER,Power,1,2016-02-11,9999-12-31
-TATASTEEL,Metals & Mining,1,2016-02-11,9999-12-31
-TATATECH,Information Technology,1,2016-02-11,9999-12-31
-TCS,Information Technology,1,2016-02-11,9999-12-31
-TECHM,Information Technology,1,2016-02-11,9999-12-31
-TIINDIA,Automobile and Auto Components,1,2016-02-11,9999-12-31
-TITAGARH,Capital Goods,1,2016-02-11,9999-12-31
-TITAN,Consumer Durables,1,2016-02-11,9999-12-31
-TMPV,Automobile and Auto Components,1,2016-02-11,9999-12-31
-TORNTPHARM,Healthcare,1,2016-02-11,9999-12-31
-TORNTPOWER,Power,1,2016-02-11,9999-12-31
-TRENT,Consumer Services,1,2016-02-11,9999-12-31
-TV18BRDCST,Media Entertainment & Publication,3,2016-02-11,9999-12-31
-TVSMOTOR,Automobile and Auto Components,1,2016-02-11,9999-12-31
-UBL,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-UCOBANK,Financial Services,1,2016-02-11,9999-12-31
-UJJIVAN,Financial Services,3,2016-02-11,9999-12-31
-ULTRACEMCO,Construction Materials,1,2016-02-11,9999-12-31
-UNIONBANK,Financial Services,1,2016-02-11,9999-12-31
-UNITDSPR,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-UNITECH,Realty,3,2016-02-11,9999-12-31
-UNOMINDA,Automobile and Auto Components,1,2016-02-11,9999-12-31
-UPL,Chemicals,1,2016-02-11,9999-12-31
-VBL,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31
-VEDL,Metals & Mining,1,2016-02-11,9999-12-31
-VGUARD,Consumer Durables,3,2016-02-11,9999-12-31
-VMM,Consumer Services,1,2016-02-11,9999-12-31
-VOLTAS,Consumer Durables,1,2016-02-11,9999-12-31
-WAAREEENER,Capital Goods,1,2016-02-11,9999-12-31
-WHIRLPOOL,Consumer Durables,1,2016-02-11,9999-12-31
-WIPRO,Information Technology,1,2016-02-11,9999-12-31
-WOCKPHARMA,Healthcare,1,2016-02-11,9999-12-31
-YESBANK,Financial Services,1,2016-02-11,9999-12-31
-ZEEL,Media Entertainment & Publication,1,2016-02-11,9999-12-31
-ZOMATO,Consumer Services,2,2016-02-11,9999-12-31
-ZYDUSLIFE,Healthcare,1,2016-02-11,9999-12-31
+symbol,sector,tier,valid_from,valid_to,evidence
+360ONE,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+AARTIIND,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ABB,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ABBOTINDIA,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ABCAPITAL,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ABFRL,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ABIRLANUVO,Textiles,3,2016-02-11,9999-12-31,manual-register
+ACC,Construction Materials,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ADANIENSOL,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ADANIENT,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ADANIGREEN,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ADANIPORTS,Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ADANIPOWER,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+AJANTPHARM,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ALBK,Financial Services,3,2016-02-11,9999-12-31,manual-register
+ALKEM,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+AMARAJABAT,Automobile and Auto Components,3,2016-02-11,9999-12-31,manual-register
+AMBER,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+AMBUJACEM,Construction Materials,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ANDHRABANK,Financial Services,3,2016-02-11,9999-12-31,manual-register
+ANGELONE,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+APLAPOLLO,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+APLLTD,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+APOLLOHOSP,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+APOLLOTYRE,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ARVIND,Textiles,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ASHOKLEY,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ASIANPAINT,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ASTRAL,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ATGL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ATUL,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+AUBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+AUROPHARMA,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+AXISBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BAJAJ-AUTO,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BAJAJFINSV,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BAJAJHLDNG,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BAJFINANCE,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BALKRISIND,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BALRAMCHIN,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BANDHANBNK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BANKBARODA,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BANKINDIA,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BATAINDIA,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BDL,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BEL,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BEML,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BERGEPAINT,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BHARATFIN,Financial Services,3,2016-02-11,9999-12-31,manual-register
+BHARATFORG,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BHARTIARTL,Telecommunication,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BHEL,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BIOCON,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BLUESTARCO,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BOSCHLTD,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BPCL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BRITANNIA,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BSE,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+BSOFT,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CADILAHC,Healthcare,2,2010-01-04,9999-12-31,inherit:CADILAHC via ZYDUSLIFE
+CAIRN,Oil Gas & Consumable Fuels,3,2016-02-11,9999-12-31,manual-register
+CAMS,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CANBK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CANFINHOME,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CAPF,Financial Services,3,2016-02-11,9999-12-31,manual-register
+CASTROLIND,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CDSL,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CEATLTD,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CENTURYTEX,Textiles,3,2016-02-11,9999-12-31,manual-register
+CESC,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CGPOWER,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CHAMBLFERT,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CHENNPETRO,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CHOLAFIN,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CIPLA,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+COALINDIA,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+COCHINSHIP,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+COFORGE,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+COLPAL,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CONCOR,Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+COROMANDEL,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CROMPGREAV,Capital Goods,2,2010-01-04,9999-12-31,inherit:CGPOWER via CGPOWER
+CROMPTON,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CUB,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CUMMINSIND,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+CYIENT,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DABUR,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DALBHARAT,Construction Materials,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DALMIABHA,Construction Materials,3,2016-02-11,9999-12-31,manual-register
+DCBBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DEEPAKNTR,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DELHIVERY,Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DELTACORP,Consumer Durables,3,2016-02-11,9999-12-31,manual-register
+DHFL,Financial Services,3,2016-02-11,9999-12-31,manual-register
+DISHTV,Media Entertainment & Publication,3,2016-02-11,9999-12-31,manual-register
+DIVISLAB,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DIXON,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DLF,Realty,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DMART,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+DRREDDY,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+EICHERMOT,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ENGINERSIN,Construction,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+EQUITAS,Financial Services,3,2016-02-11,9999-12-31,manual-register
+ESCORTS,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ETERNAL,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+EXIDEIND,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+FEDERALBNK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+FORCEMOT,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+FORTIS,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+FSL,Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GAIL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GLENMARK,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GMRAIRPORT,Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GMRINFRA,Services,2,2010-01-04,9999-12-31,inherit:GMRAIRPORT via GMRAIRPORT
+GNFC,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GODFRYPHLP,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GODREJCP,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GODREJIND,Diversified,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GODREJPROP,Realty,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GRANULES,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GRASIM,Construction Materials,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GSFC,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+GSPL,Oil Gas & Consumable Fuels,3,2016-02-11,9999-12-31,manual-register
+GUJGASLTD,Oil Gas & Consumable Fuels,3,2016-02-11,9999-12-31,manual-register
+GVT&D,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HAL,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HAVELLS,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HCC,Construction,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HCLTECH,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HDFC,Financial Services,3,2016-02-11,9999-12-31,manual-register
+HDFCAMC,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HDFCBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HDFCLIFE,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HDIL,Realty,3,2016-02-11,9999-12-31,manual-register
+HEROMOTOCO,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HEXAWARE,Information Technology,3,2016-02-11,9999-12-31,manual-register
+HFCL,Telecommunication,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HINDALCO,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HINDCOPPER,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HINDPETRO,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HINDUNILVR,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HINDZINC,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HONAUT,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HUDCO,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+HYUNDAI,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IBREALEST,Realty,3,2016-02-11,9999-12-31,manual-register
+IBULHSGFIN,Financial Services,2,2013-07-23,9999-12-31,inherit:IBULHSGFIN via SAMMAANCAP
+ICICIBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ICICIGI,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ICICIPRULI,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ICIL,Textiles,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IDBI,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IDEA,Telecommunication,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IDFC,Financial Services,3,2016-02-11,9999-12-31,manual-register
+IDFCBANK,Financial Services,2,2015-11-06,9999-12-31,inherit:IDFCBANK via IDFCFIRSTB
+IDFCFIRSTB,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IEX,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IFCI,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IGL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IIFL,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INDHOTEL,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INDIACEM,Construction Materials,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INDIAMART,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INDIANB,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INDIGO,Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INDUSINDBK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INDUSTOWER,Telecommunication,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INFIBEAM,Information Technology,3,2016-02-11,9999-12-31,manual-register
+INFRATEL,Telecommunication,2,2012-12-28,9999-12-31,inherit:INDUSTOWER via INDUSTOWER
+INFY,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INOXWIND,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+INTELLECT,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IOB,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IOC,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IPCALAB,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IRB,Construction,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IRCTC,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IREDA,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+IRFC,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ITC,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+JETAIRWAYS,Services,3,2016-02-11,9999-12-31,manual-register
+JINDALSTEL,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+JIOFIN,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+JISLJALEQS,Chemicals,3,2016-02-11,9999-12-31,manual-register
+JKCEMENT,Construction Materials,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+JPASSOCIAT,Construction,3,2016-02-11,9999-12-31,manual-register
+JSL,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+JSWENERGY,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+JSWSTEEL,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+JUBLFOOD,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+JUSTDIAL,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+KAJARIACER,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+KALYANKJIL,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+KAYNES,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+KEI,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+KFINTECH,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+KOTAKBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+KPIT,Information Technology,2,2010-01-04,9999-12-31,inherit:BSOFT via BSOFT
+KPITTECH,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+KSCL,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+KTKBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+L&TFH,Financial Services,2,2011-08-12,9999-12-31,inherit:L&TFH via LTF
+LALPATHLAB,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+LAURUSLABS,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+LICHSGFIN,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+LICI,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+LODHA,Realty,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+LT,Construction,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+LTF,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+LTI,Information Technology,2,2016-07-21,9999-12-31,inherit:LTI via LTM
+LTIM,Information Technology,2,2022-12-05,9999-12-31,inherit:LTI via LTM
+LTM,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+LTTS,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+LUPIN,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+M&M,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+M&MFIN,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MANAPPURAM,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MANKIND,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MARICO,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MARUTI,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MAXHEALTH,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MAZDOCK,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MCDOWELL-N,Fast Moving Consumer Goods,2,2010-01-04,9999-12-31,inherit:MCDOWELL-N via UNITDSPR
+MCLEODRUSS,Textiles,3,2016-02-11,9999-12-31,manual-register
+MCX,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+METROPOLIS,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MFSL,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MGL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MINDTREE,Information Technology,3,2016-02-11,9999-12-31,manual-register
+MOTHERSON,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MOTHERSUMI,Automobile and Auto Components,2,2010-01-04,9999-12-31,inherit:MOTHERSON via MOTHERSON
+MOTILALOFS,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MPHASIS,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MRF,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MRPL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+MUTHOOTFIN,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NAM-INDIA,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NATIONALUM,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NAUKRI,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NAVINFLUOR,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NBCC,Construction,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NCC,Construction,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NESTLEIND,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NHPC,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NIITTECH,Information Technology,2,2010-01-04,9999-12-31,inherit:COFORGE via COFORGE
+NMDC,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NTPC,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NUVAMA,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+NYKAA,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+OBEROIRLTY,Realty,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+OFSS,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+OIL,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ONGC,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ORIENTBANK,Financial Services,3,2016-02-11,9999-12-31,manual-register
+PAGEIND,Textiles,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PATANJALI,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PAYTM,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PCJEWELLER,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PEL,Financial Services,3,2016-02-11,9999-12-31,manual-register
+PERSISTENT,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PETRONET,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PFC,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PFIZER,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PGEL,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PHOENIXLTD,Realty,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PIDILITIND,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PIIND,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PNB,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PNBHOUSING,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+POLICYBZR,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+POLYCAB,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+POONAWALLA,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+POWERGRID,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+POWERINDIA,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PPLPHARMA,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PREMIERENE,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PRESTIGE,Realty,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PTC,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+PVR,Media Entertainment & Publication,2,2010-01-04,9999-12-31,inherit:PVR via PVRINOX
+PVRINOX,Media Entertainment & Publication,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+RADICO,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+RAIN,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+RAMCOCEM,Construction Materials,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+RAYMOND,Textiles,3,2016-02-11,9999-12-31,manual-register
+RBLBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+RCOM,Telecommunication,3,2016-02-11,9999-12-31,manual-register
+RDEL,Capital Goods,3,2016-02-11,9999-12-31,manual-register
+RECLTD,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+RELCAPITAL,Financial Services,3,2016-02-11,9999-12-31,manual-register
+RELIANCE,Oil Gas & Consumable Fuels,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+RELINFRA,Power,3,2016-02-11,9999-12-31,manual-register
+REPCOHOME,Financial Services,3,2016-02-11,9999-12-31,manual-register
+RNAVAL,Services,3,2016-02-11,9999-12-31,manual-register
+RPOWER,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+RVNL,Construction,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SAIL,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SAMMAANCAP,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SBICARD,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SBILIFE,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SBIN,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SHREECEM,Construction Materials,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SHRIRAMFIN,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SIEMENS,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SINTEX,Textiles,3,2016-02-11,9999-12-31,manual-register
+SJVN,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SKSMICRO,Financial Services,3,2016-02-11,9999-12-31,manual-register
+SOLARINDS,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SONACOMS,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SOUTHBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SREINFRA,Financial Services,3,2016-02-11,9999-12-31,manual-register
+SRF,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SRTRANSFIN,Financial Services,2,2010-01-04,9999-12-31,inherit:SHRIRAMFIN via SHRIRAMFIN
+STAR,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SUNPHARMA,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SUNTV,Media Entertainment & Publication,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SUPREMEIND,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SUZLON,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SWIGGY,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+SYNDIBANK,Financial Services,3,2016-02-11,9999-12-31,manual-register
+SYNGENE,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TATACHEM,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TATACOMM,Telecommunication,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TATACONSUM,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TATAELXSI,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TATAGLOBAL,Fast Moving Consumer Goods,2,2010-07-21,9999-12-31,inherit:TATACONSUM via TATACONSUM
+TATAMOTORS,Automobile and Auto Components,2,2010-01-04,9999-12-31,inherit:TATAMOTORS via TMPV
+TATAMTRDVR,Automobile and Auto Components,3,2016-02-11,9999-12-31,manual-register
+TATAPOWER,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TATASTEEL,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TATATECH,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TCS,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TECHM,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TIINDIA,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TITAGARH,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TITAN,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TMPV,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TORNTPHARM,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TORNTPOWER,Power,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TRENT,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+TV18BRDCST,Media Entertainment & Publication,3,2016-02-11,9999-12-31,manual-register
+TVSMOTOR,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+UBL,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+UCOBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+UJJIVAN,Financial Services,3,2016-02-11,9999-12-31,manual-register
+ULTRACEMCO,Construction Materials,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+UNIONBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+UNITDSPR,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+UNITECH,Realty,3,2016-02-11,9999-12-31,manual-register
+UNOMINDA,Automobile and Auto Components,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+UPL,Chemicals,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+VBL,Fast Moving Consumer Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+VEDL,Metals & Mining,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+VGUARD,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+VMM,Consumer Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+VOLTAS,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+WAAREEENER,Capital Goods,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+WHIRLPOOL,Consumer Durables,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+WIPRO,Information Technology,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+WOCKPHARMA,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+YESBANK,Financial Services,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ZEEL,Media Entertainment & Publication,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list
+ZOMATO,Consumer Services,2,2021-07-23,9999-12-31,inherit:ETERNAL via ETERNAL
+ZYDUSLIFE,Healthcare,1,2016-02-11,9999-12-31,ind_niftytotalmarket_list

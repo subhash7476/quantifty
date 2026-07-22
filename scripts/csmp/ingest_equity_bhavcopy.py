@@ -613,6 +613,8 @@ def main():
     # migration for stores created before the n_symbols column (H1)
     con.execute("ALTER TABLE trading_calendar ADD COLUMN IF NOT EXISTS "
                 "n_symbols INTEGER")
+    con.execute("ALTER TABLE ingest_meta ADD COLUMN IF NOT EXISTS "
+                "deliv_source VARCHAR")
 
     inserted = present = absent = failed = 0
     for d in date_range(args.start, args.end):
