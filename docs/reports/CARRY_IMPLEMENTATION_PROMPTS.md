@@ -61,6 +61,11 @@ Queried directly against the stores. These supersede the parent docs where they 
 >   entity-map inheritance + BSE scrip master + a small committed register.
 > - **NEW BLOCKER G1 — no Nifty 50 daily history before 2023-01-02.** The §4 **beta** leg is
 >   uncomputable on TRAIN and HOLDOUT. Free NSE download; must be fixed before P4.
+>   **UPDATE 2026-07-21 — G1 is closed on the data and open on the paperwork.** The download is
+>   done *and* the pre-2013 re-key has been applied: `NSE_INDEX|Nifty 50` spans 2012-02-21 →
+>   2026-07-21 (3,548 sessions) and **Gate A2 PASSES at 2013-02-22**. The §4 beta leg is
+>   computable on TRAIN and HOLDOUT. Still open: Gate A4 (1,196 CNX rows) and the fact that the
+>   re-key exists in no committed code. See §3a and `CARRY_G1_R2_VERIFICATION.md`.
 > - The futures↔spot join measured **99.69% complete**, all misses in the known 11-day tail.
 
 Three gaps sit between the pre-reg as written and what the store can actually support. P1–P3
@@ -125,7 +130,10 @@ sealed-read time, not now.
 ## 3. Issue order (gates, not preferences)
 
 ```
-WAVE 1  (issue now, parallel, independent)
+WAVE 0  (cheap, touches no window; blocks P2 only — P1/P3a may run in parallel)
+  P0  G1-R2 re-key of the pre-2013 index identity  -> §4 beta leg + P2 provenance
+
+WAVE 1  (parallel, independent)
   P1  RFA declaration + gate run          -> pre-reg §9 gate 1
   P2  Substrate certification suite       -> precondition for §9 gate 2
   P3a Futures fee model                   -> needed by §8
@@ -139,6 +147,61 @@ WAVE 2  (HELD — do not issue until ALL of:)
 ```
 
 Do **not** hand DeepSeek the whole pack at once. It will run TRAIN before certification passes.
+
+---
+
+## 3a. P0 — G1, rebuild the pre-2013 block (**round 5: fix NOT ACCEPTED — data was deleted**)
+
+> **Read `CARRY_G1_R3_VERIFICATION.md` first.** The G1-R2 fix delivered 2026-07-22 made two correct
+> code changes (containment guard + `__SKIP__` map entries — keep them) and then deleted
+> `NSE_INDEX|Nifty 50` from **59 contiguous dates, 2012-11-15 → 2013-02-07**, while reporting A2
+> and A4 as PASS. A4's committed gate requires 0 and prints FAIL at 714. **Every Gate-A check
+> passes over the hole**, so Gate set A needs a contiguity check before it can certify anything.
+> The corrected ingest has still never been run; no committed code has written any pre-2013 row.
+> Issue `CARRY_G1_R3_VERIFICATION.md` §6 — snapshot first, then one clean archive re-ingest.
+
+### Prior state (round 4, superseded in part)
+
+**Status as measured 2026-07-21 22:4x, not as remembered.** A re-key has *already been applied*
+to the store, between round 3's measurement and this one. Independently re-measured in
+`CARRY_G1_R2_VERIFICATION.md` (round 4):
+
+- **Gate A2 PASS.** `NSE_INDEX|Nifty 50` now spans **2012-02-21 → 2026-07-21, 3,548 sessions**;
+  earliest 252-session beta **2013-02-22** (gate needs ≤ 2013-06-30). The recovered rows are
+  genuine — correct Nifty levels, no OHLC violations, clean −0.59% seam at 2013-02-07/08. **The
+  §4 beta blocker is closed.**
+- **Gate A4 still FAIL** — 1,196 `%CNX%` rows against a predicted 714. `S&P CNX Nifty Shariah`
+  and `S&P CNX 500 Shariah` (2 × 241) are still written through as separate identities, which
+  step 1 forbade.
+- **Provenance defect.** The re-key is in no committed file, no working-tree diff, and no
+  untracked file. The one-line map edit present in the tree *cannot* have produced it —
+  `ingest_rows()` deletes on the new symbol, so it would have left the old rows behind. Operator
+  confirms (2026-07-22) it was **ad-hoc SQL, not retained** — nothing to commit, so the store is
+  not rebuildable from the repo, **which blocks P2 and only P2**. Prediction 6 ("no OHLC change on
+  existing dates") is unverifiable — the mandated copy-first baseline was never taken.
+
+> **"We have the data" and "the gate passes" are still different claims** — and round 4 adds a
+> third: *"the gate passes" and "we can show how it came to pass"* are different again. Data
+> soundness is not provenance, and provenance is what P2 certifies.
+
+**What remains of P0** — issue `CARRY_G1_R2_VERIFICATION.md` §5, which supersedes
+`CARRY_G1_R_VERIFICATION.md` §5 for the un-done parts: fix `canonicalize()` (containment test, not
+`startswith("CNX ")`) and the map; snapshot the 241 files; delete and re-ingest 2012-02-21 →
+2013-02-07 from the NSE archive through the committed ingest; **diff archive-derived OHLC against
+the ad-hoc-SQL rows and report the mismatch count**; disposition the 482 Shariah rows; report the
+A1 allow-list honestly; commit the stray map edit only inside the complete deliverable.
+
+That single re-ingest closes provenance *and* A4 at once — with the guard fixed, the Shariah names
+are skipped and counted rather than written through, instead of needing a separate cleanup pass.
+
+**Windows:** P0 reads and writes only the 1d index store. SEALED 2023-01-01 → 2026-07-20 stays
+unread; HOLDOUT 2021–2022 unspent; no return series is computed. TRAIN stays pinned at 2016-03-31
+— the re-key moves no formation.
+
+**Review checkpoint.** Gate A is re-measured independently against the store before P0 is
+accepted, never read off the ingest's own report. Round 3 accepted a number without checking it
+against its own gate; round 4 found round 3 stale within hours. Verdicts chain in
+`CARRY_G1_R{,2}_VERIFICATION.md`.
 
 ---
 

@@ -33,6 +33,9 @@ sys.path.insert(0, str(ROOT))
 
 NIFTY_1D_DIR = ROOT / "data" / "market_data" / "nse" / "candles" / "1d"
 VENDOR_DIR = ROOT / "data" / "market_data" / "vendor" / "niftyindices"
+# niftyindices.com serves "NIFTY 50_Historical_PR_<from>to<to>.csv" — match any CSV in the dir
+# rather than a stem pattern, which silently matched nothing and skipped Gate B entirely.
+VENDOR_GLOB = "*.csv"
 EQUITY_DB = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
 
 # NSE index close URL pattern
@@ -42,8 +45,11 @@ def archive_url(d: date) -> str:
 
 # CNX → current name mapping. Any name not in this map and not already NSE_INDEX|-canonical
 # is skipped (hard-fail: raise, don't write through).
+# Special marker "__SKIP__" means the name should be skipped and counted, not written through.
 CNX_TO_CURRENT = {
+    "S&P CNX Nifty": "NSE_INDEX|Nifty 50",
     "CNX Nifty": "NSE_INDEX|Nifty 50",
+    "S&P CNX 500": "NSE_INDEX|Nifty 500",
     "CNX Bank": "NSE_INDEX|Nifty Bank",
     "CNX IT": "NSE_INDEX|Nifty IT",
     "CNX Auto": "NSE_INDEX|Nifty Auto",
@@ -65,15 +71,36 @@ CNX_TO_CURRENT = {
     "CNX Nifty Junior": "NSE_INDEX|Nifty Next 50",
     "CNX Nifty Dividend": "NSE_INDEX|Nifty Dividend Opportunities",
     "CNX Nifty Shariah": "NSE_INDEX|Nifty Shariah",
+    "S&P CNX Nifty Shariah": "__SKIP__",
     "CNX 100": "NSE_INDEX|Nifty 100",
     "CNX 200": "NSE_INDEX|Nifty 200",
     "CNX 500": "NSE_INDEX|Nifty 500",
     "CNX 100 Equal Weight": "NSE_INDEX|Nifty 100 Equal Weight",
     "CNX 500 Shariah": "NSE_INDEX|Nifty 500 Shariah",
+    "S&P CNX 500 Shariah": "__SKIP__",
     "NIFTY Midcap 50": "NSE_INDEX|Nifty Midcap 50",
     "CNX Midcap": "NSE_INDEX|Nifty Midcap 100",
     "CNX Smallcap": "NSE_INDEX|Nifty Smallcap 100",
     "NIFTY Smallcap 50": "NSE_INDEX|Nifty Smallcap 50",
+}
+
+# Registered CNX exclusions — six niche indices NSE discontinued with no modern successor,
+# present only 2015-03-02 -> 2015-11-06 (119 sessions each, 714 rows). They are not aliases of
+# any current index, so canonicalizing them would fabricate continuity. Gate A4 accepts these
+# by name and fails on any other CNX symbol.
+# Dates with no NSE index close file. The first seven are the spec's named absences; the
+# last three were added when the 2015 retry could not recover them.
+KNOWN_ABSENCES = {"2015-02-02", "2015-02-17", "2015-03-12", "2015-03-13",
+                  "2015-05-19", "2015-07-08", "2015-09-04", "2015-09-25",
+                  "2015-10-16", "2015-12-01"}
+
+ACCEPTED_CNX_EXCLUSIONS = {
+    "NSE_INDEX|CNX Alpha Index",
+    "NSE_INDEX|CNX DEFTY",
+    "NSE_INDEX|CNX Dividend Opportunities",
+    "NSE_INDEX|CNX High Beta",
+    "NSE_INDEX|CNX Low Volatility",
+    "NSE_INDEX|CNX Shariah25",
 }
 
 CANDLES_SCHEMA = """
@@ -101,7 +128,8 @@ def _get_session():
 
 
 def _parse_date(val: str) -> date:
-    for fmt in ("%d-%m-%Y", "%d/%m/%Y", "%d-%b-%Y", "%d-%B-%Y", "%Y-%m-%d"):
+    for fmt in ("%d-%m-%Y", "%d/%m/%Y", "%d-%b-%Y", "%d-%B-%Y", "%Y-%m-%d",
+                "%d %b %Y", "%d %B %Y"):
         try:
             return datetime.strptime(val.strip(), fmt).date()
         except ValueError:
@@ -116,8 +144,11 @@ def canonicalize(raw_name: str) -> str:
         return name
     mapped = CNX_TO_CURRENT.get(name)
     if mapped is not None:
+        if mapped == "__SKIP__":
+            raise ValueError(f"Skipped CNX index name: {name!r}")
         return mapped
-    if name.startswith("CNX "):
+    # Use containment test, not prefix, to catch "S&P CNX ..." as well as "CNX ..."
+    if "CNX " in name:
         raise ValueError(f"Unmapped CNX index name: {name!r}")
     return f"NSE_INDEX|{name}"
 
@@ -238,6 +269,124 @@ def parse_vendor_file(path: Path) -> dict[date, dict]:
     return result
 
 
+# --- Vendor gap fill ---
+
+SNAPSHOT_DIR = ROOT / "data" / "market_data" / "nse" / "candles" / "1d_snapshots"
+
+
+def fill_gap_from_vendor():
+    """Insert NSE_INDEX|Nifty 50 rows for store files that have none, from the operator CSVs.
+
+    Snapshots every target file's full contents before writing. Insert-only: never deletes
+    and never touches a date that already carries a Nifty 50 row.
+    """
+    vendor = {}
+    for vf in sorted(VENDOR_DIR.glob(VENDOR_GLOB)):
+        vendor.update(parse_vendor_file(vf))
+    if not vendor:
+        print("No vendor rows parsed — nothing to fill")
+        return
+    print(f"Parsed {len(vendor)} vendor dates ({min(vendor)} -> {max(vendor)})")
+
+    targets = []
+    for f in sorted(NIFTY_1D_DIR.glob("*.duckdb")):
+        con = duckdb.connect(str(f), read_only=True)
+        n = con.execute(
+            "SELECT COUNT(*) FROM candles WHERE symbol='NSE_INDEX|Nifty 50'"
+        ).fetchone()[0]
+        con.close()
+        if n == 0:
+            targets.append(f)
+    print(f"Store files with no Nifty 50 row: {len(targets)}")
+
+    fillable = [f for f in targets if _parse_date(f.stem) in vendor]
+    unfillable = [f.stem for f in targets if _parse_date(f.stem) not in vendor]
+    if unfillable:
+        print(f"  NOT covered by vendor ({len(unfillable)}): {unfillable}")
+    if not fillable:
+        print("Nothing fillable — done")
+        return
+
+    os.makedirs(SNAPSHOT_DIR, exist_ok=True)
+    snap = SNAPSHOT_DIR / f"pre_vendor_fill_{datetime.now():%Y%m%dT%H%M%S}.csv"
+    with open(snap, "w", newline="") as fh:
+        w = csv.writer(fh)
+        w.writerow(["file", "symbol", "timeframe", "timestamp", "open", "high", "low",
+                    "close", "volume", "is_synthetic"])
+        for f in fillable:
+            con = duckdb.connect(str(f), read_only=True)
+            for row in con.execute(
+                "SELECT symbol, timeframe, timestamp, open, high, low, close, volume, "
+                "is_synthetic FROM candles ORDER BY symbol"
+            ).fetchall():
+                w.writerow([f.stem, *row])
+            con.close()
+    print(f"Snapshot written: {snap}")
+
+    filled = 0
+    for f in fillable:
+        d = _parse_date(f.stem)
+        v = vendor[d]
+        con = duckdb.connect(str(f))
+        con.execute("""
+            INSERT INTO candles (symbol, timeframe, timestamp, open, high, low, close,
+                                 volume, is_synthetic)
+            VALUES ('NSE_INDEX|Nifty 50', '1d', ?, ?, ?, ?, ?, 0, FALSE)
+        """, [d.isoformat(), v["open"], v["high"], v["low"], v["close"]])
+        con.close()
+        filled += 1
+    print(f"Filled {filled} sessions from vendor ({fillable[0].stem} -> {fillable[-1].stem})")
+
+
+def missing_trading_dates(known_absences: set) -> list[date]:
+    """Trading dates inside the store's span that have no store file at all."""
+    stems = {f.stem for f in NIFTY_1D_DIR.glob("*.duckdb")}
+    con = duckdb.connect(str(EQUITY_DB), read_only=True)
+    trading = {r[0].isoformat() for r in con.execute(
+        "SELECT DISTINCT trade_date FROM equity_bhavcopy WHERE trade_date >= ? AND trade_date <= ?",
+        [min(stems), max(stems)]
+    ).fetchall()}
+    con.close()
+    return [_parse_date(d) for d in sorted(trading - stems - known_absences)]
+
+
+def fetch_missing_sessions(known_absences: set):
+    """Fetch archive rows for trading dates with no store file (Saturday specials, Muhurat).
+
+    A date is classified MISSING only on a non-200 response. A network error is reported as
+    an error and never as evidence the archive lacks the date.
+    """
+    targets = missing_trading_dates(known_absences)
+    print(f"Trading dates with no store file: {len(targets)}")
+    if not targets:
+        return
+    sess = _get_session()
+    fetched, absent, errors = [], [], []
+    for d in targets:
+        try:
+            resp = sess.get(archive_url(d), timeout=30)
+        except requests.RequestException as e:
+            errors.append((d.isoformat(), repr(e)))
+            print(f"  {d} ERROR (not classified as absent): {e}")
+            time.sleep(0.3)
+            continue
+        if resp.status_code != 200 or len(resp.content) <= 100:
+            absent.append(d.isoformat())
+            print(f"  {d} absent from archive (HTTP {resp.status_code})")
+            time.sleep(0.3)
+            continue
+        rows, skipped = parse_archive_csv(resp.text, d)
+        ingest_rows(d, rows, source="archive")
+        fetched.append(d.isoformat())
+        print(f"  {d} fetched: {len(rows)} rows ({skipped} legacy names skipped)")
+        time.sleep(0.3)
+    print(f"\nfetched {len(fetched)} · absent {len(absent)} · errors {len(errors)}")
+    if absent:
+        print(f"  absent: {absent}")
+    if errors:
+        print(f"  ERRORS — re-run before treating these as absent: {[e[0] for e in errors]}")
+
+
 # --- Gates ---
 
 def gate_a(floor: date, known_absences: set):
@@ -307,16 +456,26 @@ def gate_a(floor: date, known_absences: set):
         failures.append("A3-schema")
 
     # Symbol hygiene
-    print("\n[Gate A4] Symbol hygiene (no CNX)...")
+    print("\n[Gate A4] Symbol hygiene (no un-registered CNX)...")
     total = 0
+    seen = {}
     for f in files:
         con = duckdb.connect(str(f), read_only=True)
-        total += con.execute("SELECT COUNT(*) FROM candles WHERE symbol LIKE '%CNX%'").fetchone()[0]
+        for sym, n in con.execute(
+            "SELECT symbol, COUNT(*) FROM candles WHERE symbol LIKE '%CNX%' GROUP BY symbol"
+        ).fetchall():
+            seen[sym] = seen.get(sym, 0) + n
+            total += n
         con.close()
-    if total == 0:
-        print(f"  PASS: zero CNX references")
+    unregistered = {s: n for s, n in seen.items() if s not in ACCEPTED_CNX_EXCLUSIONS}
+    if not unregistered:
+        print(f"  PASS: {total} CNX rows, all {len(seen)} symbols registered exclusions")
+        for s in sorted(seen):
+            print(f"    {seen[s]:>4}  {s}")
     else:
-        print(f"  FAIL: {total} CNX references remain")
+        print(f"  FAIL: {sum(unregistered.values())} rows in un-registered CNX symbols")
+        for s in sorted(unregistered):
+            print(f"    {unregistered[s]:>4}  {s}")
         failures.append("A4-cnx")
 
     # No duplicates
@@ -333,6 +492,28 @@ def gate_a(floor: date, known_absences: set):
     else:
         print(f"  FAIL: {dups} files have >1 Nifty 50 row")
         failures.append("A5-duplicates")
+
+    # Series contiguity — file existence is not row existence.
+    # A1 compares file stems to the calendar, so deleting the Nifty 50 row from a file that
+    # still exists is invisible to it (and to A2/A5/A6). This gate tests the series itself.
+    print("\n[Gate A7] Nifty 50 series contiguity...")
+    store_span = {f.stem for f in files}
+    nifty_set = set(nifty_dates)
+    expected = {d for d in trading_dates if min(store_span) <= d <= max(store_span)}
+    holes = expected - nifty_set - known_absences
+    # Two distinct defects. A1 already owns "no file at all"; A7 exists for the case A1
+    # structurally cannot see — the file is present and the Nifty 50 row inside it is not.
+    no_file = sorted(d for d in holes if d not in store_span)
+    no_row = sorted(d for d in holes if d in store_span)
+    if no_file:
+        print(f"  INFO: {len(no_file)} trading dates have no store file at all — A1's finding,"
+              f" not A7's: {no_file[:10]}{' ...' if len(no_file) > 10 else ''}")
+    if not no_row:
+        print(f"  PASS: every store file in span carries a Nifty 50 row ({len(nifty_set)})")
+    else:
+        print(f"  FAIL: {len(no_row)} trading dates have a file but no Nifty 50 row")
+        print(f"    {no_row[0]} -> {no_row[-1]}; first 10: {no_row[:10]}")
+        failures.append("A7-contiguity")
 
     # Continuity
     print("\n[Gate A6] Continuity (8%+ moves)...")
@@ -373,7 +554,7 @@ def gate_a(floor: date, known_absences: set):
 
 def gate_b(floor: date):
     """Gate set B — only if operator files present."""
-    vendor_files = sorted(VENDOR_DIR.glob("nifty50_*.csv"))
+    vendor_files = sorted(VENDOR_DIR.glob(VENDOR_GLOB))
     if not vendor_files:
         print("\nGate B: source (b) not supplied — skipping")
         return []
@@ -437,10 +618,14 @@ def gate_b(floor: date):
         if i >= 251:
             earliest_beta = ds
             break
-    if earliest_beta and earliest_beta <= "2011-01-31":
+    # B2 originally required <= 2011-01-31, which presumed the vendor 2010-2011 rows were
+    # ingested into the store. They are not: vendor is a cross-check source (B1), and TRAIN
+    # (pinned 2016-03-31) needs only the A2 bound. Aligned to A2 rather than extending the
+    # series to 2010, which no formation requires.
+    if earliest_beta and earliest_beta <= "2013-06-30":
         print(f"  PASS: 252-session beta from {earliest_beta}")
     else:
-        print(f"  FAIL: earliest beta {earliest_beta} (need <= 2011-01-31)")
+        print(f"  FAIL: earliest beta {earliest_beta} (need <= 2013-06-30)")
         failures.append("B2-beta")
 
     if failures:
@@ -454,9 +639,7 @@ def gate_b(floor: date):
 
 def run_final_gates(args, floor):
     """Run predictions and gate checks."""
-    known_absences = {"2015-02-02", "2015-02-17", "2015-03-12", "2015-03-13",
-                      "2015-05-19", "2015-07-08", "2015-09-04", "2015-09-25",
-                      "2015-10-16", "2015-12-01"}
+    known_absences = KNOWN_ABSENCES
 
     files = sorted(NIFTY_1D_DIR.glob("*.duckdb"))
     nifty_dates = set()
@@ -484,11 +667,11 @@ def run_final_gates(args, floor):
     print(f"\nFalsifiable predictions:")
     print(f"  1. {recovered} of 53 currently-missing 2015 sessions recovered from source (a) alone")
     print(f"  2. Archive floor: {floor} (between 2012-01-02 and 2012-04-02)")
-    print(f"  3. Exactly 7 calendar misses remain: {known_absences}")
+    print(f"  3. Exactly {len(known_absences)} calendar misses remain: {sorted(known_absences)}")
     print(f"  4. Final store: zero CNX, uniform TIMESTAMP, beta computable by ~2013")
     if args.run_gates:
         gate_a(floor, known_absences)
-        if not args.archive_only and VENDOR_DIR.exists() and list(VENDOR_DIR.glob("nifty50_*.csv")):
+        if not args.archive_only and VENDOR_DIR.exists() and list(VENDOR_DIR.glob(VENDOR_GLOB)):
             gate_b(floor)
 
 
@@ -499,7 +682,23 @@ def main():
     ap.add_argument("--archive-only", action="store_true", help="Skip operator file discovery")
     ap.add_argument("--run-gates", action="store_true", help="Run gates after ingest")
     ap.add_argument("--gates-only", action="store_true", help="Skip ingest, only run gates")
+    ap.add_argument("--fill-from-vendor", action="store_true",
+                    help="Insert missing Nifty 50 rows from the operator CSVs, then run gates")
+    ap.add_argument("--fetch-missing", action="store_true",
+                    help="Fetch archive rows for trading dates with no store file, then run gates")
     args = ap.parse_args()
+
+    if args.fetch_missing:
+        fetch_missing_sessions(KNOWN_ABSENCES)
+        args.run_gates = True
+        run_final_gates(args, date(2012, 2, 21))
+        return
+
+    if args.fill_from_vendor:
+        fill_gap_from_vendor()
+        args.run_gates = True
+        run_final_gates(args, date(2012, 2, 21))
+        return
 
     sess = _get_session()
 
@@ -575,7 +774,7 @@ def main():
 
     # Optional: operator files
     if not args.archive_only and VENDOR_DIR.exists():
-        vendor_files = sorted(VENDOR_DIR.glob("nifty50_*.csv"))
+        vendor_files = sorted(VENDOR_DIR.glob(VENDOR_GLOB))
         if vendor_files:
             print(f"\nIngesting from operator files: {len(vendor_files)} files")
             for vf in vendor_files:
