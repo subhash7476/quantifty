@@ -25,6 +25,7 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
+import requests
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -83,6 +84,29 @@ def collect_udiff():
     return counts
 
 
+def collect_nse_master():
+    """NSE listed-equity master — fallback for symbols absent from both bhavcopy payloads.
+
+    G5: 11 FUTSTK underlyings (SWIGGY, HYUNDAI, ETERNAL, ...) first traded 2024-12-11 or
+    later and carry no ISIN in the archived payloads, so Arm B has no linkage for them.
+    Raises on non-200 rather than returning an empty dict — a silent failure here would look
+    exactly like "NSE has no such symbols".
+    """
+    url = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
+    sess = requests.Session()
+    sess.headers.update({"User-Agent": "Mozilla/5.0"})
+    resp = sess.get(url, timeout=30)
+    if resp.status_code != 200:
+        raise RuntimeError(f"EQUITY_L.csv: HTTP {resp.status_code}")
+    out = {}
+    for row in csv.DictReader(io.StringIO(resp.text)):
+        symbol = (row.get("SYMBOL") or "").strip().upper()
+        isin = (row.get(" ISIN NUMBER") or row.get("ISIN NUMBER") or "").strip().upper()
+        if symbol and isin:
+            out[symbol] = isin
+    return out
+
+
 def main():
     legacy = collect_legacy()
     udiff = collect_udiff()
@@ -101,6 +125,25 @@ def main():
         isin, n = counter.most_common(1)[0]
         rows.append({"symbol": symbol, "isin": isin,
                      "source": "udiff_bhavcopy", "n_days": n})
+
+    # Fallback: F&O underlyings the payloads never carried an ISIN for. n_days = 0 because
+    # the master is a listing snapshot, not an observation count — `source` says so.
+    seen = {r["symbol"] for r in rows}
+    con_f = duckdb.connect(str(ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"),
+                           read_only=True)
+    fo_names = {r[0] for r in con_f.execute(
+        "SELECT DISTINCT underlying FROM futures_bhavcopy WHERE inst_type='FUTSTK'"
+    ).fetchall()}
+    con_f.close()
+    gaps = sorted(fo_names - seen)
+    if gaps:
+        master = collect_nse_master()
+        filled = [g for g in gaps if g in master]
+        for symbol in filled:
+            rows.append({"symbol": symbol, "isin": master[symbol],
+                         "source": "nse_equity_master", "n_days": 0})
+        print(f"nse master fill : {len(filled)}/{len(gaps)} F&O names "
+              f"{sorted(set(gaps) - set(filled)) or ''}")
 
     con = duckdb.connect(str(DB_PATH))
     con.execute(SCHEMA_SQL)
