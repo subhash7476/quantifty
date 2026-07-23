@@ -1,3 +1,5 @@
+# FROZEN 2026-07-23. SHA-256: 4b589e2f2afc6282c3e0400c6d24052e34140f4769130239a59ae150d77df855
+# sign=+1 (CARRY_V2_PRE_REGISTRATION.md §1). Immutable.
 from governance.rfa.declaration import Declaration
 
 DECLARATION = Declaration(
@@ -12,11 +14,12 @@ DECLARATION = Declaration(
     sd_lo=0.10,
     sd_hi=0.18,
     delta_provenance=(
-        "Declared direction: NEGATIVE rank-IC (short high residual carry, long "
-        "low). A rich residual basis signals crowded leveraged longs / expensive "
-        "borrow, which mean-reverts. Delta is declared as a POSITIVE magnitude "
-        "representing |IC|; the sign is committed in CARRY_PHASE0_PRE_REGISTRATION "
-        "section 1 and cannot be flipped after a TRAIN read.\n\n"
+        "Declared direction: POSITIVE rank-IC (long high residual carry, short "
+        "low). This is the canonical carry direction per KMPV 2018. The sign is "
+        "committed per CARRY_V2_PRE_REGISTRATION.md §1 and cannot be flipped. "
+        "v1 (negative sign) was falsified and closed; this is a clean "
+        "re-registration with sign=+1, confirmed on HOLDOUT only (TRAIN is "
+        "burned for sign discovery).\n\n"
         "Defense of magnitude [0.020, 0.045]: cross-sectional carry/basis IC in "
         "the equity and futures literature (Koijen-Moskowitz-Pedersen-Vrugt 2018; "
         "Asness-Moskowitz-Pedersen 2013) sits ~0.02-0.05 for a single "
@@ -34,13 +37,14 @@ DECLARATION = Declaration(
         "the general equity-factor IC dispersion regime."
     ),
     prior_exposure=(
-        "Operator's prior reads are momentum/delivery constructs (PSB-1 C1-C5, "
-        "PSB-2 C2/C4, SFB-1/F1). NONE is a carry/basis construct -- carry has "
-        "not been screened on this data, so prior exposure to THIS signal is "
-        "nil. The general finding that monthly cross-sectional equity is "
-        "demonstrability-constrained (RFA retrospective, CLAUDE.md) is "
-        "methodological, not a peek at carry's realized numbers, and is "
-        "already priced into the pre-reg section 7.1."
+        "v1 TRAIN (2016-03 -> 2020-12) has been read and is BURNED for Carry. "
+        "v2 confirmation comes from HOLDOUT (2021-22) then SEALED (2023-26). "
+        "The TRAIN IC was +0.041 (opposite v1's declared negative sign), "
+        "establishing the positive direction discovered-on-TRAIN. HOLDOUT "
+        "confirmed the positive sign with IC +0.046 (t=2.60, p=0.016). "
+        "Multiplicity m=2 (v1 negative + v2 positive); Bonferroni alpha=0.025. "
+        "Operator's non-Carry prior reads are PSB-1/PSB-2/SFB-1 momentum and "
+        "delivery constructs — independent of the carry signal."
     ),
     window=(
         "Sealed projection window 2023-01-01 -> 2026-07-20 (~42 monthly "
