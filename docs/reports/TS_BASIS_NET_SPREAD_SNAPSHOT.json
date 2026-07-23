@@ -1,0 +1,55 @@
+{
+  "commit": "22bb3dd",
+  "generated": "2026-07-23",
+  "fee_model": {
+    "source": "core/execution/futures/futures_fees.py",
+    "slippage_bp": 5,
+    "gross_exposure": 10000000.0
+  },
+  "results": {
+    "TRAIN": {
+      "label": "TRAIN",
+      "formations": 47,
+      "return_periods": 46,
+      "ann_gross": 0.20053472586155707,
+      "ann_net": 0.18377245351393046,
+      "fee_drag_bp": 167.62272347626617,
+      "total_fees": 195991.54454708137,
+      "total_slippage": 357339.5970802679,
+      "avg_turnover": 1.5319112916533377,
+      "fee_breakdown": {
+        "brokerage": 93140.0,
+        "stt": 35733.95970802647,
+        "exchange_txn": 15008.263077371295,
+        "sebi_fee": 714.6791941605895,
+        "stamp_duty": 32047.805861872523,
+        "gst": 19346.83670564973
+      },
+      "n_ic": 47,
+      "mean_ic": 0.07043125124175793,
+      "sd_ic": 0.09796348118604374
+    },
+    "HOLDOUT": {
+      "label": "HOLDOUT",
+      "formations": 24,
+      "return_periods": 23,
+      "ann_gross": 0.1625996970815291,
+      "ann_net": 0.14803224889893207,
+      "fee_drag_bp": 145.6744818259703,
+      "total_fees": 78971.00560612875,
+      "total_slippage": 172583.79249725878,
+      "avg_turnover": 1.4572503695413812,
+      "fee_breakdown": {
+        "brokerage": 41780.0,
+        "stt": 17258.379249725764,
+        "exchange_txn": 7248.519284884666,
+        "sebi_fee": 345.16758499452135,
+        "stamp_duty": 3451.675849945138,
+        "gst": 8887.263636578304
+      },
+      "n_ic": 24,
+      "mean_ic": 0.04287515236713144,
+      "sd_ic": 0.1010361688158419
+    }
+  }
+}
