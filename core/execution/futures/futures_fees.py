@@ -16,16 +16,21 @@ circular could not be fetched directly, the value is the best-documented figure
 and is flagged with [VERIFY]; each is a localized constant an era-revision will
 correct in one line.
 
-STT (Securities Transaction Tax) — derivatives, SELL side only.
-  - Pre-2024-10-01: 0.0125% (Rs 12.5/lakh) on sell side. Rate in force for
-    most of the dev window (2008–2024).
-  - From 2024-10-01: 0.02% (Rs 20/lakh) on sell side, raised under the
-    Finance (No. 2) Act 2024 / Budget 2024 (effective 2024-10-01).
+STT (Securities Transaction Tax) — derivatives, SELL side only. Three tiers:
+  - Through 2023-03-31: 0.0100% (Rs 10/lakh) on sell side. In force for most
+    of the dev window (2008 -> 2023-03).
+  - 2023-04-01 -> 2024-09-30: 0.0125% (Rs 12.5/lakh), Finance Act 2023 (+25%
+    over the 0.0100% rate).
+  - From 2024-10-01: 0.0200% (Rs 20/lakh), Finance (No. 2) Act 2024 / Budget
+    2024 (Oct-2024 derivatives STT revision).
+  - This is the canonical schedule pre-registered in
+    CARRY_PHASE0_PRE_REGISTRATION.md section 8 and used by the Carry research
+    harnesses (run_sealed.py / run_net_spread.py); it is the single source of
+    truth for research and production (CARRY_IMPLEMENTATION_BRIDGE.md section 5.1).
   - Sources: [caclubindia](
       https://www.caclubindia.com/articles/securities-transaction-tax-rate-hikes-on-f-amp-o-w-e-f-1st-october-24-55626.asp),
       [ICICI Direct](
       https://icicidirect.com/research/equity/finace/new-stt-rules-in-futures-and-options-trading).
-    [VERIFY the pre-hike effective date against NSE/CBDT circular before committing.]
 
 NSE derivatives transaction charge — ad-valorem on turnover, both legs.
   - 0.0021% (Rs 2.10/lakh) for futures at retail tier, both sides.
@@ -85,12 +90,14 @@ DEFAULT_BROKERAGE = 20.0
 SEBI_FEE_RATE = 0.000001  # 0.0001% of turnover (Rs 10/crore) — both legs, stable.
 
 # (effective_from, rate) — newest first; first row with effective_from <= trade_date wins.
-# Futures STT sell-side only. Finance (No. 2) Act 2024 raised to 0.02%
-# effective 2024-10-01. Pre-hike rate was 0.0125% (not 0.01%).
-# Sources: caclubindia, ICICI Direct.
+# Futures STT sell-side only. Three tiers (canonical per CARRY_PHASE0_PRE_REGISTRATION
+# section 8): 0.0100% through 2023-03-31, 0.0125% 2023-04-01 -> 2024-09-30 (Finance
+# Act 2023), 0.0200% from 2024-10-01 (Finance (No.2) Act 2024). Sources: caclubindia,
+# ICICI Direct.
 _STT_FUTURES_SCHEDULE = (
-    (date(2024, 10, 1), 0.0002),     # 0.02% — Budget 2024 F&O STT hike.
-    (date(2008, 6, 1), 0.000125),    # 0.0125% — pre-hike futures rate.
+    (date(2024, 10, 1), 0.0002),     # 0.0200% — Oct-2024 derivatives STT revision.
+    (date(2023, 4, 1), 0.000125),    # 0.0125% — Finance Act 2023 (+25%).
+    (date(2008, 6, 1), 0.0001),      # 0.0100% — pre-2023-04 derivatives STT (sell-side).
     (date(1900, 1, 1), 0.0),         # No STT on derivatives before 2008.
 )
 # NSE derivatives (F&O) transaction charge — ad-valorem, both legs.

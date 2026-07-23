@@ -2,10 +2,12 @@
 
 Expected values are independently sourced from circulars, not read from the
 module being tested.
-  - STT: pre-2024-10-01 = 0.0125%, post-2024-10-01 = 0.02%.
-         Source: Budget 2024 / Finance (No.2) Act 2024 (caclubindia, ICICI Direct).
+  - STT (sell-side only, three tiers): through 2023-03-31 = 0.0100%,
+    2023-04-01 -> 2024-09-30 = 0.0125% (Finance Act 2023), from 2024-10-01 =
+    0.0200% (Finance (No.2) Act 2024). Canonical per CARRY_PHASE0_PRE_REGISTRATION
+    section 8. Source: Budget 2023/2024, caclubindia, ICICI Direct.
   - Exchange txn: pre-2024-10-01 = 0.00210%, post-2024-10-01 = 0.00189%.
-         Source: NSE circulars, SEBI MII rationalization.
+          Source: NSE circulars, SEBI MII rationalization.
   - SEBI fee: 0.0001% stable. Source: SEBI (Turnover Fees) Regulations.
   - Stamp duty: post-2020-07-01 = 0.002%, pre = 0.01% (Maharashtra rep).
   - GST: 18% from 2017-07-01. Source: GST Act.
@@ -22,7 +24,8 @@ from core.execution.futures import futures_fees as FF
 
 
 # --- STT (from circulars, not from the module) ---
-# Corrected: pre-hike = 0.0125%, post-2024-10-01 = 0.02%
+# Three tiers: 0.0100% through 2023-03-31, 0.0125% 2023-04-01 -> 2024-09-30,
+# 0.0200% from 2024-10-01 (all sell-side only).
 
 def test_stt_sell_only_post_hike():
     f = FF.futures_fees(side="SELL", trade_value=100000, trade_date=date(2025, 1, 1))
@@ -31,7 +34,7 @@ def test_stt_sell_only_post_hike():
     assert f_buy.stt == 0.0
 
 
-def test_stt_sell_only_pre_hike():
+def test_stt_sell_only_finance_act_2023_tier():
     f = FF.futures_fees(side="SELL", trade_value=100000, trade_date=date(2024, 9, 30))
     assert abs(f.stt - 12.5) < 0.01  # 0.0125% of 1L = Rs 12.5
 
@@ -41,9 +44,18 @@ def test_stt_pre_2008():
     assert f.stt == 0.0
 
 
-def test_stt_post_2008_pre_hike():
+def test_stt_post_2008_pre_finance_act_2023():
     f = FF.futures_fees(side="SELL", trade_value=100000, trade_date=date(2008, 6, 1))
-    assert abs(f.stt - 12.5) < 0.01  # 0.0125%
+    assert abs(f.stt - 10.0) < 0.01  # 0.0100%
+
+
+def test_stt_finance_act_2023_boundary():
+    # The boundary the pre-fix module got wrong: 0.0100% the day before the hike,
+    # 0.0125% the day after.
+    f_pre = FF.futures_fees(side="SELL", trade_value=100000, trade_date=date(2023, 3, 31))
+    f_post = FF.futures_fees(side="SELL", trade_value=100000, trade_date=date(2023, 4, 1))
+    assert abs(f_pre.stt - 10.0) < 0.01   # 0.0100%
+    assert abs(f_post.stt - 12.5) < 0.01  # 0.0125%
 
 
 def test_stt_2024_oct_boundary():

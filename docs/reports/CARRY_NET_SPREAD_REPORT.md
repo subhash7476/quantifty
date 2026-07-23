@@ -1,6 +1,6 @@
 # Carry Sleeve — Net-of-Fee Long/Short Spread
 
-**Script-generated** — `scripts/signal_engine/carry/run_net_spread.py`. Code commit `0ea419e`.
+**Script-generated** — `scripts/signal_engine/carry/run_net_spread.py`. Code commit `da3e3ba`.
 
 **Generated:** 2026-07-23
 
@@ -18,11 +18,11 @@
 
 | Component | Rate / Rule |
 |---|---|
-| Futures STT | 0.0100% SELL side only (pre-2023-04, both TRAIN and HOLDOUT) |
-| Exchange transaction charge | 0.0021% both legs (NSE retail tier) |
+| Futures STT | Tiered (canonical `futures_fees.py`): 0.0100% ≤ 2023-03-31 · 0.0125% 2023-04-01 → 2024-09-30 · 0.0200% ≥ 2024-10-01, SELL side only. TRAIN/HOLDOUT both pre-2023-04 → effective 0.0100%. |
+| Exchange transaction charge | 0.0021% pre-2024-10 / 0.0019% post-2024-10, both legs (NSE retail tier) |
 | SEBI turnover fee | 0.0001% both legs (Rs 10/crore) |
-| Stamp duty | 0.010% BUY side (pre-2020-07); 0.002% BUY side (post-2020-07-01) |
-| GST | 18% on (brokerage + exchange_txn + sebi_fee) |
+| Stamp duty | 0.010% BUY side (pre-2020-07-01); 0.002% BUY side (post-2020-07-01) |
+| GST / service tax | Era-accurate (18% post-2017-07-01; service tax rates pre-2017) on (brokerage + exchange_txn + sebi_fee) |
 | Brokerage | Rs 20 flat per order (discount broker futures) |
 | Slippage | 5 bp per side (modeling choice, fixed) |
 | Gross exposure | Rs 1.0 Cr (fixed) |
@@ -34,28 +34,28 @@
 
 | Window | Net > 0? | Gross ann | Net ann | Fee drag | Slippage | Avg turnover | Formations |
 |---|:--:|--:|--:|--:|--:|--:|--:|
-| **TRAIN** | **PASS** | +14.58% | +13.04% | 153.9 bp | 7158 Rs/mo | 1.439 | 58 |
+| **TRAIN** | **PASS** | +14.37% | +12.84% | 153.5 bp | 7163 Rs/mo | 1.440 | 58 |
 | **HOLDOUT** | **PASS** | +8.42% | +6.96% | 146.4 bp | 7319 Rs/mo | 1.484 | 24 |
 
 ### Fee Component Breakdown (TRAIN)
 
 | Component | Total (Rs) | Share |
 |---|---:|--:|
-| brokerage | 119,180 | 49.3% |
-| stt | 41,514 | 17.2% |
-| exchange_txn | 17,436 | 7.2% |
-| sebi_fee | 830 | 0.3% |
-| stamp_duty | 38,046 | 15.7% |
-| gst | 24,740 | 10.2% |
-| **Total fees** | **241,747** | 100.0% |
-| **Slippage** | **415,140** | — |
+| brokerage | 119,240 | 49.5% |
+| stt | 41,547 | 17.3% |
+| exchange_txn | 17,450 | 7.2% |
+| sebi_fee | 831 | 0.3% |
+| stamp_duty | 38,079 | 15.8% |
+| gst | 23,610 | 9.8% |
+| **Total fees** | **240,757** | 100.0% |
+| **Slippage** | **415,469** | — |
 
 ## 2. z-Weighted Portfolio
 
 
 | Window | Net > 0? | Gross ann | Net ann | Fee drag | Slippage | Avg turnover | Formations |
 |---|:--:|--:|--:|--:|--:|--:|--:|
-| **TRAIN** | **PASS** | +26.46% | +24.73% | 173.5 bp | 7358 Rs/mo | 1.479 | 58 |
+| **TRAIN** | **PASS** | +26.53% | +24.80% | 173.2 bp | 7361 Rs/mo | 1.480 | 58 |
 | **HOLDOUT** | **PASS** | +14.67% | +13.07% | 160.2 bp | 7657 Rs/mo | 1.556 | 24 |
 
 ---
@@ -66,7 +66,7 @@ Both windows must show NET > 0 (annualized) on the quintile portfolio.
 
 | Window | Gross ann | Net ann | Net > 0? |
 |---|--:|--:|:--:|
-| TRAIN | +14.58% | +13.04% | PASS |
+| TRAIN | +14.37% | +12.84% | PASS |
 | HOLDOUT | +8.42% | +6.96% | PASS |
 
 **GATE VERDICT: PASS** — Net spread > 0 on both TRAIN and HOLDOUT.

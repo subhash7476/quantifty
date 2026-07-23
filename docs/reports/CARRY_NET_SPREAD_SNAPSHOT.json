@@ -1,9 +1,10 @@
 {
-  "commit": "0ea419e",
+  "commit": "da3e3ba",
   "generated": "2026-07-23",
   "fee_model": {
-    "stt_rate": 0.0001,
-    "exchange_txn_rate": 2.1e-05,
+    "source": "core/execution/futures/futures_fees.py (canonical, tiered STT 0.0100/0.0125/0.0200)",
+    "stt_rate_train_holdout": 0.0001,
+    "exchange_txn_rate_pre_2024_10": 2.1e-05,
     "sebi_fee_rate": 1e-06,
     "brokerage_per_order": 20.0,
     "slippage_bp": 5,
@@ -17,19 +18,19 @@
       "z_weighted": false,
       "formations": 58,
       "return_periods": 57,
-      "ann_gross": 0.14575931555240818,
-      "ann_net": 0.13037405190071838,
-      "fee_drag_bp": 153.85263651689795,
-      "total_fees": 241746.60285258043,
-      "total_slippage": 415139.7631009315,
-      "avg_turnover": 1.4390868880734429,
+      "ann_gross": 0.14374286075221132,
+      "ann_net": 0.12839740765172514,
+      "fee_drag_bp": 153.45453100486185,
+      "total_fees": 240757.08124926663,
+      "total_slippage": 415468.9649200903,
+      "avg_turnover": 1.4402419821757537,
       "fee_breakdown": {
-        "brokerage": 119180.0,
-        "stt": 41513.97631009244,
-        "exchange_txn": 17435.870050239784,
-        "sebi_fee": 830.279526201859,
-        "stamp_duty": 38046.17004228695,
-        "gst": 24740.306923759294
+        "brokerage": 119240.0,
+        "stt": 41546.89649200835,
+        "exchange_txn": 17449.696526644482,
+        "sebi_fee": 830.9379298401836,
+        "stamp_duty": 38079.090224202846,
+        "gst": 23610.46007657119
       }
     },
     "TRAIN_zweighted": {
@@ -37,19 +38,19 @@
       "z_weighted": true,
       "formations": 58,
       "return_periods": 57,
-      "ann_gross": 0.26464120242568145,
-      "ann_net": 0.24729589785339146,
-      "fee_drag_bp": 173.4530457229,
-      "total_fees": 249411.83557846933,
-      "total_slippage": 426770.2039614291,
-      "avg_turnover": 1.4793380024751108,
+      "ann_gross": 0.2653178378740624,
+      "ann_net": 0.24799307131950843,
+      "fee_drag_bp": 173.2476655455395,
+      "total_fees": 248093.60561082553,
+      "total_slippage": 426946.9087631634,
+      "avg_turnover": 1.4802078908060605,
       "fee_breakdown": {
-        "brokerage": 123340.0,
-        "stt": 42674.889386823874,
-        "exchange_txn": 17924.34856638007,
-        "sebi_fee": 853.5404079228562,
-        "stamp_duty": 39037.83720196797,
-        "gst": 25581.22001537447
+        "brokerage": 123160.0,
+        "stt": 42692.55986699729,
+        "exchange_txn": 17931.770168052895,
+        "sebi_fee": 853.8938175263256,
+        "stamp_duty": 39055.507682141426,
+        "gst": 24399.87407610753
       }
     },
     "HOLDOUT_quintile": {
@@ -57,19 +58,19 @@
       "z_weighted": false,
       "formations": 24,
       "return_periods": 23,
-      "ann_gross": 0.08423265615281994,
-      "ann_net": 0.06958854560548344,
-      "fee_drag_bp": 146.44110547336498,
+      "ann_gross": 0.0842326561528195,
+      "ann_net": 0.06958854560548322,
+      "fee_drag_bp": 146.44110547336277,
       "total_fees": 93846.56913917899,
       "total_slippage": 175647.79629582906,
       "avg_turnover": 1.4838938808332933,
       "fee_breakdown": {
         "brokerage": 53940.0,
         "stt": 17564.7796295831,
-        "exchange_txn": 7377.207444424644,
-        "sebi_fee": 351.2955925916728,
+        "exchange_txn": 7377.207444424642,
+        "sebi_fee": 351.29559259167297,
         "stamp_duty": 3512.9559259165376,
-        "gst": 11100.330546663248
+        "gst": 11100.330546663246
       }
     },
     "HOLDOUT_zweighted": {
@@ -82,14 +83,14 @@
       "fee_drag_bp": 160.1533382991116,
       "total_fees": 95899.75687331076,
       "total_slippage": 183758.11153577687,
-      "avg_turnover": 1.5558666806683252,
+      "avg_turnover": 1.555866680668326,
       "fee_breakdown": {
         "brokerage": 54500.0,
-        "stt": 18373.38907617773,
+        "stt": 18373.389076177733,
         "exchange_txn": 7717.840684502618,
-        "sebi_fee": 367.51622307155435,
-        "stamp_duty": 3675.646646195531,
-        "gst": 11265.36424336334
+        "sebi_fee": 367.5162230715544,
+        "stamp_duty": 3675.6466461955324,
+        "gst": 11265.364243363345
       }
     }
   }

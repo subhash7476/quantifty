@@ -139,6 +139,13 @@ stays dumb** (emits target intents from facts); **execution owns the rebalance.*
 
 ## 5. The PARITY GATE — the single most important implementation risk
 
+**Status: PASSED, 2026-07-23** (`docs/reports/CARRY_PARITY_REPORT.md`,
+`scripts/signal_engine/carry/parity_check.py`, code commit `da3e3ba`). TRAIN and HOLDOUT both
+reproduce the research net spread at **+0.0 bp delta**, independently re-verified against
+`core/execution/portfolio/carry_rebalancer.py` — the actual production module, not a
+parity-script copy of it. See §5.3 for how three real bugs were found and fixed to get there;
+read it before trusting any future green run of this gate at face value.
+
 **The validated numbers came from the standalone research harness (`run_sealed.py`), not from
 the production `LoopDriver` + strategy + `NseMarginEngine` + `PaperBroker` path.** These are
 different code. Before anything else:
@@ -170,11 +177,22 @@ overcharges that era (and the Jan–Mar 2023 slice inside SEALED).
 **Resolution (single source of truth):**
 1. **Correct `core/execution/futures/futures_fees.py`** to the full three-tier schedule
    (0.0100% ≤ 2023-03-31 · 0.0125% 2023-04-01 → 2024-09-30 · 0.0200% ≥ 2024-10-01, sell-side).
-   This becomes the one fee model for research **and** production; retire the inline models.
+   This becomes the one fee model for research **and** production. Retire the inline model in the
+   **live, re-runnable** research script (`run_net_spread.py` → calls the module). **Do NOT
+   refactor `run_sealed.py`** — see the note below.
 2. **Preserve SEALED by proven equivalence, NOT by re-read.** Unit-test the corrected
-   `futures_fees.py` against `run_sealed.py`'s inline tiered model on shared inputs → identical
-   per-contract fees. If byte-identical, the SEALED +20.52% transfers **by construction** — the
-   one-shot SEALED window is **not** re-read (SEALED protocol §2 holds).
+   `futures_fees.py` against `run_sealed.py`'s inline tiered model on shared inputs → the test
+   must show **identity** (byte-identical per-contract fees), not a documented divergence. If
+   identical, the SEALED +20.52% transfers **by construction** — the one-shot SEALED window is
+   **not** re-read (SEALED protocol §2 holds).
+
+   **`run_sealed.py` stays frozen and inline — it is not refactored.** It is a spent one-shot
+   artifact that will never execute again; its remaining value is *provenance* (byte-for-byte the
+   code that produced +20.52%). Its inline model is therefore the **permanent regression anchor**
+   the equivalence test pins the canonical module against — refactoring it to call the module
+   makes that test circular and destroys the anchor. Any re-run guard belongs **outside** the
+   file (an invocation-layer / CI check refusing to regenerate `CARRY_SEALED_SNAPSHOT.json` if it
+   exists), never as an edit to the frozen artifact.
 3. **Re-derive TRAIN/HOLDOUT** on the corrected module (free, no sealed data) → must reproduce
    +13%/+7% (STT is identical in that era).
 4. **Parity tolerance (§5) must NOT absorb any fee discrepancy.** The fee code is *shared and
@@ -211,17 +229,82 @@ construction-parity sub-check**: feed the rebalancer the research facts and conf
 the research book's target weights and deltas. If construction parity fails there, it is fixed
 before any provider work.
 
+### 5.3 How the gate actually closed — three bugs, and the pattern behind them
+
+The first "GATE D PASS" was not real. It was caught only by re-running the gate script fresh
+instead of trusting its printed report — the same lesson this track has re-learned every round
+(see `CLAUDE.md`'s "recurring lesson" note under the Carry section). Recording the sequence here
+because the failure mode is the load-bearing part, not the individual bugs:
+
+1. **`parity_check.py`'s own verdict logic ignored the parity check it displayed.** `all_pass`
+   was wired only to `production net > 0`; the `within_tol` delta check was computed and printed
+   in the table but never fed into the gate. The script could print a `**FAIL**` row and
+   `GATE D VERDICT: PASS` on the same page. Separately, the report artifact at the time also
+   contained a hand-written `PASS*` verdict and footnote blaming "the signals DB was partially
+   overwritten" — text the script does not generate. Re-running research fresh against the
+   already-current `signals.duckdb` reproduced the same delta, refuting that explanation. Fixed
+   by wiring `gate_pass = net_pass and parity_pass` into the exit code and printed verdict.
+2. **Quintile membership was computed on two different populations.** Research
+   (`run_net_spread.py`) ranks by `z_carry_neut` *after* filtering to ADV-eligible names.
+   Production pre-assigned a fixed quintile label ranked over *all* liquid names (ADV
+   availability ignored), then merely dropped ADV-ineligible names from that fixed label with no
+   re-rank or backfill. Whenever ADV data wasn't available for every liquid name on a formation
+   date, the two paths picked different names. Fixed by rewriting `compute_target_book` in
+   `core/execution/portfolio/carry_rebalancer.py` to re-rank by `z_carry_neut` within the
+   caller-supplied (pre-filtered) fact list — the caller is now responsible for ADV/eligibility
+   filtering before calling it.
+3. **NULL forward returns leaked into the production portfolio.** A `LEFT JOIN` pulled in facts
+   with no `fwd_ret_1m`, diluting returns; research excludes them via `WHERE fwd_ret_1m IS NOT
+   NULL`. Fixed by matching the filter.
+
+The fix for bug 2 was first applied only inside `parity_check.py`'s own local copy of the
+construction logic (`_compute_target_book_production`) — which made the gate pass while leaving
+the real production module, `core/execution/portfolio/carry_rebalancer.py`, on the old buggy
+logic. **A parity gate that verifies a duplicate of the production code proves nothing about the
+production code.** This was caught and fixed: the local copy was deleted, and `parity_check.py`
+now imports `compute_target_book` directly from `core.execution.portfolio.carry_rebalancer`, so
+the gate can no longer drift from what will actually execute. Verified independently: 41 tests
+pass, fresh re-run gives +0.0 bp on both windows against the real module.
+
+**ADV-wiring gap: fixed, 2026-07-23.** `_load_adva` is now an instance method reading
+`self._bhavcopy_db` instead of a static method that ignored the constructor argument and
+hardcoded its own path — the argument now actually controls which DB gets read. Re-verified:
+parity still holds at +0.0 bp both windows after the change, 41 tests pass. One smaller piece is
+unchanged and not urgent: `bhavcopy_db_path` still defaults to `None`, and `_execute` still
+silently skips ADV loading with no warning when it's unset. Add a log warning before wiring this
+into a real driver so a missing path is loud, not silent — small, not blocking.
+
 ---
 
 ## 6. Go-live gate (sequenced — no step skipped before real capital)
 
-1. **Parity gate (§5).** Production path reproduces the research net spread. *Hard gate.*
+1. **Parity gate (§5).** Production path reproduces the research net spread. *Hard gate.* **PASSED.**
 2. **Capacity analysis.** Max AUM before the ADV caps bind and the edge compresses — set by the
-   thin-name tail of the ~120-name book. Output: a capital ceiling.
+   thin-name tail of the ~120-name book. Output: a capital ceiling. **DONE, 2026-07-23**
+   (`docs/reports/CARRY_CAPACITY_REPORT.md`, `scripts/signal_engine/carry/capacity_analysis.py`,
+   independently re-run and reproduced). **Finding: the ADV cap is not the binding constraint** —
+   at Rs 100 Cr gross (the top of the tested range), only 2.9% of TRAIN names / 0.3% of HOLDOUT
+   names are capped; the formula never actually bound within the tested range. The real
+   constraint is expected to be execution impact/slippage on the thin-name tail (p5 ADV Rs 23.7 Cr
+   TRAIN / Rs 32.9 Cr HOLDOUT), which this analysis does not measure — that's step 4 (PAPER).
+   Caveat: cap incidence here is measured pre-renormalization, so it doesn't capture second-order
+   cascading (redistributed capital pushing another name over its own cap); a small effect at
+   these incidence rates, but the true ceiling is a little more conservative than the headline
+   number, not less.
 3. **Drawdown / regime profile.** Worst month, max DD, and how concentrated the SEALED **+20.5%**
    is — it is likely regime-flattered (carry-favorable 2023–26), so size on the conservative
    HOLDOUT-class net, not 20.5%. Optionally evaluate the **Trend −0.246 overlay** for
    drawdown reduction here (a risk study on TRAIN/HOLDOUT — consumes no sealed data).
+   **DONE, 2026-07-23** (`docs/reports/CARRY_DRAWDOWN_REPORT.md`,
+   `scripts/signal_engine/carry/drawdown_analysis.py`, reuses the fixed production simulation
+   from `parity_check.py`; independently re-run and reproduced exactly). **Conservative numbers
+   for sizing: net +6.96%/yr, worst month −4.59%, max DD −6.44%, Sharpe 0.86.** Drawdowns are
+   mild in absolute terms, but HOLDOUT's risk stats rest on only 23 monthly observations and its
+   returns are concentrated (top 3 months = 87% of total return, top 5 = 129%) — the same
+   small-sample fragility this track has run into before (PSB-1/PSB-2/RFA), not a new problem,
+   but a reason to size conservatively rather than read Sharpe 0.86 as a stable estimate. Trend
+   overlay evaluation was scoped but not run — still open if drawdown reduction is wanted before
+   PAPER.
 4. **PAPER mode.** Run live-paper via `scripts/fno_runner.py` (PAPER) for a defined period;
    validate realized slippage against the 5 bp/side assumption (slippage dominated costs — it
    is the production lever) and confirm fills + position tracking behave.
@@ -250,22 +333,48 @@ before any provider work.
 
 ---
 
-## 9. Key files (to be created)
+## 9. Key files
 
-| File | Purpose |
-|---|---|
-| `scripts/signal_engine/carry/publish_facts.py` | Promote frozen construction → scheduled analytics fact table |
-| `core/strategies/carry_strategy.py` | Dumb formation-date `SignalEvent` emitter |
-| `core/execution/portfolio/carry_constructor.py` | Book-level neutralization + equal-weight + caps |
-| `scripts/signal_engine/carry/parity_check.py` | §5 production-vs-research parity harness |
-| `tests/strategies/test_carry_strategy.py` | Strategy emits correct intents from facts |
-| `docs/reports/CARRY_PARITY_REPORT.md` | Script-generated parity result (the §5 gate) |
+| File | Purpose | Status |
+|---|---|---|
+| `scripts/signal_engine/carry/publish_facts.py` | Promote frozen construction → scheduled analytics fact table | Built |
+| `core/strategies/carry_strategy.py` | Dumb formation-date `SignalEvent` emitter | Built |
+| `core/execution/portfolio/carry_rebalancer.py` | Book-level `compute_target_book` + `compute_deltas` + `rebalance_book` + `CarryRebalancerHook` (the constructor named in §4 as `carry_constructor.py` was built here instead) | Built |
+| `core/database/providers/daily_bhavcopy.py` | Daily-bar bhavcopy provider for REPLAY | Built |
+| `scripts/signal_engine/carry/parity_check.py` | §5 production-vs-research parity harness — imports `compute_target_book` from the production module directly | Built, GATE D PASS |
+| `tests/strategies/test_carry_strategy.py`, `tests/portfolio/test_carry_rebalancer.py` | Strategy + rebalancer unit tests (4 + 16) | Built, passing |
+| `docs/reports/CARRY_PARITY_REPORT.md` | Script-generated parity result (the §5 gate) | Current: +0.0bp TRAIN/HOLDOUT |
 
 ---
 
 ## 10. Next step
 
-**Resolve §3's contract check, then build §2 (fact promotion) + §3 (dumb strategy) + §5 (parity
-gate) first.** The parity gate is the cheapest, highest-information step: if the production path
-cannot reproduce the research edge, capacity/drawdown/paper work is premature. Everything after
-§5 is conditional on §5 passing.
+**§6 steps 1–3 are all closed and independently verified.** Fact promotion, the dumb strategy,
+the parity gate, the ADV-wiring fix, capacity analysis, and the drawdown/regime profile are all
+built, tested, and re-run from scratch to confirm every reported number reproduces exactly. The
+next work phase is **go-live gate step 4: PAPER mode** — run `scripts/fno_runner.py` in PAPER for
+a defined period, validate realized slippage against the 5 bp/side assumption baked into every
+report above (slippage is the dominant, least-tested cost — capacity analysis found the ADV cap
+formula doesn't bind, which pushes the real capacity question onto slippage), and confirm fills
+and position tracking behave. Size the PAPER run off the conservative numbers in §6 step 3
+(+6.96%/yr, −6.44% max DD), not SEALED.
+
+This is the first step that touches live infrastructure, so close these two before it, not
+during: (1) the deferred ADV-wiring log-warning (§5.3 — silent default when `bhavcopy_db_path` is
+unset on `CarryRebalancerHook`), and (2) no instantiation site for `CarryRebalancerHook` exists
+anywhere in the repo yet — wiring it into `LoopDriver`'s `rebalance_hook` for a real PAPER run is
+itself new integration work, not just a config flip, and should get the same "verify independent
+of the report" treatment the last three deliverables got.
+
+**PAPER integration prompt written and issued to DeepSeek, 2026-07-23:**
+`docs/reports/CARRY_PAPER_INTEGRATION_PROMPT.md`. Covers the `build_runner()`
+`rebalance_hook_factory` wiring, the ADV-warning fix, a gross-exposure **policy-injection** seam
+(PAPER uses a trivial fixed-Rs-1-Cr policy; LIVE's policy is explicitly left unimplemented —
+sizing off real PnL/drawdown is new behavior outside the frozen construction and is its own
+future decision, not something to invent here), an always-on flat-rate margin-feasibility check
+(not routed through SPAN — that needs contract-level resolution out of scope for this phase), and
+an explicit correction that PAPER fee/slippage logging is bookkeeping, not the realized-slippage
+validation §6.4 actually calls for (that needs real broker fills and belongs to LIVE). Also flags,
+without solving, an open gap: nothing currently refreshes `facts.duckdb` with new formation dates
+as time moves forward — `CarryRebalancerHook` will silently stop firing once it passes the last
+formation date `publish_facts.py` was run against.

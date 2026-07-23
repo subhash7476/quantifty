@@ -153,9 +153,10 @@ class LoopDriver:
                  broker_positions: Optional[Callable[[], List[Dict[str, Any]]]] = None,
                  telemetry: Optional[TelemetrySink] = None,
                  publisher: Optional[RuntimeTelemetryPublisher] = None,
-                  master_readiness: Optional[Callable[[], ReadinessVerdict]] = None,
-                  portfolio_view: Optional[PortfolioView] = None,
-                  span_readiness: Optional[Callable[[], SpanReadinessVerdict]] = None):
+                 master_readiness: Optional[Callable[[], ReadinessVerdict]] = None,
+                 portfolio_view: Optional[PortfolioView] = None,
+                 span_readiness: Optional[Callable[[], SpanReadinessVerdict]] = None,
+                 rebalance_hook: Optional[Callable[..., bool]] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
@@ -196,6 +197,7 @@ class LoopDriver:
         # publishing, loop unchanged. NOT live-gated: §10 telemetry is not
         # live-only (unlike the watchdog, §9.5).
         self._publisher = publisher
+        self._rebalance_hook = rebalance_hook
         # Last telemetry-publish time, by the deterministic clock (§10.2 throttle).
         self._last_publish_at = None
         # Wall-clock process-start mark for the health uptime field (§10.5). Uptime
@@ -652,6 +654,7 @@ class LoopDriver:
         # pipeline, §4.1), counted before the symbol sweep (Phase H telemetry).
         self._meter(RuntimeMetric.LOOP_ITERATIONS)
         advanced = False
+        rebalance_done = False
         for symbol in self._config.symbols:
             if self._at_max_bars():
                 break
@@ -660,6 +663,13 @@ class LoopDriver:
                 continue
             # Advance time from the bar BEFORE any per-bar work (§6, ADR-003).
             self._clock.set_time(bar.timestamp)
+            # Rebalance hook: once per tick, after clock advance, before signal routing.
+            # The hook receives (timestamp, execution_handler) and returns True if it
+            # executed a rebalance. Carry's book-level batch rebalance uses this path,
+            # not process_signal (CARRY_IMPLEMENTATION_BRIDGE.md §4.1).
+            if not rebalance_done and self._rebalance_hook is not None and self._execution is not None:
+                self._rebalance_hook(bar.timestamp, self._execution)
+                rebalance_done = True
             # MM9.2-S3-S2: warm the handler's price cache on every bar, not
             # only when a signal fires (spec §9). Placed after set_time so the
             # snapshot's timestamp is the bar's deterministic time, and before

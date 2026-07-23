@@ -31,19 +31,21 @@ WINDOWS = {
     "HOLDOUT": (date(2021, 1,  1), date(2022, 12, 31)),
 }
 
-# ── Fee model (era-accurate, pre-2023-04 — no tier switching) ──
-STT_RATE = 0.00010          # 0.0100% SELL side only (pre-2023-04)
-EXCHANGE_TXN_RATE = 0.000021  # 0.0021% NSE derivatives txn charge (both legs)
-SEBI_FEE_RATE = 0.000001      # 0.0001% Rs 10/crore (both legs)
-BROKERAGE_PER_ORDER = 20.0    # Rs 20 flat per order (discount broker futures)
-SLIPPAGE_BP = 5               # 5 bp per side (modeling choice, fixed)
+# ── Ensure project root is on sys.path for core.* imports ──
+sys.path.insert(0, str(ROOT))
 
-# Stamp duty era boundaries
-STAMP_POST_2020_07 = 0.00002  # 0.002% BUY side (post-2020-07-01)
-STAMP_PRE_2020_07  = 0.0001   # 0.01% BUY side (pre-2020-07-01, Maharashtra proxy)
+# ── Fee model — sourced from the canonical module (CARRY_IMPLEMENTATION_BRIDGE.md §5.1) ──
+from core.execution.futures.futures_fees import (
+    futures_fees as _module_futures_fees,
+    stt_futures_rate,
+    exchange_txn_rate,
+    stamp_duty_rate as _STAMP_DUTY_RATE,
+    gst_rate,
+    DEFAULT_BROKERAGE,
+    SEBI_FEE_RATE as _SEBI_FEE_RATE,
+)
 
-# GST era boundaries (post-2017-07-01: 18%)
-GST_RATE = 0.18
+SLIPPAGE_BP = 5  # 5 bp per side (modeling choice, fixed)
 
 # ── Portfolio ──
 GROSS_EXPOSURE = 10_000_000.0  # Rs 1 Cr fixed gross
@@ -64,26 +66,18 @@ def _git_commit():
         return "unknown"
 
 
-def _stamp_duty_rate(trade_date: date) -> float:
-    return STAMP_POST_2020_07 if trade_date >= date(2020, 7, 1) else STAMP_PRE_2020_07
-
-
 def _leg_fees(*, side: str, trade_value: float, trade_date: date) -> dict:
-    """Compute one-leg futures fees. Returns dict of components + total."""
-    stamp = trade_value * _stamp_duty_rate(trade_date) if side == "BUY" else 0.0
-    stt = trade_value * STT_RATE if side == "SELL" else 0.0
-    exchange_txn = trade_value * EXCHANGE_TXN_RATE
-    sebi_fee = trade_value * SEBI_FEE_RATE
-    gst_base = BROKERAGE_PER_ORDER + exchange_txn + sebi_fee
-    gst = GST_RATE * gst_base
+    """Thin wrapper: calls canonical futures_fees, returns dict matching
+    existing harness contract (f["total"], f[key])."""
+    f = _module_futures_fees(side=side, trade_value=trade_value, trade_date=trade_date)
     return {
-        "brokerage": BROKERAGE_PER_ORDER,
-        "stt": stt,
-        "exchange_txn": exchange_txn,
-        "sebi_fee": sebi_fee,
-        "stamp_duty": stamp,
-        "gst": gst,
-        "total": BROKERAGE_PER_ORDER + stt + exchange_txn + sebi_fee + stamp + gst,
+        "brokerage": f.brokerage,
+        "stt": f.stt,
+        "exchange_txn": f.exchange_txn,
+        "sebi_fee": f.sebi_fee,
+        "stamp_duty": f.stamp_duty,
+        "gst": f.gst,
+        "total": f.total,
     }
 
 
@@ -416,15 +410,18 @@ def main():
     a("---\n")
     a("")
     a("## 1. Fee Model\n")
-    a(f"| Component | Rate / Rule |")
-    a(f"|---|---|")
-    a(f"| Futures STT | {STT_RATE*100:.4f}% SELL side only (pre-2023-04, both TRAIN and HOLDOUT) |")
-    a(f"| Exchange transaction charge | {EXCHANGE_TXN_RATE*100:.4f}% both legs (NSE retail tier) |")
-    a(f"| SEBI turnover fee | {SEBI_FEE_RATE*100:.4f}% both legs (Rs 10/crore) |")
-    a(f"| Stamp duty | {STAMP_PRE_2020_07*100:.3f}% BUY side (pre-2020-07); "
-      f"{STAMP_POST_2020_07*100:.3f}% BUY side (post-2020-07-01) |")
-    a(f"| GST | {GST_RATE*100:.0f}% on (brokerage + exchange_txn + sebi_fee) |")
-    a(f"| Brokerage | Rs {BROKERAGE_PER_ORDER:.0f} flat per order (discount broker futures) |")
+    a("| Component | Rate / Rule |")
+    a("|---|---|")
+    a("| Futures STT | Tiered (canonical `futures_fees.py`): 0.0100% ≤ 2023-03-31 · "
+      "0.0125% 2023-04-01 → 2024-09-30 · 0.0200% ≥ 2024-10-01, SELL side only. "
+      "TRAIN/HOLDOUT both pre-2023-04 → effective 0.0100%. |")
+    a(f"| Exchange transaction charge | {exchange_txn_rate(date(2021,1,1))*100:.4f}% pre-2024-10 / "
+      f"{exchange_txn_rate(date(2024,10,1))*100:.4f}% post-2024-10, both legs (NSE retail tier) |")
+    a(f"| SEBI turnover fee | {_SEBI_FEE_RATE*100:.4f}% both legs (Rs 10/crore) |")
+    a("| Stamp duty | 0.010% BUY side (pre-2020-07-01); 0.002% BUY side (post-2020-07-01) |")
+    a("| GST / service tax | Era-accurate (18% post-2017-07-01; service tax rates pre-2017) "
+      "on (brokerage + exchange_txn + sebi_fee) |")
+    a(f"| Brokerage | Rs {DEFAULT_BROKERAGE:.0f} flat per order (discount broker futures) |")
     a(f"| Slippage | {SLIPPAGE_BP} bp per side (modeling choice, fixed) |")
     a(f"| Gross exposure | Rs {GROSS_EXPOSURE/1e7:.1f} Cr (fixed) |")
     a(f"| ADV cap | Position <= {ADV_CAP_FRAC*100:.0f}% of trailing {ADV_WINDOW}-day ADV |")
@@ -506,10 +503,11 @@ def main():
         "commit": commit,
         "generated": now_ts,
         "fee_model": {
-            "stt_rate": STT_RATE,
-            "exchange_txn_rate": EXCHANGE_TXN_RATE,
-            "sebi_fee_rate": SEBI_FEE_RATE,
-            "brokerage_per_order": BROKERAGE_PER_ORDER,
+            "source": "core/execution/futures/futures_fees.py (canonical, tiered STT 0.0100/0.0125/0.0200)",
+            "stt_rate_train_holdout": stt_futures_rate(date(2020, 1, 1)),
+            "exchange_txn_rate_pre_2024_10": exchange_txn_rate(date(2020, 1, 1)),
+            "sebi_fee_rate": _SEBI_FEE_RATE,
+            "brokerage_per_order": DEFAULT_BROKERAGE,
             "slippage_bp": SLIPPAGE_BP,
             "gross_exposure": GROSS_EXPOSURE,
             "adv_cap_frac": ADV_CAP_FRAC,
