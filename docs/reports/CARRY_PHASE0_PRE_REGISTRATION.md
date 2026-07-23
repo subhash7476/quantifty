@@ -176,8 +176,10 @@ power read (Newey–West / AC₁ correction, as in the PSB harness).
 
 **Windows (pinned, from the ingested futures span 2016-02-11 → 2026-07-20):**
 - **TRAIN:** 2016-03-31 → 2020-12-31 (~58 monthly formations). First formation 2016-03 allows
-  20-day futures-ADV warmup; beta warms up off 2010+ adjusted spot, so it does not consume
-  futures formations.
+  20-day futures-ADV warmup; beta warms up off pre-TRAIN history on both legs — the stock leg
+  from adjusted spot (`equity_bhavcopy_adjusted`, 2010-01-04+) and the market leg (Nifty 50)
+  from the 1d index store (2012-02-21+, gate-verified in `CARRY_G1_R4_VERIFICATION.md`) — so
+  beta does not consume futures formations.
 - **HOLDOUT:** 2021-01 → 2022-12 (24 monthly).
 - **SEALED:** 2023-01-01 → 2026-07-20 (~42 monthly) — **untouched** until gates 1–5 pass.
 
@@ -279,6 +281,8 @@ rescue a projection is not (rule 4).
 
 ## 14. Freeze
 
-On approval: compute SHA-256 over this file, record it here and in `carry.py`, and treat §1
+**SHA-256 (frozen 2026-07-22):** `02f85f5bdecc15fdfe211614f45f31d8d5368309eacbaf42a2339038e85a6b27`
+
+The hash above is computed over this file's content excluding this hash line. Treat §1
 (sign), §3 (construction), §4 (neutralization), §6 (cadence/caps), §7 (bands), and §9
 (acceptance rule) as immutable. Any change after freeze starts a new pre-registration.
