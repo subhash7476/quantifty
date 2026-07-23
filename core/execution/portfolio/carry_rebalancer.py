@@ -15,14 +15,16 @@ verify target book + deltas match the research harness.
 from __future__ import annotations
 
 import logging
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import duckdb
 import numpy as np
 
+from core.execution.order_lifecycle import FillEvent
 from core.execution.futures.futures_fees import futures_fees as _calc_fees
 from core.execution.position_models import PositionSide
 
@@ -53,6 +55,41 @@ class Delta:
     delta_cap: float
     action: str    # 'OPEN', 'CLOSE', 'SCALE_UP', 'SCALE_DOWN', 'FLIP', 'NOOP'
     suppressed: bool = False  # suppressed by no-trade band
+
+
+@dataclass
+class CapitalState:
+    """Minimal capital snapshot for gross-exposure policy decisions."""
+    starting_capital: float
+    current_equity: float
+    realized_pnl: float
+    current_drawdown_pct: float
+
+
+PAPER_GROSS = 10_000_000.0  # Rs 1 Cr — research-identical
+
+
+def paper_gross_exposure_policy(state: CapitalState) -> float:
+    """PAPER-mode policy: returns the fixed research-identical gross.
+
+    Ignores capital state — PAPER has no real capital to conserve, and
+    the point is testing signal and mechanics at the validated book size.
+    """
+    return PAPER_GROSS
+
+
+def live_gross_exposure_policy(state: CapitalState) -> float:
+    """LIVE-mode policy: NOT YET DESIGNED.
+
+    A PnL-reactive sizing rule is new behavior never present in
+    TRAIN/HOLDOUT/parity, and designing it is its own pre-registered
+    decision, not something to fall out of this integration task
+    (bridge §8 no-re-optimization guardrail).
+    """
+    raise NotImplementedError(
+        "LIVE gross-exposure policy is a separate, reviewed decision — "
+        "see bridge §8 no-re-optimization guardrail"
+    )
 
 
 def compute_target_book(
@@ -227,6 +264,39 @@ def rebalance_book(
     return new_longs, new_shorts, deltas
 
 
+def _derive_capital_state(tracker, execution) -> CapitalState:
+    """Derive CapitalState from execution handler's metrics and position tracker.
+
+    Reads cash_balance from ExecutionHandler.metrics (the real injected
+    capital, set from initial_capital in build_runner). Position notional
+    from the tracker is NOT used as equity — gross exposure is not the
+    same as capital.
+
+    Drawdown is read from metrics.max_drawdown_pct (maintained by the
+    handler's equity-update cycle, handler.py:139-146).
+    """
+    metrics = getattr(execution, 'metrics', None)
+    cash_balance = float(metrics.cash_balance) if metrics else 0.0
+    max_equity = float(metrics.max_equity) if metrics else cash_balance
+    dd_pct = 0.0
+    if metrics and max_equity > 0:
+        dd_pct = float(getattr(metrics, 'max_drawdown_pct', 0.0) or 0.0)
+
+    realized_pnl = 0.0
+    pnl_tracker = getattr(execution, 'pnl_tracker', None)
+    if pnl_tracker is not None:
+        realized_pnl = float(getattr(pnl_tracker, 'realized_pnl', 0.0) or 0.0)
+
+    starting_capital = cash_balance
+    current_equity = cash_balance + realized_pnl
+    return CapitalState(
+        starting_capital=starting_capital,
+        current_equity=max(current_equity, 0.0),
+        realized_pnl=realized_pnl,
+        current_drawdown_pct=dd_pct,
+    )
+
+
 class CarryRebalancerHook:
     """LoopDriver rebalance hook for the Carry sleeve.
 
@@ -239,12 +309,17 @@ class CarryRebalancerHook:
     """
 
     def __init__(self, facts_db_path: str, execution_handler,
-                 gross_exposure: float = 10_000_000.0,
+                 gross_exposure_policy: Callable[[CapitalState], float] = paper_gross_exposure_policy,
                  bhavcopy_db_path: Optional[str] = None):
         self._facts_db = Path(facts_db_path)
         self._exec = execution_handler
-        self._gross_exposure = gross_exposure
+        self._gross_exposure_policy = gross_exposure_policy
         self._bhavcopy_db = Path(bhavcopy_db_path) if bhavcopy_db_path else None
+        if self._bhavcopy_db is None:
+            _logger.warning(
+                "CarryRebalancerHook: bhavcopy_db_path not provided — "
+                "ADV capping disabled for this instance"
+            )
         self._last_date: Optional[date] = None
         self._formation_dates: set = set()
         self._load_calendar()
@@ -270,6 +345,27 @@ class CarryRebalancerHook:
         return True
 
     def _execute(self, fdate: date):
+        tracker = self._exec.position_tracker
+        capital_state = _derive_capital_state(tracker, self._exec)
+        gross_exposure = self._gross_exposure_policy(capital_state)
+
+        MARGIN_RATE = 0.20
+        MAX_CAPITAL_UTILISATION = 0.80
+
+        required_margin = gross_exposure * MARGIN_RATE
+        available = capital_state.current_equity * MAX_CAPITAL_UTILISATION
+        if required_margin > available:
+            _logger.warning(
+                "CarryRebalancer: margin check FAILED for %s — "
+                "gross=Rs %.1f Cr, required_margin=Rs %.0f, "
+                "available=Rs %.0f (%.0f%% utilisation cap on Rs %.0f equity). "
+                "Skipping rebalance.",
+                fdate, gross_exposure / 1e7, required_margin,
+                available, MAX_CAPITAL_UTILISATION * 100,
+                capital_state.current_equity,
+            )
+            return
+
         con = duckdb.connect(str(self._facts_db), read_only=True)
         rows = con.execute(
             "SELECT underlying, z_carry_neut, quintile, eligible "
@@ -289,7 +385,6 @@ class CarryRebalancerHook:
         if len(facts) < 5:
             return
 
-        tracker = self._exec.position_tracker
         positions = tracker.get_all_positions()
 
         held_longs: Dict[str, float] = {}
@@ -305,7 +400,7 @@ class CarryRebalancerHook:
             elif side == PositionSide.SHORT:
                 held_shorts[underlying] = capital
 
-        target = compute_target_book(facts, self._gross_exposure, adva)
+        target = compute_target_book(facts, gross_exposure, adva)
         new_longs, new_shorts, deltas = rebalance_book(
             target, held_longs, held_shorts, BAND_SIGMA)
 
@@ -344,86 +439,73 @@ class CarryRebalancerHook:
             return
 
         tracker = self._exec.position_tracker
-        broker = self._exec.broker
-
-        from core.events import FillEvent
-
         ts = datetime.combine(trade_date, time.min)
+
+        total_fee = 0.0
+        total_slippage = 0.0
 
         # Phase 1: exits first
         for d in executions:
             if d.action in ('CLOSE', 'FLIP'):
-                exec_side = 'SELL' if d.held_side == 'LONG' else 'BUY'
-                fill = FillEvent(
-                    fill_id=str(__import__('uuid').uuid4()),
-                    order_id=str(__import__('uuid').uuid4()),
-                    symbol=d.underlying + "FUT",
-                    quantity=abs(d.held_cap),
-                    price=1.0,
-                    timestamp=ts,
-                    side=exec_side,
-                    fee=0.0,
-                )
+                side = 'SELL' if d.held_side == 'LONG' else 'BUY'
+                trade_val = abs(d.held_cap)
+                fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
+                total_fee += fill.fee
 
             if d.action == 'SCALE_DOWN':
-                exec_side = 'SELL' if d.held_side == 'LONG' else 'BUY'
-                fill = FillEvent(
-                    fill_id=str(__import__('uuid').uuid4()),
-                    order_id=str(__import__('uuid').uuid4()),
-                    symbol=d.underlying + "FUT",
-                    quantity=abs(d.delta_cap),
-                    price=1.0,
-                    timestamp=ts,
-                    side=exec_side,
-                    fee=0.0,
-                )
+                side = 'SELL' if d.held_side == 'LONG' else 'BUY'
+                trade_val = abs(d.delta_cap)
+                fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
+                total_fee += fill.fee
 
         # Phase 2: entries
         for d in executions:
             if d.action in ('OPEN',):
-                exec_side = 'BUY' if d.target_side == 'LONG' else 'SELL'
-                fill = FillEvent(
-                    fill_id=str(__import__('uuid').uuid4()),
-                    order_id=str(__import__('uuid').uuid4()),
-                    symbol=d.underlying + "FUT",
-                    quantity=d.target_cap,
-                    price=1.0,
-                    timestamp=ts,
-                    side=exec_side,
-                    fee=0.0,
-                )
+                side = 'BUY' if d.target_side == 'LONG' else 'SELL'
+                trade_val = d.target_cap
+                fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
+                total_fee += fill.fee
 
             if d.action == 'SCALE_UP':
-                exec_side = 'BUY' if d.target_side == 'LONG' else 'SELL'
-                fill = FillEvent(
-                    fill_id=str(__import__('uuid').uuid4()),
-                    order_id=str(__import__('uuid').uuid4()),
-                    symbol=d.underlying + "FUT",
-                    quantity=abs(d.delta_cap),
-                    price=1.0,
-                    timestamp=ts,
-                    side=exec_side,
-                    fee=0.0,
-                )
+                side = 'BUY' if d.target_side == 'LONG' else 'SELL'
+                trade_val = abs(d.delta_cap)
+                fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
+                total_fee += fill.fee
 
             if d.action == 'FLIP':
-                exec_side = 'BUY' if d.target_side == 'LONG' else 'SELL'
-                fill = FillEvent(
-                    fill_id=str(__import__('uuid').uuid4()),
-                    order_id=str(__import__('uuid').uuid4()),
-                    symbol=d.underlying + "FUT",
-                    quantity=d.target_cap,
-                    price=1.0,
-                    timestamp=ts,
-                    side=exec_side,
-                    fee=0.0,
-                )
+                side = 'BUY' if d.target_side == 'LONG' else 'SELL'
+                trade_val = d.target_cap
+                fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
+                total_fee += fill.fee
 
         n_exits = sum(1 for d in executions if d.action in ('CLOSE', 'FLIP', 'SCALE_DOWN'))
         n_entries = sum(1 for d in executions if d.action in ('OPEN', 'SCALE_UP', 'FLIP'))
-        _logger.info("Rebalance done: %d exits, %d entries", n_exits, n_entries)
+        total_slippage = sum((SLIPPAGE_BP / 10000) * (
+            abs(d.delta_cap) if d.action in ('SCALE_UP', 'SCALE_DOWN', 'OPEN')
+            else abs(d.held_cap) if d.action in ('CLOSE',)
+            else d.target_cap
+        ) for d in executions)
+        _logger.info("Rebalance done: %d exits, %d entries, "
+                      "~Rs %.0f fees + ~Rs %.0f slippage",
+                      n_exits, n_entries, total_fee, total_slippage)
+
+    def _build_fill(self, underlying: str, side: str, trade_val: float,
+                    trade_date: date, ts: datetime) -> FillEvent:
+        """Construct a FillEvent with real futures fees and injected slippage."""
+        f = _calc_fees(side=side, trade_value=trade_val, trade_date=trade_date)
+        slippage = (SLIPPAGE_BP / 10000) * trade_val
+        return FillEvent(
+            fill_id=str(uuid.uuid4()),
+            order_id=str(uuid.uuid4()),
+            symbol=underlying + "FUT",
+            quantity=trade_val,
+            price=1.0,
+            timestamp=ts,
+            side=side,
+            fee=f.total + slippage,
+        )

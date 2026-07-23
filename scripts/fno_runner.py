@@ -119,6 +119,7 @@ def build_runner(
     metrics_path: Optional[str] = None,
     max_bars: Optional[int] = None,
     initial_capital: float = 100_000.0,
+    rebalance_hook_factory: Optional[Callable[[Any], Any]] = None,
 ) -> LoopDriver:
     """Compose and return a live F&O LoopDriver around the injected source.
 
@@ -242,6 +243,10 @@ def build_runner(
     handler_kwargs["journal"] = journal
     execution = ExecutionHandler(**handler_kwargs)
 
+    rebalance_hook = None
+    if rebalance_hook_factory is not None:
+        rebalance_hook = rebalance_hook_factory(execution)
+
     # MM9.3-S2: PortfolioView for enriched telemetry. Uses the handler's
     # existing PortfolioGreeks instance (handler.py:203) — not a new one — so
     # both the risk gate (S1B) and telemetry read the same stateless aggregator.
@@ -274,4 +279,5 @@ def build_runner(
         master_readiness=master_readiness,
         portfolio_view=portfolio_view,
         span_readiness=span_readiness,
+        rebalance_hook=rebalance_hook,
     )

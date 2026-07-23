@@ -308,6 +308,28 @@ into a real driver so a missing path is loud, not silent — small, not blocking
 4. **PAPER mode.** Run live-paper via `scripts/fno_runner.py` (PAPER) for a defined period;
    validate realized slippage against the 5 bp/side assumption (slippage dominated costs — it
    is the production lever) and confirm fills + position tracking behave.
+   **Integration CLOSED, 2026-07-23** (`docs/reports/CARRY_PAPER_INTEGRATION_PROMPT.md` +
+   `CARRY_PAPER_INTEGRATION_REVIEW.md`, `scripts/carry_paper_runner.py`, 53/53 tests). Built:
+   `rebalance_hook_factory` wiring into `build_runner()`, ADV-warning fix, gross-exposure
+   **policy injection** (PAPER fixed Rs 1 Cr / LIVE `NotImplementedError` — sizing off real
+   PnL/drawdown is a separate, not-yet-designed decision), an always-on flat-rate
+   margin-feasibility check, and fee/slippage logged on every fill (bookkeeping only — not a
+   realized-slippage measurement; that needs real broker fills and belongs to LIVE, see below).
+   **One critical bug found and fixed during review, not to be repeated:** the first delivery
+   derived margin-check equity from summed *held-position* notional, which is zero before any
+   position exists — the hook would have rejected its own first rebalance and never recovered,
+   silently placing zero trades if actually run. Root cause: real `initial_capital` was correctly
+   passed into `ExecutionHandler.metrics.cash_balance` at the entry point but `_derive_capital_state`
+   never read it. Fixed by sourcing equity from `execution.metrics.cash_balance` instead of
+   position notional; reproduced and independently re-verified against the exact failing scenario.
+   **Neither the original bug nor its fix were exercised end-to-end** — no test drives
+   `CarryRebalancerHook.__call__()` against a real facts DB with an execution handler that
+   actually places a fill. **A real dry run of `scripts/carry_paper_runner.py` against live
+   formation dates — confirming an actual `FillEvent` lands in `position_tracker` — is the
+   outstanding acceptance step before this can be called proven, not just unit-verified.** Also
+   still open, documented but unsolved: nothing refreshes `carry_facts` with new formation dates
+   as time moves forward, so the hook will silently stop firing once PAPER passes the last
+   formation date `publish_facts.py` was run against.
 5. **LIVE.** Only after 1–4, at small size, with **IC-decay monitoring** — a validated signal is
    not a permanent one; carry edges crowd out.
 
@@ -349,22 +371,25 @@ into a real driver so a missing path is loud, not silent — small, not blocking
 
 ## 10. Next step
 
-**§6 steps 1–3 are all closed and independently verified.** Fact promotion, the dumb strategy,
-the parity gate, the ADV-wiring fix, capacity analysis, and the drawdown/regime profile are all
-built, tested, and re-run from scratch to confirm every reported number reproduces exactly. The
-next work phase is **go-live gate step 4: PAPER mode** — run `scripts/fno_runner.py` in PAPER for
-a defined period, validate realized slippage against the 5 bp/side assumption baked into every
-report above (slippage is the dominant, least-tested cost — capacity analysis found the ADV cap
-formula doesn't bind, which pushes the real capacity question onto slippage), and confirm fills
-and position tracking behave. Size the PAPER run off the conservative numbers in §6 step 3
-(+6.96%/yr, −6.44% max DD), not SEALED.
+**§6 steps 1–3 are closed and independently verified; step 4's integration code is built,
+bug-fixed, and unit-verified, but not yet proven end-to-end.** Fact promotion, the dumb strategy,
+the parity gate, the ADV-wiring fix, capacity analysis, the drawdown/regime profile, and the
+PAPER wiring (`rebalance_hook_factory`, policy injection, margin-feasibility check, fee/slippage
+logging) are all built and tested — including catching and fixing a critical margin-check bug
+that would have made the rebalancer place zero trades if run as first delivered (§6 step 4 above).
 
-This is the first step that touches live infrastructure, so close these two before it, not
-during: (1) the deferred ADV-wiring log-warning (§5.3 — silent default when `bhavcopy_db_path` is
-unset on `CarryRebalancerHook`), and (2) no instantiation site for `CarryRebalancerHook` exists
-anywhere in the repo yet — wiring it into `LoopDriver`'s `rebalance_hook` for a real PAPER run is
-itself new integration work, not just a config flip, and should get the same "verify independent
-of the report" treatment the last three deliverables got.
+**Outstanding before step 4 can be called done: a real dry run of `scripts/carry_paper_runner.py`
+against live formation dates, confirming an actual `FillEvent` lands in `position_tracker`.**
+Nothing so far — not the original bug, not its fix — has been exercised through
+`CarryRebalancerHook.__call__()` end-to-end; every test to date is a unit test of a piece of the
+chain. DeepSeek is running this dry run next and will bring the report back for review. Apply the
+same discipline to that report as to every prior one in this track: re-run independently, don't
+accept "it worked" without seeing the actual fill/position evidence.
+
+Also still open, unresolved: the facts-refresh gap (nothing refreshes `carry_facts` with new
+formation dates as time passes — flagged, not fixed) and the LIVE gross-exposure policy (deliberately
+left as `NotImplementedError`, its own future pre-registered decision per §8's no-re-optimization
+guardrail).
 
 **PAPER integration prompt written and issued to DeepSeek, 2026-07-23:**
 `docs/reports/CARRY_PAPER_INTEGRATION_PROMPT.md`. Covers the `build_runner()`

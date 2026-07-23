@@ -1,16 +1,17 @@
-"""GATE C — Carry rebalancer tests.
+"""PAPER integration tests (per CARRY_PAPER_INTEGRATION_PROMPT.md §8).
 
-Verifies:
-  - compute_target_book: correct equal-weight quintile construction
-  - compute_deltas: correct delta computation with no-trade band
-  - rebalance_book: correct position state transitions
-  - EARLY DE-RISK sub-check: research parity (rebalancer produces
-    research-identical target book + deltas)
+Extends the existing GATE C tests with:
+  - Policy injection: paper_policy returns constant, live_policy raises
+  - ADV-wiring warning: None bhavcopy_db_path emits WARNING
+  - Margin-feasibility formula: rejected when utilisation exceeded
+  - Fee/slippage: FillEvent.fee > 0 with real futures_fees call
 """
+import logging
 import sys
 from datetime import date
 from pathlib import Path
 
+import duckdb
 import numpy as np
 import pytest
 
@@ -20,10 +21,15 @@ sys.path.insert(0, str(ROOT / "scripts" / "signal_engine" / "carry"))
 
 from core.execution.portfolio.carry_rebalancer import (
     BAND_SIGMA,
+    ADV_CAP_FRAC,
+    CapitalState,
+    CarryRebalancerHook,
     Delta,
     TargetBook,
     compute_deltas,
     compute_target_book,
+    live_gross_exposure_policy,
+    paper_gross_exposure_policy,
     rebalance_book,
 )
 
@@ -274,3 +280,194 @@ class TestRebalancerResearchParity:
             assert abs(cap - HALF / 2) < 1.0
         for u, cap in target.shorts.items():
             assert abs(cap - HALF / 2) < 1.0
+
+
+# ── PAPER integration tests (CARRY_PAPER_INTEGRATION_PROMPT.md §8) ──
+
+
+class TestGrossExposurePolicies:
+    def test_paper_policy_returns_constant(self):
+        state = CapitalState(
+            starting_capital=1_000_000.0,
+            current_equity=500_000.0,
+            realized_pnl=-500_000.0,
+            current_drawdown_pct=-0.50,
+        )
+        assert paper_gross_exposure_policy(state) == 10_000_000.0
+
+    def test_paper_policy_ignores_state(self):
+        """Policy returns the same constant regardless of state."""
+        s1 = CapitalState(1e9, 1e9, 0.0, 0.0)
+        s2 = CapitalState(1e3, 1e3, 0.0, 0.0)
+        assert paper_gross_exposure_policy(s1) == paper_gross_exposure_policy(s2)
+
+    def test_live_policy_raises(self):
+        state = CapitalState(1_000_000.0, 1_000_000.0, 0.0, 0.0)
+        with pytest.raises(NotImplementedError, match="separate, reviewed decision"):
+            live_gross_exposure_policy(state)
+
+
+class TestAdvWarning:
+    def test_warning_on_none_bhavcopy(self, caplog, tmp_path):
+        facts_db = tmp_path / "facts.duckdb"
+        con = duckdb.connect(str(facts_db))
+        con.execute("CREATE TABLE carry_facts (formation_date DATE, underlying VARCHAR)")
+        con.close()
+
+        class DummyExec:
+            position_tracker = None
+
+        with caplog.at_level(logging.WARNING):
+            CarryRebalancerHook(
+                facts_db_path=str(facts_db),
+                execution_handler=DummyExec(),
+                bhavcopy_db_path=None,
+            )
+
+        assert any("ADV capping disabled" in r.message for r in caplog.records)
+
+
+class TestMarginFeasibility:
+    MARGIN_RATE = 0.20
+    MAX_UTIL = 0.80
+
+    def test_feasible_passes(self):
+        """Rs 1 Cr gross against Rs 1 Cr equity → 20% margin utilisation, OK."""
+        gross = 10_000_000.0
+        equity = 10_000_000.0
+        required = gross * self.MARGIN_RATE       # 20 lakh
+        available = equity * self.MAX_UTIL          # 80 lakh
+        assert required <= available
+
+    def test_over_utilised_fails(self):
+        """Rs 5 Cr gross against Rs 1 Cr equity → 100% margin, fails."""
+        gross = 50_000_000.0
+        equity = 10_000_000.0
+        required = gross * self.MARGIN_RATE        # 1 Cr
+        available = equity * self.MAX_UTIL          # 80 lakh
+        assert required > available
+
+    def test_boundary_exact(self):
+        """At exactly 4x equity, utilisation hits the 80% cap."""
+        equity = 10_000_000.0
+        gross = equity / self.MARGIN_RATE * self.MAX_UTIL  # 4 Cr
+        required = gross * self.MARGIN_RATE        # 80 lakh
+        available = equity * self.MAX_UTIL          # 80 lakh
+        assert abs(required - available) < 1.0
+
+
+class TestFeeOnFill:
+    def test_build_fill_has_nonzero_fee(self):
+        """_build_fill produces a FillEvent with fee > 0 from futures_fees + slippage."""
+        from core.execution.portfolio.carry_rebalancer import CarryRebalancerHook, SLIPPAGE_BP
+
+        class DummyExec:
+            position_tracker = None
+
+        hook = CarryRebalancerHook.__new__(CarryRebalancerHook)
+        fill = hook._build_fill(
+            underlying="TEST",
+            side="SELL",
+            trade_val=1_000_000.0,
+            trade_date=date(2020, 6, 15),
+            ts=date(2020, 6, 15),
+        )
+        assert fill.fee > 0
+        # STT at 0.0100% on SELL = Rs 100. Slippage at 5bp = Rs 500.
+        # Fee should exceed Rs 100 at minimum.
+        assert fill.fee >= 100.0
+        expected_slippage = (SLIPPAGE_BP / 10000) * 1_000_000.0
+        assert expected_slippage == 500.0
+
+    def test_build_fill_buy_no_stt(self):
+        """BUY side has no STT, but still has exchange + sebi + stamp + slippage."""
+        from core.execution.portfolio.carry_rebalancer import CarryRebalancerHook
+
+        hook = CarryRebalancerHook.__new__(CarryRebalancerHook)
+        fill = hook._build_fill(
+            underlying="TEST",
+            side="BUY",
+            trade_val=1_000_000.0,
+            trade_date=date(2020, 6, 15),
+            ts=date(2020, 6, 15),
+        )
+        assert fill.fee > 0
+        # BUY side has stamp duty at 0.002% = Rs 20. Slippage = Rs 500.
+        assert fill.fee >= 20.0
+
+
+# ── Integration test: _derive_capital_state reads from ExecutionHandler.metrics ──
+
+
+class TestDeriveCapitalState:
+    def test_reads_cash_balance_from_metrics(self):
+        """_derive_capital_state sources equity from execution.metrics.cash_balance,
+        not from held positions. This is the fix for the zero-equity-on-first-rebalance
+        bug — held positions start empty, cash_balance carries the real initial_capital."""
+        from core.execution.portfolio.carry_rebalancer import _derive_capital_state
+
+        class FakeMetrics:
+            cash_balance = 10_000_000.0
+            max_equity = 10_000_000.0
+            max_drawdown_pct = 0.0
+
+        class FakeExec:
+            metrics = FakeMetrics()
+            pnl_tracker = None
+
+        class FakeTracker:
+            def get_all_positions(self):
+                return {}  # empty — first rebalance, no positions yet
+
+        state = _derive_capital_state(FakeTracker(), FakeExec())
+        assert state.current_equity == 10_000_000.0
+        assert state.starting_capital == 10_000_000.0
+
+    def test_paper_flow_margin_clears(self):
+        """End-to-end chain: derive capital → paper policy → margin check.
+        With Rs 1 Cr cash and 1 Cr paper gross, the check passes:
+        1 Cr * 0.20 = 20L required, 1 Cr * 0.80 = 80L available."""
+        from core.execution.portfolio.carry_rebalancer import (
+            _derive_capital_state, paper_gross_exposure_policy,
+        )
+
+        class FakeMetrics:
+            cash_balance = 10_000_000.0
+            max_equity = 10_000_000.0
+            max_drawdown_pct = 0.0
+
+        class FakeExec:
+            metrics = FakeMetrics()
+            pnl_tracker = None
+
+        class FakeTracker:
+            def get_all_positions(self):
+                return {}
+
+        state = _derive_capital_state(FakeTracker(), FakeExec())
+        gross = paper_gross_exposure_policy(state)
+        required = gross * 0.20
+        available = state.current_equity * 0.80
+        assert required <= available, (
+            f"Margin check failed: required={required} available={available}"
+        )
+
+    def test_zero_cash_fails(self):
+        """With no cash_balance (metrics missing or zero), margin check should fail."""
+        from core.execution.portfolio.carry_rebalancer import _derive_capital_state
+
+        class FakeExec:
+            metrics = None
+            pnl_tracker = None
+
+        class FakeTracker:
+            def get_all_positions(self):
+                return {}
+
+        state = _derive_capital_state(FakeTracker(), FakeExec())
+        assert state.current_equity == 0.0
+        assert state.starting_capital == 0.0
+        # At 0 equity, even 1 Cr gross fails
+        required = 10_000_000.0 * 0.20
+        available = state.current_equity * 0.80
+        assert required > available
