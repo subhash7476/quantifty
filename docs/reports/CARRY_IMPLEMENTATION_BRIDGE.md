@@ -322,14 +322,22 @@ into a real driver so a missing path is loud, not silent — small, not blocking
    passed into `ExecutionHandler.metrics.cash_balance` at the entry point but `_derive_capital_state`
    never read it. Fixed by sourcing equity from `execution.metrics.cash_balance` instead of
    position notional; reproduced and independently re-verified against the exact failing scenario.
-   **Neither the original bug nor its fix were exercised end-to-end** — no test drives
-   `CarryRebalancerHook.__call__()` against a real facts DB with an execution handler that
-   actually places a fill. **A real dry run of `scripts/carry_paper_runner.py` against live
-   formation dates — confirming an actual `FillEvent` lands in `position_tracker` — is the
-   outstanding acceptance step before this can be called proven, not just unit-verified.** Also
-   still open, documented but unsolved: nothing refreshes `carry_facts` with new formation dates
-   as time moves forward, so the hook will silently stop firing once PAPER passes the last
-   formation date `publish_facts.py` was run against.
+   **End-to-end proof closed, 2026-07-23** (`docs/reports/CARRY_INTEGRATION_SMOKE_REPORT.md`,
+   `scripts/carry_integration_check.py` — permanent, committed, re-runnable, not a throwaway
+   script). Drives `CarryRebalancerHook.__call__()` against three real formation dates
+   (2016-05-31 / 2021-05-31 / 2026-07-20) through a real `ExecutionHandler` + `PaperBroker`:
+   margin check clears, target book constructs, fills land in `position_tracker`, gross exposure
+   matches target **exactly** (Rs 1.00 Cr on all three dates), second call on the same date
+   deduplicates correctly (`fired=False`, positions unchanged). **Independently re-run — numbers
+   reproduce exactly** (32L/32S, 31L/31S, 39L/39S; PASS on every check, all three dates). §6 step 4
+   is now genuinely closed, not just unit-verified.
+
+   Still open, documented but unsolved, and blocking before step 5: nothing refreshes
+   `carry_facts` with new formation dates as time moves forward, so the hook will silently stop
+   firing once a real forward-running PAPER instance passes the last formation date
+   `publish_facts.py` was run against. And the LIVE gross-exposure policy remains an explicit
+   `NotImplementedError` — its own future pre-registered decision, not implied by anything built
+   here.
 5. **LIVE.** Only after 1–4, at small size, with **IC-decay monitoring** — a validated signal is
    not a permanent one; carry edges crowd out.
 
