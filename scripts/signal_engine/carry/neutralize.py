@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 EQ_DB = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
-SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "signals.duckdb"
+SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
 NIFTY_DB = ROOT / "data" / "signal_engine" / "carry" / "nifty50.duckdb"
 
 BETA_DAYS = 252

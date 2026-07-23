@@ -23,7 +23,7 @@ import contract_arms as A
 
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 EQ_DB = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
-SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "signals.duckdb"
+SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
 SECTOR_CSV = ROOT / "governance" / "carry" / "sector_classification.csv"
 
 # Liquidity screen: trailing 20-day median futures turnover >= Rs 5 cr
@@ -37,12 +37,12 @@ HOLDOUT_HI = date(2022, 12, 31)
 
 
 def _formation_grid(con):
-    """Monthly formation dates: last trading day of each calendar month."""
+    """Weekly formation dates: last trading day of each ISO week."""
     return [
         r[0] for r in con.execute("""
             WITH ranked AS (
                 SELECT trade_date, ROW_NUMBER() OVER (
-                    PARTITION BY year(trade_date), month(trade_date) ORDER BY trade_date DESC
+                    PARTITION BY year(trade_date), week(trade_date) ORDER BY trade_date DESC
                 ) AS rn
                 FROM fut.futures_bhavcopy WHERE inst_type='FUTSTK'
             )
