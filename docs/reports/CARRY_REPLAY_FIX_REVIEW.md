@@ -146,6 +146,43 @@ timeout, which is worse than a red assertion. **Recommended one-line change: giv
 (all bars share one date → 1 tick ≠ expected trading days). The guard is real either way; this is
 about how it reports.
 
+## 2.6 Second follow-up round — verified (commit `06aa49d`)
+
+`max_bars` bound: **applied correctly.** `test_driver_calendar_alignment.py:112` now sets
+`max_bars=10000` against a ~187-day × 50-symbol window (~9,350 bars), so it bounds without
+truncating. With the bound, a regression now fails cleanly on tick-count mismatch instead of
+hanging — §2.5.1 closed. *(Minor: 10000 is a magic number that would silently truncate — producing a
+false failure — if the window or symbol count grows. Deriving it as `len(symbols) * expected_days`
+would be self-maintaining.)*
+
+### 2.6.1 The provider test's tick-count assertion is now VACUOUS — a check was removed
+
+`test_daily_bhavcopy_calendar.py:74` changed the hardcoded `1173` to:
+
+```python
+expected_trading_days = len(provider._calendar)
+assert tick_count == expected_trading_days
+```
+
+**This assertion cannot fail.** The loop is `while provider.is_data_available(...)` — i.e.
+`_calendar_idx < len(_calendar)` — and each iteration calls `advance_tick()` (`_calendar_idx += 1`)
+and `tick_count += 1`. The loop therefore runs **exactly** `len(_calendar)` times by construction,
+so `tick_count == len(provider._calendar)` is tautological regardless of the data. It also reaches
+into a private attribute.
+
+This is a misapplication of review §2.4. The intent was to remove a **brittle** constant by deriving
+the count **independently** — from the store — which is exactly what the *driver* test does
+correctly (`COUNT(DISTINCT trade_date)`, lines 82-90). Deriving it from the provider's own internal
+state instead removes the check rather than making it robust: if `_build_calendar` ever returned a
+wrong calendar, this assertion would still pass.
+
+**Fix:** mirror the driver test — `SELECT COUNT(DISTINCT trade_date)` over the same window and
+filters. The test's 0-spread assertions are unaffected and remain genuine; only the tick-count check
+is vacuous.
+
+**Both tests pass** (8.4 s) — but the provider test now passes partly for a reason that proves
+nothing.
+
 ---
 
 ## 3. On "ready for a full TRAIN/HOLDOUT parity check"
