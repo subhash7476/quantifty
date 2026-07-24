@@ -1,0 +1,786 @@
+{% extends "base.html" %}
+
+{% block title %}Data Manager - opencode{% endblock %}
+
+{% block breadcrumb %}Data{% endblock %}
+
+{% block head %}
+<style>
+    .store-card { transition: all 0.2s; }
+    .store-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+    .tab-btn { transition: all 0.15s; }
+    .pipeline-running { animation: pulse-border 1.5s infinite; }
+    @keyframes pulse-border {
+        0%, 100% { border-color: rgb(59 130 246 / 0.3); }
+        50% { border-color: rgb(59 130 246 / 0.8); }
+    }
+    .sql-editor {
+        font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+        tab-size: 2;
+    }
+    .result-cell { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .result-cell:hover { max-width: none; white-space: normal; overflow: visible; position: relative; z-index: 10; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white tracking-tight">Data Manager</h1>
+            <p class="text-slate-400 mt-1">Ingestion, querying, downloads, and scheduled jobs</p>
+        </div>
+        <button onclick="DataUI.refresh()" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl border border-slate-700 transition-colors">
+            <i class="fas fa-sync-alt mr-2"></i> Refresh
+        </button>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="flex border-b border-slate-800 space-x-1 overflow-x-auto">
+        <button onclick="DataUI.switchTab('overview')" id="tab-overview" class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-blue-500 text-white whitespace-nowrap rounded-t-lg bg-blue-500/5">
+            <i class="fas fa-chart-pie mr-2"></i>Overview
+        </button>
+        <button onclick="DataUI.switchTab('explorer')" id="tab-explorer" class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 whitespace-nowrap">
+            <i class="fas fa-search mr-2"></i>Explorer
+        </button>
+        <button onclick="DataUI.switchTab('query')" id="tab-query" class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 whitespace-nowrap">
+            <i class="fas fa-code mr-2"></i>Query
+        </button>
+        <button onclick="DataUI.switchTab('ingestion')" id="tab-ingestion" class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 whitespace-nowrap">
+            <i class="fas fa-download mr-2"></i>Ingestion
+        </button>
+        <button onclick="DataUI.switchTab('downloads')" id="tab-downloads" class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 whitespace-nowrap">
+            <i class="fas fa-cloud-download-alt mr-2"></i>Downloads
+        </button>
+        <button onclick="DataUI.switchTab('schedule')" id="tab-schedule" class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 whitespace-nowrap">
+            <i class="fas fa-clock mr-2"></i>Schedule
+        </button>
+    </div>
+
+    <!-- ============ OVERVIEW ============ -->
+    <div id="tab-content-overview" class="tab-content">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6" id="overview-stats">
+            <div class="glass rounded-2xl p-5 text-center animate-pulse">Loading store overview...</div>
+        </div>
+        <div class="glass rounded-2xl overflow-hidden" id="overview-stores">
+            <div class="p-4 border-b border-slate-700 bg-slate-800/30">
+                <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500">Data Stores</h3>
+            </div>
+            <div id="store-list" class="divide-y divide-slate-800"></div>
+        </div>
+    </div>
+
+    <!-- ============ EXPLORER ============ -->
+    <div id="tab-content-explorer" class="tab-content hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div class="glass rounded-2xl flex flex-col h-[600px]">
+                <div class="p-4 border-b border-slate-700 bg-slate-800/30 flex items-center justify-between">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500"><i class="fas fa-table mr-2"></i>Tables</h3>
+                    <span id="explorer-table-count" class="text-[10px] text-slate-600">0</span>
+                </div>
+                <div id="explorer-table-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+                    <div class="p-4 text-center text-slate-500 text-sm">Loading tables...</div>
+                </div>
+            </div>
+            <div class="lg:col-span-3 space-y-4">
+                <div class="glass rounded-2xl p-5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h3 class="font-bold text-white" id="explorer-selected-name">Select a table</h3>
+                            <p class="text-xs text-slate-500" id="explorer-selected-store"></p>
+                        </div>
+                        <div class="flex space-x-2">
+                            <select id="explorer-page-size" onchange="DataUI._explorerBrowse()" class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-300">
+                                <option value="25">25</option><option value="50" selected>50</option><option value="100">100</option><option value="500">500</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto border border-slate-700/50 rounded-xl bg-slate-900/30 max-h-[450px]">
+                        <table class="w-full text-left text-xs">
+                            <thead id="explorer-thead" class="bg-slate-800/80 text-slate-400 uppercase font-bold sticky top-0 z-10"></thead>
+                            <tbody id="explorer-tbody" class="divide-y divide-slate-800 text-slate-300">
+                                <tr><td colspan="10" class="px-6 py-16 text-center text-slate-500 italic">Select a table to browse</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div id="explorer-pagination" class="hidden mt-3 flex items-center justify-between text-sm text-slate-400">
+                        <span id="explorer-page-info"></span>
+                        <div class="flex space-x-1">
+                            <button onclick="DataUI._explorerPage(-1)" id="explorer-prev" class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg disabled:opacity-30"><i class="fas fa-chevron-left text-xs"></i></button>
+                            <span class="px-3 py-1 bg-slate-800 rounded-lg text-white text-xs" id="explorer-page-num">1</span>
+                            <button onclick="DataUI._explorerPage(1)" id="explorer-next" class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-lg disabled:opacity-30"><i class="fas fa-chevron-right text-xs"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ QUERY ============ -->
+    <div id="tab-content-query" class="tab-content hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <div class="glass rounded-2xl flex flex-col h-[500px]">
+                <div class="p-4 border-b border-slate-700 bg-slate-800/30">
+                    <h3 class="text-xs font-bold uppercase tracking-widest text-slate-500"><i class="fas fa-database mr-2"></i>Stores</h3>
+                </div>
+                <div id="query-store-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+                    <div class="p-4 text-center text-slate-500 text-sm">Loading...</div>
+                </div>
+            </div>
+            <div class="lg:col-span-3 space-y-3">
+                <div class="flex items-center space-x-3">
+                    <span class="text-xs text-slate-400">Selected:</span>
+                    <code id="query-selected-store" class="text-xs bg-slate-800 text-blue-400 px-3 py-1 rounded-lg">none</code>
+                    <button onclick="DataUI._runQuery()" id="query-run-btn" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                        <i class="fas fa-play mr-2"></i>Run
+                    </button>
+                    <span id="query-status" class="text-xs text-slate-500"></span>
+                </div>
+                <textarea id="sql-editor" class="sql-editor w-full h-40 bg-slate-900 border border-slate-700 rounded-xl p-4 text-green-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y"
+                    placeholder="SELECT * FROM candles LIMIT 10"></textarea>
+                <div class="flex items-center space-x-3 text-xs text-slate-500">
+                    <span>History:</span>
+                    <select id="query-history" onchange="DataUI._loadHistoryQuery()" class="bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 text-slate-300 text-xs max-w-xs">
+                        <option value="">-- select --</option>
+                    </select>
+                    <button onclick="DataUI._clearHistory()" class="text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>
+                </div>
+                <div id="query-results" class="overflow-x-auto border border-slate-700/50 rounded-xl bg-slate-900/30 max-h-[400px]">
+                    <div class="p-10 text-center text-slate-500 italic text-sm">Run a query to see results</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ INGESTION ============ -->
+    <div id="tab-content-ingestion" class="tab-content hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="pipeline-grid">
+            <div class="glass rounded-2xl p-6 text-center text-slate-500">Loading pipelines...</div>
+        </div>
+    </div>
+
+    <!-- ============ DOWNLOADS ============ -->
+    <div id="tab-content-downloads" class="tab-content hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <div class="lg:col-span-5 space-y-4">
+                <div class="glass rounded-2xl p-5">
+                    <h3 class="font-bold text-white mb-4"><i class="fas fa-cog text-purple-500 mr-2"></i>Settings</h3>
+                    <div class="space-y-4">
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="DataUI._setQuickRange('1M')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300">1M</button>
+                            <button onclick="DataUI._setQuickRange('3M')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300">3M</button>
+                            <button onclick="DataUI._setQuickRange('6M')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300">6M</button>
+                            <button onclick="DataUI._setQuickRange('1Y')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300">1Y</button>
+                            <button onclick="DataUI._setQuickRange('2Y')" class="px-3 py-1.5 bg-slate-800 hover:bg-purple-500/20 border border-slate-700 rounded-md text-xs text-slate-300">2Y</button>
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div><label class="block text-xs text-slate-400 mb-1">From</label><input type="date" id="dl-from" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-3 text-white text-xs"></div>
+                            <div><label class="block text-xs text-slate-400 mb-1">To</label><input type="date" id="dl-to" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-3 text-white text-xs"></div>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Interval</label>
+                            <select id="dl-interval" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-3 text-white text-xs">
+                                <option value="1m">1 Minute</option><option value="5m">5 Minutes</option><option value="15m">15 Minutes</option>
+                                <option value="1h">1 Hour</option><option value="1d">Daily</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1">Workers</label>
+                            <select id="dl-workers" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-3 text-white text-xs">
+                                <option value="1">1</option><option value="3">3</option><option value="5" selected>5</option><option value="10">10</option>
+                            </select>
+                        </div>
+                        <button onclick="DataUI._startDownload()" class="w-full bg-purple-600 hover:bg-purple-500 text-white py-2.5 rounded-xl font-bold text-sm transition-colors">
+                            <i class="fas fa-cloud-download-alt mr-2"></i>Download Selected (<span id="dl-count">0</span>)
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="lg:col-span-7">
+                <div class="glass rounded-2xl overflow-hidden flex flex-col h-[500px]">
+                    <div class="p-4 border-b border-slate-700 flex items-center justify-between">
+                        <h3 class="font-bold text-white"><i class="fas fa-list text-purple-500 mr-2"></i>Watchlist (<span id="dl-watchlist-count">0</span>)</h3>
+                        <div class="flex space-x-2">
+                            <button onclick="DataUI._selectAllWatchlist(true)" class="text-[10px] uppercase font-bold text-slate-400 hover:text-white">All</button>
+                            <span class="text-slate-700">|</span>
+                            <button onclick="DataUI._selectAllWatchlist(false)" class="text-[10px] uppercase font-bold text-slate-400 hover:text-white">None</button>
+                        </div>
+                    </div>
+                    <div class="p-4 border-b border-slate-800 flex space-x-2">
+                        <input id="dl-search" placeholder="Search symbol..." class="flex-1 bg-slate-800/50 border border-slate-700 rounded-lg py-1.5 px-3 text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <button onclick="DataUI._addToWatchlist()" class="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1.5 rounded-lg text-xs"><i class="fas fa-plus"></i></button>
+                        <button onclick="DataUI._loadNifty50()" class="bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs">Nifty50</button>
+                    </div>
+                    <div class="flex-1 overflow-y-auto">
+                        <table class="w-full text-left text-xs">
+                            <thead class="bg-slate-800/50 text-slate-500 uppercase font-bold sticky top-0">
+                                <tr><th class="px-4 py-2 w-8"></th><th class="px-4 py-2">Symbol</th><th class="px-4 py-2">Exchange</th><th class="px-4 py-2 text-right">Action</th></tr>
+                            </thead>
+                            <tbody id="dl-watchlist-body" class="divide-y divide-slate-800 text-slate-300">
+                                <tr><td colspan="4" class="px-4 py-16 text-center text-slate-500 italic">Search symbols or load Nifty 50 to add</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ SCHEDULE ============ -->
+    <div id="tab-content-schedule" class="tab-content hidden">
+        <div class="flex items-center justify-between mb-4">
+            <p class="text-sm text-slate-400">Scheduled data ingestion jobs. Cron expressions use standard 5-field format (<code>min hour day month weekday</code>).</p>
+            <button onclick="DataUI._showScheduleForm()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+                <i class="fas fa-plus mr-2"></i>New Job
+            </button>
+        </div>
+        <div id="schedule-form" class="hidden glass rounded-2xl p-5 mb-4 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <div><label class="block text-xs text-slate-400 mb-1">Name</label><input id="sched-name" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-3 text-white text-xs"></div>
+                <div><label class="block text-xs text-slate-400 mb-1">Pipeline</label>
+                    <select id="sched-pipeline" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-3 text-white text-xs"></select>
+                </div>
+                <div><label class="block text-xs text-slate-400 mb-1">Cron Expression</label><input id="sched-cron" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-1.5 px-3 text-white text-xs" placeholder="0 8 * * 1-5"></div>
+                <div class="flex items-end space-x-2">
+                    <button onclick="DataUI._saveSchedule()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm">Save</button>
+                    <button onclick="DataUI._hideScheduleForm()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">Cancel</button>
+                </div>
+            </div>
+        </div>
+        <div class="glass rounded-2xl overflow-hidden">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-800/80 text-slate-400 uppercase text-[10px] font-bold">
+                    <tr><th class="px-5 py-3">Name</th><th class="px-5 py-3">Pipeline</th><th class="px-5 py-3">Schedule</th><th class="px-5 py-3">Status</th><th class="px-5 py-3">Last Run</th><th class="px-5 py-3 text-right">Actions</th></tr>
+                </thead>
+                <tbody id="schedule-table" class="divide-y divide-slate-800 text-slate-300">
+                    <tr><td colspan="6" class="px-5 py-16 text-center text-slate-500 italic">No scheduled jobs</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DataUI = {
+    _state: {
+        activeTab: 'overview',
+        explorerTables: [],
+        explorerSelected: null,
+        explorerPage: 1,
+        explorerFilters: {},
+        queryStore: null,
+        queryStorePath: null,
+        queryHistory: [],
+        watchlist: [],
+        downloadJobId: null,
+        scheduleFormJobId: null,
+    },
+
+    init() {
+        this._loadOverview();
+        this._loadExplorerTables();
+        this._loadQueryStores();
+        this._loadPipelines();
+        this._loadHistoricalDates();
+        this._loadSchedule();
+        this._loadQueryHistory();
+        setInterval(() => this._pollPipelines(), 5000);
+    },
+
+    refresh() {
+        const tab = this._state.activeTab;
+        if (tab === 'overview') this._loadOverview();
+        if (tab === 'explorer') this._loadExplorerTables();
+        if (tab === 'query') this._loadQueryStores();
+        if (tab === 'ingestion') this._loadPipelines();
+        if (tab === 'schedule') this._loadSchedule();
+    },
+
+    switchTab(name) {
+        this._state.activeTab = name;
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.querySelectorAll('.tab-btn').forEach(el => {
+            el.classList.remove('border-blue-500', 'text-white', 'bg-blue-500/5', 'rounded-t-lg');
+            el.classList.add('border-transparent', 'text-slate-500');
+        });
+        const content = document.getElementById('tab-content-' + name);
+        if (content) content.classList.remove('hidden');
+        const btn = document.getElementById('tab-' + name);
+        if (btn) { btn.classList.remove('border-transparent', 'text-slate-500'); btn.classList.add('border-blue-500', 'text-white', 'bg-blue-500/5', 'rounded-t-lg'); }
+        if (name === 'query') this._loadQueryStores();
+        if (name === 'ingestion') this._loadPipelines();
+        if (name === 'schedule') this._loadSchedule();
+        if (name === 'explorer') this._loadExplorerTables();
+    },
+
+    // ── Overview ─────────────────────────────────────────────────
+
+    async _loadOverview() {
+        try {
+            const res = await fetch('/data/api/overview');
+            const data = await res.json();
+            if (!data.success) return;
+            const stores = data.stores;
+            // Summary stats
+            const existing = stores.filter(s => s.exists && !s.is_directory);
+            const dirs = stores.filter(s => s.is_directory);
+            const totalSize = existing.reduce((s, t) => s + t.size_mb, 0) + dirs.reduce((s, t) => s + t.size_mb, 0);
+            const totalRows = existing.reduce((s, t) => s + (t.row_count || 0), 0);
+            const totalFiles = existing.length + (dirs.length ? dirs[0].file_count : 0);
+
+            document.getElementById('overview-stats').innerHTML = `
+                <div class="glass rounded-2xl p-5"><p class="text-[10px] uppercase text-slate-500 font-bold">Total Stores</p><p class="text-3xl font-bold text-white mt-1">${existing.length + dirs.length}</p></div>
+                <div class="glass rounded-2xl p-5"><p class="text-[10px] uppercase text-slate-500 font-bold">Total Rows</p><p class="text-3xl font-bold text-white mt-1">${(totalRows / 1e6).toFixed(1)}M</p></div>
+                <div class="glass rounded-2xl p-5"><p class="text-[10px] uppercase text-slate-500 font-bold">Total Size</p><p class="text-3xl font-bold text-white mt-1">${totalSize.toFixed(0)} MB</p></div>
+            `;
+
+            let html = '';
+            for (const s of stores) {
+                const icon = s.exists ? (s.is_directory ? 'fa-folder-open text-amber-400' : 'fa-database text-emerald-400') : 'fa-times-circle text-red-400';
+                const info = s.is_directory
+                    ? `<span class="text-emerald-400">${s.file_count} files</span> &middot; ${s.size_mb} MB`
+                    : `<span class="text-emerald-400">${(s.row_count || 0).toLocaleString()} rows</span> in ${s.table_count || 0} tables &middot; ${s.size_mb} MB`;
+                const modified = s.last_modified ? new Date(s.last_modified * 1000).toLocaleString() : 'N/A';
+                html += `
+                    <div class="store-card px-5 py-3 flex items-center justify-between ${s.exists ? 'hover:bg-slate-800/30' : 'opacity-50'}">
+                        <div class="flex items-center space-x-3 min-w-0">
+                            <i class="fas ${icon} text-lg w-6 text-center"></i>
+                            <div class="min-w-0">
+                                <p class="text-sm font-semibold text-white truncate">${s.name}</p>
+                                <p class="text-[10px] text-slate-500 truncate">${s.description}</p>
+                                <p class="text-[10px] text-slate-600 mt-0.5">${info} &middot; <span title="Last modified">${modified}</span></p>
+                            </div>
+                        </div>
+                        ${s.exists && !s.is_directory ? `<span class="text-[10px] text-slate-600 uppercase whitespace-nowrap ml-2">${s.path.split('/').pop()}</span>` : ''}
+                    </div>`;
+            }
+            document.getElementById('store-list').innerHTML = html;
+        } catch(e) { console.error(e); }
+    },
+
+    // ── Explorer ────────────────────────────────────────────────
+
+    async _loadExplorerTables() {
+        try {
+            const res = await fetch('/data/api/tables');
+            const data = await res.json();
+            if (!data.success) return;
+            this._state.explorerTables = data.tables;
+            document.getElementById('explorer-table-count').textContent = data.tables.length;
+            let html = '';
+            let lastStore = '';
+            for (const t of data.tables) {
+                if (t.store !== lastStore) {
+                    html += `<div class="text-[10px] text-slate-600 uppercase px-2 pt-2 font-bold">${t.store}</div>`;
+                    lastStore = t.store;
+                }
+                html += `<div onclick="DataUI._explorerSelect('${this._esc(t.store_path)}', '${this._esc(t.name)}')"
+                    class="cursor-pointer px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:bg-slate-800 hover:text-white transition-colors flex justify-between">
+                    <span class="truncate">${t.name}</span><span class="text-slate-600 ml-2">${(t.row_count||0).toLocaleString()}</span></div>`;
+            }
+            document.getElementById('explorer-table-list').innerHTML = html;
+        } catch(e) { console.error(e); }
+    },
+
+    async _explorerSelect(storePath, tableName) {
+        this._state.explorerSelected = {storePath, tableName};
+        this._state.explorerPage = 1;
+        document.getElementById('explorer-selected-name').textContent = tableName;
+        document.getElementById('explorer-selected-store').textContent = storePath.replace(/\\/g,'/').split('/').pop() + ' / ' + storePath;
+
+        // Load schema
+        try {
+            const res = await fetch('/data/api/schema', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({store_path:storePath,table_name:tableName})});
+            const data = await res.json();
+            if (!data.success) return;
+            // Build filter row + headers
+            let thead = '<tr>';
+            for (const c of data.columns) { thead += `<th class="px-4 py-2 whitespace-nowrap">${c.name}<br><span class="text-[9px] text-slate-600 font-normal">${c.type}</span><br><input oninput="DataUI._explorerBrowse()" data-col="${this._esc(c.name)}" class="w-full bg-slate-800/50 border border-slate-700 rounded px-1 py-0.5 text-[10px] text-slate-300 mt-1" placeholder="Filter..."></th>`; }
+            thead += '</tr>';
+            document.getElementById('explorer-thead').innerHTML = thead;
+            this._explorerBrowse();
+        } catch(e) { console.error(e); }
+    },
+
+    async _explorerBrowse() {
+        const sel = this._state.explorerSelected;
+        if (!sel) return;
+        const filters = {};
+        document.querySelectorAll('#explorer-thead input').forEach(inp => {
+            if (inp.value) filters[inp.dataset.col] = inp.value;
+        });
+        this._state.explorerFilters = filters;
+        const pageSize = parseInt(document.getElementById('explorer-page-size').value) || 50;
+
+        try {
+            const res = await fetch('/data/api/browse', {method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({store_path:sel.storePath,table_name:sel.tableName,page:this._state.explorerPage,page_size:pageSize,filters})});
+            const data = await res.json();
+            if (!data.success) { document.getElementById('explorer-tbody').innerHTML = `<tr><td class="px-4 py-8 text-center text-red-400">${data.message}</td></tr>`; return; }
+
+            let tbody = '';
+            for (const row of data.rows) {
+                tbody += '<tr>';
+                for (const col of data.columns) {
+                    const val = row[col];
+                    const display = val === null ? '<span class="text-slate-600 italic">null</span>' : (typeof val === 'number' ? (Number.isInteger(val) ? val.toLocaleString() : val.toFixed(4)) : String(val));
+                    tbody += `<td class="px-4 py-1.5 result-cell text-[11px]" title="${this._esc(String(val ?? ''))}">${display}</td>`;
+                }
+                tbody += '</tr>';
+            }
+            document.getElementById('explorer-tbody').innerHTML = tbody || '<tr><td class="px-4 py-8 text-center text-slate-500">No rows</td></tr>';
+            const totalPages = Math.ceil(data.total / pageSize) || 1;
+            document.getElementById('explorer-page-info').textContent = `Showing ${data.rows.length} of ${data.total.toLocaleString()}`;
+            document.getElementById('explorer-page-num').textContent = `${data.page} / ${totalPages}`;
+            document.getElementById('explorer-prev').disabled = data.page <= 1;
+            document.getElementById('explorer-next').disabled = data.page >= totalPages;
+            document.getElementById('explorer-pagination').classList.remove('hidden');
+        } catch(e) { console.error(e); }
+    },
+
+    _explorerPage(dir) {
+        this._state.explorerPage += dir;
+        if (this._state.explorerPage < 1) this._state.explorerPage = 1;
+        this._explorerBrowse();
+    },
+
+    // ── Query ────────────────────────────────────────────────────
+
+    async _loadQueryStores() {
+        try {
+            const res = await fetch('/data/api/stores');
+            const data = await res.json();
+            if (!data.success) return;
+            let html = '';
+            for (const s of data.stores) {
+                html += `<div onclick="DataUI._querySelectStore('${this._esc(s.value)}', '${this._esc(s.path)}')"
+                    class="cursor-pointer px-3 py-2 rounded-lg text-xs text-slate-400 hover:bg-slate-800 hover:text-white transition-colors flex justify-between">
+                    <span class="truncate">${s.label.split(' (')[0]}</span><span class="text-slate-600">${s.size_mb} MB</span></div>`;
+            }
+            document.getElementById('query-store-list').innerHTML = html;
+        } catch(e) { console.error(e); }
+    },
+
+    _querySelectStore(value, path) {
+        this._state.queryStore = value;
+        this._state.queryStorePath = path;
+        document.getElementById('query-selected-store').textContent = value;
+        document.querySelectorAll('#query-store-list > div').forEach(el => el.classList.remove('bg-slate-800', 'text-white'));
+        event.target.closest('div').classList.add('bg-slate-800', 'text-white');
+    },
+
+    async _runQuery() {
+        if (!this._state.queryStorePath) { alert('Select a data store first'); return; }
+        const sql = document.getElementById('sql-editor').value.trim();
+        if (!sql) return;
+        document.getElementById('query-status').textContent = 'Running...';
+        document.getElementById('query-run-btn').disabled = true;
+
+        try {
+            const res = await fetch('/data/api/sql', {method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({store_path:this._state.queryStore, sql, limit:1000})});
+            const data = await res.json();
+            document.getElementById('query-status').textContent = data.success ? (data.error ? data.error : `${data.total_rows || data.affected_rows || 0} rows`) : data.message;
+            document.getElementById('query-run-btn').disabled = false;
+
+            if (data.success && data.columns && data.columns.length > 0) {
+                let table = '<table class="w-full text-left text-[11px]"><thead class="bg-slate-800/80 text-slate-400 uppercase font-bold sticky top-0"><tr>';
+                for (const c of data.columns) table += `<th class="px-4 py-2 whitespace-nowrap">${c}</th>`;
+                table += '</tr></thead><tbody class="divide-y divide-slate-800 text-slate-300">';
+                for (const row of data.rows) {
+                    table += '<tr>';
+                    for (const c of data.columns) {
+                        const v = row[c]; table += `<td class="px-4 py-1 result-cell">${v === null ? '<span class="text-slate-600 italic">null</span>' : this._esc(String(v))}</td>`;
+                    }
+                    table += '</tr>';
+                }
+                table += '</tbody></table>';
+                if (data.truncated) table += '<div class="p-2 text-center text-amber-400 text-xs">Results truncated to 1,000 rows</div>';
+                document.getElementById('query-results').innerHTML = table;
+            } else if (data.success && data.message) {
+                document.getElementById('query-results').innerHTML = `<div class="p-10 text-center text-emerald-400 text-sm">${data.message}</div>`;
+            } else if (!data.success) {
+                document.getElementById('query-results').innerHTML = `<div class="p-10 text-center text-red-400 text-sm">${data.message}</div>`;
+            }
+
+            this._state.queryHistory.unshift({sql, store: this._state.queryStore, time: new Date().toISOString()});
+            if (this._state.queryHistory.length > 50) this._state.queryHistory.length = 50;
+            this._saveQueryHistory();
+        } catch(e) {
+            document.getElementById('query-status').textContent = 'Error';
+            document.getElementById('query-run-btn').disabled = false;
+            document.getElementById('query-results').innerHTML = `<div class="p-10 text-center text-red-400 text-sm">${e.message}</div>`;
+        }
+    },
+
+    _saveQueryHistory() {
+        try { localStorage.setItem('data_query_history', JSON.stringify(this._state.queryHistory)); } catch(e) {}
+        this._loadQueryHistory();
+    },
+
+    _loadQueryHistory() {
+        try {
+            const raw = localStorage.getItem('data_query_history');
+            if (raw) {
+                this._state.queryHistory = JSON.parse(raw);
+                const sel = document.getElementById('query-history');
+                sel.innerHTML = '<option value="">-- history --</option>' + this._state.queryHistory.map((h,i) => `<option value="${i}">${h.time?.slice(11,16)||''} [${h.store.split('/').pop()}] ${h.sql.slice(0,60)}</option>`).join('');
+            }
+        } catch(e) {}
+    },
+
+    _loadHistoryQuery() {
+        const idx = parseInt(document.getElementById('query-history').value);
+        if (idx >= 0 && this._state.queryHistory[idx]) {
+            document.getElementById('sql-editor').value = this._state.queryHistory[idx].sql;
+            this._querySelectStore(this._state.queryHistory[idx].store, '');
+        }
+    },
+
+    _clearHistory() {
+        this._state.queryHistory = [];
+        localStorage.removeItem('data_query_history');
+        this._loadQueryHistory();
+    },
+
+    // ── Ingestion ────────────────────────────────────────────────
+
+    async _loadPipelines() {
+        try {
+            const res = await fetch('/data/api/ingestion/pipelines');
+            const data = await res.json();
+            if (!data.success) return;
+            let html = '';
+            for (const p of data.pipelines) {
+                const statusColors = {idle:'text-slate-500',running:'text-blue-400',completed:'text-emerald-400',failed:'text-red-400'};
+                const statusIcons = {idle:'fa-circle',running:'fa-spinner fa-spin',completed:'fa-check-circle',failed:'fa-exclamation-circle'};
+                const statusBg = {running:'border-blue-500/30 pipeline-running',completed:'border-emerald-500/20',failed:'border-red-500/20',idle:'border-slate-700/50'};
+                html += `
+                <div class="glass rounded-2xl p-5 border ${statusBg[p.status] || ''}">
+                    <div class="flex items-start justify-between mb-3">
+                        <div class="min-w-0">
+                            <h4 class="font-bold text-white text-sm truncate">${p.name}</h4>
+                            <p class="text-[10px] text-slate-500 mt-0.5">${p.description}</p>
+                            <code class="text-[10px] text-slate-600 mt-1 block truncate">${p.script}</code>
+                        </div>
+                        <span class="text-[10px] ${statusColors[p.status] || ''} uppercase ml-2 whitespace-nowrap"><i class="fas ${statusIcons[p.status] || ''} mr-1"></i>${p.status}</span>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] text-slate-600">${p.last_run ? 'Last: '+new Date(p.last_run).toLocaleString() : 'Never run'}</span>
+                        <button onclick="DataUI._runPipeline('${p.id}')" ${p.status==='running'?'disabled':''}
+                            class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg text-xs transition-colors">
+                            <i class="fas fa-play mr-1"></i>Run
+                        </button>
+                    </div>
+                    ${p.status==='failed' && p.last_result ? `<div class="mt-2 p-2 bg-red-500/10 border border-red-500/20 rounded-lg text-[10px] text-red-300 max-h-20 overflow-y-auto font-mono">${this._esc(p.last_result.stderr || p.last_result.stdout || '')}</div>` : ''}
+                </div>`;
+            }
+            document.getElementById('pipeline-grid').innerHTML = html;
+        } catch(e) { console.error(e); }
+    },
+
+    async _runPipeline(id) {
+        try {
+            const res = await fetch('/data/api/ingestion/run', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pipeline_id:id})});
+            const data = await res.json();
+            if (data.success) {
+                this._loadPipelines();
+                setTimeout(() => this._loadPipelines(), 2000);
+            } else { alert(data.message); }
+        } catch(e) { alert(e.message); }
+    },
+
+    async _pollPipelines() {
+        if (this._state.activeTab !== 'ingestion') return;
+        this._loadPipelines();
+    },
+
+    // ── Downloads ────────────────────────────────────────────────
+
+    _setQuickRange(range) {
+        const now = new Date();
+        const to = now.toISOString().slice(0,10);
+        const d = new Date();
+        const map = { '1M':30,'3M':91,'6M':182,'1Y':365,'2Y':730 };
+        d.setDate(d.getDate() - (map[range]||30));
+        document.getElementById('dl-from').value = d.toISOString().slice(0,10);
+        document.getElementById('dl-to').value = to;
+    },
+
+    _addToWatchlist() {
+        const inp = document.getElementById('dl-search');
+        const symbol = inp.value.trim().toUpperCase();
+        if (!symbol || this._state.watchlist.find(w => w.symbol===symbol)) return;
+        this._state.watchlist.push({symbol,exchange:'NSE',selected:true});
+        inp.value = '';
+        this._renderWatchlist();
+    },
+
+    _selectAllWatchlist(sel) {
+        this._state.watchlist.forEach(w => w.selected = sel);
+        this._renderWatchlist();
+    },
+
+    _removeWatchlist(idx) { this._state.watchlist.splice(idx,1); this._renderWatchlist(); },
+
+    _toggleWatchlist(idx) { this._state.watchlist[idx].selected = !this._state.watchlist[idx].selected; this._renderWatchlist(); },
+
+    async _loadNifty50() {
+        try {
+            const res = await fetch('/data/api/nifty50-symbols');
+            const data = await res.json();
+            if (!data.success) { alert(data.message); return; }
+            for (const s of data.data) {
+                if (!this._state.watchlist.find(w => w.symbol===s.trading_symbol)) {
+                    this._state.watchlist.push({symbol:s.trading_symbol,exchange:'NSE',selected:true,key:s.instrument_key});
+                }
+            }
+            this._renderWatchlist();
+        } catch(e) { alert(e.message); }
+    },
+
+    _renderWatchlist() {
+        let html = '';
+        for (let i=0;i<this._state.watchlist.length;i++) {
+            const w = this._state.watchlist[i];
+            html += `<tr>
+                <td class="px-4 py-2"><input type="checkbox" ${w.selected?'checked':''} onchange="DataUI._toggleWatchlist(${i})" class="rounded"></td>
+                <td class="px-4 py-2 font-mono text-white">${w.symbol}</td>
+                <td class="px-4 py-2 text-slate-500">${w.exchange}</td>
+                <td class="px-4 py-2 text-right"><button onclick="DataUI._removeWatchlist(${i})" class="text-red-400 hover:text-red-300"><i class="fas fa-times"></i></button></td>
+            </tr>`;
+        }
+        document.getElementById('dl-watchlist-body').innerHTML = html || '<tr><td colspan="4" class="px-4 py-16 text-center text-slate-500 italic">Empty</td></tr>';
+        document.getElementById('dl-watchlist-count').textContent = this._state.watchlist.length;
+        document.getElementById('dl-count').textContent = this._state.watchlist.filter(w=>w.selected).length;
+    },
+
+    async _startDownload() {
+        const selected = this._state.watchlist.filter(w => w.selected);
+        if (selected.length === 0) { alert('Select at least one symbol'); return; }
+        const from = document.getElementById('dl-from').value;
+        const to = document.getElementById('dl-to').value;
+        const interval = document.getElementById('dl-interval').value;
+        const workers = document.getElementById('dl-workers').value;
+        if (!from || !to) { alert('Set date range'); return; }
+
+        // Determine unit from interval
+        const unitMap = {'1m':'minutes','5m':'minutes','15m':'minutes','1h':'hours','1d':'days'};
+
+        let completed = 0;
+        for (const w of selected) {
+            try {
+                await fetch('/data/api/download/historical', {method:'POST',headers:{'Content-Type':'application/json'},
+                    body:JSON.stringify({instrument_key:w.key||w.symbol,unit:unitMap[interval]||'minutes',interval:parseInt(interval)||1,from_date:from,to_date:to,workers:parseInt(workers)})});
+                completed++;
+            } catch(e) { console.error(e); }
+        }
+        alert(`Started ${completed} download(s)`);
+    },
+
+    async _loadHistoricalDates() {
+        try {
+            const res = await fetch('/data/api/historical-dates');
+            const data = await res.json();
+        } catch(e) {}
+    },
+
+    // ── Schedule ─────────────────────────────────────────────────
+
+    async _loadSchedule() {
+        try {
+            const res = await fetch('/data/api/schedule');
+            const data = await res.json();
+            if (!data.success) return;
+            const jobs = data.jobs;
+            const pipelines = await this._getPipelinesForSchedule();
+            // Populate pipeline dropdown
+            const sel = document.getElementById('sched-pipeline');
+            sel.innerHTML = '<option value="">Select...</option>' + pipelines.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
+            let html = '';
+            for (const j of jobs) {
+                const pipelineName = pipelines.find(p => p.id === j.pipeline_id)?.name || j.pipeline_id;
+                html += `<tr>
+                    <td class="px-5 py-3 font-medium text-white">${j.name}</td>
+                    <td class="px-5 py-3 text-xs text-slate-400">${pipelineName}</td>
+                    <td class="px-5 py-3 font-mono text-xs text-blue-400">${j.schedule}</td>
+                    <td class="px-5 py-3"><span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${j.enabled?'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20':'bg-slate-800 text-slate-500 border border-slate-700'}">${j.enabled?'Active':'Paused'}</span></td>
+                    <td class="px-5 py-3 text-xs text-slate-500">${j.last_run ? new Date(j.last_run).toLocaleString() : 'Never'}</td>
+                    <td class="px-5 py-3 text-right space-x-2">
+                        <button onclick="DataUI._toggleSchedule('${j.id}',${!j.enabled})" class="text-xs ${j.enabled?'text-amber-400 hover:text-amber-300':'text-emerald-400 hover:text-emerald-300'}"><i class="fas fa-${j.enabled?'pause':'play'}"></i></button>
+                        <button onclick="DataUI._deleteSchedule('${j.id}')" class="text-xs text-red-400 hover:text-red-300"><i class="fas fa-trash-alt"></i></button>
+                    </td></tr>`;
+            }
+            document.getElementById('schedule-table').innerHTML = html || '<tr><td colspan="6" class="px-5 py-16 text-center text-slate-500 italic">No scheduled jobs</td></tr>';
+        } catch(e) { console.error(e); }
+    },
+
+    async _getPipelinesForSchedule() {
+        try {
+            const res = await fetch('/data/api/ingestion/pipelines');
+            const data = await res.json();
+            return data.pipelines || [];
+        } catch(e) { return []; }
+    },
+
+    _showScheduleForm(job) {
+        this._state.scheduleFormJobId = job ? job.id : null;
+        document.getElementById('schedule-form').classList.remove('hidden');
+        if (job) {
+            document.getElementById('sched-name').value = job.name || '';
+            document.getElementById('sched-pipeline').value = job.pipeline_id || '';
+            document.getElementById('sched-cron').value = job.schedule || '';
+        }
+    },
+
+    _hideScheduleForm() {
+        document.getElementById('schedule-form').classList.add('hidden');
+        document.getElementById('sched-name').value = '';
+        document.getElementById('sched-cron').value = '';
+        this._state.scheduleFormJobId = null;
+    },
+
+    async _saveSchedule() {
+        const name = document.getElementById('sched-name').value.trim();
+        const pipeline_id = document.getElementById('sched-pipeline').value;
+        const schedule = document.getElementById('sched-cron').value.trim() || '0 8 * * 1-5';
+        if (!name || !pipeline_id) { alert('Name and pipeline are required'); return; }
+
+        const body = {name, pipeline_id, schedule};
+        const url = this._state.scheduleFormJobId ? `/data/api/schedule/${this._state.scheduleFormJobId}` : '/data/api/schedule';
+        const method = this._state.scheduleFormJobId ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+            const data = await res.json();
+            if (data.success) { this._hideScheduleForm(); this._loadSchedule(); }
+            else { alert(data.message); }
+        } catch(e) { alert(e.message); }
+    },
+
+    async _toggleSchedule(id, enable) {
+        await fetch(`/data/api/schedule/${id}`, {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:enable})});
+        this._loadSchedule();
+    },
+
+    async _deleteSchedule(id) {
+        if (!confirm('Delete this scheduled job?')) return;
+        await fetch(`/data/api/schedule/${id}`, {method:'DELETE'});
+        this._loadSchedule();
+    },
+
+    // ── Helpers ──────────────────────────────────────────────────
+
+    _esc(s) {
+        if (s === null || s === undefined) return '';
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    },
+};
+
+document.addEventListener('DOMContentLoaded', () => DataUI.init());
+</script>
+{% endblock %}

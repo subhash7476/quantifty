@@ -10,15 +10,11 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
 from flask_app import create_app
-from scripts.init_db import bootstrap
 from core.logging import setup_logger
 
 logger = setup_logger("flask_app")
 
 if __name__ == '__main__':
-    # Ensure database is initialized/migrated
-    bootstrap()
-    
     app = create_app()
     
     # Development server configuration
