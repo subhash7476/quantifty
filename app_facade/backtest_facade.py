@@ -111,7 +111,7 @@ class BacktestFacade:
         from core.runtime.driver import LoopDriver
         from core.clock import ReplayClock
         from core.execution.handler import ExecutionHandler
-        from core.execution.config import ExecutionConfig, ExecutionMode
+        from core.execution.handler import ExecutionConfig, ExecutionMode
         from core.brokers.paper_broker import PaperBroker
         from core.database.manager import DatabaseManager
 
