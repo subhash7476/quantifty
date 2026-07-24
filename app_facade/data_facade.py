@@ -18,10 +18,11 @@ DATA_ROOT = Path(os.environ.get("DATA_ROOT", "data")).resolve()
 
 
 class DataFacade:
+    _running_jobs: dict[str, dict] = {}
+    _jobs_lock = threading.Lock()
+
     def __init__(self, data_root: Path | None = None):
         self._root = data_root or DATA_ROOT
-        self._running_jobs: dict[str, dict] = {}
-        self._jobs_lock = threading.Lock()
         self._ensure_schedule_store()
 
     # ── Overview ──────────────────────────────────────────────────────
@@ -256,12 +257,12 @@ class DataFacade:
     def get_pipelines(self) -> list[dict]:
         result = []
         for p in self.PIPELINES:
-            job = self._running_jobs.get(p["id"])
+            job = DataFacade._running_jobs.get(p["id"])
             result.append({
                 **p,
                 "status": job["status"] if job else "idle",
-                "last_run": job.get("started"),
-                "last_result": job.get("result"),
+                "last_run": job.get("started") if job else None,
+                "last_result": job.get("result") if job else None,
                 "job_id": job.get("job_id") if job else None,
             })
         return result
@@ -275,8 +276,8 @@ class DataFacade:
         job_id = str(uuid.uuid4())[:8]
         job = {"job_id": job_id, "pipeline_id": pipeline_id, "status": "running", "started": datetime.now().isoformat(), "result": None}
 
-        with self._jobs_lock:
-            self._running_jobs[pipeline_id] = job
+        with DataFacade._jobs_lock:
+            DataFacade._running_jobs[pipeline_id] = job
 
         def _run():
             cmd = ["python", pipeline["script"]]
@@ -299,8 +300,8 @@ class DataFacade:
             except Exception as e:
                 result = {"success": False, "exit_code": -1, "stdout": "", "stderr": str(e)}
 
-            with self._jobs_lock:
-                self._running_jobs[pipeline_id] = {
+            with DataFacade._jobs_lock:
+                DataFacade._running_jobs[pipeline_id] = {
                     **job, "status": "completed" if result["success"] else "failed",
                     "result": result,
                     "finished": datetime.now().isoformat(),
@@ -310,7 +311,7 @@ class DataFacade:
         return job
 
     def get_job_status(self, pipeline_id: str) -> dict | None:
-        return self._running_jobs.get(pipeline_id)
+        return DataFacade._running_jobs.get(pipeline_id)
 
     # ── Schedule ──────────────────────────────────────────────────────
 
