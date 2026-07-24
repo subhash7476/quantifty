@@ -1,6 +1,8 @@
 # TS Basis — SEALED Read Protocol (DRAFT)
 
-**Status:** DRAFT. To be **FROZEN** (SHA-256) before the read. Governs the **one-shot**
+**Status:** **FROZEN 2026-07-24.** SHA-256:
+
+`8bdec782af02572bce362b3a8ca0fb9a486648be827e19eeaef2558a7dbbfcd5`
 SEALED confirmation of the TS Basis sleeve (positive sign) — the final gate mandated by
 `TS_BASIS_PHASE0_PRE_REGISTRATION.md` §8.
 **Window:** SEALED **2023-01-01 → 2026-07-20** (~42 monthly formations). Untouched to date.
