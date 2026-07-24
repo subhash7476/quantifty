@@ -173,9 +173,6 @@ def create_app(test_config=None):
     from flask_app.blueprints.dashboard import dashboard_bp
     app.register_blueprint(dashboard_bp)
 
-    from flask_app.blueprints.database import database_bp
-    app.register_blueprint(database_bp)
-
     from flask_app.blueprints.data import data_bp
     app.register_blueprint(data_bp)
 
