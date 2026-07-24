@@ -1,7 +1,6 @@
 # TS Basis Sleeve — Phase 0 Pre-Registration (DRAFT)
 
-**Status:** DRAFT. To be **FROZEN** on operator approval (SHA-256 over the whole file);
-bands cannot be revised in response to results once frozen.
+**Status:** **FROZEN 2026-07-23.**
 **Parent design:** `SIGNAL_ENGINE_DESIGN.md` — this is a new sleeve, validated
 standalone before it may enter the combined engine.
 **Consumes:** no sealed data. This document authorizes the RFA power pre-check and, if
@@ -172,4 +171,4 @@ the TS Basis construction.
 
 ## 9. Freeze
 
-To be frozen on operator approval. SHA-256 over this file.
+**FROZEN 2026-07-23.** SHA-256: `07265b507179667588d06cb35c1e98c72bd065a3bbf95cf9a6c7d8b996a1ad84`
