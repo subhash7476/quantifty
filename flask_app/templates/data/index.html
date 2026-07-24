@@ -569,7 +569,10 @@ const DataUI = {
                         <span class="text-[10px] ${statusColors[p.status] || ''} uppercase ml-2 whitespace-nowrap"><i class="fas ${statusIcons[p.status] || ''} mr-1"></i>${p.status}</span>
                     </div>
                     <div class="flex items-center justify-between">
-                        <span class="text-[10px] text-slate-600">${p.last_run ? 'Last: '+new Date(p.last_run).toLocaleString() : 'Never run'}</span>
+                        <span class="text-[10px] text-slate-600">
+                        ${p.data_status ? `<span class="${p.data_status.startsWith('up to date') ? 'text-emerald-400' : p.data_status.startsWith('stale') ? 'text-amber-400' : p.data_status === 'no data' ? 'text-red-400' : 'text-slate-500'}"><i class="fas ${p.data_status.startsWith('up to date') ? 'fa-check-circle' : p.data_status.startsWith('stale') ? 'fa-exclamation-triangle' : p.data_status === 'no data' ? 'fa-database' : 'fa-circle'} mr-1"></i>${this._esc(p.data_status)}</span>` : ''}
+                        ${p.last_run ? ` &middot; <span title="${new Date(p.last_run).toLocaleString()}">job: ${new Date(p.last_run).toLocaleTimeString()}</span>` : ''}
+                        </span>
                         <button onclick="DataUI._runPipeline('${p.id}')" ${p.status==='running'?'disabled':''}
                             class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg text-xs transition-colors">
                             <i class="fas fa-play mr-1"></i>Run

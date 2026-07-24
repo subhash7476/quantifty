@@ -260,12 +260,45 @@ class DataFacade:
     ]
 
     def get_pipelines(self) -> list[dict]:
+        from datetime import date, timedelta
+        today = date.today()
+        expected = today - timedelta(days=1)  # T-1 is latest expected trading day
+
         result = []
         for p in self.PIPELINES:
             job = DataFacade._running_jobs.get(p["id"])
+
+            # Compute data freshness from the store itself
+            data_status = None
+            store_info = DataFacade._STORE_RANGES.get(p["id"])
+            if store_info:
+                store_path, table, col = store_info
+                latest = DataFacade._detect_latest_date(store_path, table, col)
+                if latest is None:
+                    data_status = "no data"
+                else:
+                    try:
+                        latest_dt = date.fromisoformat(latest)
+                        behind = (expected - latest_dt).days
+                        if behind <= 0:
+                            data_status = f"up to date ({latest})"
+                        else:
+                            data_status = f"stale ({behind}d behind, latest {latest})"
+                    except Exception:
+                        data_status = f"latest: {latest}"
+            else:
+                cat = p.get("category", "")
+                if cat in ("derived", "reference"):
+                    data_status = "built on demand"
+                elif any(pp.get("type") == "date" for pp in p.get("params", [])):
+                    data_status = "no range configured"
+                else:
+                    data_status = "full rebuild"
+
             result.append({
                 **p,
                 "status": job["status"] if job else "idle",
+                "data_status": data_status,
                 "last_run": job.get("started") if job else None,
                 "last_result": job.get("result") if job else None,
                 "job_id": job.get("job_id") if job else None,
