@@ -174,7 +174,7 @@ class DataFacade:
         {
             "id": "corporate_actions",
             "name": "Corporate Actions",
-            "description": "Splits, bonuses, dividends — builds adjusted view",
+            "description": "Splits, bonuses, dividends — full rebuild of adjusted view",
             "script": "scripts/csmp/ingest_corporate_actions.py",
             "category": "market_data",
             "params": [],
@@ -194,6 +194,7 @@ class DataFacade:
             "name": "Futures Bhavcopy",
             "description": "FUTSTK/FUTIDX daily bhavcopy (2016–present)",
             "script": "scripts/sfb/ingest_futures_bhavcopy_v2.py",
+            "cli_positional": ["start", "end"],
             "category": "market_data",
             "params": [
                 {"name": "start", "label": "Start Date", "type": "date", "default": "2016-02-11"},
@@ -205,8 +206,12 @@ class DataFacade:
             "name": "Stock Options Bhavcopy",
             "description": "OPTSTK daily bhavcopy (2016–present)",
             "script": "scripts/sfb/ingest_stock_options_bhavcopy.py",
+            "cli_positional": ["start", "end"],
             "category": "market_data",
-            "params": [],
+            "params": [
+                {"name": "start", "label": "Start Date", "type": "date", "default": "2016-02-11"},
+                {"name": "end", "label": "End Date", "type": "date", "default": ""},
+            ],
         },
         {
             "id": "instrument_master",
@@ -296,9 +301,12 @@ class DataFacade:
         # Smart incremental detection: if no explicit params, check existing store
         resolved_params = {}
         detection_note = None
+        has_range_store = pipeline["id"] in DataFacade._STORE_RANGES
+        has_date_params = any(p.get("type") == "date" for p in pipeline.get("params", []))
+
         if not params:
-            store_info = DataFacade._STORE_RANGES.get(pipeline_id)
-            if store_info:
+            if has_range_store and has_date_params:
+                store_info = DataFacade._STORE_RANGES.get(pipeline["id"])
                 store_path, table, col = store_info
                 latest = DataFacade._detect_latest_date(store_path, table, col)
                 if latest:
@@ -308,8 +316,10 @@ class DataFacade:
                     detection_note = f"auto: {latest} -> {next_date}"
                 else:
                     detection_note = "no prior data, using full range"
+            elif not has_date_params:
+                detection_note = "full rebuild (no incremental)"
             else:
-                detection_note = "no store range configured, using defaults"
+                detection_note = "date range not configured, using defaults"
         else:
             resolved_params = dict(params)
             detection_note = "explicit params"
@@ -330,10 +340,17 @@ class DataFacade:
 
         def _run():
             cmd = ["python", pipeline["script"]]
-            for k, v in resolved_params.items():
-                if v and v != "":
-                    k_clean = k.lstrip("-")
-                    cmd.extend([f"--{k_clean}", str(v)])
+            positional = pipeline.get("cli_positional")
+            if positional:
+                for key in positional:
+                    val = resolved_params.get(key)
+                    if val and val != "":
+                        cmd.append(str(val))
+            else:
+                for k, v in resolved_params.items():
+                    if v and v != "":
+                        k_clean = k.lstrip("-")
+                        cmd.extend([f"--{k_clean}", str(v)])
 
             try:
                 process = subprocess.run(cmd, capture_output=True, text=True, timeout=3600, cwd=str(Path(__file__).parent.parent))
