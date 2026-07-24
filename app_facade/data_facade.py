@@ -264,8 +264,28 @@ class DataFacade:
                 "last_run": job.get("started") if job else None,
                 "last_result": job.get("result") if job else None,
                 "job_id": job.get("job_id") if job else None,
+                "detection": job.get("detection") if job else None,
+                "effective_params": job.get("effective_params") if job else None,
             })
         return result
+
+    _STORE_RANGES: dict[str, tuple[str, str, str]] = {
+        "equity_bhavcopy": (DATA_ROOT / "market_data" / "equity_bhavcopy.duckdb", "equity_bhavcopy", "trade_date"),
+        "futures_bhavcopy": (DATA_ROOT / "market_data" / "futures_bhavcopy.duckdb", "futures_bhavcopy", "trade_date"),
+        "stock_options": (DATA_ROOT / "market_data" / "stock_options_bhavcopy.duckdb", "stock_options_bhavcopy", "trade_date"),
+    }
+
+    @staticmethod
+    def _detect_latest_date(store_path: Path, table: str, col: str) -> str | None:
+        try:
+            if not store_path.exists():
+                return None
+            conn = duckdb.connect(str(store_path), read_only=True)
+            row = conn.execute(f"SELECT MAX({col}) FROM \"{table}\"").fetchone()
+            conn.close()
+            return str(row[0])[:10] if row and row[0] else None
+        except Exception as e:
+            return None
 
     def run_pipeline(self, pipeline_id: str, params: dict | None = None) -> dict:
         import subprocess
@@ -273,19 +293,47 @@ class DataFacade:
         if not pipeline:
             return {"error": f"Unknown pipeline: {pipeline_id}"}
 
+        # Smart incremental detection: if no explicit params, check existing store
+        resolved_params = {}
+        detection_note = None
+        if not params:
+            store_info = DataFacade._STORE_RANGES.get(pipeline_id)
+            if store_info:
+                store_path, table, col = store_info
+                latest = DataFacade._detect_latest_date(store_path, table, col)
+                if latest:
+                    from datetime import timedelta
+                    next_date = (datetime.strptime(latest, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+                    resolved_params["start"] = next_date
+                    detection_note = f"auto: {latest} -> {next_date}"
+                else:
+                    detection_note = "no prior data, using full range"
+            else:
+                detection_note = "no store range configured, using defaults"
+        else:
+            resolved_params = dict(params)
+            detection_note = "explicit params"
+
         job_id = str(uuid.uuid4())[:8]
-        job = {"job_id": job_id, "pipeline_id": pipeline_id, "status": "running", "started": datetime.now().isoformat(), "result": None}
+        job = {
+            "job_id": job_id,
+            "pipeline_id": pipeline_id,
+            "status": "running",
+            "started": datetime.now().isoformat(),
+            "result": None,
+            "detection": detection_note,
+            "effective_params": resolved_params,
+        }
 
         with DataFacade._jobs_lock:
             DataFacade._running_jobs[pipeline_id] = job
 
         def _run():
             cmd = ["python", pipeline["script"]]
-            if params:
-                for k, v in params.items():
-                    if v and v != "":
-                        k_clean = k.lstrip("-")
-                        cmd.extend([f"--{k_clean}", str(v)])
+            for k, v in resolved_params.items():
+                if v and v != "":
+                    k_clean = k.lstrip("-")
+                    cmd.extend([f"--{k_clean}", str(v)])
 
             try:
                 process = subprocess.run(cmd, capture_output=True, text=True, timeout=3600, cwd=str(Path(__file__).parent.parent))
