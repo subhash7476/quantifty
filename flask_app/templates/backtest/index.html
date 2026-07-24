@@ -57,35 +57,19 @@
         <div class="lg:col-span-8 space-y-4">
             <!-- Metrics -->
             <div id="bt-metrics" class="hidden grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-                <div class="glass rounded-xl p-4 metric-card border-l-4 border-emerald-500">
-                    <p class="text-[10px] uppercase text-slate-500 font-bold">Net PnL</p>
-                    <p id="m-net-pnl" class="text-lg font-bold text-white mt-1">—</p>
-                </div>
                 <div class="glass rounded-xl p-4 metric-card border-l-4 border-blue-500">
                     <p class="text-[10px] uppercase text-slate-500 font-bold">Total Trades</p>
                     <p id="m-trades" class="text-lg font-bold text-white mt-1">—</p>
                 </div>
-                <div class="glass rounded-xl p-4 metric-card border-l-4 border-purple-500">
-                    <p class="text-[10px] uppercase text-slate-500 font-bold">Win Rate</p>
-                    <p id="m-winrate" class="text-lg font-bold text-white mt-1">—</p>
-                </div>
-                <div class="glass rounded-xl p-4 metric-card border-l-4 border-amber-500">
-                    <p class="text-[10px] uppercase text-slate-500 font-bold">Max DD</p>
-                    <p id="m-maxdd" class="text-lg font-bold text-white mt-1">—</p>
-                </div>
                 <div class="glass rounded-xl p-4 metric-card border-l-4 border-rose-500">
-                    <p class="text-[10px] uppercase text-slate-500 font-bold">Gross PnL</p>
-                    <p id="m-gross-pnl" class="text-lg font-bold text-white mt-1">—</p>
-                </div>
-                <div class="glass rounded-xl p-4 metric-card border-l-4 border-indigo-500">
                     <p class="text-[10px] uppercase text-slate-500 font-bold">Total Fees</p>
                     <p id="m-fees" class="text-lg font-bold text-white mt-1">—</p>
                 </div>
-                <div class="glass rounded-xl p-4 metric-card border-l-4 border-cyan-500">
-                    <p class="text-[10px] uppercase text-slate-500 font-bold">Sharpe (est)</p>
-                    <p id="m-sharpe" class="text-lg font-bold text-white mt-1">—</p>
+                <div class="glass rounded-xl p-4 metric-card border-l-4 border-purple-500">
+                    <p class="text-[10px] uppercase text-slate-500 font-bold">Total Volume</p>
+                    <p id="m-volume" class="text-lg font-bold text-white mt-1">—</p>
                 </div>
-                <div class="glass rounded-xl p-4 metric-card border-l-4 border-slate-500">
+                <div class="glass rounded-xl p-4 metric-card border-l-4 border-cyan-500">
                     <p class="text-[10px] uppercase text-slate-500 font-bold">Rebalances</p>
                     <p id="m-rebalances" class="text-lg font-bold text-white mt-1">—</p>
                 </div>
@@ -106,7 +90,6 @@
                                 <th class="px-4 py-2 text-right">Qty</th>
                                 <th class="px-4 py-2 text-right">Price</th>
                                 <th class="px-4 py-2 text-right">Fees</th>
-                                <th class="px-4 py-2 text-right">PnL</th>
                                 <th class="px-4 py-2">Timestamp</th>
                             </tr>
                         </thead>
@@ -216,19 +199,12 @@ const BacktestUI = {
             return;
         }
         const m = result.metrics;
-        document.getElementById('bt-status').textContent = `Completed — ${m.date_range}, ${m.symbols_count} symbols, ${m.total_trades} trades`;
+        document.getElementById('bt-status').textContent = `Completed — ${m.date_range}, ${m.symbols_count} symbols, ${m.total_trades} trades, ${m.rebalance_count} rebalances`;
 
-        // Fill metrics
-        const pnlColor = m.net_pnl >= 0 ? 'text-emerald-400' : 'text-red-400';
-        document.getElementById('m-net-pnl').className = `text-lg font-bold mt-1 ${pnlColor}`;
-        document.getElementById('m-net-pnl').textContent = '₹' + (m.net_pnl / 100000).toFixed(2) + 'L';
         document.getElementById('m-trades').textContent = m.total_trades;
-        document.getElementById('m-winrate').textContent = (m.win_rate * 100).toFixed(1) + '%';
-        document.getElementById('m-maxdd').textContent = (m.max_drawdown_pct * 100).toFixed(2) + '%';
-        document.getElementById('m-gross-pnl').textContent = '₹' + (m.gross_pnl / 100000).toFixed(2) + 'L';
-        document.getElementById('m-fees').textContent = '₹' + (m.total_fees / 100000).toFixed(2) + 'L';
-        document.getElementById('m-sharpe').textContent = m.sharpe_ratio.toFixed(2);
-        document.getElementById('m-rebalances').textContent = m.rebalance_dates;
+        document.getElementById('m-fees').textContent = '\u20B9' + (m.total_fees / 100000).toFixed(2) + 'L';
+        document.getElementById('m-volume').textContent = '\u20B9' + (m.total_volume / 1e7).toFixed(2) + 'Cr';
+        document.getElementById('m-rebalances').textContent = m.rebalance_count;
         document.getElementById('bt-metrics').classList.remove('hidden');
 
         // Fill trades
@@ -245,7 +221,6 @@ const BacktestUI = {
                     <td class="px-4 py-1.5 text-right text-slate-300">${t.quantity}</td>
                     <td class="px-4 py-1.5 text-right font-mono text-slate-300">${(t.price || 0).toFixed(2)}</td>
                     <td class="px-4 py-1.5 text-right font-mono text-slate-500">${(t.fees || 0).toFixed(2)}</td>
-                    <td class="px-4 py-1.5 text-right font-mono ${pnlColor2}">${(t.pnl || 0).toFixed(2)}</td>
                     <td class="px-4 py-1.5 text-slate-500 text-[10px]">${t.timestamp ? t.timestamp.slice(0,19) : ''}</td>
                 </tr>`;
             }

@@ -120,7 +120,7 @@ class BacktestFacade:
             return {"error": "No futures symbols found"}
 
         FUT_DB = DATA_ROOT / "market_data" / "futures_bhavcopy.duckdb"
-        FACTS_DB = DATA_ROOT / "signal_engine" / "carry" / "signals.duckdb"
+        FACTS_DB = DATA_ROOT / "signal_engine" / "carry" / "facts.duckdb"
 
         provider = DailyBhavcopyProvider(
             underlyings=symbols,
@@ -150,21 +150,27 @@ class BacktestFacade:
             load_db_state=False,
         )
 
-        from scripts.signal_engine.carry.replay_parity_check import ParityRebalancerHook
+        from scripts.signal_engine.carry.replay_parity_check import ParityRebalancerHook, RebalanceRecord
 
-        class ResultCollector:
-            def __init__(self):
-                self.rebalance_dates: list[str] = []
+        captured_fills: list = []
 
-            def collect(self, fdate):
-                self.rebalance_dates.append(str(fdate))
+        class RecordingParityHook(ParityRebalancerHook):
+            def _build_fill(self, underlying, side, trade_val, trade_date, ts):
+                fill = super()._build_fill(underlying, side, trade_val, trade_date, ts)
+                captured_fills.append({
+                    "symbol": fill.symbol,
+                    "side": fill.side,
+                    "quantity": int(fill.quantity),
+                    "price": float(fill.price),
+                    "fees": float(fill.fee),
+                    "timestamp": str(ts),
+                    "pnl": 0.0,  # realized at close
+                })
+                return fill
 
-        collector = ResultCollector()
-
-        from scripts.signal_engine.carry.replay_parity_check import RebalanceRecord
         records: list = []
 
-        hook = ParityRebalancerHook(
+        hook = RecordingParityHook(
             facts_db_path=str(FACTS_DB),
             execution_handler=execution,
             bhavcopy_db_path=str(FUT_DB),
@@ -188,60 +194,26 @@ class BacktestFacade:
 
         driver.run()
 
-        # Extract trades
-        trades = []
-        for state in execution.order_tracker.order_states():
-            for fill in state.fills:
-                pnl = fill.price * fill.quantity * (1 if fill.side == "SELL" else -1)
-                trades.append({
-                    "symbol": fill.symbol,
-                    "side": fill.side,
-                    "quantity": int(fill.quantity),
-                    "price": float(fill.price),
-                    "timestamp": str(fill.timestamp) if hasattr(fill, "timestamp") else str(fill.time),
-                    "fees": float(fill.fees) if hasattr(fill, "fees") else 0.0,
-                    "pnl": pnl,
-                    "fill_id": str(fill.fill_id) if hasattr(fill, "fill_id") else "",
-                })
-
-        # Compute metrics
+        trades = captured_fills
         total_fees = sum(t["fees"] for t in trades)
-        gross_pnl = sum(t["pnl"] for t in trades)
-        net_pnl = gross_pnl - total_fees
-        win_trades = [t for t in trades if t["pnl"] > 0]
-        loss_trades = [t for t in trades if t["pnl"] < 0]
-        win_rate = len(win_trades) / len(trades) if trades else 0.0
+        total_volume = sum(abs(t["quantity"]) * t["price"] for t in trades) if trades else 0
+        rebalance_count = len(records)
 
-        summary = execution.summary(current_prices={})
+        # Extract per-symbol PnL from positions if available
+        pos_pnl = 0.0
+        try:
+            for sym, pos in execution.position_tracker.get_all_positions().items():
+                pos_pnl += getattr(pos, "realized_pnl", 0.0) or 0.0
+        except Exception:
+            pass
+
         metrics = {
             "total_trades": len(trades),
-            "gross_pnl": round(gross_pnl, 2),
-            "net_pnl": round(net_pnl, 2),
             "total_fees": round(total_fees, 2),
-            "win_rate": round(win_rate, 4),
-            "win_count": len(win_trades),
-            "loss_count": len(loss_trades),
-            "max_drawdown_pct": round(summary.get("drawdown_pct", 0.0), 4),
-            "realized_pnl": round(summary.get("realized_pnl", 0.0), 2),
-            "rebalance_dates": len(collector.rebalance_dates),
+            "total_volume": round(total_volume, 2),
+            "rebalance_count": rebalance_count,
             "date_range": f"{lo} -> {hi}",
             "symbols_count": len(symbols),
         }
 
-        # Sharpe (rough: annualized from daily returns over period)
-        total_days = (hi - lo).days or 1
-        trading_days = total_days
-        initial_capital = 10_000_000
-        if net_pnl != 0 and initial_capital:
-            daily_return = net_pnl / initial_capital / trading_days
-            # Approximation: assume daily return sd ~ 2x mean for backtest
-            sharpe_est = (daily_return * 252) / (abs(daily_return) * 2 * (252 ** 0.5)) if daily_return != 0 else 0
-            metrics["sharpe_ratio"] = round(sharpe_est, 2)
-        else:
-            metrics["sharpe_ratio"] = 0.0
-
-        return {
-            "metrics": metrics,
-            "trades": trades,
-            "rebalance_records": records,
-        }
+        return {"metrics": metrics, "trades": trades}
