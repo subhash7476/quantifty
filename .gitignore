@@ -78,7 +78,7 @@ data/span/
 live_buffer/
 
 # Backtest outputs (generated, not source)
-backtest/
+/backtest/
 
 # Scanner / signal databases
 scanner/
