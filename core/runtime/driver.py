@@ -690,6 +690,13 @@ class LoopDriver:
             self._bars_processed += 1
             self._meter(RuntimeMetric.BARS_PROCESSED)
             advanced = True
+
+        # Advance calendar-driven provider tick after consuming all symbols.
+        # For calendar-driven providers (e.g., DailyBhavcopyProvider), this advances
+        # the global cursor. For other providers, this is a no-op (base class default).
+        # See CARRY_REPLAY_FIX_REVIEW.md §2.1 and CARRY_REPLAY_INFRA_TEST_REPORT.md §5.
+        self._provider.advance_tick()
+
         return advanced
 
     def _dispatch_signals(self, signals, bar) -> None:
