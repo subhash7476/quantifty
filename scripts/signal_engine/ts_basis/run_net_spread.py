@@ -1,7 +1,10 @@
 """TS Basis — Net-of-Fee Long/Short Spread.
 
-Precondition gate for SEALED read. Must show net > 0 on both TRAIN and
-HOLDOUT before SEALED is authorized.
+Net-spread gate: Must show net > 0 on both TRAIN and HOLDOUT.
+Note: The IC gate (rank-IC at Bonferroni α=0.025) is evaluated
+separately in run_holdout.py and is the confirmatory (not net-spread)
+criterion. This script evaluates the other half of the acceptance
+conditions.
 
 Bridge: TS_BASIS_PHASE0_PRE_REGISTRATION.md §4–§5.
 Output: docs/reports/TS_BASIS_NET_SPREAD_REPORT.md
@@ -313,7 +316,16 @@ def main():
             a(f"| {label} | {r['ann_gross']*100:+.2f}% | {r['ann_net']*100:+.2f}% | {'PASS' if net_ok else '**FAIL**'} |")
     a("")
     if all_pass:
-        a("**GATE VERDICT: PASS** — Net > 0 on both TRAIN and HOLDOUT. Proceed to SEALED.\n")
+        a("**NET-SPREAD GATE: PASS** — Net > 0 on both TRAIN and HOLDOUT.\n")
+        a("\n> **⚠️ RETROACTIVE NOTE (2026-07-25):** This net-spread gate (net > 0) was "
+          "satisfied, but the HOLDOUT IC gate was NOT — when computed with the "
+          "pre-registered Spearman estimator, HOLDOUT IC fails at α=0.025 "
+          "(p=0.0313). Per `TS_BASIS_PHASE0_PRE_REGISTRATION.md` §6, the signal is "
+          "NOT falsified (net > 0, sign correct) but the HOLDOUT is INCONCLUSIVE. "
+          "The SEALED read was opened on a confirmation gate that did not hold. "
+          "See `TS_BASIS_SEALED_REPORT.md` for the de-authorization marker and "
+          "`TS_BASIS_HOLDOUT_REPORT.md` for the recomputed IC.\n")
+
     else:
         a("**GATE VERDICT: FAIL** — Net ≤ 0 on at least one window. STOP.\n")
 

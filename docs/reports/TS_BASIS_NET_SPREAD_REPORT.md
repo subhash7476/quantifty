@@ -1,8 +1,8 @@
 # TS Basis — Net-of-Fee Long/Short Spread
 
-**Script-generated** — `scripts/signal_engine/ts_basis/run_net_spread.py`. Code commit `22bb3dd`.
+**Script-generated** — `scripts/signal_engine/ts_basis/run_net_spread.py`. Code commit `b9524cf`.
 
-**Generated:** 2026-07-23
+**Generated:** 2026-07-25
 
 **Protocol:** `TS_BASIS_PHASE0_PRE_REGISTRATION.md` §5.
 
@@ -16,8 +16,8 @@
 
 | Window | n | Mean IC | SD(IC) |
 |---|--:|--:|--:|
-| TRAIN | 47 | +0.0704 | 0.0980 |
-| HOLDOUT | 24 | +0.0429 | 0.1010 |
+| TRAIN | 47 | +0.0593 | 0.1041 |
+| HOLDOUT | 24 | +0.0412 | 0.1031 |
 
 ---
 ## 2. Net-of-Fee Spread
@@ -48,5 +48,8 @@
 | TRAIN | +20.05% | +18.38% | PASS |
 | HOLDOUT | +16.26% | +14.80% | PASS |
 
-**GATE VERDICT: PASS** — Net > 0 on both TRAIN and HOLDOUT. Proceed to SEALED.
+**NET-SPREAD GATE: PASS** — Net > 0 on both TRAIN and HOLDOUT.
+
+
+> **⚠️ RETROACTIVE NOTE (2026-07-25):** This net-spread gate (net > 0) was satisfied, but the HOLDOUT IC gate was NOT — when computed with the pre-registered Spearman estimator, HOLDOUT IC fails at α=0.025 (p=0.0313). Per `TS_BASIS_PHASE0_PRE_REGISTRATION.md` §6, the signal is NOT falsified (net > 0, sign correct) but the HOLDOUT is INCONCLUSIVE. The SEALED read was opened on a confirmation gate that did not hold. See `TS_BASIS_SEALED_REPORT.md` for the de-authorization marker and `TS_BASIS_HOLDOUT_REPORT.md` for the recomputed IC.
 
