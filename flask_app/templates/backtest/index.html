@@ -65,9 +65,13 @@
                     <p class="text-[10px] uppercase text-slate-500 font-bold">Total Fees</p>
                     <p id="m-fees" class="text-lg font-bold text-white mt-1">—</p>
                 </div>
+                <div class="glass rounded-xl p-4 metric-card border-l-4 border-amber-500">
+                    <p class="text-[10px] uppercase text-slate-500 font-bold">Total Contracts</p>
+                    <p id="m-contracts" class="text-lg font-bold text-white mt-1">—</p>
+                </div>
                 <div class="glass rounded-xl p-4 metric-card border-l-4 border-purple-500">
-                    <p class="text-[10px] uppercase text-slate-500 font-bold">Total Volume</p>
-                    <p id="m-volume" class="text-lg font-bold text-white mt-1">—</p>
+                    <p class="text-[10px] uppercase text-slate-500 font-bold">Total Turnover</p>
+                    <p id="m-turnover" class="text-lg font-bold text-white mt-1">—</p>
                 </div>
                 <div class="glass rounded-xl p-4 metric-card border-l-4 border-cyan-500">
                     <p class="text-[10px] uppercase text-slate-500 font-bold">Rebalances</p>
@@ -87,8 +91,9 @@
                             <tr>
                                 <th class="px-4 py-2">Symbol</th>
                                 <th class="px-4 py-2">Side</th>
-                                <th class="px-4 py-2 text-right">Qty</th>
+                                <th class="px-4 py-2 text-right">Contracts</th>
                                 <th class="px-4 py-2 text-right">Price</th>
+                                <th class="px-4 py-2 text-right">Amount (&#x20B9;)</th>
                                 <th class="px-4 py-2 text-right">Fees</th>
                                 <th class="px-4 py-2">Timestamp</th>
                             </tr>
@@ -202,8 +207,9 @@ const BacktestUI = {
         document.getElementById('bt-status').textContent = `Completed — ${m.date_range}, ${m.symbols_count} symbols, ${m.total_trades} trades, ${m.rebalance_count} rebalances`;
 
         document.getElementById('m-trades').textContent = m.total_trades;
-        document.getElementById('m-fees').textContent = '\u20B9' + (m.total_fees / 100000).toFixed(2) + 'L';
-        document.getElementById('m-volume').textContent = '\u20B9' + (m.total_volume / 1e7).toFixed(2) + 'Cr';
+        document.getElementById('m-fees').textContent = '\u20B9' + (m.total_fees / 1000).toFixed(0) + 'K';
+        document.getElementById('m-contracts').textContent = (m.total_contracts || 0).toLocaleString();
+        document.getElementById('m-turnover').textContent = '\u20B9' + ((m.total_amount || 0) / 1e7).toFixed(2) + 'Cr';
         document.getElementById('m-rebalances').textContent = m.rebalance_count;
         document.getElementById('bt-metrics').classList.remove('hidden');
 
@@ -218,8 +224,9 @@ const BacktestUI = {
                 html += `<tr class="trade-row">
                     <td class="px-4 py-1.5 font-mono text-white">${t.symbol}</td>
                     <td class="px-4 py-1.5 font-bold ${sideColor}">${t.side}</td>
-                    <td class="px-4 py-1.5 text-right text-slate-300">${t.quantity}</td>
+                    <td class="px-4 py-1.5 text-right text-slate-300">${t.contracts || 0}</td>
                     <td class="px-4 py-1.5 text-right font-mono text-slate-300">${(t.price || 0).toFixed(2)}</td>
+                    <td class="px-4 py-1.5 text-right font-mono text-slate-300">${(t.amount || 0).toLocaleString()}</td>
                     <td class="px-4 py-1.5 text-right font-mono text-slate-500">${(t.fees || 0).toFixed(2)}</td>
                     <td class="px-4 py-1.5 text-slate-500 text-[10px]">${t.timestamp ? t.timestamp.slice(0,19) : ''}</td>
                 </tr>`;

@@ -157,14 +157,32 @@ class BacktestFacade:
         class RecordingParityHook(ParityRebalancerHook):
             def _build_fill(self, underlying, side, trade_val, trade_date, ts):
                 fill = super()._build_fill(underlying, side, trade_val, trade_date, ts)
+                price = 1.0
+                contracts = int(fill.quantity)
+                try:
+                    import duckdb
+                    con = duckdb.connect(str(self._bhavcopy_db), read_only=True)
+                    row = con.execute("""
+                        SELECT close FROM (
+                            SELECT close, ROW_NUMBER() OVER (ORDER BY expiry_dt ASC) AS rn
+                            FROM futures_bhavcopy
+                            WHERE underlying = ? AND trade_date = ? AND inst_type = 'FUTSTK'
+                        ) WHERE rn = 1
+                    """, [underlying, trade_date]).fetchone()
+                    if row and row[0] and float(row[0]) > 0:
+                        price = float(row[0])
+                        contracts = int(fill.quantity / price)
+                    con.close()
+                except Exception:
+                    pass
                 captured_fills.append({
                     "symbol": fill.symbol,
                     "side": fill.side,
-                    "quantity": int(fill.quantity),
-                    "price": float(fill.price),
+                    "contracts": contracts,
+                    "amount": int(fill.quantity),
+                    "price": price,
                     "fees": float(fill.fee),
                     "timestamp": str(ts),
-                    "pnl": 0.0,  # realized at close
                 })
                 return fill
 
@@ -196,7 +214,8 @@ class BacktestFacade:
 
         trades = captured_fills
         total_fees = sum(t["fees"] for t in trades)
-        total_volume = sum(abs(t["quantity"]) * t["price"] for t in trades) if trades else 0
+        total_amount = sum(abs(t["amount"]) for t in trades) if trades else 0
+        total_contracts = sum(abs(t["contracts"]) for t in trades) if trades else 0
         rebalance_count = len(records)
 
         # Extract per-symbol PnL from positions if available
@@ -210,7 +229,8 @@ class BacktestFacade:
         metrics = {
             "total_trades": len(trades),
             "total_fees": round(total_fees, 2),
-            "total_volume": round(total_volume, 2),
+            "total_amount": round(total_amount, 2),
+            "total_contracts": total_contracts,
             "rebalance_count": rebalance_count,
             "date_range": f"{lo} -> {hi}",
             "symbols_count": len(symbols),
