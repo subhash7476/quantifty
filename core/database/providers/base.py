@@ -109,5 +109,19 @@ class MarketDataProvider(ABC):
         """
         pass
 
+    def advance_tick(self) -> bool:
+        """
+        Advance to the next tick/time step.
+
+        For calendar-driven providers (e.g., DailyBhavcopyProvider), this advances
+        the global cursor after all symbols have been consumed for the current tick.
+        For per-symbol cursor providers and live providers, this is a no-op.
+
+        Returns:
+            True if advanced, False if already at end (for calendar-driven providers).
+            Other providers return True (no-op).
+        """
+        return True
+
 
 

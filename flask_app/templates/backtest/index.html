@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Backtest - opencode{% endblock %}
+
+{% block breadcrumb %}Research / Backtest{% endblock %}
+
+{% block head %}
+<style>
+    .metric-card { transition: all 0.15s; }
+    .metric-card:hover { transform: translateY(-1px); }
+    .trade-row { transition: background 0.1s; }
+    .trade-row:hover { background: rgba(59,130,246,0.05); }
+    .rebalance-badge { font-size: 9px; padding: 1px 6px; border-radius: 4px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-3xl font-bold text-white tracking-tight">Backtest Engine</h1>
+            <p class="text-slate-400 mt-1">Run replay backtests on the LoopDriver infrastructure</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Left: Controls -->
+        <div class="lg:col-span-4 space-y-4">
+            <div class="glass rounded-2xl p-5">
+                <h3 class="font-bold text-white mb-4"><i class="fas fa-sliders-h text-blue-500 mr-2"></i>Parameters</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">Strategy</label>
+                        <select id="bt-strategy" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white text-sm focus:ring-2 focus:ring-blue-500">
+                            <option value="">Loading...</option>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">Start Date</label>
+                            <input type="date" id="bt-start" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1">End Date</label>
+                            <input type="date" id="bt-end" class="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 px-3 text-white text-sm">
+                        </div>
+                    </div>
+                    <button onclick="BacktestUI.run()" id="bt-run-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-blue-500/20 flex items-center justify-center">
+                        <i class="fas fa-play mr-2"></i> Run Backtest
+                    </button>
+                    <div id="bt-status" class="text-center text-xs text-slate-500 hidden"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Results -->
+        <div class="lg:col-span-8 space-y-4">
+            <!-- Metrics -->
+            <div id="bt-metrics" class="hidden grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                <div class="glass rounded-xl p-4 metric-card border-l-4 border-blue-500">
+                    <p class="text-[10px] uppercase text-slate-500 font-bold">Total Trades</p>
+                    <p id="m-trades" class="text-lg font-bold text-white mt-1">—</p>
+                </div>
+                <div class="glass rounded-xl p-4 metric-card border-l-4 border-rose-500">
+                    <p class="text-[10px] uppercase text-slate-500 font-bold">Total Fees</p>
+                    <p id="m-fees" class="text-lg font-bold text-white mt-1">—</p>
+                </div>
+                <div class="glass rounded-xl p-4 metric-card border-l-4 border-amber-500">
+                    <p class="text-[10px] uppercase text-slate-500 font-bold">Total Contracts</p>
+                    <p id="m-contracts" class="text-lg font-bold text-white mt-1">—</p>
+                </div>
+                <div class="glass rounded-xl p-4 metric-card border-l-4 border-purple-500">
+                    <p class="text-[10px] uppercase text-slate-500 font-bold">Total Turnover</p>
+                    <p id="m-turnover" class="text-lg font-bold text-white mt-1">—</p>
+                </div>
+                <div class="glass rounded-xl p-4 metric-card border-l-4 border-cyan-500">
+                    <p class="text-[10px] uppercase text-slate-500 font-bold">Rebalances</p>
+                    <p id="m-rebalances" class="text-lg font-bold text-white mt-1">—</p>
+                </div>
+            </div>
+
+            <!-- Trades Table -->
+            <div id="bt-trades" class="hidden glass rounded-2xl overflow-hidden">
+                <div class="p-4 border-b border-slate-700 bg-slate-800/30 flex items-center justify-between">
+                    <h3 class="text-xs font-bold uppercase text-slate-500"><i class="fas fa-exchange-alt mr-2 text-blue-400"></i>Trades</h3>
+                    <span id="bt-trade-count" class="text-xs text-slate-500">0</span>
+                </div>
+                <div class="overflow-x-auto max-h-[400px] overflow-y-auto">
+                    <table class="w-full text-left text-[11px]">
+                        <thead class="bg-slate-800/80 text-slate-400 uppercase font-bold sticky top-0 z-10">
+                            <tr>
+                                <th class="px-4 py-2">Symbol</th>
+                                <th class="px-4 py-2">Side</th>
+                                <th class="px-4 py-2 text-right">Contracts</th>
+                                <th class="px-4 py-2 text-right">Price</th>
+                                <th class="px-4 py-2 text-right">Amount (&#x20B9;)</th>
+                                <th class="px-4 py-2 text-right">Fees</th>
+                                <th class="px-4 py-2">Timestamp</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bt-trades-body" class="divide-y divide-slate-800">
+                            <tr><td colspan="7" class="px-4 py-12 text-center text-slate-500 italic">No trades yet</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const BacktestUI = {
+    _state: {
+        running: false,
+        pollTimer: null,
+    },
+
+    async init() {
+        try {
+            const res = await fetch('/backtest/api/strategies');
+            const data = await res.json();
+            const sel = document.getElementById('bt-strategy');
+            if (data.success && data.strategies.length) {
+                sel.innerHTML = data.strategies.map(s =>
+                    `<option value="${s.id}" data-start="${s.default_start}" data-end="${s.default_end}">${s.name} — ${s.description}</option>`
+                ).join('');
+                this._selectStrategy(0);
+            } else {
+                sel.innerHTML = '<option value="">No strategies available</option>';
+            }
+        } catch(e) {
+            document.getElementById('bt-strategy').innerHTML = '<option value="">Error loading</option>';
+        }
+    },
+
+    _selectStrategy(idx) {
+        const sel = document.getElementById('bt-strategy');
+        const opt = sel.options[idx || sel.selectedIndex];
+        if (opt && opt.dataset.start) {
+            document.getElementById('bt-start').value = opt.dataset.start;
+            document.getElementById('bt-end').value = opt.dataset.end;
+        }
+    },
+
+    async run() {
+        if (this._state.running) return;
+        const strategy = document.getElementById('bt-strategy').value;
+        const start = document.getElementById('bt-start').value;
+        const end = document.getElementById('bt-end').value;
+        if (!strategy || !start || !end) { alert('Fill in all parameters'); return; }
+
+        this._state.running = true;
+        const btn = document.getElementById('bt-run-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Running...';
+        const status = document.getElementById('bt-status');
+        status.classList.remove('hidden');
+        status.textContent = 'Backtest running — this may take several minutes...';
+
+        document.getElementById('bt-metrics').classList.add('hidden');
+        document.getElementById('bt-trades').classList.add('hidden');
+
+        try {
+            const res = await fetch('/backtest/api/run', {method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({strategy_id:strategy,start_date:start,end_date:end})});
+            const data = await res.json();
+            if (!data.success) { alert(data.message); this._reset(); return; }
+
+            this._poll(data.job.job_id);
+        } catch(e) { alert(e.message); this._reset(); }
+    },
+
+    _poll(jobId) {
+        const status = document.getElementById('bt-status');
+        let dots = 0;
+        this._state.pollTimer = setInterval(async () => {
+            try {
+                const res = await fetch(`/backtest/api/status/${jobId}`);
+                const data = await res.json();
+                if (!data.success) { clearInterval(this._state.pollTimer); this._reset(); return; }
+                const job = data.job;
+                if (!job) { clearInterval(this._state.pollTimer); this._reset(); return; }
+
+                if (job.status === 'completed') {
+                    clearInterval(this._state.pollTimer);
+                    this._showResults(job.result);
+                    this._reset();
+                } else if (job.status === 'running') {
+                    dots = (dots + 1) % 4;
+                    status.textContent = 'Running' + '.'.repeat(dots);
+                } else {
+                    clearInterval(this._state.pollTimer);
+                    this._reset();
+                }
+            } catch(e) { clearInterval(this._state.pollTimer); this._reset(); }
+        }, 2000);
+    },
+
+    _showResults(result) {
+        if (result.error) {
+            document.getElementById('bt-status').textContent = 'Error: ' + result.error;
+            return;
+        }
+        const m = result.metrics;
+        document.getElementById('bt-status').textContent = `Completed — ${m.date_range}, ${m.symbols_count} symbols, ${m.total_trades} trades, ${m.rebalance_count} rebalances`;
+
+        document.getElementById('m-trades').textContent = m.total_trades;
+        document.getElementById('m-fees').textContent = '\u20B9' + (m.total_fees / 1000).toFixed(0) + 'K';
+        document.getElementById('m-contracts').textContent = (m.total_contracts || 0).toLocaleString();
+        document.getElementById('m-turnover').textContent = '\u20B9' + ((m.total_amount || 0) / 1e7).toFixed(2) + 'Cr';
+        document.getElementById('m-rebalances').textContent = m.rebalance_count;
+        document.getElementById('bt-metrics').classList.remove('hidden');
+
+        // Fill trades
+        const trades = result.trades || [];
+        document.getElementById('bt-trade-count').textContent = trades.length;
+        if (trades.length) {
+            let html = '';
+            for (const t of trades) {
+                const sideColor = t.side === 'BUY' ? 'text-emerald-400' : (t.side === 'SELL' ? 'text-red-400' : 'text-slate-400');
+                const pnlColor2 = t.pnl >= 0 ? 'text-emerald-400' : 'text-red-400';
+                html += `<tr class="trade-row">
+                    <td class="px-4 py-1.5 font-mono text-white">${t.symbol}</td>
+                    <td class="px-4 py-1.5 font-bold ${sideColor}">${t.side}</td>
+                    <td class="px-4 py-1.5 text-right text-slate-300">${t.contracts || 0}</td>
+                    <td class="px-4 py-1.5 text-right font-mono text-slate-300">${(t.price || 0).toFixed(2)}</td>
+                    <td class="px-4 py-1.5 text-right font-mono text-slate-300">${(t.amount || 0).toLocaleString()}</td>
+                    <td class="px-4 py-1.5 text-right font-mono text-slate-500">${(t.fees || 0).toFixed(2)}</td>
+                    <td class="px-4 py-1.5 text-slate-500 text-[10px]">${t.timestamp ? t.timestamp.slice(0,19) : ''}</td>
+                </tr>`;
+            }
+            document.getElementById('bt-trades-body').innerHTML = html;
+        }
+        document.getElementById('bt-trades').classList.remove('hidden');
+    },
+
+    _reset() {
+        this._state.running = false;
+        const btn = document.getElementById('bt-run-btn');
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-play mr-2"></i> Run Backtest';
+    },
+};
+
+document.addEventListener('DOMContentLoaded', () => BacktestUI.init());
+</script>
+{% endblock %}

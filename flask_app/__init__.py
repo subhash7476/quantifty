@@ -173,8 +173,11 @@ def create_app(test_config=None):
     from flask_app.blueprints.dashboard import dashboard_bp
     app.register_blueprint(dashboard_bp)
 
-    from flask_app.blueprints.database import database_bp
-    app.register_blueprint(database_bp)
+    from flask_app.blueprints.data import data_bp
+    app.register_blueprint(data_bp)
+
+    from flask_app.blueprints.backtest import backtest_bp
+    app.register_blueprint(backtest_bp)
 
     from flask_app.blueprints.ops import bp as ops_bp
     app.register_blueprint(ops_bp, url_prefix='/ops')
