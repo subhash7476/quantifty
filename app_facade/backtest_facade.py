@@ -162,23 +162,25 @@ class BacktestFacade:
                 try:
                     import duckdb
                     con = duckdb.connect(str(self._bhavcopy_db), read_only=True)
+                    td_str = trade_date.isoformat() if hasattr(trade_date, "isoformat") else str(trade_date)
                     row = con.execute("""
                         SELECT close FROM (
                             SELECT close, ROW_NUMBER() OVER (ORDER BY expiry_dt ASC) AS rn
                             FROM futures_bhavcopy
                             WHERE underlying = ? AND trade_date = ? AND inst_type = 'FUTSTK'
                         ) WHERE rn = 1
-                    """, [underlying, trade_date]).fetchone()
+                    """, [underlying, td_str]).fetchone()
                     if row and row[0] and float(row[0]) > 0:
                         price = float(row[0])
-                        contracts = int(fill.quantity / price)
+                        if price > 0:
+                            contracts = max(1, int(fill.quantity / price))
                     con.close()
                 except Exception:
                     pass
                 captured_fills.append({
                     "symbol": fill.symbol,
                     "side": fill.side,
-                    "contracts": contracts,
+                    "contracts": contracts if contracts else 0,
                     "amount": int(fill.quantity),
                     "price": price,
                     "fees": float(fill.fee),
