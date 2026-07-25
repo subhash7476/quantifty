@@ -35,6 +35,7 @@ from pathlib import Path
 
 import duckdb
 import numpy as np
+from scipy.stats import spearmanr
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
@@ -306,7 +307,7 @@ def main():
             continue
         z_arr = np.array(zs)
         fr_arr = np.array(frs)
-        sr = np.corrcoef(z_arr, fr_arr)[0, 1]
+        sr = spearmanr(z_arr, fr_arr).correlation
         if not np.isnan(sr):
             ic_by_date[fdate] = float(sr)
 

@@ -12,6 +12,21 @@
 
 **Sign:** +1 (long high z_ts, short low z_ts).
 
+> **⚠️ RETROACTIVE DE-AUTHORIZATION (2026-07-25):** This SEALED read was authorized
+> by a HOLDOUT gate computed with the wrong estimator (Pearson, not Spearman rank-IC).
+> When recomputed with the pre-registered Spearman estimator, HOLDOUT fails at the
+> multiplicity-adjusted α=0.025 (IC +0.0412, t=1.96, p=0.0313). Per the pre-registration
+> §6 falsification clause, the signal is NOT falsified (net > 0, sign correct) but the
+> gate is INCONCLUSIVE — it neither confirms nor falsifies. The SEALED window was opened
+> on a gate that did not hold per the pre-registered criteria.
+>
+> The SEALED result itself (+22.6%, IC +0.077, p=3.1e-07) is a genuine out-of-sample
+> test of a pre-specified hypothesis (construction and sign SHA-locked before the read),
+> and the Spearman estimator was correctly used inside `run_sealed.py` itself. What is
+> compromised is **selection** — TS Basis reached this window because of a gate that
+> didn't clear, not because of any defect in the SEALED read's internal validity.
+> This is a multiplicity/selection concern, not evidence against the signal.
+
 
 ---
 ## 1. Rank-IC

@@ -17,6 +17,7 @@ from pathlib import Path
 
 import duckdb
 import numpy as np
+from scipy.stats import spearmanr
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
@@ -198,7 +199,7 @@ def _simulate(label, lo, hi, con):
         present = np.isfinite(zs) & np.isfinite(frs)
         if present.sum() < 5:
             continue
-        sr = np.corrcoef(zs[present], frs[present])[0, 1]
+        sr = spearmanr(zs[present], frs[present]).correlation
         if not np.isnan(sr):
             ic_vals.append(float(sr))
 

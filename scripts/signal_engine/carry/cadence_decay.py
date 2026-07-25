@@ -23,6 +23,7 @@ from pathlib import Path
 
 import duckdb
 import numpy as np
+from scipy.stats import spearmanr
 
 ROOT = Path(__file__).resolve().parents[3]  # scripts/signal_engine/carry -> root
 sys.path.insert(0, str(ROOT))
@@ -163,8 +164,8 @@ def _analyze(con, lo: date, hi: date, label: str) -> dict:
             if len(zs) >= 5:
                 z_arr = np.array(zs)
                 fr_arr = np.array(frs)
-                # Rank correlation
-                sr = np.corrcoef(z_arr, fr_arr)[0, 1]
+                # Rank correlation (Spearman, per pre-registered metric)
+                sr = spearmanr(z_arr, fr_arr).correlation
                 if not np.isnan(sr):
                     horizon_results[h_label]["ics"].append(float(sr))
 

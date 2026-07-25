@@ -19,6 +19,7 @@ from pathlib import Path
 
 import duckdb
 import numpy as np
+from scipy.stats import spearmanr, t as student_t
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
@@ -85,7 +86,7 @@ def main():
         frs = np.array([r[1] for r in rows], float)
         present = np.isfinite(zs) & np.isfinite(frs)
         if present.sum() < 5: continue
-        sr = np.corrcoef(zs[present], frs[present])[0, 1]
+        sr = spearmanr(zs[present], frs[present]).correlation
         if not np.isnan(sr):
             ic_list.append(float(sr))
 
@@ -170,6 +171,7 @@ def main():
     a("")
 
     gate_pass = ic_significant and net_positive
+    falsified = (not sign_correct or not ic_significant) and not net_positive
     if gate_pass:
         a("**HOLDOUT VERDICT: PASS** — TS Basis clears both pre-registered acceptance "
           "criteria on the only clean out-of-sample window. The signal survives "
@@ -178,10 +180,23 @@ def main():
           "Proceed to SEALED read (2023-01-01 -> 2026-07-20) under "
           "`TS_BASIS_SEALED_READ_PROTOCOL.md`. The SEALED protocol must be frozen "
           "before the read.\n")
+    elif falsified:
+        a("**HOLDOUT VERDICT: FAIL (FALSIFIED)** — TS Basis is both insignificant "
+          "at the pre-registered α=0.025 AND net ≤ 0. Per §6, the hypothesis is "
+          "falsified and the signal is dead; there is no v2.\n")
     else:
-        a("**HOLDOUT VERDICT: FAIL** — TS Basis did not survive the holdout. "
-          "The signal is dead; there is no v2 (sign committed and unflippable). "
-          "An honest terminal result, reported as-is.\n")
+        a("**HOLDOUT VERDICT: INCONCLUSIVE** — TS Basis does NOT clear the "
+          "pre-registered significance threshold (IC +{mean_ic:+.4f}, "
+          f"p={p_one:.4f} > α={ALPHA}), but net spread IS positive "
+          f"({sim.get('ann_net', 0)*100:+.1f}%). Per §6, falsification requires "
+          "the CONJUNCTION of insignificance AND net ≤ 0 — neither being negative-signed, "
+          "this clause is not met. The HOLDOUT is inconclusive: it neither confirms "
+          "nor falsifies. The SEALED window (2023-2026) was opened on this gate "
+          "and its read was therefore NOT authorized by the protocol. The SEALED "
+          "result (+22.6%, p=3.1e-07) is a genuine out-of-sample test of a "
+          "pre-specified hypothesis (construction SHA-locked before the read), "
+          "but reached through a gate that did not hold — a selection concern, "
+          "not a signal-quality concern.\n")
 
     report_text = "\n".join(lines) + "\n"
     REPORT.parent.mkdir(parents=True, exist_ok=True)

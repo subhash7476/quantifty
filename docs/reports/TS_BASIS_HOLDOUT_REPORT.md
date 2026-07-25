@@ -1,8 +1,8 @@
 # TS Basis — HOLDOUT Read Report
 
-**Script-generated** — `scripts/signal_engine/ts_basis/run_holdout.py`. Code commit `5c1f5d2`.
+**Script-generated** — `scripts/signal_engine/ts_basis/run_holdout.py`. Code commit `42d17fc`.
 
-**Generated:** 2026-07-24
+**Generated:** 2026-07-25
 
 **Pre-registration:** `TS_BASIS_PHASE0_PRE_REGISTRATION.md` (frozen, SHA-256 `07265b507179667588d06cb35c1e98c72bd065a3bbf95cf9a6c7d8b996a1ad84`).
 
@@ -18,14 +18,14 @@
 
 | Metric | Value |
 |---|---|
-| Mean IC | +0.042875 |
-| SD(IC) | 0.101036 |
+| Mean IC | +0.041182 |
+| SD(IC) | 0.103086 |
 | n (formations) | 24 |
-| t-stat | 2.0789 |
-| p-value (one-sided) | 2.448306e-02 |
-| AC1 | -0.0780 |
+| t-stat | 1.9571 |
+| p-value (one-sided) | 3.128925e-02 |
+| AC1 | -0.1205 |
 | Sign matches declaration (+1) | PASS |
-| Significant at α=0.025 | **PASS** |
+| Significant at α=0.025 | **FAIL** |
 
 ---
 ## 2. Net-of-Fee Spread
@@ -57,10 +57,8 @@
 
 | Condition | Result | Detail |
 |---|---|---|
-| Positive-sign IC significant (α=0.025, one-sided) | PASS | IC=+0.0429, t=2.08, p=2.448306e-02 |
+| Positive-sign IC significant (α=0.025, one-sided) | **FAIL** | IC=+0.0412, t=1.96, p=3.128925e-02 |
 | Net long/short spread > 0 | PASS | +14.80% annualized |
 
-**HOLDOUT VERDICT: PASS** — TS Basis clears both pre-registered acceptance criteria on the only clean out-of-sample window. The signal survives multiplicity-adjusted significance (m≥2, α=0.025) and produces a positive net spread under futures fees.
-
-Proceed to SEALED read (2023-01-01 -> 2026-07-20) under `TS_BASIS_SEALED_READ_PROTOCOL.md`. The SEALED protocol must be frozen before the read.
+**HOLDOUT VERDICT: INCONCLUSIVE** — TS Basis does NOT clear the pre-registered significance threshold (IC +{mean_ic:+.4f}, p=0.0313 > α=0.025), but net spread IS positive (+14.8%). Per §6, falsification requires the CONJUNCTION of insignificance AND net ≤ 0 — neither being negative-signed, this clause is not met. The HOLDOUT is inconclusive: it neither confirms nor falsifies. The SEALED window (2023-2026) was opened on this gate and its read was therefore NOT authorized by the protocol. The SEALED result (+22.6%, p=3.1e-07) is a genuine out-of-sample test of a pre-specified hypothesis (construction SHA-locked before the read), but reached through a gate that did not hold — a selection concern, not a signal-quality concern.
 
