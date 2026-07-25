@@ -264,6 +264,85 @@ def rebalance_book(
     return new_longs, new_shorts, deltas
 
 
+@dataclass
+class RebalanceMetrics:
+    """Per-formation cost decomposition, recomputed from Deltas.
+
+    Independent of FillEvent.fee (which blends fees + slippage into one field):
+    fees and slippage are kept separate, and a FLIP is counted as two legs so
+    slippage accrues on both the exit and the entry notional.
+    """
+    n_exits: int
+    n_entries: int
+    traded_value_total: float
+    fees_total: float
+    slippage_total: float
+    fee_breakdown: Dict[str, float]
+
+
+def _rebalance_legs(d: Delta) -> List[Tuple[str, float]]:
+    """The (side, trade_value) fills a single non-suppressed Delta produces.
+
+    Mirrors _execute_deltas exactly: OPEN/SCALE_UP/SCALE_DOWN/CLOSE are one
+    leg; FLIP is two (exit the held side, then enter the target side)."""
+    if d.action == 'OPEN':
+        return [('BUY' if d.target_side == 'LONG' else 'SELL', d.target_cap)]
+    if d.action == 'CLOSE':
+        return [('SELL' if d.held_side == 'LONG' else 'BUY', abs(d.held_cap))]
+    if d.action == 'SCALE_UP':
+        return [('BUY' if d.target_side == 'LONG' else 'SELL', abs(d.delta_cap))]
+    if d.action == 'SCALE_DOWN':
+        return [('SELL' if d.held_side == 'LONG' else 'BUY', abs(d.delta_cap))]
+    if d.action == 'FLIP':
+        return [
+            ('SELL' if d.held_side == 'LONG' else 'BUY', abs(d.held_cap)),
+            ('BUY' if d.target_side == 'LONG' else 'SELL', d.target_cap),
+        ]
+    return []
+
+
+def summarize_rebalance(deltas: List[Delta], trade_date: date,
+                        slippage_bp: float = SLIPPAGE_BP) -> RebalanceMetrics:
+    """Recompute the cost decomposition for one rebalance from its Deltas.
+
+    Suppressed deltas contribute nothing (they are not executed). Fees come
+    from the canonical futures_fees model per leg; slippage is slippage_bp/side
+    on each leg's notional — the two are never conflated.
+    """
+    breakdown = {'brokerage': 0.0, 'stt': 0.0, 'exchange_txn': 0.0,
+                 'sebi_fee': 0.0, 'stamp_duty': 0.0, 'gst': 0.0}
+    fees_total = 0.0
+    slippage_total = 0.0
+    traded_value_total = 0.0
+    slip_rate = slippage_bp / 10_000.0
+
+    for d in deltas:
+        if d.suppressed:
+            continue
+        for side, tv in _rebalance_legs(d):
+            f = _calc_fees(side=side, trade_value=tv, trade_date=trade_date)
+            fees_total += f.total
+            slippage_total += slip_rate * tv
+            traded_value_total += tv
+            for k in breakdown:
+                breakdown[k] += getattr(f, k)
+
+    executions = [d for d in deltas if not d.suppressed]
+    n_exits = sum(1 for d in executions
+                  if d.action in ('CLOSE', 'FLIP', 'SCALE_DOWN'))
+    n_entries = sum(1 for d in executions
+                    if d.action in ('OPEN', 'SCALE_UP', 'FLIP'))
+
+    return RebalanceMetrics(
+        n_exits=n_exits,
+        n_entries=n_entries,
+        traded_value_total=traded_value_total,
+        fees_total=fees_total,
+        slippage_total=slippage_total,
+        fee_breakdown=breakdown,
+    )
+
+
 def _derive_capital_state(tracker, execution) -> CapitalState:
     """Derive CapitalState from execution handler's metrics and position tracker.
 
@@ -310,11 +389,15 @@ class CarryRebalancerHook:
 
     def __init__(self, facts_db_path: str, execution_handler,
                  gross_exposure_policy: Callable[[CapitalState], float] = paper_gross_exposure_policy,
-                 bhavcopy_db_path: Optional[str] = None):
+                 bhavcopy_db_path: Optional[str] = None,
+                 metrics_sink: Optional[Callable] = None,
+                 signals_db_path: Optional[str] = None):
         self._facts_db = Path(facts_db_path)
         self._exec = execution_handler
         self._gross_exposure_policy = gross_exposure_policy
         self._bhavcopy_db = Path(bhavcopy_db_path) if bhavcopy_db_path else None
+        self._metrics_sink = metrics_sink
+        self._signals_db = Path(signals_db_path) if signals_db_path else None
         if self._bhavcopy_db is None:
             _logger.warning(
                 "CarryRebalancerHook: bhavcopy_db_path not provided — "
@@ -322,6 +405,8 @@ class CarryRebalancerHook:
             )
         self._last_date: Optional[date] = None
         self._formation_dates: set = set()
+        self._book_longs: Dict[str, float] = {}
+        self._book_shorts: Dict[str, float] = {}
         self._load_calendar()
 
     def _load_calendar(self):
@@ -382,29 +467,26 @@ class CarryRebalancerHook:
             adva = self._load_adva(facts, fdate)
             facts = [f for f in facts if f[0] in adva]
 
+        if self._signals_db and self._signals_db.exists() and facts:
+            fwd_names = self._load_fwd_names(facts, fdate)
+            facts = [f for f in facts if f[0] in fwd_names]
+
         if len(facts) < 5:
             return
 
-        positions = tracker.get_all_positions()
-
-        held_longs: Dict[str, float] = {}
-        held_shorts: Dict[str, float] = {}
-        for sym, pos in positions.items():
-            side = pos.side
-            if side == PositionSide.FLAT:
-                continue
-            capital = abs(pos.quantity) * pos.avg_price if pos.avg_price > 0 else abs(pos.quantity)
-            underlying = self._underlying_from_sym(sym)
-            if side == PositionSide.LONG:
-                held_longs[underlying] = capital
-            elif side == PositionSide.SHORT:
-                held_shorts[underlying] = capital
-
         target = compute_target_book(facts, gross_exposure, adva)
         new_longs, new_shorts, deltas = rebalance_book(
-            target, held_longs, held_shorts, BAND_SIGMA)
+            target, self._book_longs, self._book_shorts, BAND_SIGMA)
 
-        self._execute_deltas(deltas, target, fdate)
+        metrics = self._execute_deltas(deltas, target, fdate)
+
+        self._book_longs = new_longs
+        self._book_shorts = new_shorts
+
+        if self._metrics_sink is not None:
+            held_target = TargetBook(formation_date=fdate, longs=new_longs,
+                                      shorts=new_shorts)
+            self._metrics_sink(fdate, deltas, held_target, metrics, capital_state)
 
     def _load_adva(self, facts: list, formation_date: date) -> dict:
         """Trailing 20-day ADV per underlying from futures bhavcopy."""
@@ -426,6 +508,18 @@ class CarryRebalancerHook:
         con.close()
         return {r[0]: r[1] for r in rows}
 
+    def _load_fwd_names(self, facts: list, formation_date: date) -> set:
+        ulist = ", ".join(f"'{f[0]}'" for f in facts)
+        con = duckdb.connect(str(self._signals_db), read_only=True)
+        rows = con.execute(f"""
+            SELECT underlying FROM signals
+            WHERE formation_date = DATE '{formation_date}'
+              AND underlying IN ({ulist})
+              AND fwd_ret_1m IS NOT NULL AND liquid = TRUE
+        """).fetchall()
+        con.close()
+        return {r[0] for r in rows}
+
     @staticmethod
     def _underlying_from_sym(sym: str) -> str:
         if sym.endswith("FUT"):
@@ -441,9 +535,6 @@ class CarryRebalancerHook:
         tracker = self._exec.position_tracker
         ts = datetime.combine(trade_date, time.min)
 
-        total_fee = 0.0
-        total_slippage = 0.0
-
         # Phase 1: exits first
         for d in executions:
             if d.action in ('CLOSE', 'FLIP'):
@@ -451,14 +542,12 @@ class CarryRebalancerHook:
                 trade_val = abs(d.held_cap)
                 fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
-                total_fee += fill.fee
 
             if d.action == 'SCALE_DOWN':
                 side = 'SELL' if d.held_side == 'LONG' else 'BUY'
                 trade_val = abs(d.delta_cap)
                 fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
-                total_fee += fill.fee
 
         # Phase 2: entries
         for d in executions:
@@ -467,32 +556,25 @@ class CarryRebalancerHook:
                 trade_val = d.target_cap
                 fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
-                total_fee += fill.fee
 
             if d.action == 'SCALE_UP':
                 side = 'BUY' if d.target_side == 'LONG' else 'SELL'
                 trade_val = abs(d.delta_cap)
                 fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
-                total_fee += fill.fee
 
             if d.action == 'FLIP':
                 side = 'BUY' if d.target_side == 'LONG' else 'SELL'
                 trade_val = d.target_cap
                 fill = self._build_fill(d.underlying, side, trade_val, trade_date, ts)
                 tracker.update_from_fill(fill)
-                total_fee += fill.fee
 
-        n_exits = sum(1 for d in executions if d.action in ('CLOSE', 'FLIP', 'SCALE_DOWN'))
-        n_entries = sum(1 for d in executions if d.action in ('OPEN', 'SCALE_UP', 'FLIP'))
-        total_slippage = sum((SLIPPAGE_BP / 10000) * (
-            abs(d.delta_cap) if d.action in ('SCALE_UP', 'SCALE_DOWN', 'OPEN')
-            else abs(d.held_cap) if d.action in ('CLOSE',)
-            else d.target_cap
-        ) for d in executions)
+        metrics = summarize_rebalance(executions, trade_date)
         _logger.info("Rebalance done: %d exits, %d entries, "
                       "~Rs %.0f fees + ~Rs %.0f slippage",
-                      n_exits, n_entries, total_fee, total_slippage)
+                      metrics.n_exits, metrics.n_entries,
+                      metrics.fees_total, metrics.slippage_total)
+        return metrics
 
     def _build_fill(self, underlying: str, side: str, trade_val: float,
                     trade_date: date, ts: datetime) -> FillEvent:
