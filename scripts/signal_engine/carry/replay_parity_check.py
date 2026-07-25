@@ -392,7 +392,10 @@ def _run_replay(label: str, lo: date, hi: date, con) -> Tuple[Dict[date, Rebalan
           AND inst_type = 'FUTSTK'
         ORDER BY underlying
     """
-    symbols = [r[0] for r in con.execute(symbols_query).fetchall()]
+    try:
+        symbols = [r[0] for r in con.execute(symbols_query).fetchall()]
+    except Exception as e:
+        return {}, {"error": f"symbol query failed: {e}"}
 
     if not symbols:
         return {}, {"error": "no symbols"}
@@ -415,7 +418,7 @@ def _run_replay(label: str, lo: date, hi: date, con) -> Tuple[Dict[date, Rebalan
     broker = PaperBroker(clock=clock)
 
     # Create execution config (dry run mode for parity check)
-    config = ExecutionConfig(
+    exec_config = ExecutionConfig(
         mode=ExecutionMode.DRY_RUN,
         default_quantity=1.0,
         max_position_size=float('inf'),
@@ -428,7 +431,7 @@ def _run_replay(label: str, lo: date, hi: date, con) -> Tuple[Dict[date, Rebalan
         db_manager=db_manager,
         clock=clock,
         broker=broker,
-        config=config,
+        config=exec_config,
         initial_capital=GROSS_EXPOSURE,
         load_db_state=False,  # Don't load state for parity check
     )
@@ -448,7 +451,7 @@ def _run_replay(label: str, lo: date, hi: date, con) -> Tuple[Dict[date, Rebalan
     config = DriverConfig(
         mode=Mode.REPLAY,
         symbols=symbols,
-        max_bars=100000,  # Increased to ensure we cover all formations
+        max_bars=500_000,  # Generous bound to avoid hangs
     )
 
     clock = ReplayClock(start_time=datetime.combine(lo, time.min))
