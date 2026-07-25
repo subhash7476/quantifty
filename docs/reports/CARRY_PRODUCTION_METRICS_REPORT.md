@@ -1,6 +1,6 @@
 # Carry — Production Metrics Report
 
-**Script-generated** — `scripts/carry_production_report.py`. Code commit `2ed44fa`.
+**Script-generated** — `scripts/carry_production_report.py`. Code commit `e02fcf4`.
 
 **Generated:** 2026-07-25
 

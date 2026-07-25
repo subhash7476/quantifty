@@ -509,6 +509,13 @@ class CarryRebalancerHook:
         return {r[0]: r[1] for r in rows}
 
     def _load_fwd_names(self, facts: list, formation_date: date) -> set:
+        """HISTORICAL-REPLAY-ONLY — filters on signals.fwd_ret_1m IS NOT NULL.
+
+        This field does not exist for a live formation whose forward period
+        has not yet occurred. Enabling this in a forward/live runner will
+        silently drop every name. ``signals_db_path`` must remain ``None``
+        in carry_paper_runner.py and any live runner.
+        """
         ulist = ", ".join(f"'{f[0]}'" for f in facts)
         con = duckdb.connect(str(self._signals_db), read_only=True)
         rows = con.execute(f"""
