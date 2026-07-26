@@ -1,12 +1,17 @@
 """Carry §3 — signal construction.
 
-Builds monthly formation signals from the basis panel:
+Builds formation signals from the basis panel:
   1. Raw basis (annualized)
   2. Dividend adjustment (ex-date dividends in holding period)
   3. Common-financing removal (cross-sectional demean)
   4. Winsorized z-score
 
-Output: data/signal_engine/carry/signals.duckdb
+Usage:
+  Monthly (default): python build_carry.py
+  Weekly:            python build_carry.py --weekly
+Output:
+  Monthly: data/signal_engine/carry/signals.duckdb
+  Weekly:  data/signal_engine/carry/weekly_signals.duckdb
 """
 from __future__ import annotations
 
@@ -23,7 +28,8 @@ import contract_arms as A
 
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 EQ_DB = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
-SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
+SIG_DB_MONTHLY = ROOT / "data" / "signal_engine" / "carry" / "signals.duckdb"
+SIG_DB_WEEKLY = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
 SECTOR_CSV = ROOT / "governance" / "carry" / "sector_classification.csv"
 
 # Liquidity screen: trailing 20-day median futures turnover >= Rs 5 cr
@@ -36,7 +42,38 @@ HOLDOUT_LO = date(2021, 1, 31)
 HOLDOUT_HI = date(2022, 12, 31)
 
 
-def _formation_grid(con):
+def _formation_grid_monthly(con):
+    """Monthly formation dates: last trading day of each completed calendar month.
+
+    A month is 'completed' when bhavcopy contains at least one trading day
+    in the following month. Excludes the current unfinished month to prevent
+    spurious mid-month formations.
+    """
+    rows = con.execute("""
+        WITH monthly AS (
+            SELECT trade_date, ROW_NUMBER() OVER (
+                PARTITION BY year(trade_date), month(trade_date) ORDER BY trade_date DESC
+            ) AS rn
+            FROM fut.futures_bhavcopy WHERE inst_type='FUTSTK'
+        ),
+        last_of_month AS (
+            SELECT trade_date, year(trade_date) AS yr, month(trade_date) AS mo
+            FROM monthly WHERE rn = 1
+        )
+        SELECT l.trade_date
+        FROM last_of_month l
+        WHERE EXISTS (
+            SELECT 1 FROM fut.futures_bhavcopy
+            WHERE inst_type='FUTSTK'
+              AND year(trade_date) = CASE WHEN l.mo = 12 THEN l.yr + 1 ELSE l.yr END
+              AND month(trade_date) = CASE WHEN l.mo = 12 THEN 1 ELSE l.mo + 1 END
+        )
+        ORDER BY l.trade_date
+    """).fetchall()
+    return [r[0] for r in rows]
+
+
+def _formation_grid_weekly(con):
     """Weekly formation dates: last trading day of each ISO week."""
     return [
         r[0] for r in con.execute("""
@@ -49,6 +86,12 @@ def _formation_grid(con):
             SELECT trade_date FROM ranked WHERE rn = 1 ORDER BY trade_date
         """).fetchall()
     ]
+
+
+def _formation_grid(con, weekly=False):
+    if weekly:
+        return _formation_grid_weekly(con)
+    return _formation_grid_monthly(con)
 
 
 def _load_sector_map():
@@ -82,17 +125,21 @@ def _adv_at_date(con, fdate, lookback=ADV_WINDOW_DAYS):
 
 
 def main():
+    weekly = "--weekly" in sys.argv
+    mode = "weekly" if weekly else "monthly"
+    SIG_DB = SIG_DB_WEEKLY if weekly else SIG_DB_MONTHLY
+
     con = duckdb.connect()
     con.execute(f"ATTACH '{FUT_DB}' AS fut (READ_ONLY)")
     con.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
     con.execute("SET threads=4")
 
-    print("Building basis panel...")
+    print(f"Building basis panel [{mode}]...")
     n_cells = A.build_basis_panel(con)
     print(f"  {n_cells:,} cells")
 
-    print("Computing formation grid...")
-    fmt_dates = _formation_grid(con)
+    print(f"Computing formation grid [{mode}]...")
+    fmt_dates = _formation_grid(con, weekly=weekly)
     print(f"  {len(fmt_dates)} formations: {fmt_dates[0]} -> {fmt_dates[-1]}")
 
     sector_map = _load_sector_map()
@@ -245,6 +292,11 @@ def main():
 
     # 4. Forward returns: one-month adjusted spot returns (bulk update)
     print("Computing forward returns...")
+    sig.close()
+    sig = duckdb.connect(str(SIG_DB))
+    sig.execute("SET threads=1")
+    sig.execute("SET memory_limit='4GB'")
+    sig.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
     sig.execute("""
         CREATE TEMP TABLE fwd_returns AS
         SELECT s.formation_date, s.underlying,

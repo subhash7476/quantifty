@@ -352,17 +352,20 @@ snapshot-ingested per `CARRY_SEALED_READ_PROTOCOL.md` §2.
 | Production metrics | Built | `CarryMetricsDB`, full replay harness, A5-gated report generator |
 | Tests | 44 passing | `tests/portfolio/test_carry_rebalancer.py` (28) + `test_carry_metrics.py` (3) + `test_carry_metrics_db.py` (13) |
 
-### Architecture — the three sleeves
-Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SSF universe.
+### Sleeves
+Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SSF universe. Seven constructs attempted: one production-validated (Carry), one sealed-but-de-authorized (TS Basis), one sealed-failed (IVOL), four dead at TRAIN/RFA.
 
-| Sleeve | Status | Training | Notes |
+| Sleeve | Status | Gate progression | Notes |
 |---|---|---|---|
-| **Carry** (residual basis, +sign) | Implemented | Completed | Beta+sector neutralized, monthly, ADV-capped, banded |
-| **Trend** (vol-scaled TSMOM) | RFA PROCEED | §9 gate 2 FAIL (IC +0.022, t=1.13) | Not TRAIN-validated |
-| **Skew** (risk-reversal) | RFA PROCEED | §9 gate 2 FAIL (IC −0.018, t=−1.15) | Not TRAIN-validated |
-| **Flow** (OI dynamics) | ABANDONED | RFA gate killed (max power 0.6053) | — |
+| **Carry** (residual basis, +sign) | **Production-ready** | TRAIN→HOLDOUT→SEALED all PASS | HOLDOUT IC +0.046; SEALED IC +0.061, net +20.52% (`CARRY_SEALED_SNAPSHOT.json`); full rebalancer/metrics/paper infra built. Beta+sector neutralized, monthly, ADV-capped, banded |
+| **TS Basis** (basis *level*, +sign) | **SEALED de-authorized** (selection defect; signal NOT falsified) | TRAIN net +18.4%, HOLDOUT INCONCLUSIVE, SEALED read taken 2026-07-24 | HOLDOUT IC gate used Pearson not the pre-registered Spearman → recomputed p=0.0313 > α=0.025, so the sealed window was opened on a gate that didn't hold. The SEALED itself is strong (IC +0.077, t=5.89, p=3.1e-07, net +22.57%, pre-reg SHA `07265b50…`) but reached via the broken gate — a multiplicity/selection concern, not a signal-quality concern. PAPER-candidate; only forward paper months can resolve the de-authorization |
+| **IVOL** (idiosyncratic vol, −sign) | **SEALED FAIL** (regime flip) | TRAIN PASS, HOLDOUT PASS, gate-4 composite PASS (0.9854), SEALED FAIL | TRAIN IC −0.055 net +5.96%; HOLDOUT IC −0.0295 net +2.16%; SEALED sign-flipped (IC +0.018, net −13.78%). Sealed window spent for this construct. Carry↔IVOL signal ρ=−0.04 (genuinely decorrelated). Construct: 60-day realized vol, beta+sector neutralized (`IVOL_*` reports, declaration SHA `d7ebcbcc…`) |
+| **Trend** (vol-scaled TSMOM) | TRAIN FAIL | §9 gate 2 FAIL | IC +0.022, t=1.13, p=0.131 — insignificant; second-half IC decayed to −0.010 |
+| **Skew** (risk-reversal, ±sign) | TRAIN FAIL | §9 gate 2 FAIL | IC −0.018, t=−1.15, p=0.255 — insignificant |
+| **LAG** (sector lead-lag diffusion) | TRAIN FAIL | §9 gate 2 FAIL | IC −0.031 wrong sign, t=−1.43; 58% subsumed by Trend (momentum-in-disguise guard fired). Pre-reg SHA `82ed96f9…` |
+| **Flow** (OI dynamics) | RFA ABANDON | RFA gate killed | Max power 0.6053 < 0.80; the gate's first live kill |
 
-Composite power at n*=42: central ~0.75 (below 0.80 hurdle) — must clear on realized ICs + correlation matrix, not projection. Remaining two sleeves await their own TRAIN reads.
+**Composite status:** the only standalone-validated sleeve is **Carry**. TS Basis's SEALED is de-authorized (gate defect, not signal defect) and stands as a PAPER candidate; its resolution requires forward paper time, not more in-sample reads. The 2023→2026 out-of-sample budget is spent (Carry PASS, TS Basis de-authorized, IVOL FAIL), and futures history cannot predate 2016 — so no unread confirmatory window remains for a new basis-family construct. A Carry+TS-Basis 50/50 blend shows diversification benefit on TRAIN+HOLDOUT (advisor's decision-support estimate: Sharpe ~2.09 vs Carry-alone ~1.72, L/S return ρ=0.46; *not a gated read* — TRAIN is burned for Carry sign-discovery, so this is a ranking estimate, not forward evidence). Basis-momentum (the basis *change*, distinct from TS Basis the basis *level*) is analytically available but has no unread window to confirm in.
 
 ### Production infrastructure
 | File | Purpose |

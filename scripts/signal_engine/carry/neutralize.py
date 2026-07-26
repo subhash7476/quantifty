@@ -3,6 +3,10 @@
 Reads signals from build_carry.py, computes trailing 252-day beta to Nifty 50,
 then residualizes z_carry against beta + sector dummies via cross-sectional OLS
 per formation date.
+
+Usage:
+  Monthly (default): python neutralize.py
+  Weekly:            python neutralize.py --weekly
 """
 from __future__ import annotations
 
@@ -16,7 +20,8 @@ ROOT = Path(__file__).resolve().parents[3]
 
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 EQ_DB = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
-SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
+SIG_DB_MONTHLY = ROOT / "data" / "signal_engine" / "carry" / "signals.duckdb"
+SIG_DB_WEEKLY = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
 NIFTY_DB = ROOT / "data" / "signal_engine" / "carry" / "nifty50.duckdb"
 
 BETA_DAYS = 252
@@ -24,8 +29,11 @@ BETA_MIN_OBS = 200
 
 
 def main():
+    weekly = "--weekly" in sys.argv
+    SIG_DB = SIG_DB_WEEKLY if weekly else SIG_DB_MONTHLY
+
     if not SIG_DB.exists():
-        print("ERROR: signals DB not found. Run build_carry.py first.")
+        print(f"ERROR: signals DB not found ({SIG_DB}). Run build_carry.py first.")
         return 1
 
     con = duckdb.connect()

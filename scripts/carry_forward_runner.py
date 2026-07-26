@@ -185,19 +185,17 @@ def main():
 
     config = DriverConfig(mode=Mode.REPLAY, symbols=symbols, max_bars=500_000)
 
-    driver = LoopDriver(
-        config=config,
-        clock=ReplayClock(start_time=datetime.combine(today, dt_time.min)),
-        provider=provider,
-        source=None,
-        execution=execution,
-        rebalance_hook=hook.__call__,
-    )
-
     _logger.info("Forward PAPER started. Run ID: %s", run_id)
 
     while True:
-        driver._state = driver._state.__class__.RUNNING  # restart
+        driver = LoopDriver(
+            config=config,
+            clock=ReplayClock(start_time=datetime.combine(today, dt_time.min)),
+            provider=provider,
+            source=None,
+            execution=execution,
+            rebalance_hook=hook.__call__,
+        )
         driver.run()
 
         if provider.refresh_if_exhausted():

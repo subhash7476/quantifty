@@ -1,8 +1,8 @@
 # Carry — Production Parity Report
 
-**Script-generated** — `scripts/signal_engine/carry/parity_check.py`. Code commit `5944ec3`.
+**Script-generated** — `scripts/signal_engine/carry/parity_check.py`. Code commit `0e15f78`.
 
-**Generated:** 2026-07-23
+**Generated:** 2026-07-26
 
 **Protocol:** `CARRY_IMPLEMENTATION_BRIDGE.md` §5 — production path must reproduce research net spread within tolerance.
 
