@@ -21,7 +21,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-SRC_SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "signals.duckdb"
+SRC_SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
 OUT_DB = ROOT / "data" / "signal_engine" / "ts_basis" / "ts_signals.duckdb"
 
 Z_LOOKBACK = 504  # calendar days

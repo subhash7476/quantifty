@@ -1,6 +1,6 @@
 # Carry — Production Parity Report
 
-**Script-generated** — `scripts/signal_engine/carry/parity_check.py`. Code commit `0e15f78`.
+**Script-generated** — `scripts/signal_engine/carry/parity_check.py`. Code commit `15eed8b`.
 
 **Generated:** 2026-07-26
 
