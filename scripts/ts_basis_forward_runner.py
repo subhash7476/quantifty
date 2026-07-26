@@ -171,6 +171,16 @@ def main():
             fee_gst=metrics.fee_breakdown.get("gst", 0.0),
             top3_conc=top3, hhi=hhi, margin_util_pct=margin_util,
         )
+        positions = []
+        for d in executions:
+            positions.append({
+                "underlying": d.underlying, "target_side": d.target_side,
+                "target_cap": d.target_cap, "z_carry_neut": None,
+                "quintile": 5 if d.target_side == "LONG" else (1 if d.target_side == "SHORT" else None),
+                "action": d.action, "suppressed": d.suppressed,
+            })
+        if positions:
+            db.write_rebalance_positions(run_id, fdate, positions)
         _logger.info("TS Basis rebalance: %s %dL/%dS fees=%.0f slip=%.0f",
                       fdate, len(target.longs), len(target.shorts),
                       metrics.fees_total, metrics.slippage_total)
