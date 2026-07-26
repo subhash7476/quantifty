@@ -93,22 +93,16 @@ def live_gross_exposure_policy(state: CapitalState) -> float:
 
 
 def compute_target_book(
-    facts: List[Tuple],   # (underlying, z_carry_neut, ...) — extra fields ignored
+    facts: List[Tuple],
     gross_exposure: float,
     adva: Optional[Dict[str, float]] = None,
+    nq: Optional[int] = None,
 ) -> TargetBook:
-    """Core construction: research-identical, re-ranks by z_carry_neut.
-
-    facts: list of (underlying, z_carry_neut, ...) — caller MUST pre-filter
-           (ADV availability, fwd_ret presence, etc.) before passing.
-    gross_exposure: total Rs gross (long + short legs combined).
-    adva: {underlying: adv_rs} for ADV capping. If None, no caps applied.
-
-    Returns TargetBook with per-name capital allocations.
-    """
     half_gross = gross_exposure / 2.0
     n = len(facts)
-    nq = max(1, round(QUINTILE_FRAC * n))
+    if nq is None:
+        nq = max(1, round(QUINTILE_FRAC * n))
+    nq = min(nq, n // 2)
     sorted_by_z = sorted(facts, key=lambda r: r[1])
     long_set = {r[0] for r in sorted_by_z[-nq:]}
     short_set = {r[0] for r in sorted_by_z[:nq]}
@@ -480,7 +474,7 @@ class CarryRebalancerHook:
         if len(facts) < 5:
             return
 
-        target = compute_target_book(facts, gross_exposure, adva)
+        target = compute_target_book(facts, gross_exposure, adva, nq=self._max_positions)
         new_longs, new_shorts, deltas = rebalance_book(
             target, self._book_longs, self._book_shorts, BAND_SIGMA)
 
