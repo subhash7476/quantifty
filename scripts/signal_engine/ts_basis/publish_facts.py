@@ -82,8 +82,8 @@ def main():
     if existing_dates:
         fact_rows = [r for r in facts if r[0] not in existing_dates]
         if not fact_rows:
-            print(f"TS Basis facts: up to date (0 new formations)")
-            return 0, 0, None, 0
+            print("TS Basis facts: up to date (0 new formations)")
+            return 0
         fc = duckdb.connect(str(TS_FACTS_DB))
         fc.executemany(
             "INSERT INTO carry_facts VALUES (?, ?, ?, ?, ?)",
