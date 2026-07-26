@@ -6,6 +6,74 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-26 — PROJECT_STATE + CHANGELOG reconciled; Signal Engine research pipeline fully evaluated
+
+Both state docs updated for the first time since PSB-2 close (2026-07-17). The intervening work — C2 retirement, F1 NO-GO, RFA FLOW ABANDON, TS Basis de-authorization, IVOL SEALED FAIL, LAG/Trend/Skew TRAIN FAIL, Carry production-metrics infrastructure, Backtest UI, Pearson→Spearman remediation, substrate gaps G1–G5 closed, futures bhavcopy ingested — is now recorded in both files. Research pipeline stands at 7 constructs tested: 1 production-ready (Carry), 1 PAPER-candidate (TS Basis, de-authorized), 5 dead (IVOL, Trend, Skew, LAG, Flow). No successor to any construct is authorized. The platform infrastructure is feature-complete; the sealed window (2023–2026) is fully spent. Source: `docs/PROJECT_STATE.md`, `docs/CHANGELOG_PLATFORM.md`.
+
+## 2026-07-26 — SLEEVE_INVENTORY_REPORT published; non-Carry/Trend sleeve work surveyed
+
+Comprehensive survey of all sleeve-level work outside the Carry/Trend lineage — TS Basis, IVOL, Skew, LAG, Flow — including each construct's definition, gate progression, current status, and sealed-window state. Not a research decision or a gating document; a factual inventory for operator reference. *(docs/reports/SLEEVE_INVENTORY_REPORT.md)*
+
+## 2026-07-24 — TS Basis **DE-AUTHORIZED** — Pearson→Spearman gate defect discovered after SEALED read
+
+The Pearson→Spearman estimator remediation across 4 sites uncovered a pre-existing gate defect: TS Basis HOLDOUT IC was computed with Pearson (not the pre-registered Spearman). Recomputing with Spearman: p=0.0313 > α=0.025 — the gate did not hold. The SEALED read was therefore taken on a broken gate. The SEALED itself is strong (IC +0.077, t=5.89, p=3.1e-07, net +22.57%, pre-reg SHA `07265b50…`) but reached via a multiplicity/selection concern — a signal-quality concern, not a signal-quality defect. **PAPER-candidate** — only forward paper months can resolve the de-authorization. Remaining paper-TRAIN months embedded in the Construct fence suffice for a decision; no sealed re-read or new in-sample lookback authorized. Carry HOLDOUT IC re-derived as a control: unchanged (p remains < 0.025). *(CLAUDE.md 'TS Basis' entry; `docs/reports/TS_BASIS_NET_SPREAD_REPORT.md`)*
+
+## 2026-07-24 — IVOL SEALED read: **FAIL** (regime flip; sealed window spent for this construct)
+
+IVOL (idiosyncratic vol, −sign) completed its gate progression: TRAIN PASS (IC −0.0546, t=−2.27, net +5.96%), HOLDOUT PASS (IC −0.0295, net +2.16%, sign and net persist), gate 4 composite power check PASS (composite power 0.9854; Carry-IVOL signal ρ=−0.04 genuinely decorrelated). **SEALED FAIL** — sign flipped (IC +0.018 vs claimed −sign), net −13.78%. The sealed window is now spent for this construct. Carry↔IVOL signal ρ=−0.04 (genuinely decorrelated). Construct: 60-day realized vol, beta+sector neutralized. *(`docs/reports/IVOL_*` reports; commits `4ef7123`→`4f875c8`)*
+
+## 2026-07-23 — Backtest UI COMPLETE: Data Manager, backtest page, incremental detection, data freshness
+
+Flask UI extended with full backtest capability: Data Manager (overview, explorer, SQL query, ingestion runner, downloads, cron scheduler), smart incremental detection for all date-ranged pipelines (Run button auto-detects latest stored date, only fetches what's missing), data freshness labels (up to date / stale N days / no data / full rebuild / built on demand), Backtest page (strategy selector, date range, async replay engine, metrics cards, trades table). Old DB Admin page removed (superseded by Data Manager). *(commits `659309c`→`c8ce136`; `flask_app/blueprints/data_manager.py`)*
+
+## 2026-07-23 — Pearson→Spearman estimator fix across 4 sites; Carries HOLDOUT survives, TS Basis de-authorized
+
+Fixed incorrect Pearson correlation estimator used in place of the pre-registered Spearman across 4 sites (TS Basis HOLDOUT, Carry HOLDOUT, TS Basis TRAIN, Carry TRAIN). Carry HOLDOUT re-derivation: IC +0.046, p remains < 0.025 → PASS. TS Basis HOLDOUT re-derivation: p=0.0313 > α=0.025 → **gate does not hold** → de-authorized. TS Basis net-spread report regenerated with correct Spearman ICs and de-authorization note. *(commit `b9524cf`; `2ed44fa`)*
+
+## 2026-07-22 — Carry production-metrics infrastructure — COMPLETE
+
+Full production path for the platform's first strategy: `CarryRebalancerHook` (LoopDriver rebalance seam, `compute_target_book`, `summarize_rebalance`, `RebalanceMetrics`), `CarryMetricsDB` (DuckDB 4-table schema + writer), full-loop replay (`scripts/carry_paper_replay.py` — LoopDriver REPLAY over TRAIN+HOLDOUT + SEALED snapshot ingest), parity gate (`scripts/carry_production_report.py` — gated on A5 parity PASS +0.0 bp), PAPER runner (`scripts/carry_paper_runner.py`). Parity verified: research v production at +0.0 bp both windows. 44 tests (rebalancer 28, metrics 3, metrics DB 13). *(CLAUDE.md 'Production infrastructure'; commits `12285c9`→`e02fcf4`; `scripts/carry_production_report.py`)*
+
+## 2026-07-22 — RFA FLOW ABANDON — gate's first live kill, independently verified
+
+**Flow** (OI dynamics) — max achievable power **0.6053 < 0.80** at n*=42; even the optimistic corner (δ=0.030 / SD=0.10) needs 71 monthly formations. All four figures reproduced independently from `scripts/rfa/power.py`. Flow receives **no TRAIN read**. Cost: one declaration file, zero data reads. Consequence: the engine is the 3-sleeve case (Carry+Trend+Skew, central ≈ 0.75). *(`governance/rfa/declarations/flow.py`, SHA-256 `d7a54cfb…`; `docs/reports/FLOW_RFA.md`)*
+
+## 2026-07-22 — F1 Feasibility Screen — **NO-GO** (verdict override — GO → superseded)
+
+SFB-1/F1 feasibility screen for stock-futures cross-sectional momentum returned GO via `decide()` but this verdict is **superseded** — the screen never evaluated §6's MaxDD-scaled return condition: TRAIN return/MaxDD ≈ 0.23 on a −45.7% drawdown, and the bracket was grid-selected into near-inactivity (DaysH 18.8 = bracket rarely triggered, reducing F1 to plain monthly 12-1 momentum). TRAIN expectancy not distinguishable from zero at any slippage setting. **No futures history purchased; no battery pre-registered; no strategy code.** Substrate gate resolved after the fact: FUTSTK/FUTIDX bhavcopy 2016-02-11→2026-07-20 ingested (363 stock + 13 index underlyings) via `scripts/sfb/ingest_futures_bhavcopy_v2.py` — for free, not purchased. *(CLAUDE.md 'SFB-1 / F1' section; `F1_FEASIBILITY_SCREEN_VERDICT_REVIEW.md`)*
+
+## 2026-07-21 — Substrate gaps G1–G5 closed; futures-spot join measured at 100.00%
+
+All data-quality baselines for the Signal Engine resolved. **G1** — index history: 59-session hole repaired, contiguity gate added, last 4 sessions filled. **G2-R** — sector classification: 0 unclassified. **G3** — equity tail: 7,052,381 rows, 0 duplicate keys. **G5** — ISIN linkage: all 11 sealed-window F&O underlyings mapped. **Futures-spot join:** 100.00%, 0 misses across 477,577 FUTSTK cells. *(commits `284ebe5`→`5ef1393`)*
+
+## 2026-07-20 — LAG TRAIN read: **FAIL** (§9 gate 2)
+
+LAG (sector lead-lag diffusion, ±sign) — TRAIN read: IC −0.031, wrong sign; structural bet not realized; 58% subsumed by Trend (momentum-in-disguise guard fired). Pre-reg SHA `82ed96f9…`. RFA declaration SHA `0092919c`. No successor authorized. *(`docs/reports/LAG_*` reports; commit `890896a`)*
+
+## 2026-07-18 — C2 RETIRED — Phase 0.5 killed PSB-2's sole winner before any sealed read spent
+
+PSB-2's §8 recommended C2 (delivery-z fortnightly banded; mean IC +0.0349, net +4.57%, power 0.9198). Carried into Phase 0 evidence-strengthening: 0.4 delivery-backfill + SD re-estimation on extended TRAIN 2011–2018; 0.5 turnover-reduction mini-battery (V1–V3). **No variant projected power ≥ 0.80 on TRAIN.** Net spread stayed negative under delivery-equity STT at every turnover setting. Phase 0 killed C2 **before a single sealed read was spent** — the 2023–2026 window remains sealed and unread; HOLDOUT 2019–2022 unspent. Terminal artifacts: `C2_PHASE0_5_MINIBATTERY.md` + `C2_PHASE0_5_LEAD_REVIEW.md` (commit `394b2d6`). No successor authorized. *(CLAUDE.md 'PSB-2' retirement banner)*
+
+## 2026-07-20 — F&O bhavcopy substrate complete: FUTSTK/FUTIDX 2016-02-11 → 2026-07-20
+
+Stock/index futures bhavcopy ingested via `scripts/sfb/ingest_futures_bhavcopy_v2.py` — 363 stock + 13 index underlyings, 2016-02-11 to 2026-07-20. Pre-2016 history is not obtainable from any public source. This completes the futures data substrate at zero cost — no vendor purchase was ever authorized or made. *(scripts/sfb/ingest_futures_bhavcopy_v2.py; CLAUDE.md 'SFB-1 / F1' substrate gate)*
+
+## 2026-07-20 — IVOL HOLDOUT PASS; gate 4 composite power check PASS
+
+IVOL completed gates 3 (HOLDOUT: IC −0.0295, net +2.16%, sign+net persist) and 4 (composite power 0.9854, Carry-IVOL ρ=−0.04). All gates pass. SEALED read authorized. *(commits `0987324`, `fc92693`)*
+
+## 2026-07-20 — IVOL TRAIN PASS (§9 gate 2); SEALED read authorized
+
+IVOL (idiosyncratic vol, −sign) — TRAIN: IC −0.0546, t=−2.27, net +5.96%; structural bet clears; 86% decorrelated from Carry. RFA declaration SHA `d7ebcbcc`, max power 0.9853. All §9 gates pass. *(commit `15ed26c`)*
+
+## 2026-07-20 — Skew TRAIN read: **FAIL** (§9 gate 2)
+
+Skew (risk-reversal, ±sign) — TRAIN read: IC −0.018, t=−1.15, p=0.255. Structural bet not realized. Not eligible. *(commit `da3e3ba`)*
+
+## 2026-07-20 — Trend TRAIN read: **FAIL** (§9 gate 2)
+
+Trend (vol-scaled TSMOM) — TRAIN read: IC +0.022, t=1.13, p=0.131. Second-half IC decayed to −0.010. Not eligible. *(commit `0ea419e`)*
+
 ## 2026-07-17 — PSB-2 CLOSED: **C2 recommended** — the first screening battery in the program to produce a winner
 
 **Outcome: C2 recommended for promotion.** The fee-survivable successor to PSB-1 screened three constructs against the frozen `PSB2_PROTOCOL.md`, reusing the PSB-1 substrate (`equity_bhavcopy_adjusted`, 7,030,920 rows) and harness. Dev data fenced at 2022-12-30, fence proven on every run (fenced MAX != unfenced MAX 2026-07-09); **the 2023-2026 sealed window was never read**.
