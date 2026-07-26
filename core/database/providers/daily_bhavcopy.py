@@ -183,3 +183,65 @@ class DailyBhavcopyProvider(MarketDataProvider):
         if symbol not in self._data:
             return (0, 0)
         return (self._calendar_idx, len(self._calendar))
+
+    def refresh_if_exhausted(self) -> bool:
+        """Re-scan bhavcopy for new dates; extend calendar if found.
+
+        For forward-running: call after advance_tick() returns False to check
+        if new data has arrived. Returns True if new dates were added.
+        """
+        last_date = self._calendar[-1] if self._calendar else None
+        con = duckdb.connect(str(self._bhavcopy_db), read_only=True)
+        con.execute("SET threads=4")
+
+        where_clauses = ["inst_type = 'FUTSTK'"]
+        if self._start_date:
+            where_clauses.append(f"trade_date >= '{self._start_date}'")
+        if last_date:
+            where_clauses.append(f"trade_date > '{last_date}'")
+        where = " AND ".join(where_clauses)
+
+        symbol_list = ", ".join(f"'{sym}'" for sym in self.symbols)
+        rows = con.execute(f"""
+            SELECT DISTINCT trade_date
+            FROM futures_bhavcopy
+            WHERE {where}
+              AND underlying IN ({symbol_list})
+            ORDER BY trade_date
+        """).fetchall()
+
+        new_dates = [r[0] for r in rows]
+        if not new_dates:
+            con.close()
+            return False
+
+        for sym in self.symbols:
+            sym_rows = con.execute(f"""
+                WITH near_month AS (
+                    SELECT trade_date, underlying, expiry_dt,
+                           open, high, low, close,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY trade_date, underlying
+                               ORDER BY expiry_dt ASC
+                           ) AS rn
+                    FROM futures_bhavcopy
+                    WHERE {where}
+                      AND underlying = '{sym}'
+                )
+                SELECT trade_date, open, high, low, close
+                FROM near_month WHERE rn = 1 ORDER BY trade_date
+            """).fetchall()
+            for td, o, h, l, c in sym_rows:
+                ts = datetime.combine(td, time(15, 30))
+                self._data.setdefault(sym, {})[td] = OHLCVBar(
+                    symbol=sym, timestamp=ts,
+                    open=float(o) if o else 0.0,
+                    high=float(h) if h else 0.0,
+                    low=float(l) if l else 0.0,
+                    close=float(c) if c else 0.0,
+                    volume=0,
+                )
+
+        con.close()
+        self._calendar.extend(new_dates)
+        return True
