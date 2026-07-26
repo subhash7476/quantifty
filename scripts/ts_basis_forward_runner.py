@@ -189,7 +189,7 @@ def main():
         facts_db_path=str(TS_FACTS_DB), execution_handler=execution,
         gross_exposure_policy=paper_gross_exposure_policy,
         bhavcopy_db_path=str(FUT_DB), metrics_sink=sink,
-        signals_db_path=str(TS_SIG_DB),
+        signals_db_path=str(TS_SIG_DB), max_positions_per_leg=5,
     )
 
     config = DriverConfig(mode=Mode.REPLAY, symbols=symbols, max_bars=500_000)
