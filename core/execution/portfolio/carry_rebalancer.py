@@ -391,10 +391,12 @@ class CarryRebalancerHook:
                  gross_exposure_policy: Callable[[CapitalState], float] = paper_gross_exposure_policy,
                  bhavcopy_db_path: Optional[str] = None,
                  metrics_sink: Optional[Callable] = None,
-                 signals_db_path: Optional[str] = None):
+                 signals_db_path: Optional[str] = None,
+                 max_positions_per_leg: Optional[int] = None):
         self._facts_db = Path(facts_db_path)
         self._exec = execution_handler
         self._gross_exposure_policy = gross_exposure_policy
+        self._max_positions = max_positions_per_leg
         self._bhavcopy_db = Path(bhavcopy_db_path) if bhavcopy_db_path else None
         self._metrics_sink = metrics_sink
         self._signals_db = Path(signals_db_path) if signals_db_path else None
@@ -470,6 +472,10 @@ class CarryRebalancerHook:
         if self._signals_db and self._signals_db.exists() and facts:
             fwd_names = self._load_fwd_names(facts, fdate)
             facts = [f for f in facts if f[0] in fwd_names]
+
+        if self._max_positions is not None and len(facts) > 2 * self._max_positions:
+            sorted_facts = sorted(facts, key=lambda r: r[1])
+            facts = sorted_facts[:self._max_positions] + sorted_facts[-self._max_positions:]
 
         if len(facts) < 5:
             return
