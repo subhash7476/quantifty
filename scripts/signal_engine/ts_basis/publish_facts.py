@@ -71,33 +71,49 @@ def main():
             facts.append((fdate, u, z, u_to_q[u], bool(liq)))
 
     TS_FACTS_DB.parent.mkdir(parents=True, exist_ok=True)
+    existing_dates = set()
     if TS_FACTS_DB.exists():
-        TS_FACTS_DB.unlink()
+        ec = duckdb.connect(str(TS_FACTS_DB), read_only=True)
+        existing_dates = {r[0] for r in ec.execute(
+            "SELECT DISTINCT formation_date FROM carry_facts"
+        ).fetchall()}
+        ec.close()
 
-    fc = duckdb.connect(str(TS_FACTS_DB))
-    fc.execute("""
-        CREATE TABLE carry_facts (
-            formation_date   DATE    NOT NULL,
-            underlying       VARCHAR NOT NULL,
-            z_carry_neut     DOUBLE,
-            quintile         TINYINT,
-            eligible         BOOLEAN NOT NULL,
-            PRIMARY KEY (formation_date, underlying)
+    if existing_dates:
+        fact_rows = [r for r in facts if r[0] not in existing_dates]
+        if not fact_rows:
+            print(f"TS Basis facts: up to date (0 new formations)")
+            return 0, 0, None, 0
+        fc = duckdb.connect(str(TS_FACTS_DB))
+        fc.executemany(
+            "INSERT INTO carry_facts VALUES (?, ?, ?, ?, ?)",
+            [(str(fd), u, z, q, elig) for fd, u, z, q, elig in fact_rows],
         )
-    """)
-    fc.execute("CREATE INDEX idx_facts_date ON carry_facts (formation_date)")
-    fc.executemany(
-        "INSERT INTO carry_facts VALUES (?, ?, ?, ?, ?)",
-        [(str(fd), u, z, q, elig) for fd, u, z, q, elig in facts],
-    )
+    else:
+        fc = duckdb.connect(str(TS_FACTS_DB))
+        fc.execute("""
+            CREATE TABLE carry_facts (
+                formation_date   DATE    NOT NULL,
+                underlying       VARCHAR NOT NULL,
+                z_carry_neut     DOUBLE,
+                quintile         TINYINT,
+                eligible         BOOLEAN NOT NULL,
+                PRIMARY KEY (formation_date, underlying)
+            )
+        """)
+        fc.execute("CREATE INDEX idx_facts_date ON carry_facts (formation_date)")
+        fc.executemany(
+            "INSERT INTO carry_facts VALUES (?, ?, ?, ?, ?)",
+            [(str(fd), u, z, q, elig) for fd, u, z, q, elig in facts],
+        )
 
     total = fc.execute("SELECT COUNT(*) FROM carry_facts").fetchone()[0]
-    n_form = fc.execute(
-        "SELECT COUNT(DISTINCT formation_date) FROM carry_facts"
-    ).fetchone()[0]
+    n_form = fc.execute("SELECT COUNT(DISTINCT formation_date) FROM carry_facts").fetchone()[0]
     fc.close()
 
-    print(f"TS Basis facts: {total:,} rows across {n_form} formations -> {TS_FACTS_DB}")
+    new_formations = len({r[0] for r in facts}) - len(existing_dates)
+    print(f"TS Basis facts: {total:,} rows across {n_form} formations "
+          f"(+{max(0, new_formations)} new formations) -> {TS_FACTS_DB}")
     return 0
 
 
