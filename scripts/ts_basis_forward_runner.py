@@ -114,11 +114,16 @@ def main():
         _logger.error("No symbols in carry facts DB")
         return 1
 
-    _logger.info("TS Basis forward: %d symbols, run=%s", len(symbols), run_id)
+    fac_con = duckdb.connect(str(TS_FACTS_DB), read_only=True)
+    facts_max = fac_con.execute("SELECT MAX(formation_date) FROM carry_facts").fetchone()[0]
+    fac_con.close()
+    start_date = min(today, facts_max or today)
+
+    _logger.info("TS Basis forward: %d symbols, run=%s, start=%s", len(symbols), run_id, start_date)
 
     provider = DailyBhavcopyProvider(
         underlyings=symbols, bhavcopy_db=str(FUT_DB),
-        start_date=today, end_date=None,
+        start_date=start_date, end_date=None,
     )
 
     clock = ReplayClock(start_time=datetime.combine(today, dt_time.min))

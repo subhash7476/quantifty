@@ -87,12 +87,17 @@ def main():
         _logger.error("No symbols in facts DB")
         return 1
 
-    _logger.info("Carry forward: %d symbols, run=%s", len(symbols), run_id)
+    fac_con = duckdb.connect(str(FACTS_DB), read_only=True)
+    facts_max = fac_con.execute("SELECT MAX(formation_date) FROM carry_facts").fetchone()[0]
+    fac_con.close()
+    start_date = min(today, facts_max or today)
+
+    _logger.info("Carry forward: %d symbols, run=%s, start=%s", len(symbols), run_id, start_date)
 
     provider = DailyBhavcopyProvider(
         underlyings=symbols,
         bhavcopy_db=str(FUT_DB),
-        start_date=today,
+        start_date=start_date,
         end_date=None,
     )
 
