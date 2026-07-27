@@ -6,7 +6,21 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
-## 2026-07-26 — PROJECT_STATE + CHANGELOG reconciled; Signal Engine research pipeline fully evaluated
+## 2026-07-27 — TS Basis Daily construct built (unregistered); refresh/download pipeline deployed; build_carry.py OOM fixed + incremental; duplicate-row bug in daily build found and fixed
+
+**TS Basis Daily** — daily-cadence mirror of the TS Basis (monthly) signal engine sleeve. Same trailing z-score formula applied at daily frequency: `z_ts = (basis_now - trailing_mean) / trailing_std`. DuckDB-optimised build completes in 49s (903K signals, 2,575 formations, 2016-02-11 → 2026-07-23). TRAIN net +60.23% (quintile L/S), HOLDOUT net +41.44%; top-5 concentrated: TRAIN +85.42%, HOLDOUT +94.43%. Turnover ~1.15x/day. RFA declaration filed (`governance/rfa/declarations/ts_basis_daily.py`). No pre-registration, no gated evaluation, no sealed read protocol — this is an unregistered research construct. Full mirror infrastructure: `scripts/signal_engine/ts_basis_daily/` (8 files — build, facts, net-spread, holdout, sealed, drawdown, capacity) + 3 top-level runners (paper replay, forward runner, concentrated backtest) + signal reporter (`scripts/ts_basis_daily_signals.py`).
+
+**Duplicate-row bug in daily build** — the `basis_panel` join produced 425K duplicate (formation_date, underlying) rows (~47% of total). Root cause: the `contract_arms.build_basis_panel` near-month selector can return multiple rows per (trade_date, underlying) when futures_bhavcopy has duplicate expiry entries. Fixed by adding `SELECT DISTINCT ON (trade_date, underlying)` to both `CREATE TABLE AS` and `INSERT` paths in `build_ts_basis_daily.py`. Existing signals DB deduped from 903K → 478K rows.
+
+**build_carry.py fixes** — two changes: (1) **OOM fix** — the forward-returns JOIN to `equity_bhavcopy_adjusted` (7M rows) now pre-filters to only the needed symbols and date range (~500K rows), eliminating the allocation failure. (2) **`--incremental` flag** — checks existing formation dates and only processes new ones; without the flag, full rebuild still works. Monthly formations use 40-day staleness tolerance (next-month-data dependency).
+
+**Refresh pipeline** — `scripts/refresh_all_strategies.py`: checkpoint-enabled pipeline running carry (monthly + weekly → neutralize → facts), ts_basis (signals → facts), ts_basis_daily (build → facts). Each step checks `MAX(formation_date) vs latest source date` and skips if current. Carry/ts_basis_daily facts published via inline DuckDB (no double-build). `--force` to bypass checks, `--skip-{carry,ts-basis,daily}` flags.
+
+**Download pipeline** — `scripts/download_all_data.py`: three-stage pipeline (download → build derived → refresh strategies). Downloads equity bhavcopy, futures bhavcopy, index history, corporate actions, stock options bhavcopy from NSE archives. All ingest scripts are idempotent (skip already-present dates). `--download-only` / `--build-only` flags.
+
+**ingest_index_history.py fixes** — `run_final_gates()` now skips corrupt 1d files (missing `candles` table) via try/except. One corrupt Saturday file (`2018-12-15.duckdb`) removed.
+
+Sources: `CLAUDE.md` §Signal Engine sleeves table + key files; `docs/PROJECT_STATE.md`; `scripts/refresh_all_strategies.py`; `scripts/download_all_data.py`; `docs/reports/TS_BASIS_DAILY_NET_SPREAD_REPORT.md`.
 
 Both state docs updated for the first time since PSB-2 close (2026-07-17). The intervening work — C2 retirement, F1 NO-GO, RFA FLOW ABANDON, TS Basis de-authorization, IVOL SEALED FAIL, LAG/Trend/Skew TRAIN FAIL, Carry production-metrics infrastructure, Backtest UI, Pearson→Spearman remediation, substrate gaps G1–G5 closed, futures bhavcopy ingested — is now recorded in both files. Research pipeline stands at 7 constructs tested: 1 production-ready (Carry), 1 PAPER-candidate (TS Basis, de-authorized), 5 dead (IVOL, Trend, Skew, LAG, Flow). No successor to any construct is authorized. The platform infrastructure is feature-complete; the sealed window (2023–2026) is fully spent. Source: `docs/PROJECT_STATE.md`, `docs/CHANGELOG_PLATFORM.md`.
 

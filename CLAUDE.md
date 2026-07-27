@@ -364,8 +364,9 @@ Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SS
 | **Skew** (risk-reversal, ±sign) | TRAIN FAIL | §9 gate 2 FAIL | IC −0.018, t=−1.15, p=0.255 — insignificant |
 | **LAG** (sector lead-lag diffusion) | TRAIN FAIL | §9 gate 2 FAIL | IC −0.031 wrong sign, t=−1.43; 58% subsumed by Trend (momentum-in-disguise guard fired). Pre-reg SHA `82ed96f9…` |
 | **Flow** (OI dynamics) | RFA ABANDON | RFA gate killed | Max power 0.6053 < 0.80; the gate's first live kill |
+| **TS Basis Daily** (basis *level*, +sign, **daily**) | **Research** — TRAIN+HOLDOUT net-positive, unregistered | TRAIN net +60.23%, HOLDOUT net +41.44% (quintile); top-5: TRAIN +85.42%, HOLDOUT +94.43% | Daily cadence mirror of TS Basis monthly. Signal identical (trailing z-score of raw_ann_basis, 252-day rolling window). 903K signals across 2,575 formations (2016-02-11 → 2026-07-23). Turnover ~1.15x/day (quintile) — gross alpha clears massive fee drag. No pre-registration or SEALED protocol written; not gated. Full infrastructure: build, facts, net-spread, holdout, sealed, drawdown, capacity, paper replay, forward runner, concentrated backtest. RFA declaration filed (`governance/rfa/declarations/ts_basis_daily.py`). Scripts: `scripts/signal_engine/ts_basis_daily/` (8 files) + `scripts/ts_basis_daily_*.py` (3 files). Signals: `scripts/ts_basis_daily_signals.py` |
 
-**Composite status:** the only standalone-validated sleeve is **Carry**. TS Basis's SEALED is de-authorized (gate defect, not signal defect) and stands as a PAPER candidate; its resolution requires forward paper time, not more in-sample reads. The 2023→2026 out-of-sample budget is spent (Carry PASS, TS Basis de-authorized, IVOL FAIL), and futures history cannot predate 2016 — so no unread confirmatory window remains for a new basis-family construct. A Carry+TS-Basis 50/50 blend shows diversification benefit on TRAIN+HOLDOUT (advisor's decision-support estimate: Sharpe ~2.09 vs Carry-alone ~1.72, L/S return ρ=0.46; *not a gated read* — TRAIN is burned for Carry sign-discovery, so this is a ranking estimate, not forward evidence). Basis-momentum (the basis *change*, distinct from TS Basis the basis *level*) is analytically available but has no unread window to confirm in.
+**Composite status:** the only standalone-validated sleeve is **Carry**. TS Basis's SEALED is de-authorized (gate defect, not signal defect) and stands as a PAPER candidate; its resolution requires forward paper time, not more in-sample reads. **TS Basis Daily** is an unregistered daily variant — TRAIN+HOLDOUT net-positive but no pre-registration, no gated evaluation, no sealed read protocol. The 2023→2026 out-of-sample budget is spent (Carry PASS, TS Basis de-authorized, IVOL FAIL), and futures history cannot predate 2016 — so no unread confirmatory window remains for a new basis-family construct. A Carry+TS-Basis 50/50 blend shows diversification benefit on TRAIN+HOLDOUT (advisor's decision-support estimate: Sharpe ~2.09 vs Carry-alone ~1.72, L/S return ρ=0.46; *not a gated read* — TRAIN is burned for Carry sign-discovery, so this is a ranking estimate, not forward evidence). Basis-momentum (the basis *change*, distinct from TS Basis the basis *level*) is analytically available but has no unread window to confirm in.
 
 ### Production infrastructure
 | File | Purpose |
@@ -426,6 +427,22 @@ Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SS
 | `scripts/signal_engine/carry/capacity_analysis.py` | ADV capacity analysis |
 | `scripts/ingest_index_history.py` | 1d index store ingest + Gate A/B |
 | `scripts/sfb/ingest_futures_bhavcopy_v2.py` | FUTSTK/FUTIDX bhavcopy ingest |
+| `docs/reports/TS_BASIS_DAILY_NET_SPREAD_REPORT.md` | TS Basis Daily net-spread report |
+| `docs/reports/TS_BASIS_DAILY_HOLDOUT_REPORT.md` | TS Basis Daily HOLDOUT report |
+| `scripts/signal_engine/ts_basis_daily/build_ts_basis_daily.py` | TS Basis Daily signal construction (DuckDB-optimised, incremental) |
+| `scripts/signal_engine/ts_basis_daily/publish_facts.py` | TS Basis Daily facts publisher |
+| `scripts/signal_engine/ts_basis_daily/run_net_spread.py` | TS Basis Daily net-spread analysis |
+| `scripts/signal_engine/ts_basis_daily/run_holdout.py` | TS Basis Daily HOLDOUT gate |
+| `scripts/signal_engine/ts_basis_daily/run_sealed.py` | TS Basis Daily SEALED read |
+| `scripts/signal_engine/ts_basis_daily/run_drawdown.py` | TS Basis Daily drawdown analysis |
+| `scripts/signal_engine/ts_basis_daily/run_capacity.py` | TS Basis Daily capacity analysis |
+| `scripts/ts_basis_daily_signals.py` | TS Basis Daily signal report (latest date, top-N) |
+| `scripts/ts_basis_daily_paper_replay.py` | TS Basis Daily LoopDriver PAPER replay |
+| `scripts/ts_basis_daily_forward_runner.py` | TS Basis Daily forward PAPER runner |
+| `scripts/ts_basis_daily_concentrated_backtest.py` | TS Basis Daily top-5 concentrated backtest |
+| `scripts/refresh_all_strategies.py` | Checkpointed pipeline: carry + ts_basis + ts_basis_daily build + facts |
+| `scripts/download_all_data.py` | Unified NSE bhavcopy download → build → refresh pipeline |
+| `governance/rfa/declarations/ts_basis_daily.py` | **FROZEN** TS Basis Daily RFA declaration |
 
 ---
 

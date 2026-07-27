@@ -7,8 +7,10 @@ Builds formation signals from the basis panel:
   4. Winsorized z-score
 
 Usage:
-  Monthly (default): python build_carry.py
-  Weekly:            python build_carry.py --weekly
+  Monthly (default):  python build_carry.py
+  Monthly incremental: python build_carry.py --incremental
+  Weekly:              python build_carry.py --weekly
+  Weekly incremental:  python build_carry.py --weekly --incremental
 Output:
   Monthly: data/signal_engine/carry/signals.duckdb
   Weekly:  data/signal_engine/carry/weekly_signals.duckdb
@@ -32,9 +34,8 @@ SIG_DB_MONTHLY = ROOT / "data" / "signal_engine" / "carry" / "signals.duckdb"
 SIG_DB_WEEKLY = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
 SECTOR_CSV = ROOT / "governance" / "carry" / "sector_classification.csv"
 
-# Liquidity screen: trailing 20-day median futures turnover >= Rs 5 cr
 ADV_THRESHOLD_CR = 5.0
-ADV_WINDOW_DAYS = 30  # calendar-day window for ~20 trading days
+ADV_WINDOW_DAYS = 30
 WINSORIZE_SD = 3.0
 TRAIN_LO = date(2016, 3, 31)
 TRAIN_HI = date(2020, 12, 31)
@@ -43,12 +44,6 @@ HOLDOUT_HI = date(2022, 12, 31)
 
 
 def _formation_grid_monthly(con):
-    """Monthly formation dates: last trading day of each completed calendar month.
-
-    A month is 'completed' when bhavcopy contains at least one trading day
-    in the following month. Excludes the current unfinished month to prevent
-    spurious mid-month formations.
-    """
     rows = con.execute("""
         WITH monthly AS (
             SELECT trade_date, ROW_NUMBER() OVER (
@@ -74,7 +69,6 @@ def _formation_grid_monthly(con):
 
 
 def _formation_grid_weekly(con):
-    """Weekly formation dates: last trading day of each ISO week."""
     return [
         r[0] for r in con.execute("""
             WITH ranked AS (
@@ -95,7 +89,6 @@ def _formation_grid(con, weekly=False):
 
 
 def _load_sector_map():
-    """Load sector classification CSV into {symbol: sector}."""
     m = {}
     with open(SECTOR_CSV) as f:
         next(f)
@@ -107,7 +100,6 @@ def _load_sector_map():
 
 
 def _adv_at_date(con, fdate, lookback=ADV_WINDOW_DAYS):
-    """Trailing 20-trading-day median val_in_lakh per underlying."""
     rows = con.execute(f"""
         SELECT underlying, MEDIAN(val_in_lakh) AS adv_lakh
         FROM (
@@ -126,8 +118,20 @@ def _adv_at_date(con, fdate, lookback=ADV_WINDOW_DAYS):
 
 def main():
     weekly = "--weekly" in sys.argv
+    incremental = "--incremental" in sys.argv
     mode = "weekly" if weekly else "monthly"
     SIG_DB = SIG_DB_WEEKLY if weekly else SIG_DB_MONTHLY
+
+    existing_dates = set()
+    if incremental and SIG_DB.exists():
+        ec = duckdb.connect(str(SIG_DB), read_only=True)
+        existing_dates = {r[0] for r in ec.execute(
+            "SELECT DISTINCT formation_date FROM formations"
+        ).fetchall()}
+        ec.close()
+        if existing_dates:
+            last_existing = max(existing_dates)
+            print(f"Found {len(existing_dates)} existing formations, last={last_existing}")
 
     con = duckdb.connect()
     con.execute(f"ATTACH '{FUT_DB}' AS fut (READ_ONLY)")
@@ -139,53 +143,64 @@ def main():
     print(f"  {n_cells:,} cells")
 
     print(f"Computing formation grid [{mode}]...")
-    fmt_dates = _formation_grid(con, weekly=weekly)
-    print(f"  {len(fmt_dates)} formations: {fmt_dates[0]} -> {fmt_dates[-1]}")
+    all_fmt_dates = _formation_grid(con, weekly=weekly)
+    print(f"  {len(all_fmt_dates)} formations total: {all_fmt_dates[0]} -> {all_fmt_dates[-1]}")
+
+    fmt_dates = [d for d in all_fmt_dates if d not in existing_dates]
+    if not fmt_dates:
+        print("  All formations already built — nothing to do.")
+        con.close()
+        return 0
+
+    if incremental and existing_dates:
+        print(f"  {len(fmt_dates)} new formations: {fmt_dates[0]} -> {fmt_dates[-1]}")
+    else:
+        print(f"  {len(fmt_dates)} formations: {fmt_dates[0]} -> {fmt_dates[-1]}")
 
     sector_map = _load_sector_map()
     print(f"  {len(sector_map)} symbols in sector map")
 
-    if SIG_DB.exists():
-        SIG_DB.unlink()
-    sig = duckdb.connect(str(SIG_DB))
-    sig.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
-    sig.execute("SET threads=2")
+    fresh = not SIG_DB.exists()
+    if fresh:
+        sig = duckdb.connect(str(SIG_DB))
+        sig.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
+        sig.execute("SET threads=2")
+        sig.execute("""
+            CREATE TABLE formations (
+                formation_date DATE PRIMARY KEY,
+                fwd_formation_date DATE,
+                n_liquid INT,
+                n_scored INT,
+                mean_basis DOUBLE,
+                sd_basis DOUBLE
+            )
+        """)
+        sig.execute("""
+            CREATE TABLE signals (
+                formation_date DATE,
+                underlying VARCHAR,
+                entity VARCHAR,
+                sector VARCHAR,
+                raw_ann_basis DOUBLE,
+                div_adj_basis DOUBLE,
+                resid_carry DOUBLE,
+                z_carry DOUBLE,
+                z_carry_neut DOUBLE,
+                beta DOUBLE,
+                fwd_ret_1m DOUBLE,
+                liquid BOOLEAN,
+                PRIMARY KEY (formation_date, underlying)
+            )
+        """)
+    else:
+        sig = duckdb.connect(str(SIG_DB))
+        sig.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
+        sig.execute("SET threads=2")
 
-    sig.execute("""
-        CREATE TABLE formations (
-            formation_date DATE PRIMARY KEY,
-            fwd_formation_date DATE,
-            n_liquid INT,
-            n_scored INT,
-            mean_basis DOUBLE,
-            sd_basis DOUBLE
-        )
-    """)
-    sig.execute("""
-        CREATE TABLE signals (
-            formation_date DATE,
-            underlying VARCHAR,
-            entity VARCHAR,
-            sector VARCHAR,
-            raw_ann_basis DOUBLE,
-            div_adj_basis DOUBLE,
-            resid_carry DOUBLE,
-            z_carry DOUBLE,
-            z_carry_neut DOUBLE,
-            beta DOUBLE,
-            fwd_ret_1m DOUBLE,
-            liquid BOOLEAN,
-            PRIMARY KEY (formation_date, underlying)
-        )
-    """)
-
-    # Build a date->index lookup for forward return computation
     fwd_map = {}
-    for i, d in enumerate(fmt_dates):
-        if i + 1 < len(fmt_dates):
-            fwd_map[d] = fmt_dates[i + 1]
-        else:
-            fwd_map[d] = None
+    all_dates = sorted(set(existing_dates) | set(fmt_dates))
+    for i, d in enumerate(all_dates):
+        fwd_map[d] = all_dates[i + 1] if i + 1 < len(all_dates) else None
 
     n_total = len(fmt_dates)
     for idx, fdate in enumerate(fmt_dates):
@@ -194,7 +209,6 @@ def main():
 
         nfdate = fwd_map.get(fdate)
 
-        # 3a. Get basis data + spot close at this formation date
         rows = con.execute(f"""
             SELECT bp.underlying, bp.entity, bp.annualized_basis,
                    bp.raw_basis_ratio, bp.spot_close, bp.days_to_expiry,
@@ -209,12 +223,10 @@ def main():
             print(f"    WARNING: no data at {fdate}")
             continue
 
-        # 3b. ADV / liquidity screen
         adv = _adv_at_date(con, fdate)
         adv_prev = {u: v for u, v in adv.items() if v is not None and v >= ADV_THRESHOLD_CR * 100}
         del adv
 
-        # 3c. Dividend adjustment
         div_rows = con.execute(f"""
             SELECT bp.underlying,
                    COALESCE(SUM(CAST(json_extract_string(ca.raw_json, '$.Details') AS DOUBLE)), 0) AS div_sum
@@ -230,7 +242,6 @@ def main():
         """).fetchall()
         div_map = {r[0]: r[1] for r in div_rows}
 
-        # 3d. Compute per-name values in Python
         name_data = []
         for u, ent, ann_basis, raw_ratio, spot, dte, exp in rows:
             is_liquid = u in adv_prev
@@ -253,7 +264,6 @@ def main():
         if not name_data:
             continue
 
-        # 3e. Cross-sectional demeaning & z-score
         nd = np.array([d["div_adj_basis"] for d in name_data], dtype=float)
         mean_b = float(np.mean(nd))
         sd_b = float(np.std(nd, ddof=1)) if len(nd) > 1 else 0.0
@@ -274,13 +284,11 @@ def main():
         n_liquid = sum(1 for d in name_data if d["liquid"])
         n_scored = len(name_data)
 
-        # Store formation metadata
         sig.execute(
             "INSERT INTO formations VALUES (?, ?, ?, ?, ?, ?)",
             [fdate, nfdate, n_liquid, n_scored, mean_b, sd_b],
         )
 
-        # Store signals
         sig_con = sig.cursor()
         for d in name_data:
             sig_con.execute(
@@ -290,37 +298,70 @@ def main():
                  d["z_carry"], d["liquid"]],
             )
 
-    # 4. Forward returns: one-month adjusted spot returns (bulk update)
+    # 4. Forward returns — pre-filter equity to avoid OOM
     print("Computing forward returns...")
     sig.close()
     sig = duckdb.connect(str(SIG_DB))
     sig.execute("SET threads=1")
     sig.execute("SET memory_limit='4GB'")
     sig.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
-    sig.execute("""
-        CREATE TEMP TABLE fwd_returns AS
-        SELECT s.formation_date, s.underlying,
-               (a2.close - a1.close) / a1.close AS fwd_ret
-        FROM signals s
-        JOIN eq.equity_bhavcopy_adjusted a1
-            ON a1.symbol = s.underlying AND a1.trade_date = s.formation_date AND a1.series='EQ'
-            AND a1.close IS NOT NULL AND a1.close > 0
-        JOIN formations f ON f.formation_date = s.formation_date AND f.fwd_formation_date IS NOT NULL
-        JOIN eq.equity_bhavcopy_adjusted a2
-            ON a2.symbol = s.underlying AND a2.trade_date = f.fwd_formation_date AND a2.series='EQ'
-            AND a2.close IS NOT NULL AND a2.close > 0
-    """)
-    sig.execute("""
-        UPDATE signals s
-        SET fwd_ret_1m = fr.fwd_ret
-        FROM fwd_returns fr
-        WHERE fr.formation_date = s.formation_date AND fr.underlying = s.underlying
-    """)
-    sig.execute("DROP TABLE IF EXISTS fwd_returns")
 
-    # Summary
+    # Only compute fwd_ret for signals that don't have it yet
+    new_date_str = ", ".join(f"DATE '{d}'" for d in fmt_dates)
+    sig.execute(f"""
+        CREATE TEMP TABLE new_signals AS
+        SELECT formation_date, underlying FROM signals
+        WHERE formation_date IN ({new_date_str}) AND fwd_ret_1m IS NULL
+    """)
+
+    # Pre-filter equity to only needed symbols and date range
+    sym_rows = sig.execute("SELECT DISTINCT underlying FROM new_signals").fetchall()
+    all_syms = [r[0] for r in sym_rows]
+
+    if all_syms and fmt_dates:
+        sym_str = ", ".join(f"'{s}'" for s in all_syms)
+        lo = fmt_dates[0]
+        # forward date range extends to last fwd_date
+        last_fwd = fwd_map.get(fmt_dates[-1]) if fmt_dates else None
+        hi = max(last_fwd or fmt_dates[-1], fmt_dates[-1])
+
+        sig.execute(f"""
+            CREATE TEMP TABLE eq_subset AS
+            SELECT symbol, trade_date, close
+            FROM eq.equity_bhavcopy_adjusted
+            WHERE symbol IN ({sym_str})
+              AND trade_date >= DATE '{lo}'
+              AND trade_date <= DATE '{hi}'
+              AND series = 'EQ' AND close IS NOT NULL AND close > 0
+        """)
+        n_eq = sig.execute("SELECT COUNT(*) FROM eq_subset").fetchone()[0]
+        print(f"  Equity subset: {n_eq:,} rows")
+
+        sig.execute("""
+            CREATE TEMP TABLE fwd_returns AS
+            SELECT s.formation_date, s.underlying,
+                   (a2.close - a1.close) / a1.close AS fwd_ret
+            FROM new_signals s
+            JOIN formations f ON f.formation_date = s.formation_date AND f.fwd_formation_date IS NOT NULL
+            JOIN eq_subset a1
+                ON a1.symbol = s.underlying AND a1.trade_date = s.formation_date
+            JOIN eq_subset a2
+                ON a2.symbol = s.underlying AND a2.trade_date = f.fwd_formation_date
+        """)
+        sig.execute("""
+            UPDATE signals s
+            SET fwd_ret_1m = fr.fwd_ret
+            FROM fwd_returns fr
+            WHERE fr.formation_date = s.formation_date AND fr.underlying = s.underlying
+        """)
+        sig.execute("DROP TABLE IF EXISTS fwd_returns")
+        sig.execute("DROP TABLE IF EXISTS eq_subset")
+
+    sig.execute("DROP TABLE IF EXISTS new_signals")
+
     total_sig = sig.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
-    print(f"\nDone: {total_sig:,} signals, {len(fmt_dates)} formations")
+    n_form = sig.execute("SELECT COUNT(DISTINCT formation_date) FROM formations").fetchone()[0]
+    print(f"\nDone: {total_sig:,} signals, {n_form} formations")
     print(f"  Signals DB: {SIG_DB}")
 
     sig.close()

@@ -678,10 +678,16 @@ def run_final_gates(args, floor):
     files = sorted(NIFTY_1D_DIR.glob("*.duckdb"))
     nifty_dates = set()
     for f in files:
-        con = duckdb.connect(str(f))
-        if con.execute("SELECT COUNT(*) FROM candles WHERE symbol='NSE_INDEX|Nifty 50'").fetchone()[0] > 0:
-            nifty_dates.add(f.stem)
-        con.close()
+        try:
+            con = duckdb.connect(str(f))
+            if con.execute("SELECT COUNT(*) FROM candles WHERE symbol='NSE_INDEX|Nifty 50'").fetchone()[0] > 0:
+                nifty_dates.add(f.stem)
+            con.close()
+        except Exception:
+            try:
+                con.close()
+            except Exception:
+                pass
     all_2015_weekdays = {d.isoformat() for d in date_range(date(2015, 1, 1), date(2015, 12, 31))}
     still_missing = sorted(all_2015_weekdays - nifty_dates)
     holidays_2015 = {"2015-01-26", "2015-03-06", "2015-04-02", "2015-04-03",
