@@ -1,0 +1,440 @@
+{% extends "base.html" %}
+
+{% block title %}TS Basis Daily — Signals{% endblock %}
+{% block breadcrumb %}TS Basis Daily / Signals{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-100">TS Basis Daily</h1>
+            <p class="text-sm text-slate-400 mt-1">
+                Daily time-series basis z-score signals — top longs &amp; shorts
+            </p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span id="status-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-slate-700 text-slate-300">
+                Ready
+            </span>
+            <button id="btn-refresh"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg font-medium transition-colors flex items-center gap-2"
+                    onclick="triggerRefresh()">
+                <i class="fas fa-sync-alt"></i>
+                <span id="btn-refresh-text">Refresh</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats Row -->
+    <div class="grid grid-cols-4 gap-4">
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <p class="text-xs text-slate-400 uppercase tracking-wide">Formation Date</p>
+            <p id="stat-date" class="text-lg font-semibold text-slate-100 mt-1">--</p>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <p class="text-xs text-slate-400 uppercase tracking-wide">Names Scored</p>
+            <p id="stat-total" class="text-lg font-semibold text-slate-100 mt-1">--</p>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <p class="text-xs text-slate-400 uppercase tracking-wide">Liquid Names</p>
+            <p id="stat-liquid" class="text-lg font-semibold text-slate-100 mt-1">--</p>
+        </div>
+        <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+            <p class="text-xs text-slate-400 uppercase tracking-wide">L/S Count</p>
+            <p id="stat-ls" class="text-lg font-semibold text-slate-100 mt-1">--</p>
+        </div>
+    </div>
+
+    <!-- Date Picker -->
+    <div class="flex items-center gap-3">
+        <label class="text-sm text-slate-400">Date:</label>
+        <select id="date-select"
+                class="bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                onchange="loadSignals(this.value)">
+            <option value="">Latest</option>
+        </select>
+        <span id="form-count" class="text-xs text-slate-500"></span>
+    </div>
+
+    <!-- Signals Table -->
+    <div class="grid grid-cols-2 gap-6">
+        <!-- Shorts -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-700 bg-red-900/20">
+                <h2 class="text-sm font-semibold text-red-400">
+                    <i class="fas fa-arrow-down mr-2"></i>SHORT (Q1 — lowest z_ts)
+                </h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-slate-400 border-b border-slate-700">
+                            <th class="px-4 py-2 w-8">#</th>
+                            <th class="px-4 py-2">Underlying</th>
+                            <th class="px-4 py-2 text-right">z_ts</th>
+                        </tr>
+                    </thead>
+                    <tbody id="shorts-tbody">
+                        <tr><td colspan="3" class="px-4 py-8 text-center text-slate-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Longs -->
+        <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+            <div class="px-4 py-3 border-b border-slate-700 bg-green-900/20">
+                <h2 class="text-sm font-semibold text-green-400">
+                    <i class="fas fa-arrow-up mr-2"></i>LONG (Q5 — highest z_ts)
+                </h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs text-slate-400 border-b border-slate-700">
+                            <th class="px-4 py-2 w-8">#</th>
+                            <th class="px-4 py-2">Underlying</th>
+                            <th class="px-4 py-2 text-right">z_ts</th>
+                        </tr>
+                    </thead>
+                    <tbody id="longs-tbody">
+                        <tr><td colspan="3" class="px-4 py-8 text-center text-slate-500">Loading...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Options Panel -->
+    <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between flex-wrap gap-2">
+            <div>
+                <h3 class="text-sm font-semibold text-slate-200">Options to Trade — ATM</h3>
+                <!-- Dual-date: the book is built from the previous close, the prices are current. -->
+                <p class="text-xs text-slate-400 mt-0.5">
+                    <span class="text-slate-300">Book:</span>
+                    <span id="opt-book-date" class="font-mono text-slate-300">—</span>
+                    <span class="text-slate-600 mx-1">·</span>
+                    <span class="text-slate-300">Prices:</span>
+                    <span id="opt-price-time" class="font-mono text-slate-300">—</span>
+                </p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="opt-state" class="px-2 py-1 rounded text-xs font-semibold bg-slate-700 text-slate-300">…</span>
+                <span id="opt-expiry" class="text-xs text-slate-400 font-mono"></span>
+            </div>
+        </div>
+        <div id="opt-error" class="hidden px-4 py-2 text-xs text-amber-300 bg-amber-900/30 border-b border-amber-800"></div>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-left text-xs text-slate-400 border-b border-slate-700">
+                        <th class="px-3 py-2">Ticker</th>
+                        <th class="px-3 py-2">Dir</th>
+                        <th class="px-3 py-2">Contract</th>
+                        <th class="px-3 py-2 text-right">LTP</th>
+                        <th class="px-3 py-2 text-right">Chg %</th>
+                        <th class="px-3 py-2 text-right">Lot</th>
+                        <th class="px-3 py-2 text-right">Premium/lot</th>
+                    </tr>
+                </thead>
+                <tbody id="options-tbody">
+                    <tr><td colspan="7" class="px-4 py-8 text-center text-slate-500">Loading options...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="px-4 py-2 border-t border-slate-700 text-xs text-slate-500">
+            Validated on the linear long/short <span class="text-slate-400">futures</span> basis, not on options.
+            An ATM option is ~0.5 delta and adds theta and bid-ask the backtest never modeled.
+        </div>
+    </div>
+
+    <!-- Refresh Log -->
+    <div id="refresh-log" class="hidden bg-slate-800 border border-slate-700 rounded-lg p-4">
+        <h3 class="text-sm font-semibold text-slate-300 mb-2">Refresh Log</h3>
+        <pre id="refresh-log-content" class="text-xs text-slate-400 font-mono whitespace-pre-wrap max-h-48 overflow-y-auto"></pre>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let pollTimer = null;
+
+    // ---- Live options panel ----------------------------------------------
+    const OPT_POLL_MS = 2000;
+    let optContracts = [];       // resolved once per formation
+    let optLiveTimer = null;
+    let optLastLtp = {};         // instrument_key -> previous ltp, for flash
+
+    async function loadOptions() {
+        try {
+            const resp = await fetch('/ts-basis-daily/api/options');
+            const data = await resp.json();
+            if (data.error) { showOptError(data.error); return; }
+            optContracts = data.contracts || [];
+            document.getElementById('opt-book-date').textContent =
+                fmtDate(data.formation_date) + ' close';
+            const exp = optContracts.find(c => c.expiry);
+            document.getElementById('opt-expiry').textContent =
+                exp ? 'exp ' + fmtDate(exp.expiry) : '';
+            renderOptions();
+            startOptLive();
+        } catch (e) { showOptError('Failed to load contracts: ' + e.message); }
+    }
+
+    function fmtDate(iso) {
+        if (!iso) return '—';
+        const d = new Date(iso + 'T00:00:00');
+        return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    }
+
+    function renderOptions(quotes) {
+        const tb = document.getElementById('options-tbody');
+        if (!optContracts.length) {
+            tb.innerHTML = '<tr><td colspan="7" class="px-4 py-8 text-center text-slate-500">No contracts</td></tr>';
+            return;
+        }
+        tb.innerHTML = optContracts.map(c => {
+            const q = (quotes && c.instrument_key) ? quotes[c.instrument_key] : null;
+            const ltp = q && q.ltp != null ? q.ltp : null;
+            const chg = q && q.change_pct != null ? q.change_pct : null;
+            const prev = optLastLtp[c.instrument_key];
+            let flash = '';
+            if (ltp != null && prev != null && ltp !== prev) {
+                flash = ltp > prev ? 'opt-flash-up' : 'opt-flash-down';
+            }
+            if (ltp != null) optLastLtp[c.instrument_key] = ltp;
+
+            const isLong = c.direction === 'LONG';
+            const dirCls = isLong ? 'text-emerald-400' : 'text-rose-400';
+            const chgCls = chg == null ? 'text-slate-500' : (chg >= 0 ? 'text-emerald-400' : 'text-rose-400');
+            const contract = c.strike != null
+                ? `${c.strike} ${c.opt_type}` : '<span class="text-slate-600">—</span>';
+            const premCost = (ltp != null && c.lot_size)
+                ? '₹' + Math.round(ltp * c.lot_size).toLocaleString('en-IN')
+                : (c.premium_cost ? '₹' + Math.round(c.premium_cost).toLocaleString('en-IN') : '—');
+
+            return `<tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                <td class="px-3 py-2 font-medium text-slate-200">${c.ticker}</td>
+                <td class="px-3 py-2 ${dirCls} font-semibold">${c.direction}</td>
+                <td class="px-3 py-2 font-mono text-slate-300">${contract}</td>
+                <td class="px-3 py-2 text-right font-mono text-slate-100 ${flash}">${ltp != null ? ltp.toFixed(2) : '—'}</td>
+                <td class="px-3 py-2 text-right font-mono ${chgCls}">${chg != null ? (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%' : '—'}</td>
+                <td class="px-3 py-2 text-right font-mono text-slate-400">${c.lot_size ? c.lot_size.toLocaleString('en-IN') : '—'}</td>
+                <td class="px-3 py-2 text-right font-mono text-slate-300">${premCost}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    function setOptState(state, ageSec) {
+        const el = document.getElementById('opt-state');
+        const map = {
+            LIVE:   ['bg-emerald-900/60 text-emerald-300', 'LIVE'],
+            CLOSED: ['bg-slate-700 text-slate-300', 'CLOSED'],
+            STALE:  ['bg-amber-900/60 text-amber-300', 'STALE'],
+        };
+        const [cls, label] = map[state] || map.STALE;
+        el.className = 'px-2 py-1 rounded text-xs font-semibold ' + cls;
+        el.textContent = label;
+    }
+
+    function showOptError(msg) {
+        const el = document.getElementById('opt-error');
+        el.textContent = msg;
+        el.classList.remove('hidden');
+        setOptState('STALE');
+    }
+    function clearOptError() {
+        document.getElementById('opt-error').classList.add('hidden');
+    }
+
+    async function pollOptionsLive() {
+        // Only poll while the tab is visible - avoids burning API quota on a
+        // forgotten background tab.
+        if (document.visibilityState !== 'visible') return;
+        try {
+            const resp = await fetch('/ts-basis-daily/api/options/live');
+            const data = await resp.json();
+            if (data.error) {
+                // Keep the last good prices on screen rather than blanking them,
+                // but make it visibly not-live.
+                showOptError(data.error);
+                return;
+            }
+            clearOptError();
+            setOptState(data.state, data.feed_age_sec);
+            document.getElementById('opt-price-time').textContent =
+                data.state === 'LIVE' ? 'live, ' + data.server_time : data.server_time;
+            renderOptions(data.quotes);
+        } catch (e) { showOptError('Quote fetch failed: ' + e.message); }
+    }
+
+    function startOptLive() {
+        if (optLiveTimer) clearInterval(optLiveTimer);
+        pollOptionsLive();
+        optLiveTimer = setInterval(pollOptionsLive, OPT_POLL_MS);
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            pollOptionsLive();   // immediate catch-up on return
+        }
+    });
+
+    async function loadSignals(date) {
+        const url = date ? `/ts-basis-daily/api/signals?date=${date}` : '/ts-basis-daily/api/signals';
+        try {
+            const resp = await fetch(url);
+            const data = await resp.json();
+            if (data.error) {
+                console.error(data.error);
+                return;
+            }
+            renderSignals(data);
+        } catch (e) {
+            console.error('Failed to load signals:', e);
+        }
+    }
+
+    function renderSignals(data) {
+        // Stats
+        document.getElementById('stat-date').textContent = data.date;
+        document.getElementById('stat-total').textContent = data.n_total;
+        document.getElementById('stat-liquid').textContent = data.n_liquid;
+        document.getElementById('stat-ls').textContent = `${data.n_short}S / ${data.n_long}L`;
+
+        // Shorts
+        const st = document.getElementById('shorts-tbody');
+        if (data.shorts.length === 0) {
+            st.innerHTML = '<tr><td colspan="3" class="px-4 py-8 text-center text-slate-500">No signals</td></tr>';
+        } else {
+            st.innerHTML = data.shorts.map((s, i) => `
+                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                    <td class="px-4 py-2 text-slate-500">${i + 1}</td>
+                    <td class="px-4 py-2 text-slate-200 font-medium">${s.underlying}</td>
+                    <td class="px-4 py-2 text-right text-red-400 font-mono">${s.z_ts.toFixed(4)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Longs
+        const lt = document.getElementById('longs-tbody');
+        if (data.longs.length === 0) {
+            lt.innerHTML = '<tr><td colspan="3" class="px-4 py-8 text-center text-slate-500">No signals</td></tr>';
+        } else {
+            lt.innerHTML = data.longs.map((s, i) => `
+                <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+                    <td class="px-4 py-2 text-slate-500">${i + 1}</td>
+                    <td class="px-4 py-2 text-slate-200 font-medium">${s.underlying}</td>
+                    <td class="px-4 py-2 text-right text-green-400 font-mono">${s.z_ts.toFixed(4)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // Update date dropdown selection
+        document.getElementById('date-select').value = data.date;
+    }
+
+    async function loadDates() {
+        try {
+            const resp = await fetch('/ts-basis-daily/api/dates');
+            const data = await resp.json();
+            const sel = document.getElementById('date-select');
+            // Preserve "Latest" option
+            sel.innerHTML = '<option value="">Latest</option>' +
+                data.dates.reverse().map(d => `<option value="${d}">${d}</option>`).join('');
+            document.getElementById('form-count').textContent =
+                data.total ? `${data.total} total formations` : '';
+        } catch (e) {
+            console.error('Failed to load dates:', e);
+        }
+    }
+
+    async function triggerRefresh() {
+        const btn = document.getElementById('btn-refresh');
+        const btnText = document.getElementById('btn-refresh-text');
+        const badge = document.getElementById('status-badge');
+        const logDiv = document.getElementById('refresh-log');
+        const logContent = document.getElementById('refresh-log-content');
+
+        btn.disabled = true;
+        btnText.textContent = 'Refreshing...';
+        badge.textContent = 'Running';
+        badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-yellow-700 text-yellow-200';
+        logDiv.classList.remove('hidden');
+        logContent.textContent = 'Starting refresh...\n';
+
+        try {
+            const resp = await fetch('/ts-basis-daily/api/refresh', { method: 'POST' });
+            const result = await resp.json();
+            if (!result.ok) {
+                logContent.textContent += `ERROR: ${result.message}\n`;
+                badge.textContent = 'Error';
+                badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-red-700 text-red-200';
+            } else {
+                logContent.textContent += 'Build started. Polling for completion...\n';
+                pollTimer = setInterval(pollStatus, 2000);
+            }
+        } catch (e) {
+            logContent.textContent += `ERROR: ${e}\n`;
+            resetButton();
+        }
+    }
+
+    async function pollStatus() {
+        try {
+            const resp = await fetch('/ts-basis-daily/api/status');
+            const data = await resp.json();
+            const logContent = document.getElementById('refresh-log-content');
+            const badge = document.getElementById('status-badge');
+
+            logContent.textContent += `[${new Date().toLocaleTimeString()}] ${data.message}\n`;
+            logContent.scrollTop = logContent.scrollHeight;
+
+            if (!data.running) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+                const ok = data.message.includes('complete');
+
+                if (ok) {
+                    badge.textContent = 'Ready';
+                    badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-green-700 text-green-200';
+                    logContent.textContent += 'Done. Reloading signals...\n';
+                    await loadDates();
+                    await loadSignals('');
+                } else {
+                    badge.textContent = 'Failed';
+                    badge.className = 'px-3 py-1 rounded-full text-xs font-medium bg-red-700 text-red-200';
+                }
+                resetButton();
+            }
+        } catch (e) {
+            console.error('Poll error:', e);
+        }
+    }
+
+    function resetButton() {
+        const btn = document.getElementById('btn-refresh');
+        const btnText = document.getElementById('btn-refresh-text');
+        btn.disabled = false;
+        btnText.textContent = 'Refresh';
+    }
+
+    // Init
+    document.addEventListener('DOMContentLoaded', () => {
+        loadDates();
+        loadSignals('');
+        loadOptions();
+    });
+</script>
+<style>
+    @keyframes optFlashUp   { from { background-color: rgba(16,185,129,.35); } to { background-color: transparent; } }
+    @keyframes optFlashDown { from { background-color: rgba(244,63,94,.35);  } to { background-color: transparent; } }
+    .opt-flash-up   { animation: optFlashUp .6s ease-out; }
+    .opt-flash-down { animation: optFlashDown .6s ease-out; }
+</style>
+{% endblock %}
