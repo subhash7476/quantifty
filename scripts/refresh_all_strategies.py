@@ -64,7 +64,7 @@ def _needs_rebuild(db_path, label, monthly=False):
     if isinstance(out_max, date) and isinstance(src_max, date):
         # For monthly formations: the last formation requires the NEXT month
         # to have at least one trading day. Allow up to 40 days of tolerance.
-        tolerance = 40 if monthly else 7
+        tolerance = 40 if monthly else 0  # daily cadence: any new source date needs rebuild
         if out_max >= src_max:
             print(f"  [{label}] Up to date (output={out_max}, source={src_max})")
             return False
