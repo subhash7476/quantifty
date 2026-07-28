@@ -185,6 +185,9 @@ def create_app(test_config=None):
     from flask_app.blueprints.options import options_bp
     app.register_blueprint(options_bp)
 
+    from flask_app.blueprints.ts_basis_daily import ts_basis_daily_bp
+    app.register_blueprint(ts_basis_daily_bp)
+
     # Global context processor for templates
     @app.context_processor
     def inject_user_context():

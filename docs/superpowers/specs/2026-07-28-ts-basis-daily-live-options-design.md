@@ -69,6 +69,15 @@ Two endpoints, deliberately split so the expensive resolution does not re-run ev
 An options table beneath the existing signals: ticker · dir · contract · strike ·
 LTP · change % · lot · premium/lot. Green/red flash on tick. Status pill.
 
+**Dual-date header (required).** The panel always shows both dates side by side:
+
+> **Book: 27 Jul close** · **Prices: live, 28 Jul 13:24**
+
+The name list is computed from the previous session's close; the prices are from the
+current session. That is inherent to a daily strategy — today's list cannot exist
+until today's close. Showing one date invites the reader to assume the names were
+picked from today's data. Both dates are always rendered, never collapsed to one.
+
 JS polls `/api/options/live` every 2s via `setInterval`, guarded by
 `document.visibilityState` — poll pauses on `visibilitychange` to hidden and
 resumes (with an immediate fetch) on return.

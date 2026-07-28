@@ -80,6 +80,62 @@ class UpstoxMarketData:
             logger.error(f"[UpstoxMarketData] Exception fetching LTP for {instrument_key}: {e}")
             return None
 
+    def fetch_quotes_batch(self, instrument_keys: list[str]) -> dict:
+        """Fetch full quotes for multiple instruments in a single API call.
+
+        Returns {"quotes": {key: {...}}, "error": str|None}. Per-key payload
+        carries ltp, prev_close, net_change, change_pct, volume, oi, feed_ts.
+
+        prev_close is derived as last_price - net_change. It is NOT ohlc.close:
+        intraday, ohlc.close tracks the *current* session and equals last_price,
+        which would render every change_pct as 0.00%.
+        """
+        if not instrument_keys:
+            return {"quotes": {}, "error": None}
+
+        from core.auth.credentials import credentials
+        token = credentials.get("access_token")
+        if not token:
+            return {"quotes": {}, "error": "No access token — re-authenticate with Upstox"}
+
+        try:
+            resp = requests.get(
+                f"{self.BASE_URL}/market-quote/quotes",
+                headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+                params={"instrument_key": ",".join(instrument_keys)},
+                timeout=5,
+            )
+        except requests.RequestException as e:
+            return {"quotes": {}, "error": f"{type(e).__name__}: {e}"}
+
+        if resp.status_code != 200:
+            return {"quotes": {}, "error": f"Upstox HTTP {resp.status_code}"}
+
+        data = resp.json().get("data", {})
+        by_token = {}
+        for entry in data.values():
+            if isinstance(entry, dict) and entry.get("instrument_token"):
+                by_token[entry["instrument_token"]] = entry
+
+        quotes = {}
+        for key in instrument_keys:
+            e = by_token.get(key)
+            if not e:
+                continue
+            ltp = e.get("last_price")
+            net = e.get("net_change")
+            prev = (ltp - net) if (ltp is not None and net is not None) else None
+            quotes[key] = {
+                "ltp": ltp,
+                "net_change": net,
+                "prev_close": prev,
+                "change_pct": (net / prev * 100.0) if (prev not in (None, 0) and net is not None) else None,
+                "volume": e.get("volume"),
+                "oi": e.get("oi"),
+                "feed_ts": e.get("timestamp"),
+            }
+        return {"quotes": quotes, "error": None}
+
     def fetch_ltp_batch(self, instrument_keys: list[str]) -> dict[str, float]:
         """Fetch LTP for multiple instruments in a single API call.
         Returns {instrument_key: ltp} for keys that returned valid prices."""

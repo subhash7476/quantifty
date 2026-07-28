@@ -726,6 +726,9 @@ def main():
                     help="Insert missing Nifty 50 rows from the operator CSVs, then run gates")
     ap.add_argument("--fetch-missing", action="store_true",
                     help="Fetch archive rows for trading dates with no store file, then run gates")
+    ap.add_argument("--since", type=lambda s: _parse_date(s), default=None,
+                    help="Incremental: start ingest at this date and skip archive-floor "
+                         "discovery + the full-history file scan (existing files are kept)")
     args = ap.parse_args()
 
     if args.fetch_missing:
@@ -748,17 +751,21 @@ def main():
 
     sess = _get_session()
 
-    # Discover archive floor
-    print("Discovering archive floor...")
-    floor = discover_floor(sess, date(2015, 1, 1))
-    if floor is None:
-        print("ERROR: could not discover archive floor")
-        sys.exit(1)
-    print(f"Archive floor: {floor}")
+    if args.since is not None:
+        floor = args.since
+        print(f"--since {floor}: skipping archive-floor discovery and full-history scan")
+    else:
+        # Discover archive floor
+        print("Discovering archive floor...")
+        floor = discover_floor(sess, date(2015, 1, 1))
+        if floor is None:
+            print("ERROR: could not discover archive floor")
+            sys.exit(1)
+        print(f"Archive floor: {floor}")
 
-    # Predictions
-    print(f"\nPrediction 1: 46 of 53 missing 2015 sessions recovered")
-    print(f"Prediction 2: archive floor between 2012-01-02 and 2012-04-02")
+        # Predictions
+        print(f"\nPrediction 1: 46 of 53 missing 2015 sessions recovered")
+        print(f"Prediction 2: archive floor between 2012-01-02 and 2012-04-02")
 
     # Ingest archive from floor to present
     today = date.today()
@@ -848,7 +855,11 @@ def main():
     print(f"Dates 404/miss:     {total_404}")
     print(f"CNX names skipped:  {total_skipped_cnx}")
 
-    run_final_gates(args, floor)
+    # run_final_gates is the one-time full-history verification harness (asserts the
+    # 2012 archive floor, prints the 2015-recovery predictions). It is meaningless for
+    # an incremental --since append, so skip it there.
+    if args.since is None:
+        run_final_gates(args, floor)
 
 
 if __name__ == "__main__":
