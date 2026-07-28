@@ -1,6 +1,6 @@
 """Post-promotion validation of recovery-state filter.
 
-Verifies the applied recovery_reject column in ts_facts.duckdb,
+Verifies the applied basis_reverting column in ts_facts.duckdb,
 then tests HOLDOUT replication, sector stability, threshold sensitivity,
 and continuous utility against the actual signals DB.
 
@@ -108,8 +108,8 @@ def main():
     print("  Verifying facts DB...")
     fc = duckdb.connect(str(FACTS_DB), read_only=True)
     cols = {r[1] for r in fc.execute("PRAGMA table_info('carry_facts')").fetchall()}
-    col_ok = "recovery_reject" in cols
-    n_rej = fc.execute("SELECT COUNT(*) FROM carry_facts WHERE recovery_reject = TRUE").fetchone()[0]
+    col_ok = "basis_reverting" in cols
+    n_rev = fc.execute("SELECT COUNT(*) FROM carry_facts WHERE basis_reverting = TRUE").fetchone()[0]
     n_tot = fc.execute("SELECT COUNT(*) FROM carry_facts").fetchone()[0]
     n_strong = fc.execute(
         f"SELECT COUNT(*) FROM carry_facts WHERE ABS(z_carry_neut) > {Z_THRESHOLD}"
@@ -121,17 +121,17 @@ def main():
     a("# TS Basis Daily — Recovery-State Filter Validation\n")
     a(f"**Post-promotion validation.** Code commit `{commit}`.\n")
     a(f"**Generated:** {now_ts}\n")
-    a(f"**Rule:** `recovery_reject = TRUE` when |z| > {Z_THRESHOLD} AND dbasis1 * sign(z_ts) <= 0.\n")
+    a(f"**Rule:** `basis_reverting = TRUE` when |z| > {Z_THRESHOLD} AND dbasis1 * sign(z_ts) <= 0.\n")
     a(f"**Rationale:** basis is mean-reverting. A dislocation already shrinking has weaker forward edge.\n")
     a("")
 
     a("---\n## 0. Facts DB Integrity\n")
     a("| Check | Value |")
     a("|---|---|")
-    a(f"| `recovery_reject` column exists | {'PASS' if col_ok else '**FAIL**'} |")
+    a(f"| `basis_reverting` column exists | {'PASS' if col_ok else '**FAIL**'} |")
     a(f"| Total facts | {n_tot:,} |")
     a(f"| Strong-z signals (\\|z\\| > {Z_THRESHOLD}) | {n_strong:,} |")
-    a(f"| Rejected (% of strong-z) | {n_rej:,} ({n_rej/max(n_strong,1)*100:.1f}%) |")
+    a(f"| Basis reverting (% of strong-z) | {n_rev:,} ({n_rev/max(n_strong,1)*100:.1f}%) |")
     a("")
 
     # ── 1. HOLDOUT Replication ──────────────────────────────────────────
@@ -358,7 +358,7 @@ def main():
         a("- The binary rule (dbasis1_pct > 0) is stable across thresholds; no fragile parameter.\n")
         a("- Continuous IC significant (t=1.94); binary rejection of the negative tail is more robust than continuous weighting.\n")
         a("- HOLDOUT gross spread improves by reducing noise trades.\n")
-        a("\n**Filter is applied to `ts_facts.duckdb` as `recovery_reject` column. "
+        a("\n**Filter is applied to `ts_facts.duckdb` as `basis_reverting` column. "
           "Ready for rebalancer integration when desired.**\n")
     else:
         a("**VERDICT: HOLD** — One or more gates failed. Investigate before integration.\n")

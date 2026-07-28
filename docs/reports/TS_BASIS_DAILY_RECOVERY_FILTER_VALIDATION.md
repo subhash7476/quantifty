@@ -1,10 +1,10 @@
 # TS Basis Daily — Recovery-State Filter Validation
 
-**Post-promotion validation.** Code commit `80f5e86`.
+**Post-promotion validation.** Code commit `48f83bb`.
 
 **Generated:** 2026-07-28
 
-**Rule:** `recovery_reject = TRUE` when |z| > 0.7 AND dbasis1 * sign(z_ts) <= 0.
+**Rule:** `basis_reverting = TRUE` when |z| > 0.7 AND dbasis1 * sign(z_ts) <= 0.
 
 **Rationale:** basis is mean-reverting. A dislocation already shrinking has weaker forward edge.
 
@@ -14,10 +14,10 @@
 
 | Check | Value |
 |---|---|
-| `recovery_reject` column exists | PASS |
+| `basis_reverting` column exists | PASS |
 | Total facts | 476,985 |
 | Strong-z signals (\|z\| > 0.7) | 183,327 |
-| Rejected (% of strong-z) | 37,804 (20.6%) |
+| Basis reverting (% of strong-z) | 37,804 (20.6%) |
 
 ---
 ## 1. HOLDOUT Replication
@@ -134,9 +134,9 @@
 - HOLDOUT gross spread improves by reducing noise trades.
 
 
-**Filter is applied to `ts_facts.duckdb` as `recovery_reject` column. Ready for rebalancer integration when desired.**
+**Filter is applied to `ts_facts.duckdb` as `basis_reverting` column. Ready for rebalancer integration when desired.**
 
 ---
 
-**Generated:** 2026-07-28 | **Commit:** `80f5e86`
+**Generated:** 2026-07-28 | **Commit:** `48f83bb`
 

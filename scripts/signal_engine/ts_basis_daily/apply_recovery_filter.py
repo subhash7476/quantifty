@@ -1,11 +1,13 @@
 """TS Basis Daily — Recovery-State Filter Application.
 
-Adds a `recovery_reject` column to ts_facts.duckdb/carry_facts,
-marking signals where the basis is already reverting (mean-reversion
-has started, forward edge is weak).
+Adds a `basis_reverting` column to ts_facts.duckdb/carry_facts,
+marking signals where the basis dislocation is already shrinking.
+(Mean-reversion has started — forward edge is weaker.)
 
-Rule: |z| > 0.70 AND dbasis1 * sign(z_ts) <= 0  →  recovery_reject = TRUE
-       (the basis dislocation is already shrinking)
+Rule: |z| > 0.70 AND dbasis1 * sign(z_ts) <= 0  →  basis_reverting = TRUE
+
+Policy is external: "if basis_reverting, reject" — this script only
+describes the market state, not the trading decision.
 
 Runs idempotently — safe to call after every facts publish.
 
@@ -41,16 +43,13 @@ def main():
     con.execute(f"ATTACH '{SIG_DB}' AS sig (READ_ONLY)")
     con.execute("SET threads=4")
 
-    # Ensure column exists
-    cols = {r[2] for r in con.execute("PRAGMA table_info('carry_facts')").fetchall()}
-    if "recovery_reject" not in cols:
-        con.execute("ALTER TABLE carry_facts ADD COLUMN recovery_reject BOOLEAN DEFAULT FALSE")
-        print("  Added recovery_reject column")
+    cols = {r[1] for r in con.execute("PRAGMA table_info('carry_facts')").fetchall()}
+    if "basis_reverting" not in cols:
+        con.execute("ALTER TABLE carry_facts ADD COLUMN basis_reverting BOOLEAN DEFAULT FALSE")
+        print("  Added basis_reverting column")
 
-    # Reset all to FALSE (idempotent)
-    con.execute("UPDATE carry_facts SET recovery_reject = FALSE")
+    con.execute("UPDATE carry_facts SET basis_reverting = FALSE")
 
-    # Mark reverting signals
     con.execute(f"""
         WITH basis_delta AS (
             SELECT formation_date, underlying, z_ts, raw_ann_basis,
@@ -67,24 +66,24 @@ def main():
               AND basis_lag1 IS NOT NULL
               AND (raw_ann_basis - basis_lag1) * CASE WHEN z_ts > 0 THEN 1 ELSE -1 END <= 0
         )
-        UPDATE carry_facts SET recovery_reject = TRUE
+        UPDATE carry_facts SET basis_reverting = TRUE
         WHERE (formation_date, underlying) IN (
             SELECT formation_date, underlying FROM reverting
         )
     """)
 
-    n_rejected = con.execute(
-        "SELECT COUNT(*) FROM carry_facts WHERE recovery_reject = TRUE"
+    n_reverting = con.execute(
+        "SELECT COUNT(*) FROM carry_facts WHERE basis_reverting = TRUE"
     ).fetchone()[0]
     n_total = con.execute("SELECT COUNT(*) FROM carry_facts").fetchone()[0]
-    n_with_z = con.execute(
+    n_strong = con.execute(
         f"SELECT COUNT(*) FROM carry_facts WHERE ABS(z_carry_neut) > {Z_THRESHOLD}"
     ).fetchone()[0]
 
     con.close()
 
-    print(f"  Recovery filter applied: {n_rejected:,} rejected / {n_total:,} total facts")
-    print(f"  ({n_rejected / max(n_with_z, 1) * 100:.1f}% of |z| > {Z_THRESHOLD} signals rejected)")
+    print(f"  Recovery filter applied: {n_reverting:,} basis_reverting / {n_total:,} total facts")
+    print(f"  ({n_reverting / max(n_strong, 1) * 100:.1f}% of |z| > {Z_THRESHOLD} signals)")
     return 0
 
 
