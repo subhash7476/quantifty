@@ -15,6 +15,7 @@ from collections import defaultdict
 from datetime import date, datetime, time as dt_time
 from pathlib import Path
 
+from core.execution.portfolio.exit_policy import TakeProfitExitPolicy
 import duckdb
 import numpy as np
 
@@ -113,6 +114,7 @@ def _run_window(label, lo, hi):
         gross_exposure_policy=paper_gross_exposure_policy,
         bhavcopy_db_path=str(FUT_DB), metrics_sink=sink,
         signals_db_path=str(TS_SIG_DB),
+        exit_policy=TakeProfitExitPolicy(threshold=0.005),
     )
 
     driver = LoopDriver(

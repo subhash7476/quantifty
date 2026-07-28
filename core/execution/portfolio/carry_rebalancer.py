@@ -18,6 +18,7 @@ import logging
 import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
+from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -27,6 +28,9 @@ import numpy as np
 from core.execution.order_lifecycle import FillEvent
 from core.execution.futures.futures_fees import futures_fees as _calc_fees
 from core.execution.position_models import PositionSide
+from core.execution.portfolio.exit_policy import (
+    ExitDecision, ExitPolicy, PositionState,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -386,7 +390,9 @@ class CarryRebalancerHook:
                  bhavcopy_db_path: Optional[str] = None,
                  metrics_sink: Optional[Callable] = None,
                  signals_db_path: Optional[str] = None,
-                 max_positions_per_leg: Optional[int] = None):
+                 max_positions_per_leg: Optional[int] = None,
+                 exit_policy: Optional[ExitPolicy] = None,
+                 recycle_exit_capital: bool = True):
         self._facts_db = Path(facts_db_path)
         self._exec = execution_handler
         self._gross_exposure_policy = gross_exposure_policy
@@ -394,15 +400,25 @@ class CarryRebalancerHook:
         self._bhavcopy_db = Path(bhavcopy_db_path) if bhavcopy_db_path else None
         self._metrics_sink = metrics_sink
         self._signals_db = Path(signals_db_path) if signals_db_path else None
+        self._exit_policy = exit_policy
+        self._recycle_exit_capital = recycle_exit_capital
         if self._bhavcopy_db is None:
             _logger.warning(
                 "CarryRebalancerHook: bhavcopy_db_path not provided — "
                 "ADV capping disabled for this instance"
             )
+        if self._exit_policy is not None and self._signals_db is None:
+            _logger.warning(
+                "CarryRebalancerHook: exit_policy set but signals_db_path not "
+                "provided — position P&L tracking disabled, exit policy will "
+                "always see cumulative_return=0.0"
+            )
         self._last_date: Optional[date] = None
+        self._prev_formation_date: Optional[date] = None
         self._formation_dates: set = set()
         self._book_longs: Dict[str, float] = {}
         self._book_shorts: Dict[str, float] = {}
+        self._position_entries: Dict[str, dict] = {}  # underlying -> {entry_date, side, cum_ret}
         self._load_calendar()
 
     def _load_calendar(self):
@@ -474,14 +490,38 @@ class CarryRebalancerHook:
         if len(facts) < 5:
             return
 
+        # Update position P&L from prior formation's forward returns
+        if (self._prev_formation_date is not None and self._signals_db is not None
+                and self._signals_db.exists() and self._exit_policy is not None):
+            self._update_position_pnl(self._prev_formation_date)
+
         target = compute_target_book(facts, gross_exposure, adva, nq=self._max_positions)
         new_longs, new_shorts, deltas = rebalance_book(
             target, self._book_longs, self._book_shorts, BAND_SIGMA)
+
+        # Apply exit policy overrides
+        if self._exit_policy is not None:
+            z_map = {f[0]: f[1] for f in facts}
+            deltas = self._apply_exit_policy(deltas, fdate, z_map)
 
         metrics = self._execute_deltas(deltas, target, fdate)
 
         self._book_longs = new_longs
         self._book_shorts = new_shorts
+        self._prev_formation_date = fdate
+
+        # Track position entries for exit policy
+        if self._exit_policy is not None:
+            held_now = set(new_longs) | set(new_shorts)
+            for u in held_now:
+                if u not in self._position_entries:
+                    self._position_entries[u] = {
+                        "entry_date": fdate, "cum_ret": 0.0,
+                        "side": 'LONG' if u in new_longs else 'SHORT',
+                    }
+            for u in list(self._position_entries):
+                if u not in held_now:
+                    del self._position_entries[u]
 
         if self._metrics_sink is not None:
             held_target = TargetBook(formation_date=fdate, longs=new_longs,
@@ -532,6 +572,73 @@ class CarryRebalancerHook:
         if sym.endswith("FUT"):
             sym = sym[:-3]
         return sym
+
+    def _update_position_pnl(self, prior_fdate: date):
+        """Update cumulative returns for held positions using signal forward returns."""
+        held = set(self._book_longs) | set(self._book_shorts)
+        if not held:
+            return
+        ulist = ", ".join(f"'{u}'" for u in held)
+        con = duckdb.connect(str(self._signals_db), read_only=True)
+        rows = con.execute(f"""
+            SELECT underlying, fwd_ret_1m
+            FROM signals WHERE formation_date = DATE '{prior_fdate}'
+            AND underlying IN ({ulist}) AND fwd_ret_1m IS NOT NULL
+        """).fetchall()
+        con.close()
+        fwd_map = {r[0]: float(r[1]) for r in rows}
+
+        for u in held:
+            daily_ret = fwd_map.get(u, 0.0)
+            if u in self._book_shorts:
+                daily_ret = -daily_ret
+            entry = self._position_entries.get(u)
+            if entry is not None:
+                entry["cum_ret"] = (1 + entry["cum_ret"]) * (1 + daily_ret) - 1
+
+    def _apply_exit_policy(self, deltas: List[Delta], fdate: date,
+                           z_map: Dict[str, float]) -> List[Delta]:
+        """Override HOLD/SCALE deltas with CLOSE when exit policy fires."""
+        modified = []
+        for d in deltas:
+            if d.action in ('CLOSE', 'FLIP'):
+                modified.append(d)
+                continue
+
+            u = d.underlying
+            if u not in self._book_longs and u not in self._book_shorts:
+                modified.append(d)
+                continue
+
+            side = 'LONG' if u in self._book_longs else 'SHORT'
+            entry = self._position_entries.get(u)
+            if entry is None:
+                entry = {"entry_date": self._prev_formation_date,
+                         "side": side, "cum_ret": 0.0}
+                self._position_entries[u] = entry
+
+            days_held = (fdate - entry["entry_date"]).days if entry.get("entry_date") else 0
+            pos = PositionState(
+                underlying=u, side=side,
+                entry_date=entry.get("entry_date", fdate),
+                days_held=days_held,
+                cumulative_return=entry.get("cum_ret", 0.0),
+                current_z=z_map.get(u, 0.0),
+                current_cap=d.held_cap,
+            )
+            decision = self._exit_policy.evaluate(pos)
+
+            if decision in (ExitDecision.EXIT_TAKE_PROFIT, ExitDecision.EXIT_STOP):
+                modified.append(Delta(
+                    underlying=u, target_side=None, target_cap=0.0,
+                    held_side=side, held_cap=d.held_cap, delta_cap=-d.held_cap,
+                    action='CLOSE', suppressed=False,
+                ))
+                _logger.info("Exit policy: %s %s — %s (cum_ret=%.4f%%)",
+                             side, u, decision.value, entry["cum_ret"] * 100)
+            else:
+                modified.append(d)
+        return modified
 
     def _execute_deltas(self, deltas: List[Delta], target: TargetBook,
                         trade_date: date):

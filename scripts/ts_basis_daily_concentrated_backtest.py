@@ -44,6 +44,8 @@ from core.database.providers.daily_bhavcopy import DailyBhavcopyProvider
 from core.execution.portfolio.carry_rebalancer import (
     CarryRebalancerHook, paper_gross_exposure_policy,
 )
+from core.execution.portfolio.exit_policy import TakeProfitExitPolicy
+from core.execution.position_models import PositionSide
 
 
 def _git_commit():
@@ -113,6 +115,7 @@ def _run_window(label, lo, hi):
         gross_exposure_policy=paper_gross_exposure_policy,
         bhavcopy_db_path=str(FUT_DB), metrics_sink=sink,
         signals_db_path=str(TS_SIG), max_positions_per_leg=MAX_POSITIONS,
+        exit_policy=TakeProfitExitPolicy(threshold=0.005),
     )
 
     driver = LoopDriver(
