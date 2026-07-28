@@ -263,6 +263,8 @@ def main():
             build = SIG_ENGINE / "ts_basis_daily" / "build_ts_basis_daily.py"
             if _run(build, ["--incremental"], "ts-basis-daily"):
                 _publish_daily_facts()
+                _run(SIG_ENGINE / "ts_basis_daily" / "apply_recovery_filter.py",
+                     label="daily-recovery-filter")
             else:
                 all_ok = False
 
