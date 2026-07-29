@@ -15,7 +15,6 @@ from collections import defaultdict
 from datetime import date, datetime, time as dt_time
 from pathlib import Path
 
-from core.execution.portfolio.exit_policy import TakeProfitExitPolicy
 import duckdb
 import numpy as np
 
@@ -28,6 +27,9 @@ TS_FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_facts.duc
 TS_SIG_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_signals.duckdb"
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 PROD_DB = ROOT / "data" / "signal_engine" / "carry" / "production.duckdb"
+TI_DB = ROOT / "data" / "signal_engine" / "trade_intelligence" / "trade_intelligence.duckdb"
+IDX_DIR = ROOT / "data" / "market_data" / "nse" / "candles" / "1d"
+SECTOR_CSV = ROOT / "governance" / "carry" / "sector_classification.csv"
 
 WINDOWS = {
     "TRAIN":   (date(2016, 4, 29), date(2020, 12, 31)),
@@ -49,6 +51,8 @@ from core.execution.portfolio.carry_rebalancer import (
     CarryRebalancerHook, paper_gross_exposure_policy,
 )
 from core.execution.portfolio.carry_metrics_db import CarryMetricsDB
+from core.execution.portfolio.exit_policy import TakeProfitExitPolicy
+from core.execution.portfolio.trade_intelligence_sink import TradeIntelligenceSink
 
 
 def _git_commit():
@@ -109,12 +113,19 @@ def _run_window(label, lo, hi):
                       fdate, len(target.longs), len(target.shorts),
                       metrics.fees_total, metrics.slippage_total)
 
+    # Trade intelligence sink — write-only, never blocks execution
+    ti_sink = TradeIntelligenceSink(
+        db_path=str(TI_DB), sector_csv=str(SECTOR_CSV),
+    )
+
     hook = CarryRebalancerHook(
         facts_db_path=str(TS_FACTS_DB), execution_handler=execution,
         gross_exposure_policy=paper_gross_exposure_policy,
         bhavcopy_db_path=str(FUT_DB), metrics_sink=sink,
         signals_db_path=str(TS_SIG_DB),
         exit_policy=TakeProfitExitPolicy(threshold=0.005),
+        trade_sink=ti_sink.__call__,
+        max_positions_per_leg=5,
     )
 
     driver = LoopDriver(
@@ -170,6 +181,10 @@ def main():
 
     commit = _git_commit()
     now_ts = datetime.utcnow().isoformat() + "Z"
+
+    # Clean TI DB for fresh replay
+    if TI_DB.exists():
+        TI_DB.unlink()
 
     with CarryMetricsDB(str(PROD_DB)) as db:
         for label, (lo, hi) in WINDOWS.items():

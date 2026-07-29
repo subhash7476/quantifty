@@ -59,6 +59,7 @@ class Delta:
     delta_cap: float
     action: str    # 'OPEN', 'CLOSE', 'SCALE_UP', 'SCALE_DOWN', 'FLIP', 'NOOP'
     suppressed: bool = False  # suppressed by no-trade band
+    exit_reason: Optional[str] = None  # 'EXIT_TP', 'EXIT_SL', 'EXIT_SIGNAL'
 
 
 @dataclass
@@ -392,7 +393,8 @@ class CarryRebalancerHook:
                  signals_db_path: Optional[str] = None,
                  max_positions_per_leg: Optional[int] = None,
                  exit_policy: Optional[ExitPolicy] = None,
-                 recycle_exit_capital: bool = True):
+                 recycle_exit_capital: bool = True,
+                 trade_sink: Optional[Callable] = None):
         self._facts_db = Path(facts_db_path)
         self._exec = execution_handler
         self._gross_exposure_policy = gross_exposure_policy
@@ -402,6 +404,7 @@ class CarryRebalancerHook:
         self._signals_db = Path(signals_db_path) if signals_db_path else None
         self._exit_policy = exit_policy
         self._recycle_exit_capital = recycle_exit_capital
+        self._trade_sink = trade_sink
         if self._bhavcopy_db is None:
             _logger.warning(
                 "CarryRebalancerHook: bhavcopy_db_path not provided — "
@@ -465,13 +468,17 @@ class CarryRebalancerHook:
 
         con = duckdb.connect(str(self._facts_db), read_only=True)
         rows = con.execute(
-            "SELECT underlying, z_carry_neut, quintile, eligible "
+            "SELECT underlying, z_carry_neut, quintile, eligible, "
+            "raw_z, basis_reverting "
             "FROM carry_facts WHERE formation_date = ?",
             [fdate]
         ).fetchall()
         con.close()
 
         facts = [(r[0], float(r[1])) for r in rows if r[3]]  # eligible only
+        facts_full = [(r[0], float(r[1]), float(r[2]) if r[4] else float(r[1]),
+                       r[2], r[5]) for r in rows if r[3]]
+        # facts_full: (underlying, z, raw_z, quintile, basis_reverting)
 
         # Load ADV from bhavcopy and filter
         adva: Dict[str, float] = {}
@@ -509,6 +516,12 @@ class CarryRebalancerHook:
         self._book_longs = new_longs
         self._book_shorts = new_shorts
         self._prev_formation_date = fdate
+
+        # Call trade sink (write-only — never blocks execution)
+        if self._trade_sink is not None:
+            executions = [d for d in deltas if not d.suppressed]
+            self._trade_sink(fdate, executions, dict(self._position_entries),
+                             facts_full)
 
         # Track position entries for exit policy
         if self._exit_policy is not None:
@@ -600,6 +613,9 @@ class CarryRebalancerHook:
                            z_map: Dict[str, float]) -> List[Delta]:
         """Override HOLD/SCALE deltas with CLOSE when exit policy fires."""
         modified = []
+        # Track which underlyings have a non-CLOSE/FLIP delta
+        seen = {d.underlying for d in deltas if d.action not in ('CLOSE', 'FLIP')}
+
         for d in deltas:
             if d.action in ('CLOSE', 'FLIP'):
                 modified.append(d)
@@ -618,26 +634,61 @@ class CarryRebalancerHook:
                 self._position_entries[u] = entry
 
             days_held = (fdate - entry["entry_date"]).days if entry.get("entry_date") else 0
+            held_cap = self._book_longs.get(u) or self._book_shorts.get(u) or d.held_cap
             pos = PositionState(
                 underlying=u, side=side,
                 entry_date=entry.get("entry_date", fdate),
                 days_held=days_held,
                 cumulative_return=entry.get("cum_ret", 0.0),
                 current_z=z_map.get(u, 0.0),
-                current_cap=d.held_cap,
+                current_cap=held_cap,
             )
             decision = self._exit_policy.evaluate(pos)
 
             if decision in (ExitDecision.EXIT_TAKE_PROFIT, ExitDecision.EXIT_STOP):
+                reason = 'EXIT_TP' if decision == ExitDecision.EXIT_TAKE_PROFIT else 'EXIT_SL'
                 modified.append(Delta(
                     underlying=u, target_side=None, target_cap=0.0,
-                    held_side=side, held_cap=d.held_cap, delta_cap=-d.held_cap,
-                    action='CLOSE', suppressed=False,
+                    held_side=side, held_cap=held_cap, delta_cap=-held_cap,
+                    action='CLOSE', suppressed=False, exit_reason=reason,
                 ))
                 _logger.info("Exit policy: %s %s — %s (cum_ret=%.4f%%)",
                              side, u, decision.value, entry["cum_ret"] * 100)
             else:
                 modified.append(d)
+
+        # Evaluate held positions that have NO delta (held with NOOP)
+        for u, cap in {**self._book_longs, **self._book_shorts}.items():
+            if u in seen:
+                continue
+            side = 'LONG' if u in self._book_longs else 'SHORT'
+            entry = self._position_entries.get(u)
+            if entry is None:
+                self._position_entries[u] = {
+                    "entry_date": self._prev_formation_date or fdate,
+                    "side": side, "cum_ret": 0.0,
+                }
+                entry = self._position_entries[u]
+            days_held = (fdate - entry["entry_date"]).days if entry.get("entry_date") else 0
+            pos = PositionState(
+                underlying=u, side=side,
+                entry_date=entry.get("entry_date", fdate),
+                days_held=days_held,
+                cumulative_return=entry.get("cum_ret", 0.0),
+                current_z=z_map.get(u, 0.0),
+                current_cap=cap,
+            )
+            decision = self._exit_policy.evaluate(pos)
+            if decision in (ExitDecision.EXIT_TAKE_PROFIT, ExitDecision.EXIT_STOP):
+                reason = 'EXIT_TP' if decision == ExitDecision.EXIT_TAKE_PROFIT else 'EXIT_SL'
+                modified.append(Delta(
+                    underlying=u, target_side=None, target_cap=0.0,
+                    held_side=side, held_cap=cap, delta_cap=-cap,
+                    action='CLOSE', suppressed=False, exit_reason=reason,
+                ))
+                _logger.info("Exit policy (NOOP): %s %s — %s (cum_ret=%.4f%%)",
+                             side, u, decision.value, entry["cum_ret"] * 100)
+
         return modified
 
     def _execute_deltas(self, deltas: List[Delta], target: TargetBook,
