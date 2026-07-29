@@ -55,7 +55,8 @@ def main():
 
     q_map = {1: "SHORT", 3: "NEUTRAL", 5: "LONG"}
     rows = con.execute("""
-        SELECT underlying, z_carry_neut, ABS(z_carry_neut), quintile, eligible
+        SELECT underlying, z_carry_neut, ABS(z_carry_neut), quintile, eligible,
+               COALESCE(CAST(raw_z AS DOUBLE), z_carry_neut) as raw_z
         FROM carry_facts WHERE formation_date = ?
         ORDER BY z_carry_neut
     """, [target]).fetchall()
@@ -85,22 +86,22 @@ def main():
     nq = max(1, round(0.20 * len(liquid_rows))) if len(liquid_rows) >= 5 else 0
 
     if not show_all:
-        # Top-N shorts (lowest z_ts)
         shorts = [r for r in rows if r[3] in (1,) and r[4]][:top_n]
-        # Top-N longs (highest z_ts)  
         longs = [r for r in rows if r[3] in (5,) and r[4]][-top_n:]
 
         print(f"\n  SHORT (Q1, lowest z_ts) — top {len(shorts)}:")
-        print(f"  {'Underlying':<25} {'z_ts':>8}  {'|z|':>6}")
-        print(f"  {'-'*41}")
-        for u, z, az, q, e in shorts:
-            print(f"  {u:<25} {z:>8.4f}  {az:>6.2f}")
+        print(f"  {'Underlying':<20} {'z_ts':>8}  {'|z|':>6}  {'raw_z':>8}")
+        print(f"  {'-'*49}")
+        for u, z, az, q, e, rz in shorts:
+            rz_str = f"{float(rz):>8.2f}" if rz is not None and abs(float(rz)) > 3.01 else "      —"
+            print(f"  {u:<20} {float(z):>8.4f}  {float(az):>6.2f}  {rz_str}")
 
         print(f"\n  LONG  (Q5, highest z_ts) — top {len(longs)}:")
-        print(f"  {'Underlying':<25} {'z_ts':>8}  {'|z|':>6}")
-        print(f"  {'-'*41}")
-        for u, z, az, q, e in reversed(longs):
-            print(f"  {u:<25} {z:>8.4f}  {az:>6.2f}")
+        print(f"  {'Underlying':<20} {'z_ts':>8}  {'|z|':>6}  {'raw_z':>8}")
+        print(f"  {'-'*49}")
+        for u, z, az, q, e, rz in reversed(longs):
+            rz_str = f"{float(rz):>8.2f}" if rz is not None and abs(float(rz)) > 3.01 else "      —"
+            print(f"  {u:<20} {float(z):>8.4f}  {float(az):>6.2f}  {rz_str}")
     else:
         # All quintiles
         q_labels = {1: "Q1 SHORT", 5: "Q5 LONG", 3: "Q3 NEUTRAL"}
@@ -109,10 +110,11 @@ def main():
             if not subset:
                 continue
             print(f"\n  {q_labels.get(q, f'Q{q}')} ({len(subset)} names):")
-            print(f"  {'Underlying':<25} {'z_ts':>8}  {'|z|':>6}")
-            print(f"  {'-'*41}")
-            for u, z, az, _, _ in (reversed(subset) if q == 5 else subset):
-                print(f"  {u:<25} {z:>8.4f}  {az:>6.2f}")
+            print(f"  {'Underlying':<20} {'z_ts':>8}  {'|z|':>6}  {'raw_z':>8}")
+            print(f"  {'-'*49}")
+            for u, z, az, _, _, rz in (reversed(subset) if q == 5 else subset):
+                rz_str = f"{float(rz):>8.2f}" if rz is not None and abs(float(rz)) > 3.01 else "      —"
+                print(f"  {u:<20} {float(z):>8.4f}  {float(az):>6.2f}  {rz_str}")
 
     # Summary stats
     long_ct = sum(1 for r in rows if r[3] == 5)

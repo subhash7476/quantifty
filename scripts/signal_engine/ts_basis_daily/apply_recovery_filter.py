@@ -1,15 +1,12 @@
-"""TS Basis Daily — Recovery-State Filter Application.
+"""TS Basis Daily — Signal Enrichment (post-facts).
 
-Adds a `basis_reverting` column to ts_facts.duckdb/carry_facts,
-marking signals where the basis dislocation is already shrinking.
-(Mean-reversion has started — forward edge is weaker.)
+Adds market-state columns to ts_facts.duckdb/carry_facts:
 
-Rule: |z| > 0.70 AND dbasis1 * sign(z_ts) <= 0  →  basis_reverting = TRUE
+  basis_reverting — TRUE when the basis dislocation is already shrinking
+  raw_z           — unclamped z-score (build_ts_basis_daily caps at +/-3)
 
-Policy is external: "if basis_reverting, reject" — this script only
-describes the market state, not the trading decision.
-
-Runs idempotently — safe to call after every facts publish.
+Neither modifies frozen signal code. Runs idempotently after every
+facts publish.
 
 Usage:
   python scripts/signal_engine/ts_basis_daily/apply_recovery_filter.py
@@ -28,6 +25,8 @@ SIG_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_signals.duckdb
 FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_facts.duckdb"
 
 Z_THRESHOLD = 0.70
+Z_LOOKBACK = 252
+Z_MIN_OBS = 12
 
 
 def main():
@@ -44,6 +43,8 @@ def main():
     con.execute("SET threads=4")
 
     cols = {r[1] for r in con.execute("PRAGMA table_info('carry_facts')").fetchall()}
+
+    # 1. basis_reverting
     if "basis_reverting" not in cols:
         con.execute("ALTER TABLE carry_facts ADD COLUMN basis_reverting BOOLEAN DEFAULT FALSE")
         print("  Added basis_reverting column")
@@ -75,6 +76,39 @@ def main():
     n_reverting = con.execute(
         "SELECT COUNT(*) FROM carry_facts WHERE basis_reverting = TRUE"
     ).fetchone()[0]
+
+    # 2. raw_z — unclamped z-score (same formula as build_ts_basis_daily, minus clamp)
+    if "raw_z" not in cols:
+        con.execute("ALTER TABLE carry_facts ADD COLUMN raw_z DOUBLE")
+        print("  Added raw_z column")
+
+    con.execute("UPDATE carry_facts SET raw_z = NULL")
+
+    con.execute(f"""
+        WITH uncapped AS (
+            SELECT formation_date, underlying,
+                   CASE WHEN COUNT(raw_ann_basis) OVER w >= {Z_MIN_OBS}
+                         AND STDDEV_SAMP(raw_ann_basis) OVER w > 1e-8
+                   THEN (raw_ann_basis - AVG(raw_ann_basis) OVER w)
+                        / STDDEV_SAMP(raw_ann_basis) OVER w
+                   ELSE NULL END AS raw_z
+            FROM sig.signals WHERE raw_ann_basis IS NOT NULL
+            WINDOW w AS (PARTITION BY underlying ORDER BY formation_date
+                         ROWS BETWEEN {Z_LOOKBACK} PRECEDING AND 1 PRECEDING)
+        )
+        UPDATE carry_facts SET raw_z = u.raw_z
+        FROM uncapped u
+        WHERE carry_facts.formation_date = u.formation_date
+          AND carry_facts.underlying = u.underlying
+    """)
+
+    n_raw_z = con.execute(
+        "SELECT COUNT(*) FROM carry_facts WHERE raw_z IS NOT NULL"
+    ).fetchone()[0]
+    n_clamped = con.execute(
+        "SELECT COUNT(*) FROM carry_facts WHERE ABS(z_carry_neut) >= 2.99 AND ABS(raw_z) > 3.01"
+    ).fetchone()[0]
+
     n_total = con.execute("SELECT COUNT(*) FROM carry_facts").fetchone()[0]
     n_strong = con.execute(
         f"SELECT COUNT(*) FROM carry_facts WHERE ABS(z_carry_neut) > {Z_THRESHOLD}"
@@ -82,8 +116,9 @@ def main():
 
     con.close()
 
-    print(f"  Recovery filter applied: {n_reverting:,} basis_reverting / {n_total:,} total facts")
-    print(f"  ({n_reverting / max(n_strong, 1) * 100:.1f}% of |z| > {Z_THRESHOLD} signals)")
+    print(f"  basis_reverting: {n_reverting:,} / {n_strong:,} strong-z ({n_reverting/max(n_strong,1)*100:.1f}%)")
+    print(f"  raw_z:           {n_raw_z:,} / {n_total:,} populated, "
+          f"{n_clamped:,} signals clamped with true |z| > 3")
     return 0
 
 
