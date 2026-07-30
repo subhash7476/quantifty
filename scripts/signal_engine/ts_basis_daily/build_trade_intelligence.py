@@ -115,12 +115,25 @@ def _nifty_20d_return(regime, all_dates):
     return results
 
 
-def _compute_target_book(facts_by_z, adva, sector_map=None, max_per_sector=None):
+def _compute_target_book(facts_by_z, adva, sector_map=None, max_per_sector=None,
+                         rank_by="z_ts"):
     n = len(facts_by_z)
     if n < 5:
         return {}, {}
     nq = min(MAX_POSITIONS, max(1, round(QUINTILE_FRAC * n)))
-    sorted_facts = sorted(facts_by_z, key=lambda r: r[1])
+
+    def _key(r):
+        z = float(r[1])
+        if rank_by == "z_ts":
+            return z
+        rz = float(r[2]) if len(r) > 2 and r[2] is not None else z
+        br = bool(r[3]) if len(r) > 3 and r[3] is not None else False
+        if rank_by == "raw_z":
+            return rz
+        discount = 0.5 if br else 1.0
+        return (1.0 if rz >= 0 else -1.0) * abs(rz) * discount
+
+    sorted_facts = sorted(facts_by_z, key=_key)
 
     def _pick(rows, reverse=False):
         iterable = reversed(rows) if reverse else rows
@@ -286,7 +299,7 @@ def main():
         rows = by_date[fdate]
         ulist = list({r[0] for r in rows})
         adva = _load_adva(con, fdate, ulist)
-        filt = [(u, z) for u, z, _, _, _ in rows if u in adva]
+        filt = [(u, z, rz, br) for u, z, rz, _, br in rows if u in adva]
         if len(filt) < 5:
             continue
 
