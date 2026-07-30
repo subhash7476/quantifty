@@ -104,13 +104,37 @@ def compute_target_book(
     nq: Optional[int] = None,
     sector_map: Optional[Dict[str, str]] = None,
     max_per_sector: Optional[int] = None,
+    rank_by: str = "z_ts",
 ) -> TargetBook:
+    """Compute equal-weight target book from ranked facts.
+
+    rank_by: "z_ts" (default), "raw_z" (unclamped), or "composite"
+             (|raw_z| discounted by recovery state).
+    """
     half_gross = gross_exposure / 2.0
     n = len(facts)
     if nq is None:
         nq = max(1, round(QUINTILE_FRAC * n))
     nq = min(nq, n // 2)
-    sorted_by_z = sorted(facts, key=lambda r: r[1])
+
+    # Compute sort key based on rank_by
+    def _key(r):
+        z = float(r[1])
+        if rank_by == "z_ts":
+            return z
+        rz = float(r[2]) if len(r) > 2 and r[2] is not None else z
+        br = bool(r[3]) if len(r) > 3 and r[3] is not None else False
+        if rank_by == "raw_z":
+            return rz
+        # composite: signal strength * recovery discount
+        discount = 0.5 if br else 1.0
+        return (1.0 if rz >= 0 else -1.0) * abs(rz) * discount
+
+    sorted_by_z = sorted(facts, key=_key)
+    n = len(facts)
+    if nq is None:
+        nq = max(1, round(QUINTILE_FRAC * n))
+    nq = min(nq, n // 2)
 
     longs: Dict[str, float] = {}
     shorts: Dict[str, float] = {}
@@ -416,7 +440,8 @@ class CarryRebalancerHook:
                  recycle_exit_capital: bool = True,
                  trade_sink: Optional[Callable] = None,
                  sector_csv_path: Optional[str] = None,
-                 max_per_sector: Optional[int] = None):
+                 max_per_sector: Optional[int] = None,
+                 rank_by: str = "z_ts"):
         self._facts_db = Path(facts_db_path)
         self._exec = execution_handler
         self._gross_exposure_policy = gross_exposure_policy
@@ -428,6 +453,7 @@ class CarryRebalancerHook:
         self._recycle_exit_capital = recycle_exit_capital
         self._trade_sink = trade_sink
         self._max_per_sector = max_per_sector
+        self._rank_by = rank_by
         self._sector_map = None
         if sector_csv_path:
             self._sector_map = self._load_sectors(Path(sector_csv_path))
@@ -501,7 +527,10 @@ class CarryRebalancerHook:
         ).fetchall()
         con.close()
 
-        facts = [(r[0], float(r[1])) for r in rows if r[3]]  # eligible only
+        facts = [(r[0], float(r[1]),
+                  float(r[4]) if len(r) > 4 and r[4] is not None else float(r[1]),
+                  bool(r[5]) if len(r) > 5 and r[5] is not None else False)
+                 for r in rows if r[3]]  # eligible only
         facts_full = [(r[0], float(r[1]), float(r[2]) if r[4] else float(r[1]),
                        r[2], r[5]) for r in rows if r[3]]
         # facts_full: (underlying, z, raw_z, quintile, basis_reverting)
@@ -530,7 +559,8 @@ class CarryRebalancerHook:
 
         target = compute_target_book(facts, gross_exposure, adva, nq=self._max_positions,
                                       sector_map=self._sector_map,
-                                      max_per_sector=self._max_per_sector)
+                                      max_per_sector=self._max_per_sector,
+                                      rank_by=self._rank_by)
         new_longs, new_shorts, deltas = rebalance_book(
             target, self._book_longs, self._book_shorts, BAND_SIGMA)
 
