@@ -444,6 +444,8 @@ Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SS
 | `scripts/download_all_data.py` | Unified NSE bhavcopy download → build → refresh pipeline |
 | `governance/rfa/declarations/ts_basis_daily.py` | **FROZEN** TS Basis Daily RFA declaration |
 
+TS Basis Daily options selection is live-anchored: ATM struck on the live near-month futures LTP with a live bid/ask-spread + OI + volume tradeability screen (`MAX_SPREAD_PCT=5%`, `STRIKE_BAND=±3`, `MIN_OI=100`, volume ≥ 1 lot), falling back to EOD bhavcopy (`anchor_source`/`screen` labelled per contract) when the market is closed or the token is missing. Shared by `scripts/ts_basis_daily_options.py` and the `/ts-basis-daily/` panel via `core/analytics/options_selection.py`.
+
 ---
 
 ## Options Analysis Dashboard — In Progress

@@ -212,13 +212,19 @@
             const isLong = c.direction === 'LONG';
             const dirCls = isLong ? 'text-emerald-400' : 'text-rose-400';
             const chgCls = chg == null ? 'text-slate-500' : (chg >= 0 ? 'text-emerald-400' : 'text-rose-400');
-            const contract = c.strike != null
-                ? `${c.strike} ${c.opt_type}` : '<span class="text-slate-600">—</span>';
+            const flagged = c.screen === 'no_tradeable_strike';
+            const anchorTag = c.anchor_source
+                ? `<span class="text-slate-500 text-xs ml-1">${c.anchor_source === 'live' ? 'live' : 'EOD'}</span>`
+                : '';
+            const contract = flagged
+                ? `<span class="text-amber-400/80">untradeable${c.screen_reason ? ': ' + c.screen_reason : ''}</span>`
+                : (c.strike != null
+                    ? `${c.strike} ${c.opt_type}${anchorTag}` : '<span class="text-slate-600">—</span>');
             const premCost = (ltp != null && c.lot_size)
                 ? '₹' + Math.round(ltp * c.lot_size).toLocaleString('en-IN')
                 : (c.premium_cost ? '₹' + Math.round(c.premium_cost).toLocaleString('en-IN') : '—');
 
-            return `<tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+            return `<tr class="border-b border-slate-700/50 hover:bg-slate-700/30 ${flagged ? 'opacity-60' : ''}">
                 <td class="px-3 py-2 font-medium text-slate-200">${c.ticker}</td>
                 <td class="px-3 py-2 ${dirCls} font-semibold">${c.direction}</td>
                 <td class="px-3 py-2 font-mono text-slate-300">${contract}</td>
