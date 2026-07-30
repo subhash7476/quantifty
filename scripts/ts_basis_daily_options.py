@@ -27,7 +27,6 @@ import duckdb
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.analytics.options_selection import (  # noqa: E402
-    MIN_OI,
     DEFAULT_MIN_DTE,
     select_book_options,
 )
@@ -78,24 +77,29 @@ def main():
     contracts = select_book_options(book, min_dte=min_dte)
 
     print(f"\n{'='*90}")
-    print(f"  TS Basis Daily — ATM options for {target}  (EOD ref; NOT a live quote)")
+    print(f"  TS Basis Daily — ATM options for {target}  (live-anchored when market open; EOD fallback)")
     print(f"{'='*90}")
     print(f"  {'Ticker':<11}{'Dir':<6}{'Opt':<4}{'Expiry':<12}{'Fwd':>9}{'Strike':>8}"
-          f"{'Prem':>8}{'OI':>11}{'Lot':>8}{'PremCost':>11}")
-    print(f"  {'-'*86}")
+          f"{'Prem':>8}{'OI':>11}{'Lot':>8}{'PremCost':>11}{'Src':>6}{'Screen':>10}")
+    print(f"  {'-'*104}")
 
     notes = []
     for c in contracts:
+        if c["screen"] == "no_tradeable_strike":
+            print(f"  {c['ticker']:<11}{c['direction']:<6}{c['opt_type']:<4}"
+                  f"  NO TRADEABLE STRIKE  ({c['screen_reason']})")
+            continue
         if c["strike"] is None:
             print(f"  {c['ticker']:<11}{c['direction']:<6}{c['opt_type']:<4}  NO CHAIN")
             continue
         print(f"  {c['ticker']:<11}{c['direction']:<6}{c['opt_type']:<4}"
               f"{str(c['expiry']):<12}{c['forward']:>9.1f}{c['strike']:>8.0f}"
               f"{c['settle']:>8.2f}{c['oi']:>11}{(c['lot_size'] or 0):>8}"
-              f"{(c['premium_cost'] or 0):>11,.0f}")
+              f"{(c['premium_cost'] or 0):>11,.0f}"
+              f"{(c['anchor_source'] or '-'):>6}{(c['screen'] or '-'):>10}")
         if c["snapped"]:
-            notes.append(f"  {c['ticker']}: nearest strike {c['nearest_strike']:.0f} had "
-                         f"OI<{MIN_OI}; snapped to liquid ATM {c['strike']:.0f}.")
+            notes.append(f"  {c['ticker']}: snapped off nearest strike "
+                         f"{c['nearest_strike']:.0f} to {c['strike']:.0f}.")
         if c["instrument_key"] is None:
             notes.append(f"  {c['ticker']}: no instrument key resolved (not tradeable via API).")
 
@@ -103,8 +107,8 @@ def main():
         print(f"\n  Notes:")
         for n in notes:
             print(n)
-    print(f"\n  Fwd = latest {min_dte}+DTE monthly future close (ATM anchor).  "
-          f"Prem/OI = bhavcopy EOD.")
+    print(f"\n  Fwd = live future LTP when Src=live, else EOD future close.  "
+          f"Screen = live spread/OI/volume verdict (skipped = no live feed).")
     print(f"  PremCost = premium x lot (1 lot debit).  Live prices: /ts-basis-daily/")
     return 0
 
