@@ -126,6 +126,8 @@ def _run_window(label, lo, hi):
         exit_policy=TakeProfitExitPolicy(threshold=0.005),
         trade_sink=ti_sink.__call__,
         max_positions_per_leg=5,
+        sector_csv_path=str(SECTOR_CSV),
+        max_per_sector=2,
     )
 
     driver = LoopDriver(

@@ -102,6 +102,8 @@ def compute_target_book(
     gross_exposure: float,
     adva: Optional[Dict[str, float]] = None,
     nq: Optional[int] = None,
+    sector_map: Optional[Dict[str, str]] = None,
+    max_per_sector: Optional[int] = None,
 ) -> TargetBook:
     half_gross = gross_exposure / 2.0
     n = len(facts)
@@ -109,18 +111,36 @@ def compute_target_book(
         nq = max(1, round(QUINTILE_FRAC * n))
     nq = min(nq, n // 2)
     sorted_by_z = sorted(facts, key=lambda r: r[1])
-    long_set = {r[0] for r in sorted_by_z[-nq:]}
-    short_set = {r[0] for r in sorted_by_z[:nq]}
 
     longs: Dict[str, float] = {}
     shorts: Dict[str, float] = {}
 
-    for in_set, side_map in [(long_set, longs), (short_set, shorts)]:
-        n_leg = len(in_set)
+    def _pick(rows, reverse=False):
+        """Select up to nq names, respecting sector constraint."""
+        iterable = reversed(rows) if reverse else rows
+        picked = []
+        sec_counts = {}
+        for r in iterable:
+            u = r[0]
+            sec = sector_map.get(u, "UNKNOWN") if sector_map else "UNKNOWN"
+            limit = max_per_sector if max_per_sector is not None else 999
+            if sec_counts.get(sec, 0) >= limit:
+                continue
+            picked.append(u)
+            sec_counts[sec] = sec_counts.get(sec, 0) + 1
+            if len(picked) >= nq:
+                break
+        return picked
+
+    long_names = _pick(sorted_by_z, reverse=True)
+    short_names = _pick(sorted_by_z, reverse=False)
+
+    for names, side_map in [(long_names, longs), (short_names, shorts)]:
+        n_leg = len(names)
         if n_leg == 0:
             continue
         cap_each = half_gross / n_leg
-        for u in in_set:
+        for u in names:
             max_pos = (adva.get(u, float('inf')) * ADV_CAP_FRAC
                        if adva else cap_each)
             side_map[u] = min(cap_each, max_pos if max_pos > 0 else cap_each)
@@ -394,7 +414,9 @@ class CarryRebalancerHook:
                  max_positions_per_leg: Optional[int] = None,
                  exit_policy: Optional[ExitPolicy] = None,
                  recycle_exit_capital: bool = True,
-                 trade_sink: Optional[Callable] = None):
+                 trade_sink: Optional[Callable] = None,
+                 sector_csv_path: Optional[str] = None,
+                 max_per_sector: Optional[int] = None):
         self._facts_db = Path(facts_db_path)
         self._exec = execution_handler
         self._gross_exposure_policy = gross_exposure_policy
@@ -405,6 +427,10 @@ class CarryRebalancerHook:
         self._exit_policy = exit_policy
         self._recycle_exit_capital = recycle_exit_capital
         self._trade_sink = trade_sink
+        self._max_per_sector = max_per_sector
+        self._sector_map = None
+        if sector_csv_path:
+            self._sector_map = self._load_sectors(Path(sector_csv_path))
         if self._bhavcopy_db is None:
             _logger.warning(
                 "CarryRebalancerHook: bhavcopy_db_path not provided — "
@@ -502,7 +528,9 @@ class CarryRebalancerHook:
                 and self._signals_db.exists() and self._exit_policy is not None):
             self._update_position_pnl(self._prev_formation_date)
 
-        target = compute_target_book(facts, gross_exposure, adva, nq=self._max_positions)
+        target = compute_target_book(facts, gross_exposure, adva, nq=self._max_positions,
+                                      sector_map=self._sector_map,
+                                      max_per_sector=self._max_per_sector)
         new_longs, new_shorts, deltas = rebalance_book(
             target, self._book_longs, self._book_shorts, BAND_SIGMA)
 
@@ -579,6 +607,18 @@ class CarryRebalancerHook:
         """).fetchall()
         con.close()
         return {r[0] for r in rows}
+
+    @staticmethod
+    def _load_sectors(path: Path) -> Dict[str, str]:
+        import csv
+        sectors = {}
+        try:
+            with open(path, newline="", encoding="utf-8") as fh:
+                for row in csv.DictReader(fh):
+                    sectors[row["symbol"]] = row["sector"]
+        except Exception:
+            pass
+        return sectors
 
     @staticmethod
     def _underlying_from_sym(sym: str) -> str:

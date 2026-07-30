@@ -35,6 +35,7 @@ TI_DB = TI_DIR / "trade_intelligence.duckdb"
 
 STRATEGY_NAME = "ts_basis_daily"
 MAX_POSITIONS = 5
+MAX_PER_SECTOR = 2  # sector diversification constraint
 QUINTILE_FRAC = 0.20
 ADV_CAP_FRAC = 0.10
 BAND_SIGMA = 0.25
@@ -114,21 +115,40 @@ def _nifty_20d_return(regime, all_dates):
     return results
 
 
-def _compute_target_book(facts_by_z, adva):
+def _compute_target_book(facts_by_z, adva, sector_map=None, max_per_sector=None):
     n = len(facts_by_z)
     if n < 5:
         return {}, {}
     nq = min(MAX_POSITIONS, max(1, round(QUINTILE_FRAC * n)))
     sorted_facts = sorted(facts_by_z, key=lambda r: r[1])
+
+    def _pick(rows, reverse=False):
+        iterable = reversed(rows) if reverse else rows
+        picked, sec_counts = [], {}
+        for r in iterable:
+            u = r[0]
+            sec = sector_map.get(u, "UNKNOWN") if sector_map else "UNKNOWN"
+            limit = max_per_sector if max_per_sector is not None else 999
+            if sec_counts.get(sec, 0) >= limit:
+                continue
+            picked.append(u)
+            sec_counts[sec] = sec_counts.get(sec, 0) + 1
+            if len(picked) >= nq:
+                break
+        return picked
+
+    long_names = _pick(sorted_facts, reverse=True)
+    short_names = _pick(sorted_facts, reverse=False)
+
     longs = {}
-    for u, z in sorted_facts[-nq:]:
+    for u in long_names:
         max_val = adva.get(u, float('inf')) * ADV_CAP_FRAC
-        cap = 1.0 / nq
+        cap = 1.0 / len(long_names) if long_names else 0
         longs[u] = min(cap, max_val if max_val > 0 else cap)
     shorts = {}
-    for u, z in sorted_facts[:nq]:
+    for u in short_names:
         max_val = adva.get(u, float('inf')) * ADV_CAP_FRAC
-        cap = 1.0 / nq
+        cap = 1.0 / len(short_names) if short_names else 0
         shorts[u] = min(cap, max_val if max_val > 0 else cap)
     # Normalize
     for side in [longs, shorts]:
@@ -287,7 +307,7 @@ def main():
                     trade_entries[u]["cum_ret"] = (1 + trade_entries[u]["cum_ret"]) * (1 - daily) - 1
 
         # Compute target
-        longs_t, shorts_t = _compute_target_book(filt, adva)
+        longs_t, shorts_t = _compute_target_book(filt, adva, sectors, MAX_PER_SECTOR)
         all_w = list(longs_t.values()) + list(shorts_t.values())
         sigma_w = float(np.std(all_w)) if len(all_w) > 1 else 0.0
         band = BAND_SIGMA * sigma_w

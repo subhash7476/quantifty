@@ -116,6 +116,8 @@ def _run_window(label, lo, hi):
         bhavcopy_db_path=str(FUT_DB), metrics_sink=sink,
         signals_db_path=str(TS_SIG), max_positions_per_leg=MAX_POSITIONS,
         exit_policy=TakeProfitExitPolicy(threshold=0.005),
+        sector_csv_path=str(ROOT / "governance" / "carry" / "sector_classification.csv"),
+        max_per_sector=2,
     )
 
     driver = LoopDriver(
