@@ -544,3 +544,64 @@ def test_build_skips_screen_and_falls_back_when_no_live_feed():
     assert r["anchor_source"] == "eod_future"
     assert r["forward"] == pytest.approx(241.0)   # EOD future close
     assert r["strike"] == 240.0                    # EOD nearest-to-forward
+
+
+def test_build_live_feed_miss_falls_back_to_eod_skipped():
+    """Forward resolves live (anchor_source='live') but the batched option quote
+    fetch comes back empty for every candidate key -> Pass B must fall back to
+    the EOD chain rather than crash on an all-miss quotes dict. Distinct from the
+    _EOD_ONLY test above, which never builds candidate keys in the first place."""
+    from core.analytics.options_selection import _build_contracts
+    chain = [("WIPRO", EXP, 240.0, "CE", 6.0, 5000, 10, TRADE_DATE),
+             ("WIPRO", EXP, 250.0, "CE", 4.0, 5000, 10, TRADE_DATE),
+             ("WIPRO", EXP, 260.0, "CE", 2.0, 5000, 10, TRADE_DATE)]
+    inst_rows = [
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "EQ",  "NSE_EQ|INE075A01022", 0),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "FUT", "NSE_FO|58419", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 250.0, "CE",  "NSE_FO|250CE", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 260.0, "CE",  "NSE_FO|260CE", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 240.0, "CE",  "NSE_FO|240CE", 3000),
+    ]
+    o, f, inst, snap = _full_env(chain, inst_rows,
+                                 fut_rows=[("WIPRO", EXP, 241.0, TRADE_DATE)])
+    md = _StubMD(ltps={"NSE_FO|58419": 251.4}, quotes={})   # live fwd, no option quotes
+    rows = _build_contracts(o, f, inst, [("WIPRO", "LONG")],
+                            min_dte=7, today=TRADE_DATE, market_data=md)
+    r = rows[0]
+    assert r["anchor_source"] == "live"
+    assert r["screen"] == "skipped"
+    assert r["strike"] == 250.0   # EOD _fill_eod nearest-to-forward(251.4) fallback
+
+
+def test_build_snapped_when_nearest_strike_fails_screen():
+    """The strike nearest the live forward (250) has a spread too wide to trade;
+    a farther in-band strike (260) is tight and passes. Orchestrator must snap
+    past the nearest and select the farther tradeable strike."""
+    from core.analytics.options_selection import _build_contracts
+    chain = [("WIPRO", EXP, 240.0, "CE", 6.0, 5000, 10, TRADE_DATE),
+             ("WIPRO", EXP, 250.0, "CE", 4.0, 5000, 10, TRADE_DATE),
+             ("WIPRO", EXP, 260.0, "CE", 2.0, 5000, 10, TRADE_DATE)]
+    inst_rows = [
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "EQ",  "NSE_EQ|INE075A01022", 0),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "FUT", "NSE_FO|58419", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 250.0, "CE",  "NSE_FO|250CE", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 260.0, "CE",  "NSE_FO|260CE", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 240.0, "CE",  "NSE_FO|240CE", 3000),
+    ]
+    o, f, inst, snap = _full_env(chain, inst_rows,
+                                 fut_rows=[("WIPRO", EXP, 241.0, TRADE_DATE)])
+    md = _StubMD(
+        ltps={"NSE_FO|58419": 251.4},                        # live fwd -> nearest strike 250
+        quotes={"NSE_FO|250CE": {"best_bid": 2.0, "best_ask": 6.0,    # nearest, wide (spread 100%)
+                                 "oi": 9000, "volume": 6000},
+                "NSE_FO|260CE": {"best_bid": 1.95, "best_ask": 2.05,  # farther, tight (spread 5%)
+                                 "oi": 9000, "volume": 6000}})
+    # 240CE deliberately has no live quote -> screen_candidate rejects it on
+    # "no quote" regardless of distance, so 260 is the only passing candidate.
+    rows = _build_contracts(o, f, inst, [("WIPRO", "LONG")],
+                            min_dte=7, today=TRADE_DATE, market_data=md)
+    r = rows[0]
+    assert r["nearest_strike"] == 250.0
+    assert r["strike"] == 260.0             # nearest of the two passing, since 250 fails
+    assert r["screen"] == "snapped"
+    assert r["snapped"] is True
