@@ -386,3 +386,59 @@ def test_pick_returns_reason_when_none_pass():
                                           min_oi=100, min_volume=50, max_spread_pct=0.05)
     assert chosen is None
     assert "spread" in reason
+
+
+# --- live forward resolution -------------------------------------------------
+
+def _inst_con(rows, snap=date(2026, 7, 27)):
+    """rows: (name, tradingsymbol, expiry_iso, strike, instrument_type, key, lot)."""
+    con = duckdb.connect(":memory:")
+    con.execute("""
+        CREATE TABLE instruments (
+            instrument_key VARCHAR, tradingsymbol VARCHAR, name VARCHAR,
+            expiry VARCHAR, strike DOUBLE, instrument_type VARCHAR,
+            lot_size BIGINT, snapshot_date DATE
+        )
+    """)
+    for name, tsym, exp, strike, itype, key, lot in rows:
+        con.execute("INSERT INTO instruments VALUES (?,?,?,?,?,?,?,?)",
+                    [key, tsym, name, exp, strike, itype, lot, snap])
+    return con, snap
+
+
+class _StubMD:
+    def __init__(self, ltps=None, quotes=None):
+        self._ltps = ltps or {}
+        self._quotes = quotes or {}
+
+    def fetch_ltp_batch(self, keys):
+        return {k: self._ltps[k] for k in keys if k in self._ltps}
+
+    def fetch_quotes_batch(self, keys):
+        return {"quotes": {k: self._quotes[k] for k in keys if k in self._quotes},
+                "error": None}
+
+
+def test_resolve_live_forwards_maps_ticker_to_future_ltp():
+    from core.analytics.options_selection import _resolve_live_forwards
+    con, snap = _inst_con([
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0, "EQ",  "NSE_EQ|INE075A01022", 0),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0, "FUT", "NSE_FO|58419", 3000),
+    ])
+    md = _StubMD(ltps={"NSE_FO|58419": 251.4})
+    fwds = _resolve_live_forwards(
+        con, snap, [("WIPRO", "LONG")], {"WIPRO": date(2026, 8, 25)}, md)
+    assert fwds == {"WIPRO": 251.4}
+
+
+def test_resolve_live_forwards_omits_names_with_no_key_or_no_price():
+    from core.analytics.options_selection import _resolve_live_forwards
+    con, snap = _inst_con([
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0, "EQ",  "NSE_EQ|INE075A01022", 0),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0, "FUT", "NSE_FO|58419", 3000),
+    ])
+    md = _StubMD(ltps={})  # key resolves but no live price
+    fwds = _resolve_live_forwards(
+        con, snap, [("WIPRO", "LONG"), ("NOSUCH", "SHORT")],
+        {"WIPRO": date(2026, 8, 25), "NOSUCH": date(2026, 8, 25)}, md)
+    assert fwds == {}

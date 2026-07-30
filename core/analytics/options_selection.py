@@ -203,3 +203,32 @@ def select_book_options(book, min_dte: int = DEFAULT_MIN_DTE, today: date | None
     finally:
         o.close(); f.close(); inst.close()
     return out
+
+
+def _future_key(inst, snap, ticker, expiry):
+    name = inst.execute(
+        "SELECT name FROM instruments WHERE snapshot_date=? "
+        "AND instrument_type='EQ' AND tradingsymbol=? LIMIT 1",
+        [snap, ticker],
+    ).fetchone()
+    if not name:
+        return None
+    row = inst.execute(
+        "SELECT instrument_key FROM instruments WHERE snapshot_date=? AND name=? "
+        "AND instrument_type='FUT' AND expiry=? AND instrument_key LIKE 'NSE_FO%' LIMIT 1",
+        [snap, name[0], expiry.isoformat()],
+    ).fetchone()
+    return row[0] if row else None
+
+
+def _resolve_live_forwards(inst, snap, book, expiries, market_data):
+    key_by_ticker = {}
+    for ticker, _ in book:
+        expiry = expiries.get(ticker)
+        if expiry is None:
+            continue
+        key = _future_key(inst, snap, ticker, expiry)
+        if key:
+            key_by_ticker[ticker] = key
+    ltps = market_data.fetch_ltp_batch(list(key_by_ticker.values()))
+    return {t: ltps[k] for t, k in key_by_ticker.items() if k in ltps}
