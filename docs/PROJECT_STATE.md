@@ -2,7 +2,7 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-27 — **TS Basis Daily construct built (unregistered); refresh/download pipeline deployed; build_carry.py OOM fixed + incremental support; duplicate-row bug in daily build found and fixed.** See CHANGELOG entry for details.
+**Last updated:** 2026-07-30 — **Trade Intelligence Observatory M0–M3 delivered; exit optimization + recovery filter promoted; signal research frozen.** See CHANGELOG.
 
 **Forward planning (2026-07-27, non-authorizing):**
 

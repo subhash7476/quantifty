@@ -2,7 +2,7 @@
 
 **Program:** Trade Intelligence Implementation
 **Architecture Reference:** TRADE_INTELLIGENCE_IMPLEMENTATION_PLAN.md (Frozen M0)
-**Status:** Implementation Phase — M0 in progress
+**Status:** Implementation Phase — M0–M3 delivered, M4 deferred
 
 ---
 
@@ -35,11 +35,11 @@ Single table `trades` — one row per (underlying, entry_date, side). INSERT at 
 
 | ID | Milestone | Status |
 |----|-----------|--------|
-| M0 | Trade Intelligence Foundation | In progress |
-| M1 | TradeIntelligenceSink (live capture) | Not started |
-| M2 | Analytics | Not started |
-| M3 | Option Snapshots | Not started |
-| M4 | Option Lifecycle | Not started |
+| M0 | Trade Intelligence Foundation | **Certified** |
+| M1 | TradeIntelligenceSink (live capture) | **Delivered** |
+| M2 | Analytics | **Delivered** |
+| M3 | Option Snapshots | **Delivered** |
+| M4 | Option Lifecycle | Deferred |
 
 ## Code Location
 
