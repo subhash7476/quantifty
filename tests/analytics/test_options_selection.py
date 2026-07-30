@@ -442,3 +442,105 @@ def test_resolve_live_forwards_omits_names_with_no_key_or_no_price():
         con, snap, [("WIPRO", "LONG"), ("NOSUCH", "SHORT")],
         {"WIPRO": date(2026, 8, 25), "NOSUCH": date(2026, 8, 25)}, md)
     assert fwds == {}
+
+
+# --- orchestrator: two-pass live anchor + screen -----------------------------
+
+def _full_env(chain_rows, inst_rows, fut_rows=None):
+    """Return (o, f, inst, snap) in-memory DBs for _build_contracts.
+
+    chain_rows: (underlying, expiry, strike, otype, settle, oi, contracts, trade_date)
+    inst_rows : (name, tradingsymbol, expiry_iso, strike, instrument_type, key, lot)
+    fut_rows  : (underlying, expiry, close, trade_date)
+    """
+    o = duckdb.connect(":memory:")
+    o.execute("""CREATE TABLE stock_options_bhavcopy (
+        underlying VARCHAR, expiry_dt DATE, strike DOUBLE, option_type VARCHAR,
+        settle DOUBLE, open_int BIGINT, contracts BIGINT, trade_date DATE)""")
+    for r in chain_rows:
+        o.execute("INSERT INTO stock_options_bhavcopy VALUES (?,?,?,?,?,?,?,?)", list(r))
+
+    f = duckdb.connect(":memory:")
+    f.execute("""CREATE TABLE futures_bhavcopy (
+        underlying VARCHAR, expiry_dt DATE, close DOUBLE, trade_date DATE)""")
+    for r in (fut_rows or []):
+        f.execute("INSERT INTO futures_bhavcopy VALUES (?,?,?,?)", list(r))
+
+    inst, snap = _inst_con(inst_rows)
+    return o, f, inst, snap
+
+
+EXP = date(2026, 8, 25)
+
+
+def test_build_live_anchor_centres_on_live_forward_and_passes_screen():
+    from core.analytics.options_selection import _build_contracts
+    chain = [("WIPRO", EXP, 240.0, "CE", 6.0, 5000, 10, TRADE_DATE),
+             ("WIPRO", EXP, 250.0, "CE", 4.0, 5000, 10, TRADE_DATE),
+             ("WIPRO", EXP, 260.0, "CE", 2.0, 5000, 10, TRADE_DATE)]
+    inst_rows = [
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "EQ",  "NSE_EQ|INE075A01022", 0),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "FUT", "NSE_FO|58419", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 250.0, "CE",  "NSE_FO|250CE", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 260.0, "CE",  "NSE_FO|260CE", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 240.0, "CE",  "NSE_FO|240CE", 3000),
+    ]
+    o, f, inst, snap = _full_env(chain, inst_rows,
+                                 fut_rows=[("WIPRO", EXP, 241.0, TRADE_DATE)])
+    md = _StubMD(
+        ltps={"NSE_FO|58419": 251.4},                      # live fwd -> ATM 250
+        quotes={"NSE_FO|250CE": {"best_bid": 3.98, "best_ask": 4.02,
+                                 "oi": 9000, "volume": 6000},
+                "NSE_FO|260CE": {"best_bid": 1.9, "best_ask": 2.1,
+                                 "oi": 9000, "volume": 6000},
+                "NSE_FO|240CE": {"best_bid": 5.9, "best_ask": 6.1,
+                                 "oi": 9000, "volume": 6000}})
+    rows = _build_contracts(o, f, inst, [("WIPRO", "LONG")],
+                            min_dte=7, today=TRADE_DATE, market_data=md)
+    r = rows[0]
+    assert r["anchor_source"] == "live"
+    assert r["forward"] == pytest.approx(251.4)
+    assert r["strike"] == 250.0            # nearest to live fwd, screen passes
+    assert r["screen"] == "pass"
+    assert r["spread_pct"] == pytest.approx(0.01, abs=1e-6)
+
+
+def test_build_flags_when_no_strike_is_tradeable():
+    from core.analytics.options_selection import _build_contracts
+    chain = [("WIPRO", EXP, 250.0, "CE", 4.0, 5000, 10, TRADE_DATE)]
+    inst_rows = [
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "EQ",  "NSE_EQ|INE075A01022", 0),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "FUT", "NSE_FO|58419", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 250.0, "CE",  "NSE_FO|250CE", 3000),
+    ]
+    o, f, inst, snap = _full_env(chain, inst_rows,
+                                 fut_rows=[("WIPRO", EXP, 250.0, TRADE_DATE)])
+    md = _StubMD(ltps={"NSE_FO|58419": 250.0},
+                 quotes={"NSE_FO|250CE": {"best_bid": 2.0, "best_ask": 6.0,  # ~100% wide
+                                          "oi": 9000, "volume": 6000}})
+    rows = _build_contracts(o, f, inst, [("WIPRO", "LONG")],
+                            min_dte=7, today=TRADE_DATE, market_data=md)
+    r = rows[0]
+    assert r["screen"] == "no_tradeable_strike"
+    assert "spread" in r["screen_reason"]
+    assert r["ticker"] == "WIPRO"          # kept, not dropped
+
+
+def test_build_skips_screen_and_falls_back_when_no_live_feed():
+    from core.analytics.options_selection import _build_contracts, _EOD_ONLY
+    chain = [("WIPRO", EXP, 240.0, "CE", 6.0, 5000, 10, TRADE_DATE),
+             ("WIPRO", EXP, 250.0, "CE", 4.0, 5000, 10, TRADE_DATE)]
+    inst_rows = [
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "EQ",  "NSE_EQ|INE075A01022", 0),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 240.0, "CE",  "NSE_FO|240CE", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 250.0, "CE",  "NSE_FO|250CE", 3000),
+    ]
+    o, f, inst, snap = _full_env(chain, inst_rows,
+                                 fut_rows=[("WIPRO", EXP, 241.0, TRADE_DATE)])
+    rows = _build_contracts(o, f, inst, [("WIPRO", "LONG")],
+                            min_dte=7, today=TRADE_DATE, market_data=_EOD_ONLY)
+    r = rows[0]
+    assert r["screen"] == "skipped"
+    assert r["anchor_source"] == "eod_future"
+    assert r["forward"] == pytest.approx(241.0)   # EOD future close
+    assert r["strike"] == 240.0                    # EOD nearest-to-forward
