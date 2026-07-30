@@ -80,8 +80,8 @@ def main():
     print(f"  TS Basis Daily — ATM options for {target}  (live-anchored when market open; EOD fallback)")
     print(f"{'='*90}")
     print(f"  {'Ticker':<11}{'Dir':<6}{'Opt':<4}{'Expiry':<12}{'Fwd':>9}{'Strike':>8}"
-          f"{'Prem':>8}{'OI':>11}{'Lot':>8}{'PremCost':>11}{'Src':>6}{'Screen':>10}")
-    print(f"  {'-'*104}")
+          f"{'Prem':>8}{'OI':>11}{'Lot':>8}{'PremCost':>11}{'Src':>11}{'Screen':>10}")
+    print(f"  {'-'*109}")
 
     notes = []
     for c in contracts:
@@ -96,7 +96,7 @@ def main():
               f"{str(c['expiry']):<12}{c['forward']:>9.1f}{c['strike']:>8.0f}"
               f"{c['settle']:>8.2f}{c['oi']:>11}{(c['lot_size'] or 0):>8}"
               f"{(c['premium_cost'] or 0):>11,.0f}"
-              f"{(c['anchor_source'] or '-'):>6}{(c['screen'] or '-'):>10}")
+              f"{(c['anchor_source'] or '-'):>11}{(c['screen'] or '-'):>10}")
         if c["snapped"]:
             notes.append(f"  {c['ticker']}: snapped off nearest strike "
                          f"{c['nearest_strike']:.0f} to {c['strike']:.0f}.")

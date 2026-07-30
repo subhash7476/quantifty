@@ -111,7 +111,11 @@ class UpstoxMarketData:
         if resp.status_code != 200:
             return {"quotes": {}, "error": f"Upstox HTTP {resp.status_code}"}
 
-        data = resp.json().get("data", {})
+        try:
+            data = resp.json().get("data", {})
+        except ValueError as e:
+            return {"quotes": {}, "error": f"Invalid JSON response: {e}"}
+
         by_token = {}
         for entry in data.values():
             if isinstance(entry, dict) and entry.get("instrument_token"):

@@ -178,9 +178,13 @@ def _load_book(con, formation_date):
     return longs + shorts
 
 
-def _resolve_contracts():
+def _resolve_contracts(force: bool = False):
     """Resolve the latest formation's book into option contracts, cached by
-    formation date so the 2s live path never touches DuckDB."""
+    formation date so the 2s live path never touches DuckDB.
+
+    force=True always re-resolves (re-anchors/re-screens against fresh live
+    data) and refreshes the cache; force=False (the 2s live path) reuses the
+    cached contracts whenever the formation hasn't changed."""
     con = _get_facts_con()
     if con is None:
         return None, None, "Facts DB not found. Run refresh first."
@@ -190,7 +194,7 @@ def _resolve_contracts():
         return None, None, "No formations in facts DB."
 
     with _options_lock:
-        if _options_cache.get("formation") == formation:
+        if not force and _options_cache.get("formation") == formation:
             con.close()
             return formation, _options_cache["contracts"], None
         book = _load_book(con, formation)
@@ -205,7 +209,7 @@ def _resolve_contracts():
 @login_required
 def api_options():
     """Option contracts for the latest formation. DuckDB only, no network."""
-    formation, contracts, err = _resolve_contracts()
+    formation, contracts, err = _resolve_contracts(force=True)
     if err:
         return jsonify({"error": err}), 404
 

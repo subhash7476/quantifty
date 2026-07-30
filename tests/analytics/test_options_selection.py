@@ -250,6 +250,24 @@ def test_http_error_is_reported(monkeypatch):
     assert "502" in result["error"]
 
 
+def test_non_json_200_response_is_reported_not_raised(monkeypatch):
+    """A status-200 response with an unparseable body (e.g. an HTML error page
+    behind a 200) must not propagate a JSONDecodeError — the selection module
+    has no try/except around this call and relies on the error-dict contract."""
+    class _BadJsonResp:
+        status_code = 200
+
+        def json(self):
+            raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+    monkeypatch.setattr("core.brokers.upstox_market_data.requests.get",
+                        lambda *a, **k: _BadJsonResp())
+    monkeypatch.setattr("core.auth.credentials.credentials.get", lambda *a, **k: "tok")
+    result = UpstoxMarketData().fetch_quotes_batch(["NSE_FO|111111"])
+    assert result["quotes"] == {}
+    assert result["error"]
+
+
 # --- market state ----------------------------------------------------------
 
 def _iso(dt):
