@@ -27,6 +27,42 @@ INST_DB = ROOT / "data" / "instruments" / "nse_fo_instruments.duckdb"
 MIN_OI = 100
 DEFAULT_MIN_DTE = 7
 
+MAX_SPREAD_PCT = 0.05
+STRIKE_BAND = 3
+MIN_VOLUME_FALLBACK = 1
+
+
+def screen_candidate(bid, ask, oi, volume, min_oi, min_volume, max_spread_pct):
+    if bid is None or ask is None or bid <= 0 or ask <= 0:
+        return False, None, "no quote"
+    mid = (bid + ask) / 2.0
+    spread_pct = (ask - bid) / mid
+    if oi is None or oi < min_oi:
+        return False, spread_pct, f"OI {oi} < {min_oi}"
+    if volume is None or volume < min_volume:
+        return False, spread_pct, f"vol {volume} < {min_volume}"
+    if spread_pct > max_spread_pct:
+        return False, spread_pct, f"spread {spread_pct:.1%} > {max_spread_pct:.0%}"
+    return True, spread_pct, None
+
+
+def pick_screened_strike(candidates, forward, min_oi, min_volume, max_spread_pct):
+    passing = []
+    last_reason = None
+    for c in candidates:
+        ok, spread_pct, reason = screen_candidate(
+            c.get("bid"), c.get("ask"), c.get("oi"), c.get("volume"),
+            min_oi, min_volume, max_spread_pct)
+        c["spread_pct"] = spread_pct
+        if ok:
+            passing.append(c)
+        else:
+            last_reason = reason
+    if not passing:
+        return None, last_reason or "no candidate passed"
+    chosen = min(passing, key=lambda c: (abs(c["strike"] - forward), c["spread_pct"]))
+    return chosen, None
+
 
 def pick_expiry(o, ticker: str, min_dte: int, today: date | None = None):
     today = today or date.today()

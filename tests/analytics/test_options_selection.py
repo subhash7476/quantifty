@@ -17,7 +17,10 @@ from datetime import date, datetime, timedelta, timezone
 import duckdb
 import pytest
 
-from core.analytics.options_selection import MIN_OI, pick_expiry, select_option
+from core.analytics.options_selection import (
+    MIN_OI, MAX_SPREAD_PCT, STRIKE_BAND, pick_expiry, select_option,
+    screen_candidate, pick_screened_strike,
+)
 from core.brokers.upstox_market_data import UpstoxMarketData
 from flask_app.blueprints.ts_basis_daily import LIVE_MAX_AGE_SEC, _market_state
 
@@ -308,3 +311,78 @@ def test_boundary_at_live_max_age():
     outside, _ = _market_state([_iso(now - timedelta(seconds=LIVE_MAX_AGE_SEC + 1))], now=now)
     assert inside == "LIVE"
     assert outside == "CLOSED"
+
+
+# --- pure tradeability screen ------------------------------------------------
+
+def test_screen_passes_tight_liquid_strike():
+    ok, spread, reason = screen_candidate(
+        bid=9.9, ask=10.1, oi=5000, volume=500,
+        min_oi=100, min_volume=50, max_spread_pct=0.05)
+    assert ok is True
+    assert spread == pytest.approx(0.02, abs=1e-6)   # 0.2/10.0
+    assert reason is None
+
+
+def test_screen_rejects_wide_spread():
+    ok, spread, reason = screen_candidate(
+        bid=9.0, ask=11.0, oi=5000, volume=500,
+        min_oi=100, min_volume=50, max_spread_pct=0.05)
+    assert ok is False
+    assert spread == pytest.approx(0.2, abs=1e-6)     # 2.0/10.0
+    assert "spread" in reason
+
+
+def test_screen_spread_boundary_is_inclusive():
+    # spread exactly 5%: bid=9.75 ask=10.25 mid=10 -> 0.5/10 = 0.05
+    ok, spread, _ = screen_candidate(
+        bid=9.75, ask=10.25, oi=5000, volume=500,
+        min_oi=100, min_volume=50, max_spread_pct=0.05)
+    assert ok is True
+    assert spread == pytest.approx(0.05, abs=1e-9)
+
+
+def test_screen_rejects_low_oi_and_low_volume():
+    ok_oi, _, r_oi = screen_candidate(9.9, 10.1, oi=50, volume=500,
+                                      min_oi=100, min_volume=50, max_spread_pct=0.05)
+    ok_vol, _, r_vol = screen_candidate(9.9, 10.1, oi=5000, volume=10,
+                                        min_oi=100, min_volume=50, max_spread_pct=0.05)
+    assert ok_oi is False and "OI" in r_oi
+    assert ok_vol is False and "vol" in r_vol
+
+
+def test_screen_rejects_missing_or_nonpositive_quote():
+    ok, spread, reason = screen_candidate(None, None, oi=5000, volume=500,
+                                          min_oi=100, min_volume=50, max_spread_pct=0.05)
+    assert ok is False and spread is None and "quote" in reason
+
+
+def test_pick_chooses_nearest_forward_among_passing():
+    cands = [
+        {"strike": 100.0, "bid": 9.9,  "ask": 10.1, "oi": 5000, "volume": 500},
+        {"strike": 105.0, "bid": 5.95, "ask": 6.05, "oi": 5000, "volume": 500},
+    ]
+    chosen, reason = pick_screened_strike(cands, forward=104.0,
+                                          min_oi=100, min_volume=50, max_spread_pct=0.05)
+    assert reason is None
+    assert chosen["strike"] == 105.0
+    assert "spread_pct" in chosen
+
+
+def test_pick_snaps_past_wide_nearest_to_a_tight_neighbour():
+    cands = [
+        {"strike": 105.0, "bid": 4.0, "ask": 8.0, "oi": 5000, "volume": 500},   # nearest, wide
+        {"strike": 100.0, "bid": 9.95, "ask": 10.05, "oi": 5000, "volume": 500},  # tight
+    ]
+    chosen, reason = pick_screened_strike(cands, forward=104.0,
+                                          min_oi=100, min_volume=50, max_spread_pct=0.05)
+    assert reason is None
+    assert chosen["strike"] == 100.0
+
+
+def test_pick_returns_reason_when_none_pass():
+    cands = [{"strike": 100.0, "bid": 4.0, "ask": 8.0, "oi": 5000, "volume": 500}]
+    chosen, reason = pick_screened_strike(cands, forward=100.0,
+                                          min_oi=100, min_volume=50, max_spread_pct=0.05)
+    assert chosen is None
+    assert "spread" in reason
