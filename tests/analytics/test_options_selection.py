@@ -573,6 +573,31 @@ def test_build_live_feed_miss_falls_back_to_eod_skipped():
     assert r["strike"] == 250.0   # EOD _fill_eod nearest-to-forward(251.4) fallback
 
 
+def test_build_is_stable_across_two_calls_same_inputs():
+    """The panel caches per formation; re-resolving the same book with the same
+    live snapshot must yield the same strike (no per-call churn)."""
+    from core.analytics.options_selection import _build_contracts
+    chain = [("WIPRO", EXP, 240.0, "CE", 6.0, 5000, 10, TRADE_DATE),
+             ("WIPRO", EXP, 250.0, "CE", 4.0, 5000, 10, TRADE_DATE)]
+    inst_rows = [
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "EQ",  "NSE_EQ|INE075A01022", 0),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 0.0,   "FUT", "NSE_FO|58419", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 240.0, "CE",  "NSE_FO|240CE", 3000),
+        ("WIPRO LTD", "WIPRO", "2026-08-25", 250.0, "CE",  "NSE_FO|250CE", 3000),
+    ]
+    o, f, inst, snap = _full_env(chain, inst_rows,
+                                 fut_rows=[("WIPRO", EXP, 241.0, TRADE_DATE)])
+    md = _StubMD(ltps={"NSE_FO|58419": 249.0},
+                 quotes={"NSE_FO|250CE": {"best_bid": 3.98, "best_ask": 4.02,
+                                          "oi": 9000, "volume": 6000},
+                         "NSE_FO|240CE": {"best_bid": 5.98, "best_ask": 6.02,
+                                          "oi": 9000, "volume": 6000}})
+    r1 = _build_contracts(o, f, inst, [("WIPRO", "LONG")], 7, TRADE_DATE, md)[0]
+    r2 = _build_contracts(o, f, inst, [("WIPRO", "LONG")], 7, TRADE_DATE, md)[0]
+    assert r1["strike"] == r2["strike"] == 250.0
+    assert r1["screen"] == r2["screen"] == "pass"
+
+
 def test_build_snapped_when_nearest_strike_fails_screen():
     """The strike nearest the live forward (250) has a spread too wide to trade;
     a farther in-band strike (260) is tight and passes. Orchestrator must snap

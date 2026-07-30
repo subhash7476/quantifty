@@ -224,6 +224,12 @@ def api_options():
             "tradingsymbol": c["tradingsymbol"],
             "premium_cost": c["premium_cost"],
             "snapped": c["snapped"],
+            "anchor_source": c["anchor_source"],
+            "screen": c["screen"],
+            "screen_reason": c["screen_reason"],
+            "spread_pct": c["spread_pct"],
+            "best_bid": c["best_bid"],
+            "best_ask": c["best_ask"],
         })
     return jsonify({
         "formation_date": str(formation),
