@@ -6,6 +6,16 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-07-30 — TS Basis Daily live options selection (live ATM anchor + tradeability screen)
+
+Options selection for TS Basis Daily now runs on **live Upstox data** instead of purely stale EOD bhavcopy, with a clean EOD fallback. Shared module `core/analytics/options_selection.py` drives both the CLI (`scripts/ts_basis_daily_options.py`) and the `/ts-basis-daily/` panel so the two cannot drift.
+
+- **Live ATM anchor.** Strike centred on the live near-month futures LTP, fallback ladder `live future LTP → EOD future close → synthetic PCP forward`; labelled `anchor_source ∈ {live, eod_future, synthetic}` per contract. Resolved via `fetch_ltp_batch` on the near-month FUT instrument key (reuses the EQ tradingsymbol→name mapping).
+- **Live tradeability screen** over a ±3-strike band around the forward: bid/ask spread ≤ 5% of mid (`MAX_SPREAD_PCT`), live OI ≥ 100 (`MIN_OI`), live volume ≥ 1 lot. One batched `fetch_quotes_batch` call across the whole book; adapter extended to expose `best_bid`/`best_ask` from quote depth. Labelled `screen ∈ {pass, snapped, no_tradeable_strike, skipped}`. Untradeable names are **flagged, not dropped**; no live feed / `_EOD_ONLY` → screen **skipped**, EOD path used, nothing dropped.
+- **Panel re-anchors on reload.** `_resolve_contracts(force=True)` on `/api/options` (page load) re-resolves live; the 2s `/api/options/live` tick reuses the cached contracts. Fixes a formation-keyed cache that previously froze the anchor for the whole session. Panel greys untradeable rows and tags each contract's anchor freshness.
+- **Greeks deliberately out of selection** (they inform sizing/vehicle choice, not strike pick). Standing caveat unchanged: the strategy was validated on the linear futures basis, not on options.
+- Built spec→plan→7 TDD tasks under subagent-driven development; Opus whole-branch review READY-TO-MERGE caught and fixed two integration bugs (session-frozen cache; unguarded `resp.json()` breaking the adapter's never-raises contract). 44 tests green. *(spec/plan in `docs/superpowers/{specs,plans}/2026-07-30-ts-basis-daily-live-*`; merge `3dc68a1`)*
+
 ## 2026-07-29/30 — Trade Intelligence Observatory M0–M3; exit optimization; recovery filter; signal research frozen
 
 **Trade Intelligence Observatory — M0–M3 delivered.** Standalone research database (`data/signal_engine/trade_intelligence/trade_intelligence.duckdb`) recording every TS Basis Daily trade with immutable signal snapshots, regime context, exit-policy-aware outcomes, and option characteristics.

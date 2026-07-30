@@ -2,7 +2,7 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-07-30 — **Trade Intelligence Observatory M0–M3 delivered; exit optimization + recovery filter promoted; signal research frozen.** See CHANGELOG.
+**Last updated:** 2026-07-30 — **Trade Intelligence Observatory M0–M3 delivered; exit optimization + recovery filter promoted; signal research frozen. TS Basis Daily options selection is now live-anchored (live ATM + spread/OI/volume tradeability screen, EOD fallback).** See CHANGELOG.
 
 **Forward planning (2026-07-27, non-authorizing):**
 
