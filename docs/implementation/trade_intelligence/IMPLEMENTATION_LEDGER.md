@@ -21,3 +21,5 @@ Single source of truth for all Trade Intelligence milestone transitions, review 
 | 3 | 2026-07-30 | M1 | TradeIntelligenceSink implemented — write-only, deltas-driven, idempotent | `core/execution/portfolio/trade_intelligence_sink.py` |
 | 4 | 2026-07-30 | M1 | Sink integrated into CarryRebalancerHook + paper replay | `carry_rebalancer.py`, `ts_basis_daily_paper_replay.py` |
 | 5 | 2026-07-30 | M1 | Bug fix: NOOP-held positions were not evaluated by exit policy (no delta generated) | `carry_rebalancer.py:_apply_exit_policy` |
+| 6 | 2026-07-30 | M2 | Analytics report — TRAIN/HOLDOUT split, exit analysis, P&L dist, failure clusters | `run_m2_analytics.py`, `TRADE_INTELLIGENCE_M2_ANALYTICS.md` |
+| 7 | 2026-07-30 | M3 | Option snapshot enrichment — schema + snapshot_options.py using select_book_options | `snapshot_options.py`, schema updated in builder + sink |

@@ -132,7 +132,15 @@ class TradeIntelligenceSink:
                     days_held          INTEGER,
                     exit_reason        VARCHAR,
                     stock_return       DOUBLE,
-                    event_ts           TIMESTAMP
+                    event_ts           TIMESTAMP,
+                    -- Option snapshot (M3)
+                    opt_type           VARCHAR,
+                    opt_strike         DOUBLE,
+                    opt_expiry         DATE,
+                    opt_dte            INTEGER,
+                    opt_premium        DOUBLE,
+                    opt_oi             BIGINT,
+                    opt_lot_size       INTEGER
                 )
             """)
             con.execute(

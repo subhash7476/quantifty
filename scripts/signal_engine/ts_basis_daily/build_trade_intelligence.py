@@ -184,7 +184,15 @@ def main():
             exit_date          DATE,
             days_held          INTEGER,
             exit_reason        VARCHAR,
-            stock_return       DOUBLE
+            stock_return       DOUBLE,
+            -- Option snapshot (M3 — NULL for historical trades)
+            opt_type           VARCHAR,
+            opt_strike         DOUBLE,
+            opt_expiry         DATE,
+            opt_dte            INTEGER,
+            opt_premium        DOUBLE,
+            opt_oi             BIGINT,
+            opt_lot_size       INTEGER
         )
     """)
     con.execute("CREATE INDEX idx_trades_entry ON trades (entry_date)")
