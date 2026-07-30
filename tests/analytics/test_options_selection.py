@@ -187,6 +187,44 @@ def test_change_pct_is_none_when_prev_close_is_zero(monkeypatch):
     assert q["change_pct"] is None
 
 
+def _quote_payload_with_depth(last_price, net_change, ohlc_close,
+                              bid=None, ask=None, key="NSE_FO|111111"):
+    depth = {}
+    if bid is not None or ask is not None:
+        depth = {"buy": [{"price": bid}] if bid is not None else [],
+                 "sell": [{"price": ask}] if ask is not None else []}
+    return {"data": {"NSE_FO:XYZ": {
+        "instrument_token": key, "last_price": last_price, "net_change": net_change,
+        "ohlc": {"open": 1.0, "high": 2.0, "low": 0.5, "close": ohlc_close},
+        "volume": 1000, "oi": 2000.0, "depth": depth,
+        "timestamp": "2026-07-28T13:04:54.072+05:30",
+    }}}
+
+
+def test_quote_exposes_best_bid_and_ask_from_depth(monkeypatch):
+    monkeypatch.setattr(
+        "core.brokers.upstox_market_data.requests.get",
+        lambda *a, **k: _FakeResp(_quote_payload_with_depth(
+            last_price=8.0, net_change=0.0, ohlc_close=8.0, bid=7.9, ask=8.1)),
+    )
+    monkeypatch.setattr("core.auth.credentials.credentials.get", lambda *a, **k: "tok")
+    q = UpstoxMarketData().fetch_quotes_batch(["NSE_FO|111111"])["quotes"]["NSE_FO|111111"]
+    assert q["best_bid"] == pytest.approx(7.9)
+    assert q["best_ask"] == pytest.approx(8.1)
+
+
+def test_quote_bid_ask_are_none_when_depth_absent(monkeypatch):
+    monkeypatch.setattr(
+        "core.brokers.upstox_market_data.requests.get",
+        lambda *a, **k: _FakeResp(_quote_payload_with_depth(
+            last_price=8.0, net_change=0.0, ohlc_close=8.0)),  # no depth
+    )
+    monkeypatch.setattr("core.auth.credentials.credentials.get", lambda *a, **k: "tok")
+    q = UpstoxMarketData().fetch_quotes_batch(["NSE_FO|111111"])["quotes"]["NSE_FO|111111"]
+    assert q["best_bid"] is None
+    assert q["best_ask"] is None
+
+
 def test_missing_token_reports_error_rather_than_empty_success(monkeypatch):
     """An expired token must surface as an error the UI can show, not as a
     successful response with no quotes (which would render as blank prices)."""

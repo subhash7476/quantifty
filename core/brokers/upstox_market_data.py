@@ -125,6 +125,11 @@ class UpstoxMarketData:
             ltp = e.get("last_price")
             net = e.get("net_change")
             prev = (ltp - net) if (ltp is not None and net is not None) else None
+            depth = e.get("depth") or {}
+            buy = depth.get("buy") or []
+            sell = depth.get("sell") or []
+            best_bid = buy[0].get("price") if buy and isinstance(buy[0], dict) else None
+            best_ask = sell[0].get("price") if sell and isinstance(sell[0], dict) else None
             quotes[key] = {
                 "ltp": ltp,
                 "net_change": net,
@@ -133,6 +138,8 @@ class UpstoxMarketData:
                 "volume": e.get("volume"),
                 "oi": e.get("oi"),
                 "feed_ts": e.get("timestamp"),
+                "best_bid": best_bid,
+                "best_ask": best_ask,
             }
         return {"quotes": quotes, "error": None}
 
