@@ -34,11 +34,26 @@ STT (Securities Transaction Tax) — derivatives, SELL side only. Four tiers:
     truth for research and production (CARRY_IMPLEMENTATION_BRIDGE.md section 5.1).
   - 2026-08-01 CORRECTION: the 0.0170% tier (2008-06-01 -> 2013-05-31) was
     missing; 0.0100% was applied from 2008-06-01. Every rate on and after
-    2013-06-01 is UNCHANGED, so no pre-registered number moves: the earliest
-    date any harness can price is 2016-02-11. This was not a research finding
-    — it surfaced because arm_fe asserted a rate (0.0125% at 2008-06-01) that
-    was itself wrong, and reconciling the two required establishing the real
-    schedule. Both are now correct.
+    2013-06-01 is UNCHANGED. This was not a research finding — it surfaced
+    because arm_fe asserted a rate (0.0125% at 2008-06-01) that was itself
+    wrong, and reconciling the two required establishing the real schedule.
+    Both are now correct.
+
+    WHO IS AFFECTED (measured, not assumed):
+      - Futures-substrate harnesses (Carry, TS Basis, TS Basis Daily, IVOL,
+        Trend, LAG) — UNAFFECTED. 0 of 3,977 dates from 2016-02-11 through
+        2026-12-31 change, because futures data cannot predate 2016-02-11.
+        No pre-registered or sealed number moves.
+      - f1_feasibility_screen.py — AFFECTED. It is CASH-SYNTHESIZED with
+        DEV_LO = 2012-01-01, so it prices dates this module could not
+        otherwise reach: 517 dates in its TRAIN window (2012-01-01 ->
+        2013-05-31) now carry 0.0170% instead of 0.0100% on SELL legs. Its
+        HOLDOUT (2019-2022) is clean.
+        Consequence: F1's TRAIN net returns get slightly WORSE, which
+        strengthens rather than weakens its existing NO-GO verdict. F1 is
+        CLOSED and deliberately NOT re-run, so F1_FEASIBILITY_SCREEN_REPORT.md
+        no longer reproduces exactly — it was already superseded by
+        F1_FEASIBILITY_SCREEN_VERDICT_REVIEW.md.
   - Sources: [caclubindia](
       https://www.caclubindia.com/articles/securities-transaction-tax-rate-hikes-on-f-amp-o-w-e-f-1st-october-24-55626.asp),
       [ICICI Direct](

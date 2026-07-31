@@ -44,9 +44,23 @@ def test_stt_pre_2008():
     assert f.stt == 0.0
 
 
-def test_stt_post_2008_pre_finance_act_2023():
+def test_stt_2008_to_budget_2013_cut():
+    # Derivatives entered STT at 0.017% on 2008-06-01 and stayed there until
+    # the Budget 2013 cut. This test previously asserted 0.0100% from
+    # 2008-06-01, matching the module's then-missing tier.
     f = FF.futures_fees(side="SELL", trade_value=100000, trade_date=date(2008, 6, 1))
-    assert abs(f.stt - 10.0) < 0.01  # 0.0100%
+    assert abs(f.stt - 17.0) < 0.01   # 0.0170%
+    f_last = FF.futures_fees(side="SELL", trade_value=100000, trade_date=date(2013, 5, 31))
+    assert abs(f_last.stt - 17.0) < 0.01
+
+
+def test_stt_budget_2013_cut_to_finance_act_2023():
+    # 0.017% -> 0.010% effective 2013-06-01. This is the rate in force across
+    # the entire usable futures substrate (2016-02-11 onward) up to 2023-03-31.
+    f = FF.futures_fees(side="SELL", trade_value=100000, trade_date=date(2013, 6, 1))
+    assert abs(f.stt - 10.0) < 0.01   # 0.0100%
+    f_sub = FF.futures_fees(side="SELL", trade_value=100000, trade_date=date(2016, 2, 11))
+    assert abs(f_sub.stt - 10.0) < 0.01
 
 
 def test_stt_finance_act_2023_boundary():
