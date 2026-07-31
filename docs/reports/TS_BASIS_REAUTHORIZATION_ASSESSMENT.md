@@ -194,10 +194,14 @@ current file must be corrected before it is relied on for anything.
 and the operator has since watched the live `/ts-basis-daily/` panel and forward runner. That is
 roughly **4 trading days** (2026-07-27 → 2026-07-31) of observed live signal at the very tail of
 the declared range. Excising it — ending the sealed window at **2026-07-24** — removes the
-exposure at a cost of ~4 of ~865 formations. Everything from 2023-01-01 through 2026-06-30 has
-zero evaluated-outcome exposure.
+exposure at a cost of 5 formations. Everything from 2023-01-01 through 2026-07-24 has zero
+evaluated-outcome exposure.
 
-**So there is one clean, one-shot, ~860-formation window sitting on disk.** This is what "register
+**Exact counts** (measured 2026-08-01 from `ts_signals.duckdb`, `COUNT(DISTINCT formation_date)`
+where `z_ts IS NOT NULL`): TRAIN 1,202 · HOLDOUT 495 · **SEALED 2023-01-01 → 2026-07-24: 876** ·
+after 2026-07-24: 5 (excluded as observed).
+
+**So there is one clean, one-shot, 876-formation window sitting on disk.** This is what "register
 it again" can actually mean. It requires no forward waiting.
 
 ### B.3 What it would cost to spend it — the part that should give pause
@@ -222,22 +226,22 @@ Recomputed from `scripts/rfa/power.py` against the declaration's own bands
 | Central | 0.0125 | 0.16 | **1,015** | 4.06 |
 | Pessimistic | 0.005 | 0.20 | **9,894** | 39.6 |
 
-Power at the ~850 formations the declaration claims are available:
+Power at the **876** formations actually available (measured, §B.2):
 
-| Corner | n=250 | n=500 | n=850 |
+| Corner | n=250 | n=500 | **n=876 (actual)** |
 |---|--:|--:|--:|
-| Optimistic | 0.837 | 0.981 | **0.999** |
-| Central | 0.340 | 0.540 | **0.736** |
-| Pessimistic | 0.106 | 0.139 | **0.180** |
+| Optimistic | 0.837 | 0.981 | **0.9995** |
+| Central | 0.340 | 0.540 | **0.7472** |
+| Pessimistic | 0.106 | 0.139 | **0.1826** |
 
 **A 44× spread in required n across the declared band, with PROCEED resting entirely on the
 crossed corner (δ_hi paired with SD_lo).** This is precisely the artifact that withdrew O1
-(`RFA_GATE_O1_REVIEW.md` §1). At the *central* assumption the existing ~860-formation window
-delivers power **0.740 — below the 0.80 hurdle.**
+(`RFA_GATE_O1_REVIEW.md` §1). At the *central* assumption the existing 876-formation window
+delivers power **0.7472 — below the 0.80 hurdle.**
 
 The window cannot be extended *backwards* — NSE F&O history cannot predate 2016 — but it can be
 extended **forwards**, and that changes the options materially. Central needs 1,015 formations;
-~860 already exist on disk; the shortfall is **155 formations ≈ 7.5 months** of forward daily
+**876** already exist on disk; the shortfall is **139 formations ≈ 6.7 months** of forward daily
 data at ~20.8 trading days/month. See Option 1b in §B.4.
 
 Note also that daily cadence buys nothing here: by the repo's own cadence-invariance result
@@ -253,15 +257,18 @@ The operator faces a genuine choice, and it should be made *before* anything is 
   stack with a real SHA, write a sealed-read protocol with pinned α and acceptance rule, then run
   `run_sealed.py` exactly once on 2023-01-01 → 2026-07-24. Upside: a genuine out-of-sample read
   available *now*, no waiting. Downside: at the central effect-size assumption it is
-  **underpowered (0.740)**, and it is the last such window that will ever exist for this family.
-- **Option 1b — freeze now, read once in ~8 months. *(Recommended if the daily construct is to be
+  **underpowered (0.7472)**, and it is the last such window that will ever exist for this family.
+- **Option 1b — freeze now, read once in ~7 months. *(Recommended if the daily construct is to be
   pursued at all.)*** Correct the declaration, freeze the full selected stack today, and
-  pre-register the evaluation window as **2023-01-01 → freeze + 8 months**, read **exactly once**
-  when it closes. This reaches ~1,015 formations — **central power 0.80** — by combining the ~860
-  formations already on disk with ~155 forward ones. It costs 8 months of waiting instead of the
+  pre-register the evaluation window as **2023-01-01 → freeze + 7 months**, read **exactly once**
+  when it closes. This reaches ~1,015 formations — **central power 0.80** — by combining the 876
+  formations already on disk with ~139 forward ones. It costs ~7 months of waiting instead of the
   4+ years a pure-forward monthly run needs (§A.5), spends the one-shot window only once, and
   spends it at adequate power rather than at 0.740. It also imposes a useful discipline: the stack
   must stop moving today, because everything after the freeze is evaluation data.
+  *(Note: 7 months reaches central power exactly at the hurdle. If the operator wants margin
+  against the central estimate being optimistic, 9–10 months is the safer pin — but the horizon
+  must be fixed in the pre-registration, not chosen after watching the data accumulate.)*
 - **Option 2 — do not spend it.** Keep the daily construct in research, run it forward in paper
   alongside monthly TS Basis, and preserve the sealed window until there is a stack worth
   spending it on. Costs nothing, forecloses nothing.
@@ -280,9 +287,13 @@ last window at below-hurdle power to save 8 months.
 
 ## C. Findings requiring action regardless of the decision above
 
-1. **`governance/rfa/declarations/ts_basis_daily.py` is inaccurate on two counts.** It was never
-   frozen, so correcting it costs nothing — but leaving it is worse than having no declaration,
-   because a future reader will take it at face value.
+1. **`governance/rfa/declarations/ts_basis_daily.py` is inaccurate on two counts.** ✅ **CORRECTED
+   2026-08-01.** It was never frozen, so correcting it cost nothing — but leaving it would have
+   been worse than having no declaration, because a future reader would take it at face value.
+   The delta/sd bands were left **unchanged** on purpose: re-banding after seeing the power
+   arithmetic would be the same post-hoc move the RFA contract exists to prevent. A caveat was
+   added to `sd_provenance` recording that the band is not yet defended against the selection
+   history, and `n_available` was corrected 850 → 876 from a direct count.
    - **(a) False prior-exposure statement** (§B.1). It claims TRAIN and HOLDOUT are unread for the
      daily variant; five commits say otherwise.
    - **(b) Wrong lookback.** `delta_provenance` describes "504-day calendar lookback and
@@ -320,10 +331,10 @@ unauthorized, and only forward paper resolves that — 12 to 52 months depending
 size you plan against, with the honest planning number at the long end.
 
 The daily construct cannot be retroactively registered, but it holds something more valuable than
-a retroactive stamp: **one unspent one-shot window on ~860 formations already on disk**, currently
+a retroactive stamp: **one unspent one-shot window on 876 formations already on disk**, currently
 guarded by a declaration that misstates both what has been read and what the construct does. That
-window is worth only 0.740 power at the central assumption on its own — but combined with ~8
+window is worth only 0.7472 power at the central assumption on its own — but combined with ~7
 months of forward data it reaches 0.80. **Fix the declaration, freeze the stack, and pre-register
-a single read of 2023-01-01 → freeze + 8 months.** That is the closest thing to "registering it
+a single read of 2023-01-01 → freeze + 7 months.** That is the closest thing to "registering it
 again" that is actually available, and unlike everything else on the table, it is not a
 compromise.
