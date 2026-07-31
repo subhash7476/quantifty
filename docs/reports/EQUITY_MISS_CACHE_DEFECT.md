@@ -164,10 +164,16 @@ covering correct existing behaviour passed throughout).
 2. **Whatever ran on 2026-07-09 probed five months of forward dates.** That caller
    was never identified. The guard makes forward probing harmless, so this is no
    longer urgent, but the behaviour is unexplained and may be wasting requests.
-3. **Sibling ingests were not audited.** `scripts/sfb/ingest_futures_bhavcopy.py`
-   references `.404` markers in its docstring. Only
-   `ingest_equity_bhavcopy.py` was inspected and patched; the futures and options
-   ingests have not been checked for the same pattern.
+3. ~~**Sibling ingests were not audited.**~~ **AUDITED 2026-07-31 — clean.**
+   `ingest_futures_bhavcopy_v2.py`, `ingest_stock_options_bhavcopy.py`, and
+   `ingest_index_history.py` all handle 404 with **in-memory counters only**
+   (`consec_both_404`, `total_404`) and persist no miss marker;
+   `ingest_equity_bhavcopy.py` was the sole writer. The structural difference is
+   the point: those three skip a date when **rows already exist** — a *positive*
+   cache, which can only skip on data present — whereas equity skipped on data
+   *absent*, where the evidence can go stale. The `.404` reference in
+   `scripts/sfb/ingest_futures_bhavcopy.py` is the v1 file, which
+   `download_all_data.py` does not call.
 4. **The 4,256 retained markers were not individually validated.** They pass the
    mtime test, which makes them plausible, not verified. Any that were written by
    a *transient* failure misclassified as 404 remain — the same class of error,
