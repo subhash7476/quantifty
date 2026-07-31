@@ -13,8 +13,8 @@ checkpoint's review verdict.
 
 | Checkpoint | Tasks | Status |
 |---|---|---|
-| **A** | 1–4 — control store, decision logic, Telegram, chain runner | **ISSUED** |
-| B | 5–6 — orchestrator, worker daemon | HELD |
+| A | 1–4 — control store, decision logic, Telegram, chain runner | **PASSED** 2026-07-31 (`EOD_AUTOMATION_CHECKPOINT_A_REVIEW.md`) |
+| **B** | 5–6 — orchestrator, worker daemon | **ISSUED** |
 | C | 7–8 — facade + API, UI tab | HELD |
 | D | 9 — end-to-end verification | HELD |
 
@@ -118,3 +118,165 @@ Do not report "all tests pass" without pasting the output. The reviewer re-runs 
 - Any live Telegram send — Task 3 tests the formatters and truncation only; `send_sync` is
   exercised for real in Checkpoint D with the operator's credentials
 - Starting any daemon or scheduling anything
+
+---
+
+## Prompt B — Tasks 5 and 6
+
+**Prerequisite:** Checkpoint A PASSED (`docs/reports/EOD_AUTOMATION_CHECKPOINT_A_REVIEW.md`).
+Branch `feat/eod-automation-scheduler` is at the reviewed state. Do not revisit Tasks 1–4.
+
+### Context
+
+Checkpoint A delivered four pure modules. This checkpoint wires them into a working job and
+puts a daemon around it. After Task 6 the feature is functionally complete except for the
+Flask UI — the worker can run, decide, execute the chain, and report.
+
+Two things make this checkpoint riskier than A, and both are addressed by explicit
+instructions below:
+
+- **`_default_book()` is the one code path in this feature that unit tests cannot cover.**
+  Tests inject `book` via `Deps`. If that function is wrong, nothing fails until 20:00 in
+  production, after the chain has already run.
+- **The daemon is a state machine over wall-clock time.** Its bugs are the kind that only
+  appear at 23:00 on a Friday.
+
+The authoritative source remains
+`docs/superpowers/plans/2026-07-31-eod-automation-scheduler.md`. Follow it literally
+**except** for the one mandated change in "Required change to the plan" below.
+
+### Working agreement
+
+1. Branch `feat/eod-automation-scheduler`. Confirm with `git branch --show-current`.
+2. Implement **Tasks 5 and 6 only**, in order. **Stop after Task 6.** Do not start Task 7.
+3. Same TDD cycle as Checkpoint A: write test → **run and confirm it fails for the stated
+   reason** → implement → run → commit. A test that passes before implementation is a
+   defect in the premise; stop and report.
+4. Commit at the end of each task using the plan's commit message. Plus one extra commit
+   for the mandated change below — three commits total.
+5. Run tests from repo root `F:\Nifty` with `python -m pytest`.
+
+### Required change to the plan — retry spacing
+
+The plan's `is_due()` computes the next attempt from **`last_started + 30 min`**. This is
+wrong when an attempt runs long: if attempt 1 starts at 20:00 and takes 45 minutes, the next
+attempt is already overdue the instant it finishes, so attempts fire back-to-back with **no
+gap at all** — hammering the NSE archive with zero pause. The intent is "wait 30 minutes,
+then try again", which means measuring from when the previous attempt **finished**.
+
+Make these three changes:
+
+1. Add to `core/scheduler/eod_store.py`:
+
+```python
+    def last_attempt_finished(self, run_date: date) -> datetime | None:
+        attempts = self.attempts_today(run_date)
+        if not attempts:
+            return None
+        return datetime.fromisoformat(attempts[-1]["finished_at"])
+```
+
+2. Add this test to `tests/scheduler/test_eod_store.py`:
+
+```python
+def test_last_attempt_finished_returns_latest_scheduled(store):
+    d = date(2026, 7, 31)
+    store.record(d, 1, "download", "retry", "")
+    store.record(d, 2, "download", "retry", "")
+    assert store.last_attempt_finished(d).date() == d
+    assert store.last_attempt_finished(d) >= store.last_attempt_started(d)
+```
+
+3. In `scripts/schedule_worker.py`, rename the `is_due` parameter `last_started` to
+   `last_finished` (semantics only — the body is unchanged), and call it with
+   `store.last_attempt_finished(today)` instead of `store.last_attempt_started(today)`.
+   The Task 6 tests in the plan pass a bare `datetime` and are unaffected; keep them as
+   written but rename the local fixture variables to match the new meaning.
+
+Commit this as a separate commit before Task 6's commit:
+`fix: measure EOD retry interval from attempt finish, not start`
+
+`last_attempt_started` stays on `EodStore` — it is still used by the UI in Checkpoint C.
+
+### Mandatory smoke test for `_default_book()` (Task 5)
+
+After Task 5's tests pass, run this **once** and paste the output:
+
+```bash
+python -c "from core.scheduler.eod_job import _default_book; t,c = _default_book(); print('target:', t); print('contracts:', len(c)); print(c[0] if c else 'EMPTY')"
+```
+
+Expected: a date, a contract count, and a dict whose keys include `ticker`, `direction`,
+`opt_type`, `strike`, `settle`, `premium_cost`. If it raises, **do not paper over it** —
+report the traceback. Likely causes to check first: `select_book_options`' keyword is
+`min_dte`, and `DEFAULT_MIN_DTE` (= 7) must be passed rather than `None`, because the
+parameter is typed as a non-optional `int`.
+
+This is not a unit test and must not become one — it touches live stores. It is a one-off
+proof that the untested path works.
+
+### Non-negotiable constraints (carried forward, still binding)
+
+- Control store SQLite, never DuckDB.
+- All subprocess capture uses `encoding="utf-8", errors="replace"` **and**
+  `env={**os.environ, "PYTHONIOENCODING": "utf-8"}` — Checkpoint A proved both halves are
+  required.
+- Every subprocess call passes an explicit `timeout`.
+- Telegram plain text, no `parse_mode`; 4096-char truncation.
+- Terminal outcomes are exactly `success`, `holiday`, `exhausted`, `chain_failed`.
+  `retry` is not terminal.
+- Do not modify `download_all_data.py`, `refresh_all_strategies.py`,
+  `ts_basis_daily_signals.py`, or `ts_basis_daily_options.py`.
+- Do not reuse or modify `data/_schedule.duckdb` / `scheduled_jobs`.
+- No new dependencies.
+
+### Constraints specific to this checkpoint
+
+- **Never run the worker's `main()` loop during implementation or testing.** It is an
+  infinite loop that executes real downloads. Test `is_due()` and `acquire_lock()` as pure
+  functions only. Starting the daemon is Checkpoint D, under the operator's control.
+- **`run_attempt` must not send Telegram messages on the `retry` path.** A retry is a normal,
+  expected outcome on a slow-publication evening; notifying on each would produce up to 8
+  messages per night. Only `chain`, `holiday`, and `exhausted` notify.
+- **The download step's exit code is deliberately ignored.** `download_all_data.py` exits
+  non-zero when any sub-ingest fails, which happens routinely (a 404 on a holiday is normal).
+  The feed probe is the authority on whether data arrived, not the exit code. Do not "fix"
+  this by checking the return code.
+- Manual runs use `attempt=0` and must **not** make the date terminal — this is what lets the
+  operator hit "Run now" without cancelling the evening's scheduled attempts. Task 1 already
+  enforces it (`attempts_today` filters `attempt >= 1`); do not work around it.
+
+### Deliverables
+
+Three commits on `feat/eod-automation-scheduler`:
+
+| Order | Change | Tests |
+|---|---|---|
+| 1 | `eod_store.last_attempt_finished()` (mandated change) | `tests/scheduler/test_eod_store.py` (+1) |
+| 2 | Task 5 — `core/scheduler/eod_job.py` | `tests/scheduler/test_eod_job.py` |
+| 3 | Task 6 — `scripts/schedule_worker.py`, `scripts/__init__.py` if absent | `tests/scheduler/test_worker_timing.py` |
+
+### Report back
+
+1. `git log --oneline main..HEAD`.
+2. Full output of `python -m pytest tests/scheduler/ -v`.
+3. Actual test count per file. Plan predicts 6 for `test_eod_job.py` and 8 for
+   `test_worker_timing.py`; store gains 1 (14 total). These are predictions, not targets —
+   report actuals and flag any divergence explicitly.
+4. **The `_default_book()` smoke-test output, pasted verbatim.**
+5. Any deviation from the plan and why. Checkpoint A's deviation was correct and accepted —
+   deviations are welcome when justified, but must be reported, never silent.
+6. Any Step-2 test that failed for a reason other than the stated one.
+7. `python -m pytest tests/ -q` summary line, identifying pre-existing failures as such.
+   Baseline at Checkpoint A: `9 failed, 1853 passed, 4 skipped`.
+8. Confirm explicitly that you did not start the worker loop.
+
+### Explicitly out of scope for Checkpoint B
+
+- Task 7 (facade/API), Task 8 (UI), Task 9 (verification)
+- Any change to `app_facade/`, `flask_app/`, or any template
+- Any live Telegram send
+- Running the worker daemon or the real chain end to end
+- **MINOR-1 from the Checkpoint A review** (index freshness inferred from filenames rather
+  than row contents, `eod_decision.py:48-52`). Reviewed, bounded, and deliberately deferred.
+  Do not fix it in this checkpoint.
