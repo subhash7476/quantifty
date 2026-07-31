@@ -21,8 +21,6 @@ sys.path.insert(0, str(ROOT))
 
 from dotenv import load_dotenv  # noqa: E402
 
-load_dotenv(ROOT / ".env")
-
 from core.scheduler.eod_decision import MAX_ATTEMPTS  # noqa: E402
 from core.scheduler.eod_job import run_attempt  # noqa: E402
 from core.scheduler.eod_store import EodStore  # noqa: E402
@@ -91,6 +89,8 @@ def acquire_lock(lock_path: Path) -> bool:
 
 
 def main() -> int:
+    load_dotenv(ROOT / ".env")
+
     if not acquire_lock(LOCK_PATH):
         logger.error(f"Another worker is already running (see {LOCK_PATH}). Exiting.")
         return 1

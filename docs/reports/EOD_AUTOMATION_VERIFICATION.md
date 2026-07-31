@@ -7,7 +7,9 @@
 **Author:** Claude (from operator-pasted evidence)
 **Runbook:** `EOD_AUTOMATION_IMPLEMENTATION_PROMPTS.md` § Prompt D
 
-**Verdict: PASS, with one defect found and fixed during execution.**
+**Verdict: PASS, with two defects found and fixed during execution** — one
+pre-existing (DEFECT-1, §3), one introduced by this checkpoint's own credential
+change and caught in review (DEFECT-2, §4).
 
 Steps 1–7 all completed. Step 7 **failed on first execution**, exposing a real
 concurrency defect that every prior checkpoint had missed. It was root-caused,
@@ -97,15 +99,37 @@ liveness idiom with no valid Windows equivalent. Measured on this build
 `acquire_lock()` therefore read the lock file, asked "is 27224 alive?", was told
 "no", and handed the lock to the newcomer.
 
+**Mechanism — and it is worse than "returns the wrong answer."** On Windows
+`signal.CTRL_C_EVENT == 0` (measured on this build). CPython's `os.kill`
+special-cases that value, so `os.kill(pid, 0)` does not perform any read-only
+probe: it calls `GenerateConsoleCtrlEvent(CTRL_C_EVENT, pid)` and attempts to
+deliver **Ctrl+C to the target's console process group**. `WinError 87` is the
+documented failure when the target is not in the caller's group — which is the
+only reason the probe was inert here. Two workers launched into the *same*
+console group would have had the probe attempt to interrupt the very process it
+was asking about.
+
 ### Why three checkpoints missed it
 
 This is the part worth carrying forward.
 
-- **The Checkpoint B review examined this exact function and cleared it.** It
-  worried that a liveness probe might *terminate* the process it tests, checked
-  that specific hazard, and concluded "it does not on this build." The reasoning
-  was sound; the hazard was simply the wrong one. Clearing a function against one
-  failure mode reads, in a review log, indistinguishably from clearing it.
+- **The Checkpoint B review examined this exact function, identified the correct
+  hazard, and still cleared it.** It worried that "on some Python builds a
+  liveness probe can terminate the very process it is testing" and concluded "it
+  does not on this build."
+
+  Given the mechanism above, **that reviewer was right and the clearance was the
+  error.** `os.kill(pid, 0)` really does attempt a Ctrl+C delivery; it was inert
+  only because of a console-process-group accident that no one had identified,
+  stated, or tested for. "It does not on this build" described an observation
+  whose cause was unknown — and an unexplained negative result is not a
+  clearance. Had the operator later launched both workers from one console, the
+  same code would have behaved differently with nothing in the repo changed.
+
+  > An earlier revision of this report asserted the reviewer had worried about
+  > "the wrong hazard." That was itself an unverified mechanism claim, of exactly
+  > the kind this repo's pitfalls warn against, and it was wrong. Corrected here
+  > after measuring `signal.CTRL_C_EVENT`.
 - **The unit tests deliberately excluded it.** Checkpoint B's constraint was to
   test `is_due()` and `acquire_lock()` "as pure functions only" — sensible, since
   the alternative looked like starting daemons in CI. But `acquire_lock()` is not
@@ -193,6 +217,35 @@ structurally impossible.
 `.env` is covered by `.gitignore` (`.env`, `.env.*`); credentials were not
 committed and appear in no artifact.
 
+### DEFECT-2 — the same change leaked live credentials into the test process
+
+**Severity: MEDIUM. Introduced and fixed within this checkpoint.**
+
+`load_dotenv` was first placed at **module scope** in `scripts/schedule_worker.py`.
+`tests/scheduler/test_worker_timing.py:6` imports that module, so every `pytest`
+invocation that collected it injected the real `TELEGRAM_TOKEN` and
+`TELEGRAM_CHAT_ID` into `os.environ` for the entire test process.
+
+**No message was sent.** Every Telegram-adjacent test in this repo monkeypatches
+the alerter — the `"no Telegram I/O"` fixtures across `tests/runtime/` and
+`tests/scripts/` are disciplined, and `send_sync` is never reached unmocked.
+Confirmed by inspection of all such call sites.
+
+The damage was to a *safety property*, not to behaviour: before this change the
+variables were unset, so any unmocked Telegram path would silently no-op — which
+is precisely what let Checkpoint A declare "no live Telegram send" an enforceable
+constraint. Module-scope loading removed that backstop for all ~1900 tests, so a
+future unmocked path would send for real rather than no-op.
+
+Fixed by moving the call inside `main()`: the daemon still loads `.env`, the test
+import does not. Verified — importing `scripts.schedule_worker` leaves
+`TELEGRAM_TOKEN` absent from `os.environ`, and `tests/scheduler/` remains 66 green.
+
+`scripts/run_flask.py` retains module-scope loading **deliberately**: no test
+imports it, and the Flask app factory may read configuration at import time, so
+relocating the call there would risk a real breakage to fix a leak that does not
+exist.
+
 ---
 
 ## 5. Evidence limits — read these before treating this as complete
@@ -231,6 +284,7 @@ Recorded honestly rather than smoothed over.
 | 4 | MINOR-1 from Checkpoint A (index freshness inferred from filenames, `eod_decision.py:48-52`) — still deferred, unchanged. | LOW |
 | 5 | PID-file locking cannot distinguish a live holder from an unrelated process that inherited a recycled PID. Failure mode is a worker that refuses to start — loud and recoverable via the runbook's stale-lock entry — not two workers running. Accepted, not fixed. | LOW |
 | 6 | `DEVELOPER_GUIDE.md:240` documents `TELEGRAM_BOT_TOKEN`; the code reads `TELEGRAM_TOKEN`. Stale doc. | LOW |
+| 7 | **Rotate the Telegram bot token.** It was pasted into a chat transcript during this checkpoint (at Claude's invitation, against the runbook's explicit "do not paste your token" instruction) and may persist in session-observation logs whose secret-scrubbing regex keys on `token`/`secret`/`auth` adjacency — a bare `<digits>:<key>` line does not match. `.gitignore` protects the repository, not the transcript. Revoke via BotFather `/revoke`, re-issue, update `.env`. Not a blocker for tonight's fire. | **HIGH** |
 
 ---
 
