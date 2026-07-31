@@ -14,6 +14,8 @@ from typing import Any
 
 import duckdb
 
+from core.scheduler.eod_store import EodStore
+
 DATA_ROOT = Path(os.environ.get("DATA_ROOT", "data")).resolve()
 
 
@@ -485,6 +487,53 @@ class DataFacade:
             return croniter(schedule, datetime.now()).get_next(datetime).isoformat()
         except ImportError:
             return None
+
+    # ── EOD automation ────────────────────────────────────────────────
+
+    HEARTBEAT_STALE_SECONDS = 180
+    BUSY_MAX_SECONDS = 5400  # upper bound on one attempt; a crash mid-attempt ages out
+
+    @property
+    def _eod_store(self) -> EodStore:
+        path = getattr(self, "_eod_store_path", None) or (self._root / "_eod_automation.sqlite")
+        return EodStore(path)
+
+    def get_eod_status(self) -> dict:
+        from datetime import date as _date
+
+        from core.scheduler.eod_decision import MAX_ATTEMPTS
+
+        store = self._eod_store
+        heartbeat, pid = store.get_heartbeat()
+        busy_since, busy_phase = store.get_busy()
+        now = datetime.now()
+
+        fresh = False
+        if heartbeat:
+            fresh = (now - datetime.fromisoformat(heartbeat)).total_seconds() <= self.HEARTBEAT_STALE_SECONDS
+        busy = False
+        if busy_since:
+            busy = (now - datetime.fromisoformat(busy_since)).total_seconds() <= self.BUSY_MAX_SECONDS
+
+        return {
+            "enabled": store.is_enabled(),
+            "worker_alive": fresh or busy,
+            "worker_busy": busy,
+            "busy_phase": busy_phase if busy else None,
+            "worker_pid": pid,
+            "heartbeat": heartbeat,
+            "last_run": store.latest_run(),
+            "attempts_today": len(store.attempts_today(_date.today())),
+            "max_attempts": MAX_ATTEMPTS,
+        }
+
+    def set_eod_enabled(self, value: bool) -> dict:
+        self._eod_store.set_enabled(value)
+        return self.get_eod_status()
+
+    def trigger_eod_run_now(self) -> dict:
+        self._eod_store.request_run_now()
+        return {"requested": True}
 
     # ── Data Browser ──────────────────────────────────────────────────
 

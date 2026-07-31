@@ -373,3 +373,33 @@ def historical_data():
         return jsonify({"success": False, "message": "Invalid date format"}), 400
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ── EOD automation ────────────────────────────────────────────────────
+
+@data_bp.route('/api/eod/status')
+@login_required
+def eod_status():
+    try:
+        return jsonify({"success": True, "status": _get_facade().get_eod_status()})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@data_bp.route('/api/eod/toggle', methods=['POST'])
+@login_required
+def eod_toggle():
+    try:
+        enabled = bool(request.get_json().get("enabled"))
+        return jsonify({"success": True, "status": _get_facade().set_eod_enabled(enabled)})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
+@data_bp.route('/api/eod/run-now', methods=['POST'])
+@login_required
+def eod_run_now():
+    try:
+        return jsonify({"success": True, **_get_facade().trigger_eod_run_now()})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
