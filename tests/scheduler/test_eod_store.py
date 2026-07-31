@@ -70,15 +70,17 @@ def test_last_attempt_started_returns_latest_scheduled(store):
     d = date(2026, 7, 31)
     store.record(d, 1, "download", "retry", "")
     store.record(d, 2, "download", "retry", "")
-    assert store.last_attempt_started(d).date() == d
-    assert len(store.attempts_today(d)) == 2
+    attempts = store.attempts_today(d)
+    assert len(attempts) == 2
+    assert store.last_attempt_started(d) == datetime.fromisoformat(attempts[-1]["started_at"])
 
 
 def test_last_attempt_finished_returns_latest_scheduled(store):
     d = date(2026, 7, 31)
     store.record(d, 1, "download", "retry", "")
     store.record(d, 2, "download", "retry", "")
-    assert store.last_attempt_finished(d).date() == d
+    attempts = store.attempts_today(d)
+    assert store.last_attempt_finished(d) == datetime.fromisoformat(attempts[-1]["finished_at"])
     assert store.last_attempt_finished(d) >= store.last_attempt_started(d)
 
 
