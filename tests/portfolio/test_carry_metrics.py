@@ -124,13 +124,18 @@ def test_metrics_sink_called_during_execute():
             metrics_sink=fake_sink,
         )
 
+        # Must match the 6 columns _execute actually SELECTs:
+        # (underlying, z_carry_neut, quintile, eligible, raw_z, basis_reverting).
+        # raw_z is deliberately distinct from both z_carry_neut and quintile so
+        # that a regression putting either into the raw_z slot is caught rather
+        # than silently passing.
         mock_con.execute.return_value.fetchall.return_value = [
-            ("A", 1.5, 5, True),
-            ("B", 1.2, 5, True),
-            ("C", -1.8, 1, True),
-            ("D", -1.3, 1, True),
-            ("E", 0.9, 5, True),
-            ("F", -0.5, 1, True),
+            ("A", 1.5, 5, True, 3.9, False),
+            ("B", 1.2, 5, True, 3.1, False),
+            ("C", -1.8, 1, True, -4.2, False),
+            ("D", -1.3, 1, True, -3.7, True),
+            ("E", 0.9, 5, True, 2.6, False),
+            ("F", -0.5, 1, True, -2.2, False),
         ]
 
         with patch.object(hook, '_load_adva', return_value={
@@ -159,4 +164,76 @@ def test_metrics_sink_called_during_execute():
     assert len(target_recv.shorts) > 0
     assert metrics_recv is not None
     assert cap_recv.current_equity == 10_000_000.0
-    assert cap_recv.current_equity == 10_000_000.0
+
+
+def test_trade_sink_receives_raw_z_not_quintile():
+    """facts_full[2] must carry raw_z (the unclamped z), not quintile.
+
+    TradeIntelligenceSink._process reads f[2] as raw_z and writes it to
+    trade_intelligence.duckdb. _execute previously built that slot from r[2]
+    (quintile) instead of r[4] (raw_z), so every trade would have recorded a
+    1-5 bucket in the raw_z column. Caught only because the stale 4-tuple mock
+    made the same line raise IndexError.
+    """
+    from datetime import date as Date
+    from unittest.mock import patch, MagicMock
+    from core.execution.portfolio.carry_rebalancer import (
+        CarryRebalancerHook, paper_gross_exposure_policy,
+    )
+
+    td = Date(2019, 6, 1)
+    trade_calls = []
+
+    tracker = MagicMock()
+    tracker.get_all_positions.return_value = {}
+    exec_ = MagicMock()
+    exec_.position_tracker = tracker
+    m = MagicMock()
+    m.cash_balance = 10_000_000.0
+    m.max_equity = 10_000_000.0
+    m.max_drawdown_pct = 0.0
+    exec_.metrics = m
+    exec_.pnl_tracker = None
+
+    # (underlying, z_carry_neut, quintile, eligible, raw_z, basis_reverting)
+    rows = [
+        ("A", 1.5, 5, True, 3.9, False),
+        ("B", 1.2, 5, True, 3.1, False),
+        ("C", -1.8, 1, True, -4.2, False),
+        ("D", -1.3, 1, True, -3.7, True),
+        ("E", 0.9, 5, True, 2.6, False),
+        ("F", -0.5, 1, True, -2.2, False),
+    ]
+    expected_raw_z = {r[0]: r[4] for r in rows}
+    expected_quintile = {r[0]: r[2] for r in rows}
+
+    with patch('duckdb.connect') as mock_connect:
+        mock_con = MagicMock()
+        mock_con.execute.return_value.fetchall.return_value = rows
+        mock_connect.return_value = mock_con
+
+        hook = CarryRebalancerHook(
+            facts_db_path=":memory:",
+            execution_handler=exec_,
+            gross_exposure_policy=paper_gross_exposure_policy,
+            trade_sink=lambda fd, ex, pe, facts: trade_calls.append(facts),
+        )
+
+        with patch.object(hook, '_load_adva', return_value={
+            u: 1e9 for u in expected_raw_z
+        }):
+            with patch.object(hook, '_execute_deltas', return_value=MagicMock()):
+                hook._execute(td)
+
+    assert len(trade_calls) == 1
+    facts = trade_calls[0]
+    assert facts, "trade_sink received no facts"
+    for f in facts:
+        underlying, z, raw_z, quintile, basis_reverting = f
+        assert raw_z == expected_raw_z[underlying], (
+            f"{underlying}: raw_z slot carried {raw_z}, expected "
+            f"{expected_raw_z[underlying]}"
+        )
+        assert quintile == expected_quintile[underlying]
+        # The regression: raw_z must not be the quintile.
+        assert raw_z != quintile

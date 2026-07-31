@@ -16,9 +16,14 @@ circular could not be fetched directly, the value is the best-documented figure
 and is flagged with [VERIFY]; each is a localized constant an era-revision will
 correct in one line.
 
-STT (Securities Transaction Tax) — derivatives, SELL side only. Three tiers:
-  - Through 2023-03-31: 0.0100% (Rs 10/lakh) on sell side. In force for most
-    of the dev window (2008 -> 2023-03).
+STT (Securities Transaction Tax) — derivatives, SELL side only. Four tiers:
+  - 2008-06-01 -> 2013-05-31: 0.0170% (Rs 17/lakh). Derivatives were brought
+    into STT at this rate. NEVER PRICED BY ANY READ — the futures substrate
+    starts 2016-02-11 — but pinned so the schedule is correct rather than
+    merely correct-where-used. Added 2026-08-01; see below.
+  - 2013-06-01 -> 2023-03-31: 0.0100% (Rs 10/lakh), Budget 2013 cut from
+    0.017%. This is the rate in force for the whole usable substrate up to
+    2023-03, and is unchanged by the 2026-08-01 correction.
   - 2023-04-01 -> 2024-09-30: 0.0125% (Rs 12.5/lakh), Finance Act 2023 (+25%
     over the 0.0100% rate).
   - From 2024-10-01: 0.0200% (Rs 20/lakh), Finance (No. 2) Act 2024 / Budget
@@ -27,6 +32,13 @@ STT (Securities Transaction Tax) — derivatives, SELL side only. Three tiers:
     CARRY_PHASE0_PRE_REGISTRATION.md section 8 and used by the Carry research
     harnesses (run_sealed.py / run_net_spread.py); it is the single source of
     truth for research and production (CARRY_IMPLEMENTATION_BRIDGE.md section 5.1).
+  - 2026-08-01 CORRECTION: the 0.0170% tier (2008-06-01 -> 2013-05-31) was
+    missing; 0.0100% was applied from 2008-06-01. Every rate on and after
+    2013-06-01 is UNCHANGED, so no pre-registered number moves: the earliest
+    date any harness can price is 2016-02-11. This was not a research finding
+    — it surfaced because arm_fe asserted a rate (0.0125% at 2008-06-01) that
+    was itself wrong, and reconciling the two required establishing the real
+    schedule. Both are now correct.
   - Sources: [caclubindia](
       https://www.caclubindia.com/articles/securities-transaction-tax-rate-hikes-on-f-amp-o-w-e-f-1st-october-24-55626.asp),
       [ICICI Direct](
@@ -97,7 +109,8 @@ SEBI_FEE_RATE = 0.000001  # 0.0001% of turnover (Rs 10/crore) — both legs, sta
 _STT_FUTURES_SCHEDULE = (
     (date(2024, 10, 1), 0.0002),     # 0.0200% — Oct-2024 derivatives STT revision.
     (date(2023, 4, 1), 0.000125),    # 0.0125% — Finance Act 2023 (+25%).
-    (date(2008, 6, 1), 0.0001),      # 0.0100% — pre-2023-04 derivatives STT (sell-side).
+    (date(2013, 6, 1), 0.0001),      # 0.0100% — Budget 2013 cut from 0.017%.
+    (date(2008, 6, 1), 0.00017),     # 0.0170% — derivatives brought into STT.
     (date(1900, 1, 1), 0.0),         # No STT on derivatives before 2008.
 )
 # NSE derivatives (F&O) transaction charge — ad-valorem, both legs.

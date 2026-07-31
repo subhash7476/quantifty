@@ -531,7 +531,8 @@ class CarryRebalancerHook:
                   float(r[4]) if len(r) > 4 and r[4] is not None else float(r[1]),
                   bool(r[5]) if len(r) > 5 and r[5] is not None else False)
                  for r in rows if r[3]]  # eligible only
-        facts_full = [(r[0], float(r[1]), float(r[2]) if r[4] else float(r[1]),
+        facts_full = [(r[0], float(r[1]),
+                       float(r[4]) if r[4] is not None else float(r[1]),
                        r[2], r[5]) for r in rows if r[3]]
         # facts_full: (underlying, z, raw_z, quintile, basis_reverting)
 
