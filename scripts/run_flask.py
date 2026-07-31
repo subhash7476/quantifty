@@ -9,6 +9,10 @@ from pathlib import Path
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 
+from dotenv import load_dotenv
+
+load_dotenv(ROOT / ".env")
+
 from flask_app import create_app
 from core.logging import setup_logger
 
