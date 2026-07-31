@@ -15,8 +15,8 @@ checkpoint's review verdict.
 |---|---|---|
 | A | 1–4 — control store, decision logic, Telegram, chain runner | **PASSED** 2026-07-31 (`EOD_AUTOMATION_CHECKPOINT_A_REVIEW.md`) |
 | B | 5–6 — orchestrator, worker daemon | **PASSED** 2026-07-31 (`EOD_AUTOMATION_CHECKPOINT_B_REVIEW.md`) |
-| **C** | 7–8 — facade + API, UI tab | **ISSUED** |
-| D | 9 — end-to-end verification | HELD |
+| C | 7–8 — facade + API, UI tab | **PASSED** 2026-07-31 (`EOD_AUTOMATION_CHECKPOINT_C_REVIEW.md`) |
+| **D** | 9 — end-to-end verification | **ISSUED — operator-driven runbook** |
 
 ---
 
@@ -549,3 +549,218 @@ Expected: at least 4.
 - **MINOR-1** (index freshness from filenames) — still deferred, do not fix
 - Any change to `download_all_data.py`, `refresh_all_strategies.py`,
   `ts_basis_daily_signals.py`, `ts_basis_daily_options.py`
+
+---
+
+## Prompt D — Task 9: end-to-end verification (OPERATOR RUNBOOK)
+
+**Prerequisite:** Checkpoints A, B, C all PASSED. Implementation is complete; 61 scheduler
+tests green.
+
+**This checkpoint is executed by the operator, not by DeepSeek.** It requires Telegram
+credentials, starts a daemon that performs real downloads, and includes a visual browser check
+no automated client can make. Claude does not handle credentials and will not run these steps.
+
+Work through the steps in order. **Each step states what you should see.** If what you see
+does not match, stop and check §Troubleshooting before continuing — a mismatch early makes
+everything after it meaningless.
+
+### Before you start
+
+```bash
+git branch --show-current          # expect: feat/eod-automation-scheduler
+python -m pytest tests/scheduler/ -q   # expect: 61 passed
+ls data/_eod_worker.lock data/_eod_automation.sqlite   # expect: neither exists
+```
+
+If a lock or store file exists from earlier experimentation, delete both before starting —
+the schema has no migration path and a stale lock will block the worker.
+
+**Timing note:** today is Friday. If you leave the toggle **Enabled**, the job fires tonight
+at 20:00 for real. Leave it **Disabled** until this runbook passes; step 8 covers turning it on
+deliberately.
+
+---
+
+### Step 1 — Set credentials (operator only)
+
+PowerShell:
+
+```
+$env:TELEGRAM_TOKEN="<your bot token>"
+$env:TELEGRAM_CHAT_ID="<your chat id>"
+```
+
+**Everything else in this runbook must be started from this same shell**, because the worker
+inherits these variables from its parent process. A worker launched from a different terminal
+will silently fail to send — `send_sync` logs a warning and returns `False`, it does not crash.
+
+Do not commit these values, do not paste them into a file, and do not paste them back to
+Claude.
+
+### Step 2 — Prove Telegram delivery in isolation
+
+```bash
+python -c "from core.scheduler.eod_telegram import send_sync; print(send_sync('EOD automation test message'))"
+```
+
+**Expect:** prints `True`, and the message arrives on your phone.
+
+**Do not continue past a `False`.** Every later step depends on delivery working; debugging it
+inside a full run is far harder. See §Troubleshooting.
+
+### Step 3 — Start the worker
+
+In the same shell:
+
+```bash
+python scripts/schedule_worker.py
+```
+
+**Expect** two log lines immediately:
+
+```
+EOD worker started (pid NNNNN), local UTC offset 5:30:00
+Fire window 20:00-23:30 Mon-Fri, retry 30min, max 8 attempts
+```
+
+Confirm the **UTC offset reads 5:30:00** — this is the one place a timezone misconfiguration
+would surface, and it would otherwise shift the whole schedule silently. Leave this window
+running; it ticks once a minute.
+
+### Step 4 — Browser check (closes the Checkpoint C evidence gap)
+
+In a **second** terminal: `python scripts/run_flask.py`
+Open `http://127.0.0.1:5000/data/` → **Automation** tab.
+
+**Expect:**
+- The panel renders — heading, description, "Run now" and toggle buttons, status lines.
+- Worker shows **green "running" with the pid** from step 3 (within 60 s of the worker start).
+- Toggle reads **Disabled**.
+
+Click the toggle to **Enabled**, reload the page, confirm it still reads Enabled — then click
+it back to **Disabled** for now.
+
+This is the first time the tab has rendered in a real browser. Look at it properly: layout,
+alignment, whether the status lines read sensibly. Report anything that looks wrong even if it
+functions.
+
+### Step 5 — Manual run
+
+Click **Run now**.
+
+**Expect within ~60 s**, in the worker terminal:
+
+```
+Manual run requested — running one attempt (attempt=0)
+```
+
+then a `download_all_data.py` run (several minutes), then one of:
+
+| Situation | Worker log | Telegram |
+|---|---|---|
+| Data arrived | `Manual run outcome: success` | **2 messages** — download summary, then the options book |
+| No data, at/after 21:00 | `Manual run outcome: holiday` | **1 message** — EOD STOPPED |
+| No data, before 21:00 | `Manual run outcome: retry` | **none — this is correct** |
+| A chain script failed | `Manual run outcome: chain_failed` | **1 message** with the failing step and stderr tail |
+
+> **Important, and the most likely thing to confuse you:** a `retry` outcome sends **no
+> Telegram message at all**. That is deliberate — on a slow-publication evening the scheduled
+> job can retry up to 8 times, and notifying each would mean 8 messages a night. If you click
+> Run now before 21:00 on a day whose data has not published, you will correctly see *nothing*
+> on your phone. Check the worker log and the tab's "Last run" line instead. This is not a bug.
+
+**While the run is in progress**, refresh the Automation tab. It should show amber
+**"running — manual run in progress"**. That is Checkpoint B's IMPORTANT-1 fix working; if it
+instead shows red "not running" during the run, report it.
+
+### Step 6 — Confirm the manual run did not consume the evening
+
+```bash
+python -c "import sqlite3;print(sqlite3.connect('data/_eod_automation.sqlite').execute('SELECT run_date,attempt,outcome,detail FROM eod_run_log ORDER BY started_at DESC LIMIT 5').fetchall())"
+```
+
+**Expect:** the newest row has **`attempt = 0`**.
+
+That is what makes a manual run non-terminal — the scheduled attempts for tonight are still
+free to run. If it shows `attempt = 1`, stop and report: the manual path is wrongly consuming
+scheduled attempts.
+
+### Step 7 — Single-instance lock
+
+In a **third** terminal: `python scripts/schedule_worker.py`
+
+**Expect:** it exits immediately with
+
+```
+Another worker is already running (see ...\data\_eod_worker.lock). Exiting.
+```
+
+Then confirm the **first** worker is still alive and ticking. (This was checked in review
+because on some Python builds a liveness probe can terminate the very process it is testing;
+it does not on this build, but confirm it directly here.)
+
+### Step 8 — Arm it
+
+Only once steps 1–7 all matched: on the Automation tab, set the toggle to **Enabled** and
+leave the worker running.
+
+The job will fire at **20:00** on the next weekday. On a normal evening you should receive two
+messages. Nothing further is required from you.
+
+### Step 9 — Report back to Claude
+
+Paste back:
+
+1. Step 2's output (`True` / `False`).
+2. The worker's two startup lines, **including the UTC offset**.
+3. What the Automation tab looked like — and anything visually off.
+4. Step 5: the outcome line, which of the four situations occurred, and the Telegram messages
+   received (paste their text).
+5. Whether the amber busy state appeared during the run.
+6. Step 6's `eod_run_log` rows.
+7. Step 7's lock message.
+8. Anything that did not match expectations.
+
+Claude will write `docs/reports/EOD_AUTOMATION_VERIFICATION.md` from that and commit it,
+closing the program. **Do not paste your token or chat id.**
+
+---
+
+### Troubleshooting
+
+**Step 2 printed `False`.**
+The log line above it says why. Most likely: the variables are not set *in this shell* — check
+with `echo $env:TELEGRAM_TOKEN`. Otherwise: HTTP 401 means a bad token; HTTP 400 usually means
+a bad chat id. Note messages send as plain text by design, so a ticker containing `_` cannot
+be the cause.
+
+**Tab shows "not running" but the worker terminal is alive.**
+Give it 60 seconds — the heartbeat is written once per tick. If it persists, the worker is
+probably writing to a different store than Flask is reading; confirm both were started from
+`F:\Nifty` and that `data/_eod_automation.sqlite` exists.
+
+**Tab shows "not running" *during* a long run.**
+That is the defect Checkpoint C fixed. Report it — it means the busy marker is not being
+written.
+
+**Worker refuses to start with "Another worker is already running" but none is.**
+A stale lock from a killed process. Delete `data/_eod_worker.lock` and start again.
+
+**Run now produced no Telegram message and no obvious error.**
+Almost certainly the `retry` outcome — see the callout in step 5. Confirm via the worker log
+and the `eod_run_log` query in step 6.
+
+**The chain failed.**
+The Telegram message names the failing step and the last 20 stderr lines. `corp-actions` inside
+`download_all_data.py` is *not* a chain step and its failure does not stop the chain — the feed
+probe, not the exit code, decides whether data arrived.
+
+### Kill switch
+
+- **Stop tonight's run:** set the toggle to **Disabled** on the Automation tab. Takes effect
+  within 60 seconds; no restart needed.
+- **Stop the worker entirely:** Ctrl+C in its terminal, then delete `data/_eod_worker.lock`.
+- **Full reset:** stop the worker, delete both `data/_eod_worker.lock` and
+  `data/_eod_automation.sqlite`. This clears all run history and returns the toggle to
+  Disabled. It touches no market data.
