@@ -222,6 +222,16 @@ def _raw_paths(name: str, d: date):
     return RAW_DIR / f"{stem}.{ext}", RAW_DIR / f"{stem}.404"
 
 
+def _may_cache_miss(d: date) -> bool:
+    """A 404 only proves absence once the date has closed.
+
+    Before that it means "not published yet", and the marker is permanent: a
+    single forward-probing run wrote 289 of them covering every date through
+    2026-12-31, suppressing equity ingestion silently for months.
+    """
+    return d < date.today()
+
+
 def fetch(name: str, d: date, attempts: int = 3):
     """Return raw bytes, or None if the source confirmed 404 (absent).
 
@@ -240,7 +250,8 @@ def fetch(name: str, d: date, attempts: int = 3):
     for attempt in range(attempts):
         resp = get_session().get(url, timeout=(15, 120))
         if resp.status_code == 404:
-            miss_path.write_bytes(b"")
+            if _may_cache_miss(d):
+                miss_path.write_bytes(b"")
             return None
         resp.raise_for_status()
         if _valid_body(name, resp.content):
@@ -472,7 +483,8 @@ def fo_is_trading(d: date):
             time.sleep(0.4)
             return True
         if resp.status_code == 404:
-            miss_path.write_bytes(b"")
+            if _may_cache_miss(d):
+                miss_path.write_bytes(b"")
             continue
         transient = True
     return None if transient else False
