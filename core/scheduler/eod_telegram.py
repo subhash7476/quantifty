@@ -78,6 +78,18 @@ def format_options_book(target: date, contracts: list[dict]) -> str:
     return truncate("\n".join(lines))
 
 
+def format_book_suppressed(stale: dict[str, date | None], today: date) -> str:
+    lines = [f"BOOK SUPPRESSED — {today}", "",
+             "The options book was withheld: the data below is not current for",
+             "today, so any book built from it would be stale.", ""]
+    for name in sorted(stale):
+        d = stale[name]
+        lines.append(f"  stale {name}: {d if d else 'no data'}")
+    lines.append("")
+    lines.append("Download and strategy refresh completed normally.")
+    return truncate("\n".join(lines))
+
+
 def format_chain_failure(step: str, tail: str) -> str:
     return truncate(f"CHAIN FAILED — {step}\n\n{tail}")
 

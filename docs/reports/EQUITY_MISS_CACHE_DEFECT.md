@@ -156,11 +156,28 @@ covering correct existing behaviour passed throughout).
 
 ## 5. What is *not* fixed
 
-1. **The EOD chain still cannot fail on a stale equity feed.** `decide()` gates on
-   futures alone. The guard above stops this specific cause of silent staleness;
-   it does not make the pipeline capable of *reporting* staleness from any other
-   cause. A freshness assertion across all four feeds — failing the run, not
-   printing `old` in passing — is the durable fix and is **not implemented**.
+1. ~~**The EOD chain still cannot fail on a stale equity feed.**~~
+   **CLOSED 2026-07-31 — book publication is now gated on freshness.**
+   `run_attempt()` asserts all four feeds match the run date before publishing;
+   if any is stale it sends `BOOK SUPPRESSED` naming each stale feed and its
+   date, and never builds the book.
+
+   **Scope was a deliberate operator decision.** The alternative — block the
+   whole chain when any feed is stale — was rejected: a partial NSE outage would
+   then cost the entire evening's processing, including work that would have been
+   valid. Evidence supported the narrower fix: when equity was stale tonight the
+   chain degraded *gracefully*, leaving `ts_facts` at 2026-07-29 rather than
+   writing a bogus row. The only genuinely dangerous artifact was the published
+   book, so that is what is gated.
+
+   `decide()` is unchanged and still triggers on futures; the frozen terminal
+   outcome set (`success`/`holiday`/`exhausted`/`chain_failed`) is not extended —
+   a suppressed run is still `success`, distinguished by its `detail` field.
+
+   **Residual risk:** if any feed routinely lags futures, books will be
+   suppressed routinely. All four reached 2026-07-31 tonight, so the bar is
+   achievable, but this has one evening of evidence. Watch for repeated
+   suppression naming the same feed.
 2. **Whatever ran on 2026-07-09 probed five months of forward dates.** That caller
    was never identified. The guard makes forward probing harmless, so this is no
    longer urgent, but the behaviour is unexplained and may be wasting requests.

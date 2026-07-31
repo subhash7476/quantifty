@@ -69,6 +69,16 @@ def run_attempt(store: EodStore, run_date: date, attempt: int,
                      f"{failed.label}: {failed.stderr_tail[:300]}")
         return "chain_failed"
 
+    # A book is only as current as the feeds behind it. Publishing one built on
+    # a stale feed is the failure that shipped a two-day-old book on 2026-07-31.
+    stale = {name: d for name, d in feeds.items() if d != run_date}
+    if stale:
+        deps.send(tg.format_book_suppressed(stale, run_date))
+        store.record(run_date, attempt, "done", "success",
+                     f"{len(results)} chain steps ok; book suppressed — "
+                     f"stale: {', '.join(sorted(stale))}")
+        return "success"
+
     target, contracts = deps.book()
     deps.send(tg.format_options_book(target, contracts))
     store.record(run_date, attempt, "done", "success", f"{len(results)} chain steps ok")
