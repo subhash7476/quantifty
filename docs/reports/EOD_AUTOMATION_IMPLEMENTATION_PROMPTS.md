@@ -14,8 +14,8 @@ checkpoint's review verdict.
 | Checkpoint | Tasks | Status |
 |---|---|---|
 | A | 1–4 — control store, decision logic, Telegram, chain runner | **PASSED** 2026-07-31 (`EOD_AUTOMATION_CHECKPOINT_A_REVIEW.md`) |
-| **B** | 5–6 — orchestrator, worker daemon | **ISSUED** |
-| C | 7–8 — facade + API, UI tab | HELD |
+| B | 5–6 — orchestrator, worker daemon | **PASSED** 2026-07-31 (`EOD_AUTOMATION_CHECKPOINT_B_REVIEW.md`) |
+| **C** | 7–8 — facade + API, UI tab | **ISSUED** |
 | D | 9 — end-to-end verification | HELD |
 
 ---
@@ -280,3 +280,272 @@ Three commits on `feat/eod-automation-scheduler`:
 - **MINOR-1 from the Checkpoint A review** (index freshness inferred from filenames rather
   than row contents, `eod_decision.py:48-52`). Reviewed, bounded, and deliberately deferred.
   Do not fix it in this checkpoint.
+
+---
+
+## Prompt C — Tasks 7 and 8
+
+**Prerequisite:** Checkpoints A and B PASSED
+(`EOD_AUTOMATION_CHECKPOINT_A_REVIEW.md`, `EOD_AUTOMATION_CHECKPOINT_B_REVIEW.md`).
+Branch `feat/eod-automation-scheduler` is at the reviewed state. Do not revisit Tasks 1–6
+except for the mandated change below.
+
+### Context
+
+Checkpoints A and B built a working job and a daemon around it. Everything so far has been
+**new files**. This checkpoint is different, and it is the riskiest of the four:
+
+- **You are editing two large existing files** — `app_facade/data_facade.py` (~700 lines,
+  inserting methods *inside* an existing class) and `flask_app/templates/data/index.html`
+  (790 lines, inserting into an existing JS object literal).
+- **Both failure modes are silent.** A method pasted at the wrong indentation lands at module
+  scope instead of on the class, and nothing errors until the endpoint is hit. A JS method
+  inserted with a missing or doubled comma breaks the entire `DataUI` object — every tab on
+  the page stops working, with only a console error to show for it.
+
+The plan's line references (`~line 487`, `~line 280`, `~line 730`) are **approximate**.
+Locate the anchors by content, not by line number, and verify placement afterwards using the
+mandatory checks below.
+
+Authoritative source remains
+`docs/superpowers/plans/2026-07-31-eod-automation-scheduler.md`, except where overridden
+here.
+
+### Required change to the plan — distinguish "busy" from "dead" (Checkpoint B IMPORTANT-1)
+
+`run_attempt()` runs **synchronously inside the worker's tick loop**, so no heartbeat is
+written for the whole duration of an attempt. The plan's facade treats a heartbeat older
+than 180 s as a dead worker. A real attempt takes far longer than 3 minutes
+(`download_all_data.py` alone ran 4–8 minutes, plus three chain scripts), so **the UI would
+show the worker "not running" during every real run** — exactly when the operator is looking,
+and an invitation to start a second worker that the lock will then refuse.
+
+Fix it by having the worker declare that it is busy. Apply all four parts.
+
+**1. `core/scheduler/eod_store.py`** — add two columns to the `eod_automation` CREATE TABLE:
+
+```sql
+                    busy_since       TEXT,
+                    busy_phase       TEXT
+```
+
+and add two methods:
+
+```python
+    def set_busy(self, phase: str | None) -> None:
+        with self._conn() as con:
+            if phase is None:
+                con.execute("UPDATE eod_automation SET busy_since=NULL, busy_phase=NULL WHERE id=1")
+            else:
+                con.execute("UPDATE eod_automation SET busy_since=?, busy_phase=? WHERE id=1",
+                            [datetime.now().isoformat(), phase])
+
+    def get_busy(self) -> tuple[str | None, str | None]:
+        with self._conn() as con:
+            row = con.execute("SELECT busy_since, busy_phase FROM eod_automation WHERE id=1").fetchone()
+            return row[0], row[1]
+```
+
+There is **no migration path and none is needed** — no `data/_eod_automation.sqlite` exists
+yet. If one appeared during your testing, delete it before running.
+
+**2. Add to `tests/scheduler/test_eod_store.py`:**
+
+```python
+def test_busy_defaults_clear_and_round_trips(store):
+    assert store.get_busy() == (None, None)
+    store.set_busy("attempt 2")
+    since, phase = store.get_busy()
+    assert phase == "attempt 2"
+    assert datetime.fromisoformat(since)
+    store.set_busy(None)
+    assert store.get_busy() == (None, None)
+```
+
+**3. `scripts/schedule_worker.py`** — wrap **both** `run_attempt` call sites so the marker is
+always cleared, including on failure:
+
+```python
+                store.set_busy("manual run")
+                try:
+                    outcome = run_attempt(store, today, 0, now)
+                finally:
+                    store.set_busy(None)
+```
+
+and, in the scheduled branch:
+
+```python
+                    store.set_busy(f"attempt {n}")
+                    try:
+                        outcome = run_attempt(store, today, n, now)
+                    finally:
+                        store.set_busy(None)
+```
+
+**4. Task 7's `get_eod_status`** — use this instead of the plan's version:
+
+```python
+    HEARTBEAT_STALE_SECONDS = 180
+    BUSY_MAX_SECONDS = 5400  # upper bound on one attempt; a crash mid-attempt ages out
+
+    def get_eod_status(self) -> dict:
+        from datetime import date as _date
+
+        from core.scheduler.eod_decision import MAX_ATTEMPTS
+
+        store = self._eod_store
+        heartbeat, pid = store.get_heartbeat()
+        busy_since, busy_phase = store.get_busy()
+        now = datetime.now()
+
+        fresh = False
+        if heartbeat:
+            fresh = (now - datetime.fromisoformat(heartbeat)).total_seconds() <= self.HEARTBEAT_STALE_SECONDS
+        busy = False
+        if busy_since:
+            busy = (now - datetime.fromisoformat(busy_since)).total_seconds() <= self.BUSY_MAX_SECONDS
+
+        return {
+            "enabled": store.is_enabled(),
+            "worker_alive": fresh or busy,
+            "worker_busy": busy,
+            "busy_phase": busy_phase if busy else None,
+            "worker_pid": pid,
+            "heartbeat": heartbeat,
+            "last_run": store.latest_run(),
+            "attempts_today": len(store.attempts_today(_date.today())),
+            "max_attempts": MAX_ATTEMPTS,
+        }
+```
+
+**5. Add to `tests/scheduler/test_eod_facade.py`:**
+
+```python
+def test_busy_worker_counts_as_alive_despite_stale_heartbeat(facade):
+    store = EodStore(facade._eod_store_path)
+    store.heartbeat(999)
+    store.set_busy("attempt 1")
+    stale = (datetime.now() - timedelta(minutes=10)).isoformat()
+    con = sqlite3.connect(str(facade._eod_store_path))
+    con.execute("UPDATE eod_automation SET worker_heartbeat=? WHERE id=1", [stale])
+    con.commit()
+    con.close()
+    st = facade.get_eod_status()
+    assert st["worker_alive"] is True
+    assert st["worker_busy"] is True
+    assert st["busy_phase"] == "attempt 1"
+
+
+def test_stale_busy_marker_ages_out(facade):
+    store = EodStore(facade._eod_store_path)
+    store.set_busy("attempt 1")
+    ancient = (datetime.now() - timedelta(hours=3)).isoformat()
+    con = sqlite3.connect(str(facade._eod_store_path))
+    con.execute("UPDATE eod_automation SET busy_since=? WHERE id=1", [ancient])
+    con.commit()
+    con.close()
+    assert facade.get_eod_status()["worker_alive"] is False
+```
+
+**6. Task 8's `_loadEod`** — render busy state. Replace the plan's `worker` expression with:
+
+```javascript
+        const worker = s.worker_busy
+            ? `<span class="text-amber-400">running — ${s.busy_phase} in progress</span> (pid ${s.worker_pid})`
+            : s.worker_alive
+            ? `<span class="text-emerald-400">running</span> (pid ${s.worker_pid})`
+            : `<span class="text-red-400">not running</span> — start it with <code>python scripts/schedule_worker.py</code>`;
+```
+
+Commit parts 1–3 as their own commit before Task 7:
+`fix: distinguish a busy EOD worker from a dead one`
+
+### Working agreement
+
+1. Branch `feat/eod-automation-scheduler`. Confirm with `git branch --show-current`.
+2. Implement the mandated change, then **Tasks 7 and 8 only**. **Stop after Task 8.**
+   Do not start Task 9.
+3. Same TDD cycle: write test → run and confirm it fails for the stated reason → implement →
+   run → commit. Task 8 is UI and has no unit test; its gate is the browser check below.
+4. Three commits total.
+5. Read both files you are modifying **before** editing them.
+
+### Mandatory placement verification
+
+Run these after Task 7 and paste the output. They exist because a mis-indented paste is
+invisible until runtime.
+
+```bash
+python -c "from app_facade.data_facade import DataFacade; print('on class:', all(hasattr(DataFacade, m) for m in ['get_eod_status','set_eod_enabled','trigger_eod_run_now']))"
+```
+Expected `on class: True`. If it prints `False`, the methods landed at module scope — fix the
+indentation.
+
+```bash
+python -c "import flask_app.blueprints.data.routes as r; print('view functions:', [n for n in ('eod_status','eod_toggle','eod_run_now') if hasattr(r, n)])"
+```
+Expected all three names listed. This proves the module imports cleanly and the decorated
+view functions exist — a syntax error or a bad decorator shows up here rather than at runtime.
+
+Then confirm the routes are actually reachable: start Flask and request
+`GET /data/api/eod/status`. A **302 redirect or 401** from `@login_required` is a **pass** —
+it proves the rule is registered. A **404 is a failure**. Report the status code you saw.
+
+After Task 8, confirm the template edits landed:
+
+```bash
+grep -c "tab-content-automation\|eod-toggle\|eod-status\|_loadEod" flask_app/templates/data/index.html
+```
+Expected: at least 4.
+
+### Constraints (carried forward, still binding)
+
+- Control store SQLite, never DuckDB.
+- Subprocess capture keeps both halves: `encoding="utf-8", errors="replace"` **and**
+  `env={**os.environ, "PYTHONIOENCODING": "utf-8"}`.
+- Telegram plain text, no `parse_mode`; 4096-char truncation.
+- Terminal outcomes exactly `success`, `holiday`, `exhausted`, `chain_failed`.
+- Do not modify the four orchestrated scripts.
+- Do not reuse or modify `data/_schedule.duckdb` / `scheduled_jobs`.
+- No new dependencies.
+- **Do not start the worker's `main()` loop.** Task 8's browser check requires the worker
+  running to show a live pid — that step is **deferred to Checkpoint D**. For Task 8, verify
+  the "not running" state renders correctly and the toggle persists across a page reload;
+  that is sufficient.
+- Match the surrounding style in both edited files. The template uses Tailwind utility
+  classes and an object-literal `DataUI`; the facade uses 4-space indentation inside the
+  class. Do not reformat surrounding code.
+
+### Deliverables
+
+| Order | Change | Tests |
+|---|---|---|
+| 1 | Busy/dead marker — `eod_store.py`, `schedule_worker.py` | `test_eod_store.py` (+1) |
+| 2 | Task 7 — facade methods + 3 endpoints | `test_eod_facade.py` (6 + 2 = 8) |
+| 3 | Task 8 — Automation tab | browser check |
+
+### Report back
+
+1. `git log --oneline main..HEAD`.
+2. Full output of `python -m pytest tests/scheduler/ -v`.
+3. Actual test count per file. Prediction: store 15, facade 8, total 61. Predictions, not
+   targets — report actuals and flag divergence.
+4. **Both placement-verification outputs, pasted verbatim** (facade `on class:` line, and the
+   route check with the status code you observed).
+5. The template `grep -c` count.
+6. What you saw in the browser on the Automation tab: does it render, does the toggle persist
+   across a reload, does it show "not running" in red.
+7. Any deviation and why. Deviations are welcome when justified — Checkpoint A's was correct
+   and accepted — but must be reported, never silent.
+8. `python -m pytest tests/ -q` summary line. Baseline: `9 failed, 1868 passed, 4 skipped`.
+9. Confirm you did not start the worker loop.
+
+### Explicitly out of scope for Checkpoint C
+
+- Task 9 (end-to-end verification)
+- Any live Telegram send
+- Running the worker daemon or the real chain
+- **MINOR-1** (index freshness from filenames) — still deferred, do not fix
+- Any change to `download_all_data.py`, `refresh_all_strategies.py`,
+  `ts_basis_daily_signals.py`, `ts_basis_daily_options.py`
