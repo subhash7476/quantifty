@@ -56,6 +56,9 @@
         <button onclick="DataUI.switchTab('schedule')" id="tab-schedule" class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 whitespace-nowrap">
             <i class="fas fa-clock mr-2"></i>Schedule
         </button>
+        <button onclick="DataUI.switchTab('automation')" id="tab-automation" class="tab-btn px-5 py-3 text-sm font-semibold border-b-2 border-transparent text-slate-500 hover:text-slate-300 whitespace-nowrap">
+            <i class="fas fa-robot mr-2"></i>Automation
+        </button>
     </div>
 
     <!-- ============ OVERVIEW ============ -->
@@ -259,6 +262,23 @@
             </table>
         </div>
     </div>
+
+    <!-- ============ AUTOMATION ============ -->
+    <div id="tab-content-automation" class="tab-content hidden">
+        <div class="bg-slate-900/50 border border-slate-800 rounded-xl p-6">
+            <div class="flex items-start justify-between mb-4">
+                <div>
+                    <h3 class="text-white font-semibold mb-1">EOD Automation</h3>
+                    <p class="text-sm text-slate-400">Runs the full download + strategy chain at 20:00 Mon–Fri, retrying every 30 min until data arrives (hard stop 23:30). Reports to Telegram.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="DataUI._eodRunNow()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg text-sm">Run now</button>
+                    <button id="eod-toggle" onclick="DataUI._eodToggle()" class="px-4 py-2 rounded-lg text-sm text-white bg-slate-700">…</button>
+                </div>
+            </div>
+            <div id="eod-status" class="text-sm text-slate-300 space-y-1"></div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -314,6 +334,7 @@ const DataUI = {
         if (name === 'ingestion') this._loadPipelines();
         if (name === 'schedule') this._loadSchedule();
         if (name === 'explorer') this._loadExplorerTables();
+        if (name === 'automation') this._loadEod();
     },
 
     // ── Overview ─────────────────────────────────────────────────
@@ -775,6 +796,48 @@ const DataUI = {
         if (!confirm('Delete this scheduled job?')) return;
         await fetch(`/data/api/schedule/${id}`, {method:'DELETE'});
         this._loadSchedule();
+    },
+
+    // ── EOD Automation ───────────────────────────────────────────
+    async _loadEod() {
+        const r = await fetch('/data/api/eod/status');
+        const d = await r.json();
+        if (!d.success) return;
+        const s = d.status;
+        const btn = document.getElementById('eod-toggle');
+        btn.textContent = s.enabled ? 'Enabled' : 'Disabled';
+        btn.className = 'px-4 py-2 rounded-lg text-sm text-white ' +
+            (s.enabled ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-slate-700 hover:bg-slate-600');
+
+        const worker = s.worker_busy
+            ? `<span class="text-amber-400">running — ${s.busy_phase} in progress</span> (pid ${s.worker_pid})`
+            : s.worker_alive
+            ? `<span class="text-emerald-400">running</span> (pid ${s.worker_pid})`
+            : `<span class="text-red-400">not running</span> — start it with <code>python scripts/schedule_worker.py</code>`;
+        const last = s.last_run
+            ? `${s.last_run.run_date} attempt ${s.last_run.attempt} → <b>${s.last_run.outcome}</b> <span class="text-slate-500">${s.last_run.detail || ''}</span>`
+            : 'no runs recorded';
+        document.getElementById('eod-status').innerHTML = `
+            <div>Worker: ${worker}</div>
+            <div>Last run: ${last}</div>
+            <div>Attempts today: ${s.attempts_today} / ${s.max_attempts}</div>`;
+    },
+
+    async _eodToggle() {
+        const r = await fetch('/data/api/eod/status');
+        const cur = (await r.json()).status.enabled;
+        await fetch('/data/api/eod/toggle', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({enabled: !cur}),
+        });
+        this._loadEod();
+    },
+
+    async _eodRunNow() {
+        await fetch('/data/api/eod/run-now', {method: 'POST'});
+        alert('Manual run requested — the worker picks it up within 60 seconds.');
+        this._loadEod();
     },
 
     // ── Helpers ──────────────────────────────────────────────────
