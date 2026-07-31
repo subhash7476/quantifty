@@ -1,6 +1,9 @@
+import os
+import subprocess
+import sys
 from datetime import datetime
 
-from scripts.schedule_worker import is_due
+from scripts.schedule_worker import _pid_alive, acquire_lock, is_due
 
 MON_2000 = datetime(2026, 7, 27, 20, 0)     # Monday
 MON_1959 = datetime(2026, 7, 27, 19, 59)
@@ -39,3 +42,33 @@ def test_due_once_retry_interval_elapses():
 
 def test_not_due_once_attempt_cap_reached():
     assert is_due(datetime(2026, 7, 27, 23, 0), datetime(2026, 7, 27, 22, 0), 8) is False
+
+
+def test_pid_alive_true_for_current_process():
+    assert _pid_alive(os.getpid()) is True
+
+
+def test_pid_alive_false_for_exited_process():
+    p = subprocess.Popen([sys.executable, "-c", "pass"])
+    p.wait()
+    assert _pid_alive(p.pid) is False
+
+
+def test_acquire_lock_succeeds_when_no_lock_file(tmp_path):
+    lock = tmp_path / "worker.lock"
+    assert acquire_lock(lock) is True
+    assert lock.read_text().strip() == str(os.getpid())
+
+
+def test_acquire_lock_fails_when_holder_pid_alive(tmp_path):
+    lock = tmp_path / "worker.lock"
+    lock.write_text(str(os.getpid()))
+    assert acquire_lock(lock) is False
+
+
+def test_acquire_lock_succeeds_when_holder_pid_dead(tmp_path):
+    lock = tmp_path / "worker.lock"
+    p = subprocess.Popen([sys.executable, "-c", "pass"])
+    p.wait()
+    lock.write_text(str(p.pid))
+    assert acquire_lock(lock) is True
