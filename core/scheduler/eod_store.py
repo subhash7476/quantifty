@@ -26,7 +26,9 @@ class EodStore:
                     run_now          INTEGER NOT NULL DEFAULT 0,
                     updated_at       TEXT,
                     worker_heartbeat TEXT,
-                    worker_pid       INTEGER
+                    worker_pid       INTEGER,
+                    busy_since       TEXT,
+                    busy_phase       TEXT
                 )
             """)
             con.execute("""
@@ -66,6 +68,19 @@ class EodStore:
         with self._conn() as con:
             row = con.execute(
                 "SELECT worker_heartbeat, worker_pid FROM eod_automation WHERE id=1").fetchone()
+            return row[0], row[1]
+
+    def set_busy(self, phase: str | None) -> None:
+        with self._conn() as con:
+            if phase is None:
+                con.execute("UPDATE eod_automation SET busy_since=NULL, busy_phase=NULL WHERE id=1")
+            else:
+                con.execute("UPDATE eod_automation SET busy_since=?, busy_phase=? WHERE id=1",
+                            [datetime.now().isoformat(), phase])
+
+    def get_busy(self) -> tuple[str | None, str | None]:
+        with self._conn() as con:
+            row = con.execute("SELECT busy_since, busy_phase FROM eod_automation WHERE id=1").fetchone()
             return row[0], row[1]
 
     def request_run_now(self) -> None:

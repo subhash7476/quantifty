@@ -82,6 +82,16 @@ def test_last_attempt_finished_returns_latest_scheduled(store):
     assert store.last_attempt_finished(d) >= store.last_attempt_started(d)
 
 
+def test_busy_defaults_clear_and_round_trips(store):
+    assert store.get_busy() == (None, None)
+    store.set_busy("attempt 2")
+    since, phase = store.get_busy()
+    assert phase == "attempt 2"
+    assert datetime.fromisoformat(since)
+    store.set_busy(None)
+    assert store.get_busy() == (None, None)
+
+
 def test_record_is_idempotent_on_same_attempt(store):
     d = date(2026, 7, 31)
     store.record(d, 1, "download", "retry", "first")

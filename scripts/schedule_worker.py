@@ -92,7 +92,11 @@ def main() -> int:
 
             if store.consume_run_now():
                 logger.info("Manual run requested — running one attempt (attempt=0)")
-                outcome = run_attempt(store, today, 0, now)
+                store.set_busy("manual run")
+                try:
+                    outcome = run_attempt(store, today, 0, now)
+                finally:
+                    store.set_busy(None)
                 logger.info(f"Manual run outcome: {outcome}")
 
             elif store.is_enabled() and not store.is_date_terminal(today):
@@ -100,7 +104,11 @@ def main() -> int:
                 if is_due(now, store.last_attempt_finished(today), len(attempts)):
                     n = len(attempts) + 1
                     logger.info(f"Attempt {n} for {today}")
-                    outcome = run_attempt(store, today, n, now)
+                    store.set_busy(f"attempt {n}")
+                    try:
+                        outcome = run_attempt(store, today, n, now)
+                    finally:
+                        store.set_busy(None)
                     logger.info(f"Attempt {n} outcome: {outcome}")
         except Exception as e:
             logger.exception(f"Worker tick failed: {e}")
