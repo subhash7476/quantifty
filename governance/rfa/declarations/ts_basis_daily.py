@@ -1,5 +1,17 @@
-# NOT FROZEN — TS Basis Daily RFA declaration, DRAFT.
-# No SHA-256 has ever been computed for this file; it has never been frozen.
+# RESEARCH-ONLY — NOT A CANDIDATE. Operator decision, 2026-08-01.
+#
+# TS Basis Daily has no promotion path. It is not to be frozen, not to be gated,
+# and no sealed read is authorized. The 876-formation SEALED window
+# (2023-01-01 -> 2026-07-24) is PRESERVED UNSPENT; scripts/signal_engine/
+# ts_basis_daily/run_sealed.py refuses to run and must stay that way absent an
+# explicit reversal recorded in TS_BASIS_REAUTHORIZATION_ASSESSMENT.md.
+#
+# This file is retained as the record of what was declared and where it was
+# wrong — not as a live candidate declaration. It must NOT be revived by
+# editing: a future daily-basis construct starts its own pre-registration,
+# declares its own bands, and inherits nothing from here.
+#
+# NOT FROZEN. No SHA-256 has ever been computed for this file.
 # Corrected 2026-08-01: the prior-exposure statement was false (it claimed TRAIN
 # and HOLDOUT were unread) and delta_provenance described the monthly construct's
 # 504-day calendar lookback rather than this one's 252-row window. See

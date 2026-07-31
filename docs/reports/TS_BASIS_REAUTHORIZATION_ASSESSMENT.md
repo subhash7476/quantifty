@@ -12,7 +12,7 @@ gate and was de-authorized — can we undo the wrong and register them again?*
 | Construct | Can the past be undone? | What is actually available |
 |---|---|---|
 | **TS Basis** (monthly) | **No.** The sealed window is spent and the authorizing gate genuinely did not hold. | The *defect can be priced*. The sealed number is estimator-correct and internally clean; the cost of the broken gate is one multiplicity increment, which the result survives by ~5 orders of magnitude. Standing stays **PAPER candidate** — but "not falsified" is demonstrable, not merely asserted. |
-| **TS Basis Daily** | **No retroactive registration.** TRAIN and HOLDOUT are both burned as *selection surfaces*, so no pre-registration written today can claim them. | **One unspent one-shot window exists on data already in the repo:** SEALED 2023-01-01 → 2026-07-20, never read for the daily construct. This is the real opportunity — and it is spendable only once, on a stack that must be frozen first. |
+| **TS Basis Daily** | **No retroactive registration.** TRAIN and HOLDOUT are both burned as *selection surfaces*, so no pre-registration written today can claim them. | **RESOLVED 2026-08-01 — research-only (§B.4).** One unspent one-shot window exists (SEALED 2023-01-01 → 2026-07-24, 876 formations). The operator declared the construct research-only, so that window is **preserved unspent** and `run_sealed.py` is guarded against running. |
 
 The short answer to "undo the wrong": no. The useful answer: **the monthly's wrong is smaller
 than the label suggests, and the daily's situation is not a wrong at all — it is an unspent
@@ -255,9 +255,35 @@ Note also that daily cadence buys nothing here: by the repo's own cadence-invari
 per-formation IC by ~√20. The daily variant's large `n` is not free power — and the declaration's
 own band (δ 0.005–0.020 vs the monthly 0.030–0.090) already concedes this.
 
-### B.4 The decision this leaves
+### B.4 The decision — RESOLVED 2026-08-01: Option 3, research-only
 
-The operator faces a genuine choice, and it should be made *before* anything is frozen:
+> **✅ OPERATOR DECISION, 2026-08-01: TS Basis Daily is RESEARCH-ONLY.**
+>
+> The construct has **no promotion path**. It is not frozen, not gated, and no sealed read is
+> authorized. The **876-formation SEALED window (2023-01-01 → 2026-07-24) is preserved unspent.**
+>
+> **What this permits:** the construct continues as an exploratory tool. The `/ts-basis-daily/`
+> panel, `ts_basis_daily_forward_runner.py`, the signal build and the EOD chain all keep running.
+> Nothing is switched off.
+>
+> **What this forecloses:** freezing the declaration, running `run_sealed.py`, any gated
+> evaluation, and any promotion to capital. Further accumulation of selection debt on TRAIN and
+> HOLDOUT is pointless rather than harmful — there is no window left for it to contaminate,
+> because none will be spent.
+>
+> **Enforcement, not just declaration:** `run_sealed.py` now refuses to run and writes nothing.
+> This follows the repo's own lesson from the 2026-07-31 stale-feed incident — a constraint that
+> is documented but never asserted is documentation, not a control. Deleting the guard is not by
+> itself authorization to spend the window.
+>
+> **Why this is a defensible outcome, not a failure.** Spending the window now bought 0.7472
+> central power on a stack that was still moving four days earlier. Option 1b bought 0.80 at the
+> cost of freezing a construct whose whole overlay set — filter, exit, ranking — was fitted on
+> seen data and whose multiplicity was never priced. Research-only declines to pay either price
+> and keeps the only irreplaceable asset intact. The window survives for a construct that earns
+> it; this one had not.
+
+The options as assessed before the decision are preserved below for the record:
 
 - **Option 1 — spend the daily sealed window.** Correct the declaration, freeze the full selected
   stack with a real SHA, write a sealed-read protocol with pinned α and acceptance rule, then run

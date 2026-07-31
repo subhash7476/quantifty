@@ -1,4 +1,18 @@
-"""TS Basis Daily — SEALED read (one-shot, unrepeatable).
+"""TS Basis Daily — SEALED read (one-shot, unrepeatable). DISABLED.
+
+The operator declared TS Basis Daily RESEARCH-ONLY on 2026-08-01, which
+preserves the 876-formation SEALED window (2023-01-01 -> 2026-07-24) unspent.
+Running this script would consume it, and the window cannot be regenerated:
+NSE F&O history cannot predate 2016.
+
+This guard exists because the decision is otherwise unenforced. The repo's own
+lesson from the 2026-07-31 stale-feed incident applies — a constraint that is
+documented but never asserted is documentation, not a control.
+
+To re-enable: an operator decision reversing research-only status, recorded in
+docs/reports/TS_BASIS_REAUTHORIZATION_ASSESSMENT.md, plus a frozen
+pre-registration with a pinned acceptance rule and horizon. Deleting this guard
+is not by itself authorization.
 
 Mirror of TS Basis run_sealed.py for daily cadence.
 Annualization factor: 252 (trading days/year) instead of 12.
@@ -86,6 +100,14 @@ def _git_commit():
 
 
 def main():
+    raise SystemExit(
+        "REFUSED: TS Basis Daily is RESEARCH-ONLY (operator decision 2026-08-01).\n"
+        "The SEALED window 2023-01-01 -> 2026-07-24 (876 formations) is preserved "
+        "unspent and cannot be regenerated — NSE F&O history cannot predate 2016.\n"
+        "Running this read would consume it permanently.\n"
+        "See docs/reports/TS_BASIS_REAUTHORIZATION_ASSESSMENT.md §B.4."
+    )
+
     commit = _git_commit()
     run_ts = datetime.utcnow().isoformat() + "Z"
 
