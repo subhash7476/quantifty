@@ -478,7 +478,7 @@ def ingest_special_dividends(con):
         WHERE action_type = 'DIVIDEND' AND ratio_or_fv NOT IN ('', '0')
     """).fetchall()
     n_unparseable = n_no_prior = n_below_threshold = n_exceeds_price = 0
-    new_factors = []
+    valid = []
     for sym, dt, amt_str in divs:
         try:
             amt = float(amt_str)
@@ -488,17 +488,36 @@ def ingest_special_dividends(con):
         if amt <= 0:
             n_unparseable += 1
             continue
-        prior = con.execute("""
-            SELECT e.close FROM equity_bhavcopy e
+        valid.append((sym, dt, amt))
+
+    # Prior close per dividend in ONE pass. The old code fired a top-1 lookup
+    # per dividend — 10k+ hash joins over the 7M-row equity table, which is
+    # slow and OOMs on a connection that has already built the views. An ASOF
+    # join resolves every ex-date's most-recent eligible EQ session in a single
+    # sorted merge (d.ex_date > e.trade_date → greatest session strictly before).
+    con.execute("CREATE OR REPLACE TEMP TABLE _special_div "
+                "(symbol VARCHAR, ex_date DATE, amt DOUBLE)")
+    if valid:
+        con.executemany("INSERT INTO _special_div VALUES (?, ?, ?)", valid)
+    priced = con.execute("""
+        WITH eq AS (
+            SELECT e.symbol, e.trade_date, e.close
+            FROM equity_bhavcopy e
             JOIN trading_calendar tc ON e.trade_date = tc.trade_date
                 AND tc.n_symbols >= 200
-            WHERE e.symbol = ? AND e.series = 'EQ' AND e.trade_date < ?
-            ORDER BY e.trade_date DESC LIMIT 1
-        """, [sym, dt]).fetchone()
-        if not prior or not prior[0] or prior[0] <= 0:
+            WHERE e.series = 'EQ'
+        )
+        SELECT d.symbol, d.ex_date, d.amt, eq.close AS prior_close
+        FROM _special_div d
+        ASOF LEFT JOIN eq ON d.symbol = eq.symbol AND d.ex_date > eq.trade_date
+    """).fetchall()
+    con.execute("DROP TABLE _special_div")
+
+    new_factors = []
+    for sym, dt, amt, prior_close in priced:
+        if not prior_close or prior_close <= 0:
             n_no_prior += 1
             continue
-        prior_close = prior[0]
         if amt < SPECIAL_DIV_THRESHOLD * prior_close:
             n_below_threshold += 1
             continue
