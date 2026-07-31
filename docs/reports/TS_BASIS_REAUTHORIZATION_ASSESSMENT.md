@@ -241,8 +241,14 @@ delivers power **0.7472 — below the 0.80 hurdle.**
 
 The window cannot be extended *backwards* — NSE F&O history cannot predate 2016 — but it can be
 extended **forwards**, and that changes the options materially. Central needs 1,015 formations;
-**876** already exist on disk; the shortfall is **139 formations ≈ 6.7 months** of forward daily
-data at ~20.8 trading days/month. See Option 1b in §B.4.
+**876** already exist on disk; the shortfall is **139 formations ≈ 6.8 months** at the measured
+accrual rate of **20.4 formations/month** (stable: 245 / 246 / 248 in 2023 / 2024 / 2025).
+
+**But 6.8 months is the arithmetic minimum, and pinning there is a mistake.** 1,015 is
+`n_required` at *exactly* 0.80. Because the horizon must be fixed in the pre-registration and
+cannot be extended after the fact, any shortfall in realized formations — universe attrition,
+a thinner F&O list, `z_ts` nulls from the 12-observation minimum — lands the read under the
+hurdle with no recovery available. **Pin 9 months, not 7.** See Option 1b in §B.4.
 
 Note also that daily cadence buys nothing here: by the repo's own cadence-invariance result
 (`ncp = S·√T`), running daily instead of monthly multiplies formations by ~20 while dividing
@@ -258,17 +264,19 @@ The operator faces a genuine choice, and it should be made *before* anything is 
   `run_sealed.py` exactly once on 2023-01-01 → 2026-07-24. Upside: a genuine out-of-sample read
   available *now*, no waiting. Downside: at the central effect-size assumption it is
   **underpowered (0.7472)**, and it is the last such window that will ever exist for this family.
-- **Option 1b — freeze now, read once in ~7 months. *(Recommended if the daily construct is to be
+- **Option 1b — freeze now, read once in 9 months. *(Recommended if the daily construct is to be
   pursued at all.)*** Correct the declaration, freeze the full selected stack today, and
-  pre-register the evaluation window as **2023-01-01 → freeze + 7 months**, read **exactly once**
-  when it closes. This reaches ~1,015 formations — **central power 0.80** — by combining the 876
-  formations already on disk with ~139 forward ones. It costs ~7 months of waiting instead of the
-  4+ years a pure-forward monthly run needs (§A.5), spends the one-shot window only once, and
-  spends it at adequate power rather than at 0.740. It also imposes a useful discipline: the stack
-  must stop moving today, because everything after the freeze is evaluation data.
-  *(Note: 7 months reaches central power exactly at the hurdle. If the operator wants margin
-  against the central estimate being optimistic, 9–10 months is the safer pin — but the horizon
-  must be fixed in the pre-registration, not chosen after watching the data accumulate.)*
+  pre-register the evaluation window as **2023-01-01 → freeze + 9 months**, read **exactly once**
+  when it closes. At 20.4 formations/month that yields ~876 + ~184 = **~1,060 formations**,
+  clearing the 1,015 the central assumption needs with ~45 formations of margin. It costs 9
+  months of waiting instead of the 4+ years a pure-forward monthly run needs (§A.5), spends the
+  one-shot window only once, and spends it at adequate power rather than at 0.7472. It also
+  imposes a useful discipline: the stack must stop moving today, because everything after the
+  freeze is evaluation data.
+  *(Why 9 and not the 6.8-month arithmetic minimum: 1,015 is `n_required` at exactly 0.80, and
+  the horizon cannot be extended after the fact. Pinning at the minimum means any attrition in
+  realized formations lands the read below the hurdle with no recovery. The margin is cheap;
+  the failure is not.)*
 - **Option 2 — do not spend it.** Keep the daily construct in research, run it forward in paper
   alongside monthly TS Basis, and preserve the sealed window until there is a stack worth
   spending it on. Costs nothing, forecloses nothing.
@@ -305,7 +313,18 @@ last window at below-hurdle power to save 8 months.
    gate mandated by `TS_BASIS_PHASE0_PRE_REGISTRATION.md` §8", but §8 is *"What would make this
    illegitimate"*. The pre-reg has no section mandating a sealed read. This drafting looseness is
    what made Argument 2 in §A.3 superficially available.
-3. **The pre-registration has no explicitly labelled acceptance rule.** Its header refers to "the
+3. **The fee-model certification arms are currently failing, and the daily net-spread numbers
+   depend on them.** `tests/sfb/test_certification_arms.py::TestArmFE::test_all_boundaries_pass`
+   fails on the 2008-06-01 STT boundary (returns 10.0, expects 12.5). This is **pre-existing on
+   `main`** and unrelated to any TS Basis work — but the entire case for this construct rests on
+   *net*-of-fee spreads, which run through that fee model. The failing boundary is in 2008, well
+   outside the 2016+ futures substrate, so it most likely does not touch the daily numbers —
+   **but "most likely" is doing real work in that sentence.** Before any sealed read, confirm
+   which era boundaries the daily net-spread path actually exercises. Not urgent now; blocking
+   before a one-shot read. (A second pre-existing failure,
+   `tests/portfolio/test_carry_metrics.py::test_metrics_sink_called_during_execute` — `IndexError`
+   at `carry_rebalancer.py:534` — is unrelated to fees but should not be left rotting either.)
+4. **The pre-registration has no explicitly labelled acceptance rule.** Its header refers to "the
    acceptance rule" but no section is so named; §6 is titled "Falsifiable predictions" and mixes
    predictions with a falsification clause. Every future pre-registration in this repo should
    carry a section headed **"Acceptance rule (what authorizes the next window)"**, stated
@@ -333,8 +352,8 @@ size you plan against, with the honest planning number at the long end.
 The daily construct cannot be retroactively registered, but it holds something more valuable than
 a retroactive stamp: **one unspent one-shot window on 876 formations already on disk**, currently
 guarded by a declaration that misstates both what has been read and what the construct does. That
-window is worth only 0.7472 power at the central assumption on its own — but combined with ~7
-months of forward data it reaches 0.80. **Fix the declaration, freeze the stack, and pre-register
-a single read of 2023-01-01 → freeze + 7 months.** That is the closest thing to "registering it
+window is worth only 0.7472 power at the central assumption on its own — but combined with 9
+months of forward data it clears 0.80 with margin. **Fix the declaration, freeze the stack, and
+pre-register a single read of 2023-01-01 → freeze + 9 months.** That is the closest thing to "registering it
 again" that is actually available, and unlike everything else on the table, it is not a
 compromise.

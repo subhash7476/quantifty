@@ -28,7 +28,19 @@ DECLARATION = Declaration(
         "2016 is not obtainable, so this window cannot be extended backwards; it can "
         "only be extended forwards at ~20.8 formations/month. "
         "TRAIN: 2016-03-31 -> 2020-12-31 (1,202 formations), HOLDOUT: 2021-01-01 -> "
-        "2022-12-31 (495). Daily formations are every FUTSTK trading day."
+        "2022-12-31 (495). Daily formations are every FUTSTK trading day; measured "
+        "accrual is 20.4/month and stable (245 / 246 / 248 formations in 2023 / 2024 / "
+        "2025).\n\n"
+        "WARNING — n_available = 876 IS NOT YET PINNED, BECAUSE IT IS OPTION-DEPENDENT. "
+        "876 is the count of the EXISTING sealed window only, which is what a gate run "
+        "today would score (central power 0.7472, i.e. 'central fails'). If the operator "
+        "adopts Option 1b from TS_BASIS_REAUTHORIZATION_ASSESSMENT.md §B.4 — freeze now, "
+        "read once after a pinned forward horizon — then n_available becomes ~1,015 "
+        "(876 existing + ~139 forward) and the gate verdict changes. "
+        "Whichever option is chosen, n_available is pinned AT FREEZE and never revised "
+        "afterwards. Editing this number after seeing a gate verdict would be the "
+        "band-adjacent post-hoc move that withdrew O1, even though n_available is not "
+        "itself a band."
     ),
     delta_lo=0.005,
     delta_hi=0.020,
