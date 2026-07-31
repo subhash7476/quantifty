@@ -40,7 +40,10 @@ TV = 1_000_000.0  # Rs 10 lakh notional per leg
 # ============================================================
 
 def test_stt_identical_sealed_vs_run_sealed():
-    # run_sealed.stt_rate is 3-tier; module is 3-tier (post-fix). Must match.
+    # run_sealed.stt_rate is 3-tier; the module is 4-tier (it carries the
+    # 0.017% 2008-06-01 -> 2013-05-31 tier that run_sealed lacks). They must
+    # still match on every date any research window can reach, i.e. from
+    # 2013-06-01 onward — see the divergence test below.
     for d in [date(2023, 3, 31), date(2023, 4, 1), date(2024, 9, 30),
               date(2024, 10, 1), date(2025, 6, 1), date(2026, 7, 20)]:
         assert stt_futures_rate(d) == sealed_stt_rate(d), (
@@ -58,6 +61,24 @@ def test_run_sealed_stt_pre_2008_quirk_documented():
     pinned here so it is a known, documented divergence, not a silent one."""
     assert sealed_stt_rate(date(2008, 5, 31)) == 0.0001
     assert stt_futures_rate(date(2008, 5, 31)) == 0.0
+
+
+def test_run_sealed_stt_2008_to_2013_divergence_documented():
+    """2008-06-01 -> 2013-05-31: the module applies the real 0.017% rate;
+    run_sealed's inline 3-tier table flattens it to 0.0001.
+
+    Same class as the pre-2008 quirk above and equally immaterial - the
+    futures substrate begins 2016-02-11, so no research window can reach these
+    dates. run_sealed.py is a FROZEN one-shot artifact and is deliberately NOT
+    edited to match. Pinned here so the divergence is loud rather than silent.
+    """
+    for d in (date(2008, 6, 1), date(2010, 1, 1), date(2013, 5, 31)):
+        assert sealed_stt_rate(d) == 0.0001
+        assert stt_futures_rate(d) == 0.00017
+
+    # The divergence closes at the Budget 2013 cut and never reopens.
+    for d in (date(2013, 6, 1), date(2016, 2, 11), date(2023, 3, 31)):
+        assert sealed_stt_rate(d) == stt_futures_rate(d) == 0.0001
 
 
 # ============================================================
