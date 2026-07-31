@@ -16,7 +16,7 @@ checkpoint's review verdict.
 | A | 1–4 — control store, decision logic, Telegram, chain runner | **PASSED** 2026-07-31 (`EOD_AUTOMATION_CHECKPOINT_A_REVIEW.md`) |
 | B | 5–6 — orchestrator, worker daemon | **PASSED** 2026-07-31 (`EOD_AUTOMATION_CHECKPOINT_B_REVIEW.md`) |
 | C | 7–8 — facade + API, UI tab | **PASSED** 2026-07-31 (`EOD_AUTOMATION_CHECKPOINT_C_REVIEW.md`) |
-| **D** | 9 — end-to-end verification | **ISSUED — operator-driven runbook** |
+| **D** | 9 — end-to-end verification | **PASSED** 2026-07-31 (`EOD_AUTOMATION_VERIFICATION.md`) — steps 1–7 live; DEFECT-1 (Windows liveness check) found at step 7, fixed, re-verified. Program not closed: see that report's §6 |
 
 ---
 
