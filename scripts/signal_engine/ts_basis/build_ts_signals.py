@@ -30,6 +30,7 @@ WINSORIZE_SD = 3.0
 
 
 def main():
+    incremental = "--incremental" in sys.argv
     OUT_DB.parent.mkdir(parents=True, exist_ok=True)
 
     con = duckdb.connect()
@@ -51,9 +52,25 @@ def main():
 
     print(f"  {len(rows):,} rows across {len(name_history)} underlyings")
 
+    # Incremental: skip formations already stored. z_ts is strictly causal
+    # (uses only prior formations for that underlying), so existing rows never
+    # change — recomputing them is pure waste. Keying on the (date, underlying)
+    # pair also picks up any backfilled older formation.
+    existing_keys = set()
+    if incremental and OUT_DB.exists():
+        oc = duckdb.connect(str(OUT_DB), read_only=True)
+        existing_keys = {
+            (str(fd), u)
+            for fd, u in oc.execute("SELECT formation_date, underlying FROM signals").fetchall()
+        }
+        oc.close()
+        print(f"  {len(existing_keys):,} formations already stored — computing only new ones")
+
     # Compute z_ts
     signals = []
     for fdate, u, basis, fr, liq in rows:
+        if (str(fdate), u) in existing_keys:
+            continue
         history = name_history[u]
         pos = next((i for i, (fd, _) in enumerate(history) if fd == fdate), None)
         if pos is None:
@@ -87,26 +104,29 @@ def main():
 
     print(f"  {len(signals):,} z-scored signals")
 
-    if OUT_DB.exists():
+    append = incremental and OUT_DB.exists()
+    if not append and OUT_DB.exists():
         OUT_DB.unlink()
 
     out = duckdb.connect(str(OUT_DB))
-    out.execute("""
-        CREATE TABLE signals (
-            formation_date DATE    NOT NULL,
-            underlying     VARCHAR NOT NULL,
-            raw_ann_basis  DOUBLE,
-            z_ts           DOUBLE,
-            fwd_ret_1m     DOUBLE,
-            liquid         BOOLEAN,
-            PRIMARY KEY (formation_date, underlying)
+    if not append:
+        out.execute("""
+            CREATE TABLE signals (
+                formation_date DATE    NOT NULL,
+                underlying     VARCHAR NOT NULL,
+                raw_ann_basis  DOUBLE,
+                z_ts           DOUBLE,
+                fwd_ret_1m     DOUBLE,
+                liquid         BOOLEAN,
+                PRIMARY KEY (formation_date, underlying)
+            )
+        """)
+        out.execute("CREATE INDEX idx_date ON signals (formation_date)")
+    if signals:
+        out.executemany(
+            "INSERT OR IGNORE INTO signals VALUES (?, ?, ?, ?, ?, ?)",
+            [(str(s[0]), s[1], s[2], s[3], s[4], s[5]) for s in signals],
         )
-    """)
-    out.execute("CREATE INDEX idx_date ON signals (formation_date)")
-    out.executemany(
-        "INSERT INTO signals VALUES (?, ?, ?, ?, ?, ?)",
-        [(str(s[0]), s[1], s[2], s[3], s[4], s[5]) for s in signals],
-    )
     total = out.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
     n_form = out.execute("SELECT COUNT(DISTINCT formation_date) FROM signals").fetchone()[0]
     print(f"  Written {total:,} signals across {n_form} formations to {OUT_DB}")

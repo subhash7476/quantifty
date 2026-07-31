@@ -250,7 +250,7 @@ def main():
         print("\n-- TS Basis --")
         if force or _needs_rebuild(TS_SIG_DB, "ts-basis"):
             build = SIG_ENGINE / "ts_basis" / "build_ts_signals.py"
-            if _run(build, label="ts-basis"):
+            if _run(build, ["--incremental"], "ts-basis"):
                 pub = SIG_ENGINE / "ts_basis" / "publish_facts.py"
                 _run(pub, label="ts-basis-facts")
             else:
