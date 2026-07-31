@@ -74,6 +74,14 @@ def test_last_attempt_started_returns_latest_scheduled(store):
     assert len(store.attempts_today(d)) == 2
 
 
+def test_last_attempt_finished_returns_latest_scheduled(store):
+    d = date(2026, 7, 31)
+    store.record(d, 1, "download", "retry", "")
+    store.record(d, 2, "download", "retry", "")
+    assert store.last_attempt_finished(d).date() == d
+    assert store.last_attempt_finished(d) >= store.last_attempt_started(d)
+
+
 def test_record_is_idempotent_on_same_attempt(store):
     d = date(2026, 7, 31)
     store.record(d, 1, "download", "retry", "first")

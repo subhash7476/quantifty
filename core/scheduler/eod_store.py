@@ -106,6 +106,12 @@ class EodStore:
             return None
         return datetime.fromisoformat(attempts[-1]["started_at"])
 
+    def last_attempt_finished(self, run_date: date) -> datetime | None:
+        attempts = self.attempts_today(run_date)
+        if not attempts:
+            return None
+        return datetime.fromisoformat(attempts[-1]["finished_at"])
+
     def is_date_terminal(self, run_date: date) -> bool:
         return any(a["outcome"] in TERMINAL_OUTCOMES for a in self.attempts_today(run_date))
 
