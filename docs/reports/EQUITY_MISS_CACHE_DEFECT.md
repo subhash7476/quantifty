@@ -174,10 +174,18 @@ covering correct existing behaviour passed throughout).
    *absent*, where the evidence can go stale. The `.404` reference in
    `scripts/sfb/ingest_futures_bhavcopy.py` is the v1 file, which
    `download_all_data.py` does not call.
-4. **The 4,256 retained markers were not individually validated.** They pass the
-   mtime test, which makes them plausible, not verified. Any that were written by
-   a *transient* failure misclassified as 404 remain — the same class of error,
-   older.
+4. ~~**The 4,256 retained markers were not individually validated.**~~
+   **CORROBORATED 2026-07-31 — 0 suspects.** Cross-checked offline against an
+   independent trading calendar: the 2,582 distinct `trade_date` values in
+   `futures_bhavcopy` (2016-02-11 → 2026-07-31). If futures has rows for a date,
+   that date traded, so an equity miss-marker for it would be suspect. **No
+   marker met that condition** — every retained marker falls on a date where
+   futures likewise has nothing (a genuine non-trading day) or where equity
+   already holds rows.
+
+   *Limit:* the corroboration only spans the futures store, so markers for dates
+   **before 2016-02-11 are untested** by this method — futures history cannot
+   predate 2016, so no in-repo independent calendar exists for them.
 
 ---
 
