@@ -44,14 +44,25 @@ class TestScoreMomentum:
     def test_returns_scores(self):
         ds = S.DataStore(S.DB_PATH, cutoff=S.DEV_HI)
         universe, _ = S.build_liquidity_universe(ds, cutoff=S.DEV_HI)
-        ents = []
-        for fd in sorted(universe):
-            ents = universe[fd]
-            if len(ents) >= 3:
-                break
-        if ents:
-            scores = S.score_momentum_12_1(ds, date(2015, 6, 30), set(ents))
-            assert isinstance(scores, dict)
+        # Score at a formation date far enough into the calendar that the 252-
+        # and 21-session lookbacks both resolve — otherwise score_momentum_12_1
+        # returns {} and the assertions below pass vacuously.
+        fd = next(d for d in sorted(universe)
+                  if ds.cal_pos[d] >= 252 and len(universe[d]) >= 3)
+        # Slice to a handful of names and load them in ONE batched query, the way
+        # the screen's own main() does. Passing the full ~245-entity universe
+        # makes get_px fall through to _ensure_loaded per entity — one full scan
+        # of the 7M-row adjusted view each, which is ~29 min of runtime and
+        # enough peak memory to OOM DuckDB.
+        ents = universe[fd][:10]
+        ds.preload_universe(ents)
+
+        scores = S.score_momentum_12_1(ds, fd, set(ents))
+
+        assert isinstance(scores, dict)
+        assert scores, "expected at least one scored entity"
+        assert set(scores) <= set(ents)
+        assert all(isinstance(v, float) for v in scores.values())
         ds.close()
 
 
