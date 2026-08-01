@@ -207,6 +207,7 @@ the new near-month contract's open on day t+2.
 - **Cost model**: Nifty futures round-trip: brokerage + STT (0.0125% sell side) + exchange transaction charge (0.0019%) + SEBI turnover fee (0.0001%) + stamp duty (0.002% buy side) + GST (18% on brokerage + exchange). Estimated total ~2-3 bps per round-trip. Exact schedule from broker at execution time; era-accurate statutory changes applied.
 - **Slippage**: κ = 2 bps/side added to the open auction price for entry and exit. This covers the bid-ask spread on Nifty futures at market open (typically 1-2 ticks = ~1-2 bps) plus a conservative buffer.
 - **No intraday execution**: entry and exit both at the open auction. This eliminates intraday timing as a free parameter and makes the backtest reproducible from daily OHLC data.
+- **Operational validity**: NSE runs a 9:00-9:15 call-auction pre-open session for current-month index futures, with the equilibrium price treated as the day's open. This price is directly executable — the open-auction convention is not a modelling convenience, it is the exchange mechanism.
 
 ---
 
@@ -218,6 +219,8 @@ Before any TRAIN read:
 1. **Universe gate**: Verify Nifty 50 PIT membership is correct for a random sample of dates (≥20 dates across 2016-2026). Cross-check against NSE published changes.
 2. **Data gate**: Verify every Nifty 50 constituent has equity bhavcopy data on every membership date. Missing-data rate must be <1% of constituent-dates.
 3. **Futures gate**: Verify Nifty futures data exists on all required dates. Verify roll dates and near-month contract identification.
+4. **Execution-price gate**: Confirm that entry and exit prices in the backtest use the **actual Nifty futures open auction price** (not the cash-index open, not a synthetic open derived from spot). The futures pre-open call-auction equilibrium price is the executable price.
+5. **Roll-rule gate**: Confirm the pinned roll rule (2 days before expiry, near-month → next-near-month) is applied **before** computing returns. A position opened on the expiring contract and held through roll must exit on the expiring open and the next entry (if any) on the new contract open.
 
 ### Phase 2: TRAIN (2016-2019, ~1,008 daily formations)
 
