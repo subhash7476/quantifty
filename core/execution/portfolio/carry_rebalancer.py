@@ -528,8 +528,8 @@ class CarryRebalancerHook:
         con.close()
 
         facts = [(r[0], float(r[1]),
-                  float(r[4]) if len(r) > 4 and r[4] is not None else float(r[1]),
-                  bool(r[5]) if len(r) > 5 and r[5] is not None else False)
+                  float(r[4]) if r[4] is not None else float(r[1]),
+                  bool(r[5]) if r[5] is not None else False)
                  for r in rows if r[3]]  # eligible only
         facts_full = [(r[0], float(r[1]),
                        float(r[4]) if r[4] is not None else float(r[1]),
