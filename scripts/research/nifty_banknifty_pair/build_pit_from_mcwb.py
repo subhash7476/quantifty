@@ -76,8 +76,14 @@ def parse_mcwb_archives():
             continue
 
         if len(syms) >= 45:
+            # Filter DUMMY* placeholders (NSE MCWB transition artifacts,
+            # not real listed securities)
+            syms = {s for s in syms if not s.startswith("DUMMY")}
+            sym_weights = {s: w for s, w in sym_weights.items() if not s.startswith("DUMMY")}
             membership[month] = syms
             weights[month] = sym_weights
+            if len(syms) > 50:
+                print(f"  NOTE: {month} has {len(syms)} constituents (MCWB transition period)")
         else:
             print(f"  WARNING: {month} has only {len(syms)} constituents (expected ~50)")
 

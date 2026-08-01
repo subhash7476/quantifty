@@ -1,14 +1,14 @@
 {
   "g1": {
     "gate": "G1 \u2014 Universe",
-    "description": "Official Nifty 50 PIT membership from NSE Monthly Constituent Weight Bulletins (MCWB). Source: tabulated NSE PDFs. Each trade date's membership is the bulletin for its month (YYYY-MM-01). Two months (2018-05-01, 2026-07-01) were not available in the MCWB archive and are filled from the preceding month's bulletin.",
+    "description": "Official Nifty 50 PIT membership from NSE Monthly Constituent Weight Bulletins (MCWB). Source: CSV files from NSE MCWB monthly ZIP archives (niftyindices.com). Each trade date's membership is the bulletin for its month (YYYY-MM-01). Two months (2018-05-01, 2026-07-01) were not available in the MCWB archive and are filled from the preceding month's bulletin.",
     "pass": true,
     "n_dates_checked": 20,
-    "n_dates_ok": 17,
-    "n_dates_missing": 3,
-    "total_constituent_dates_checked": 1009,
+    "n_dates_ok": 18,
+    "n_dates_missing": 2,
+    "total_constituent_dates_checked": 1007,
     "total_constituent_dates_present": 1005,
-    "coverage_rate": 99.6,
+    "coverage_rate": 99.8,
     "coverage_threshold": "95%",
     "membership_source": "F:\\Nifty\\data\\reference\\nifty50_pit_membership.json",
     "n_membership_months": 127,
@@ -1034,10 +1034,9 @@
       {
         "date": "2025-10-06",
         "status": "MISSING",
-        "n_expected": 51,
+        "n_expected": 50,
         "n_present": 49,
         "missing": [
-          "DUMMYTATAM",
           "TMPV"
         ],
         "constituents": [
@@ -1054,7 +1053,6 @@
           "CIPLA",
           "COALINDIA",
           "DRREDDY",
-          "DUMMYTATAM",
           "EICHERMOT",
           "ETERNAL",
           "GRASIM",
@@ -1096,12 +1094,10 @@
       },
       {
         "date": "2025-12-12",
-        "status": "MISSING",
-        "n_expected": 51,
+        "status": "OK",
+        "n_expected": 50,
         "n_present": 50,
-        "missing": [
-          "DUMMYHDLVR"
-        ],
+        "missing": [],
         "constituents": [
           "ADANIENT",
           "ADANIPORTS",
@@ -1116,7 +1112,6 @@
           "CIPLA",
           "COALINDIA",
           "DRREDDY",
-          "DUMMYHDLVR",
           "EICHERMOT",
           "ETERNAL",
           "GRASIM",
@@ -1221,25 +1216,13 @@
     "gate": "G2 \u2014 Data Coverage",
     "description": "Official Nifty 50 PIT constituent equity bhavcopy availability, 2016-01-01 -> 2026-07-31. Membership per MCWB month key; missing months fall back to previous available bulletin.",
     "pass": true,
-    "total_constituent_dates": 131550,
-    "total_misses": 138,
-    "miss_rate": 0.105,
+    "total_constituent_dates": 131466,
+    "total_misses": 54,
+    "miss_rate": 0.041,
     "threshold": "1%",
     "dates_checked": 2621,
     "dates_below_30": 0,
     "top_missing_symbols": [
-      [
-        "DUMMYHDLVR",
-        42
-      ],
-      [
-        "DUMMYREL",
-        21
-      ],
-      [
-        "DUMMYTATAM",
-        21
-      ],
       [
         "ITCHOTELS",
         20

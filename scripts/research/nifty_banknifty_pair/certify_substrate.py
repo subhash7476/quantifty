@@ -36,7 +36,7 @@ WEIGHTS_PATH = ROOT / "data" / "reference" / "nifty50_pit_weights.json"
 # ── PIT membership loader ───────────────────────────────────────────────
 # Official NSE Monthly Constituent Weight Bulletin (MCWB) data.
 # Format: {"YYYY-MM-01": ["SYMBOL", ...], ...}
-# Source: NSE published constituent weight PDFs, tabulated by hand.
+# Source: CSV files from NSE MCWB ZIP archives downloaded from niftyindices.com.
 # Two months (2018-05-01, 2026-07-01) were missing from the MCWB archive
 # and are filled from the preceding month's bulletin — membership was
 # unchanged in both periods. All other months have >=50 members; months
@@ -143,7 +143,8 @@ def certify_universe(membership: dict, rng) -> dict:
         "gate": "G1 — Universe",
         "description": (
             "Official Nifty 50 PIT membership from NSE Monthly Constituent "
-            "Weight Bulletins (MCWB). Source: tabulated NSE PDFs. "
+            "Weight Bulletins (MCWB). Source: CSV files from NSE MCWB "
+            "monthly ZIP archives (niftyindices.com). "
             "Each trade date's membership is the bulletin for its month "
             "(YYYY-MM-01). Two months (2018-05-01, 2026-07-01) were not "
             "available in the MCWB archive and are filled from the preceding "
@@ -523,8 +524,8 @@ def main():
     report_lines.append("")
     report_lines.append(
         "Constituent lists are from the official NSE Monthly Constituent "
-        "Weight Bulletin (MCWB) data, tabulated from NSE-published PDFs. "
-        "The data files are:"
+        "Weight Bulletin (MCWB) data, sourced from NSE MCWB monthly ZIP "
+        "archives (niftyindices.com). The data files are:"
     )
     report_lines.append(f"- `data/reference/nifty50_pit_membership.json` — "
                         f"{len(membership_months)} months, "

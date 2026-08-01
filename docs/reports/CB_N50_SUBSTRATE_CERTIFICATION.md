@@ -5,7 +5,7 @@ Generated: 2026-08-01
 
 ## Membership Source
 
-Constituent lists are from the official NSE Monthly Constituent Weight Bulletin (MCWB) data, tabulated from NSE-published PDFs. The data files are:
+Constituent lists are from the official NSE Monthly Constituent Weight Bulletin (MCWB) data, sourced from NSE MCWB monthly ZIP archives (niftyindices.com). The data files are:
 - `data/reference/nifty50_pit_membership.json` — 127 months, 2016-01-01 -> 2026-07-01
 - `data/reference/nifty50_pit_weights.json` — 127 months of free-float weights, available for breadth scoring in TRAIN build
 
@@ -15,14 +15,14 @@ Constituent lists are from the official NSE Monthly Constituent Weight Bulletin 
 
 ## G1 — Universe
 **PASS: True**
-Official Nifty 50 PIT membership from NSE Monthly Constituent Weight Bulletins (MCWB). Source: tabulated NSE PDFs. Each trade date's membership is the bulletin for its month (YYYY-MM-01). Two months (2018-05-01, 2026-07-01) were not available in the MCWB archive and are filled from the preceding month's bulletin.
+Official Nifty 50 PIT membership from NSE Monthly Constituent Weight Bulletins (MCWB). Source: CSV files from NSE MCWB monthly ZIP archives (niftyindices.com). Each trade date's membership is the bulletin for its month (YYYY-MM-01). Two months (2018-05-01, 2026-07-01) were not available in the MCWB archive and are filled from the preceding month's bulletin.
 
 - **n_dates_checked**: 20
-- **n_dates_ok**: 17
-- **n_dates_missing**: 3
-- **total_constituent_dates_checked**: 1009
+- **n_dates_ok**: 18
+- **n_dates_missing**: 2
+- **total_constituent_dates_checked**: 1007
 - **total_constituent_dates_present**: 1005
-- **coverage_rate**: 99.6
+- **coverage_rate**: 99.8
 - **coverage_threshold**: 95%
 - **membership_source**: F:\Nifty\data\reference\nifty50_pit_membership.json
 - **n_membership_months**: 127
@@ -48,17 +48,14 @@ Official Nifty 50 PIT membership from NSE Monthly Constituent Weight Bulletins (
 **PASS: True**
 Official Nifty 50 PIT constituent equity bhavcopy availability, 2016-01-01 -> 2026-07-31. Membership per MCWB month key; missing months fall back to previous available bulletin.
 
-- **total_constituent_dates**: 131550
-- **total_misses**: 138
-- **miss_rate**: 0.105
+- **total_constituent_dates**: 131466
+- **total_misses**: 54
+- **miss_rate**: 0.041
 - **threshold**: 1%
 - **dates_checked**: 2621
 - **dates_below_30**: 0
 
 #### Top missing symbols
-- DUMMYHDLVR: 42 dates
-- DUMMYREL: 21 dates
-- DUMMYTATAM: 21 dates
 - ITCHOTELS: 20 dates
 - TMPV: 15 dates
 - JIOFIN: 13 dates
