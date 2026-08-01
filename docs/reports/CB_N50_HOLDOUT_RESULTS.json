@@ -1,0 +1,33 @@
+{
+  "phase": "HOLDOUT",
+  "window": "2020-01-01 to 2022-12-31",
+  "n_trading_days": 748,
+  "n_ic_observations": 746,
+  "active_features": [
+    "reversal",
+    "basis"
+  ],
+  "combined_ic": {
+    "mean_IC": 0.029355,
+    "ic_std": 0.182629,
+    "ac1": -0.0062,
+    "nw_mean": 0.029355,
+    "nw_se": 0.006748,
+    "nw_t": 4.3502,
+    "p_value": 1.5e-05,
+    "alpha": 0.05,
+    "significant": true
+  },
+  "train_comparison": {
+    "train_mean_IC": 0.058674,
+    "train_nw_t": 11.3583,
+    "train_n_obs": 983,
+    "holdout_mean_IC": 0.029355,
+    "holdout_nw_t": 4.3502,
+    "holdout_n_obs": 746,
+    "ic_change": -0.029319
+  },
+  "gate_g3": "PASS",
+  "gate_g4": "NOT EVALUATED",
+  "note": "G4 (futures P&L via breadth) intentionally skipped. TRAIN directional check showed breadth->futures fails. SEALED window preserved. The real result is the +0.029 cross-sectional IC, which warrants a fresh construct (constituent long-short book, per_trade_pnl RFA)."
+}
