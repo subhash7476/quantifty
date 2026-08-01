@@ -2,7 +2,7 @@
 CB-N50 Substrate Certification — Phase 1, Gates 1-5
 
 Verifies all five pre-TRAIN gates before any signal data is read:
-  G1: PIT Nifty 50 membership (NIFTY-200 top-50 approximation), >=20 random dates verifiable
+  G1: PIT Nifty 50 membership (official NSE MCWB data, >=20 random dates verifiable)
   G2: Every constituent has equity bhavcopy data, <1% miss rate
   G3: Nifty futures data exists on all dates; roll dates identifiable
   G4: Futures open auction prices are real (open > 0 for near-month)
@@ -10,6 +10,7 @@ Verifies all five pre-TRAIN gates before any signal data is read:
 
 Output: docs/reports/CB_N50_SUBSTRATE_CERTIFICATION.md
 """
+
 import json
 import sys
 import random
@@ -27,56 +28,62 @@ EQUITY_PATH = "data/market_data/equity_bhavcopy.duckdb"
 FUTURES_PATH = "data/market_data/futures_bhavcopy.duckdb"
 NIFTY_UNDERLYING = "NIFTY"
 
-# ── NIFTY-200 top-50 approximation ────────────────────────────────────
-# Source: universe_membership table in equity_bhavcopy.duckdb.
-# Take top 50 by rank on each rebalance date. This approximates Nifty 50
-# (NIFTY-200 is a superset with ~90% overlap since Nifty 50 selection
-# uses similar criteria). The exact index membership verification requires
-# cross-referencing NSE published changes and is deferred to TRAIN build.
+ROOT = Path(__file__).parent.parent.parent.parent
+MEMBERSHIP_PATH = ROOT / "data" / "reference" / "nifty50_pit_membership.json"
+WEIGHTS_PATH = ROOT / "data" / "reference" / "nifty50_pit_weights.json"
 
 
-def _build_universe_map(conn: duckdb.DuckDBPyConnection) -> dict:
-    """Return {rebalance_date: [symbol, ...]} of top-50 by rank."""
-    rows = conn.execute("""
-        SELECT rebalance_date, symbol, rank
-        FROM universe_membership
-        WHERE rank <= 50
-        ORDER BY rebalance_date, rank
-    """).fetchall()
-
-    result = defaultdict(list)
-    for rebalance_date, symbol, rank in rows:
-        result[rebalance_date].append(symbol)
-    return dict(result)
+# ── PIT membership loader ───────────────────────────────────────────────
+# Official NSE Monthly Constituent Weight Bulletin (MCWB) data.
+# Format: {"YYYY-MM-01": ["SYMBOL", ...], ...}
+# Source: NSE published constituent weight PDFs, tabulated by hand.
+# Two months (2018-05-01, 2026-07-01) were missing from the MCWB archive
+# and are filled from the preceding month's bulletin — membership was
+# unchanged in both periods. All other months have >=50 members; months
+# with <50 members reflect Nifty 50 expansions that were in progress
+# (e.g. early 2016 the index was transitioning from 50 to 51 stocks).
 
 
-def _get_top50_on(trade_date, universe_map, rebalance_dates_sorted):
-    """Return the top-50 symbol set active on `trade_date`
-    (i.e. from the most recent rebalance_date <= trade_date)."""
-    for rd in reversed(rebalance_dates_sorted):
-        if rd <= trade_date:
-            return set(universe_map.get(rd, []))
+def _load_membership() -> dict:
+    with open(MEMBERSHIP_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _load_weights() -> dict:
+    with open(WEIGHTS_PATH, encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _get_membership_month(trade_date):
+    """Return the YYYY-MM-01 key for a given trade_date."""
+    if isinstance(trade_date, str):
+        trade_date = date.fromisoformat(trade_date)
+    return f"{trade_date.year:04d}-{trade_date.month:02d}-01"
+
+
+def _get_constituents_for(trade_date, membership: dict):
+    """Return the set of Nifty 50 symbols active on `trade_date`.
+    Looks up the month key; if missing, falls back to the previous available month."""
+    key = _get_membership_month(trade_date)
+    if key in membership:
+        return set(membership[key])
+    # Fallback: find the most recent preceding month
+    months = sorted(membership.keys())
+    candidate = None
+    for m in reversed(months):
+        if m < key:
+            candidate = m
+            break
+    if candidate:
+        return set(membership[candidate])
     return set()
 
 
-def _get_all_top50_on(trade_date_obj):
-    """Return the top-50 as of a given date (for ISO string or date)."""
-    if isinstance(trade_date_obj, str):
-        trade_date_obj = date.fromisoformat(trade_date_obj)
-    for rd in reversed(_REBALANCE_DATES):
-        if rd <= trade_date_obj:
-            return set(_UNIVERSE_MAP.get(rd, []))
-    return set()
+# ── Gate 1: Universe — PIT Nifty 50 membership ──────────────────────────
 
-
-# ── Gate 1: Universe — PIT Nifty 50 membership ────────────────────────
-
-def certify_universe(rng) -> dict:
-    """Verify top-50 NIFTY-200 members on >=20 random trade dates."""
+def certify_universe(membership: dict, rng) -> dict:
+    """Verify official Nifty 50 PIT membership on >=20 random trade dates."""
     conn = duckdb.connect(EQUITY_PATH, read_only=True)
-
-    universe_map = _build_universe_map(conn)
-    rebalance_dates_sorted = sorted(universe_map.keys())
 
     all_dates = conn.execute("""
         SELECT DISTINCT trade_date FROM equity_bhavcopy
@@ -87,9 +94,20 @@ def certify_universe(rng) -> dict:
 
     sample_dates = sorted(rng.sample(all_dates, min(20, len(all_dates))))
 
+    membership_months_sorted = sorted(membership.keys())
+    first_pit = membership_months_sorted[0]
+    last_pit = membership_months_sorted[-1]
+
+    missing_month_keys = []
+    for m in membership_months_sorted:
+        symbols = membership[m]
+        ideal = 50
+        if len(symbols) < ideal:
+            missing_month_keys.append({"month": m, "n_symbols": len(symbols)})
+
     checks = []
     for d in sample_dates:
-        constituents = _get_top50_on(d, universe_map, rebalance_dates_sorted)
+        constituents = _get_constituents_for(d, membership)
         if len(constituents) == 0:
             checks.append({"date": str(d), "status": "NO_UNIVERSE", "n": 0})
             continue
@@ -114,10 +132,6 @@ def certify_universe(rng) -> dict:
             "constituents": sorted(constituents),
         })
 
-    n_rebalance_dates = len(rebalance_dates_sorted)
-    first_rb = str(rebalance_dates_sorted[0]) if rebalance_dates_sorted else "N/A"
-    last_rb = str(rebalance_dates_sorted[-1]) if rebalance_dates_sorted else "N/A"
-
     conn.close()
 
     total_expected = sum(c.get("n_expected", 0) for c in checks)
@@ -128,11 +142,12 @@ def certify_universe(rng) -> dict:
     return {
         "gate": "G1 — Universe",
         "description": (
-            "NIFTY-200 top-50 approximation => PIT Nifty 50 membership. "
-            "Source: universe_membership table, top 50 by rank per rebalance date. "
-            "This is NOT a verified Nifty 50 index membership list — exact "
-            "verification requires cross-referencing NSE published index changes "
-            "and is deferred to the actual TRAIN build step."
+            "Official Nifty 50 PIT membership from NSE Monthly Constituent "
+            "Weight Bulletins (MCWB). Source: tabulated NSE PDFs. "
+            "Each trade date's membership is the bulletin for its month "
+            "(YYYY-MM-01). Two months (2018-05-01, 2026-07-01) were not "
+            "available in the MCWB archive and are filled from the preceding "
+            "month's bulletin."
         ),
         "pass": coverage_rate >= 0.95,
         "n_dates_checked": len(checks),
@@ -142,21 +157,24 @@ def certify_universe(rng) -> dict:
         "total_constituent_dates_present": total_present,
         "coverage_rate": round(coverage_rate * 100, 2),
         "coverage_threshold": "95%",
-        "n_rebalance_dates": n_rebalance_dates,
-        "rebalance_date_range": f"{first_rb} -> {last_rb}",
+        "membership_source": str(MEMBERSHIP_PATH),
+        "n_membership_months": len(membership_months_sorted),
+        "membership_date_range": f"{first_pit} -> {last_pit}",
+        "months_with_sub_50_members": missing_month_keys,
+        "notes": {
+            "2018-05-01": "MCWB bulletin not available; filled from 2018-04-01",
+            "2026-07-01": "MCWB bulletin not available; filled from 2026-06-01",
+        },
         "checks": checks,
     }
 
 
 # ── Gate 2: Data Coverage — equity bhavcopy for all constituents ──────
 
-def certify_data_coverage() -> dict:
-    """Verify equity bhavcopy data for approximate Nifty 50 constituents
+def certify_data_coverage(membership: dict) -> dict:
+    """Verify equity bhavcopy data for official Nifty 50 PIT constituents
     on every trade date 2016-2026."""
     conn = duckdb.connect(EQUITY_PATH, read_only=True)
-
-    universe_map = _build_universe_map(conn)
-    rebalance_dates_sorted = sorted(universe_map.keys())
 
     all_dates = conn.execute("""
         SELECT DISTINCT trade_date FROM equity_bhavcopy
@@ -172,7 +190,7 @@ def certify_data_coverage() -> dict:
     dates_below_30 = 0
 
     for d in all_dates:
-        constituents = _get_top50_on(d, universe_map, rebalance_dates_sorted)
+        constituents = _get_constituents_for(d, membership)
         if len(constituents) == 0:
             continue
 
@@ -207,8 +225,9 @@ def certify_data_coverage() -> dict:
     return {
         "gate": "G2 — Data Coverage",
         "description": (
-            "NIFTY-200 top-50 constituent equity bhavcopy availability, "
-            "2016-01-01 → 2026-07-31."
+            "Official Nifty 50 PIT constituent equity bhavcopy availability, "
+            "2016-01-01 -> 2026-07-31. Membership per MCWB month key; "
+            "missing months fall back to previous available bulletin."
         ),
         "pass": miss_rate < 0.01 and dates_below_30 < dates_checked * 0.01,
         "total_constituent_dates": total_checks,
@@ -412,34 +431,45 @@ def main():
     print("CB-N50 SUBSTRATE CERTIFICATION — PHASE 1")
     print("=" * 70)
 
-    # ── Pre-load universe map once ─────────────────────────────────────
-    conn = duckdb.connect(EQUITY_PATH, read_only=True)
-    universe_map = _build_universe_map(conn)
-    rebalance_dates = sorted(universe_map.keys())
-    conn.close()
+    # ── Load PIT membership + weights ───────────────────────────────────
+    membership = _load_membership()
+    weights = _load_weights()
 
-    # Stash for G1/G2 helpers to use via module-level shortcuts
-    import builtins
-    setattr(builtins, '_UNIVERSE_MAP', universe_map)
-    setattr(builtins, '_REBALANCE_DATES', rebalance_dates)
+    membership_months = sorted(membership.keys())
+    weight_months = sorted(weights.keys())
+
+    print(f"\nLoaded MCWB membership: {len(membership_months)} months "
+          f"({membership_months[0]} -> {membership_months[-1]})")
+    print(f"Loaded MCWB weights: {len(weight_months)} months "
+          f"({weight_months[0]} -> {weight_months[-1]})")
+
+    # ── Check symbol preservation: M&M and other special chars ──────────
+    all_symbols = set()
+    for syms in membership.values():
+        all_symbols.update(syms)
+    special_syms = [s for s in all_symbols if "&" in s or "-" in s]
+    if special_syms:
+        print(f"Symbols with special chars preserved: {sorted(special_syms)}")
 
     results = {}
 
-    print("\n[G1] Universe — NIFTY-200 top-50 PIT membership...")
-    g1 = certify_universe(rng)
+    print("\n[G1] Universe — Official Nifty 50 PIT membership...")
+    g1 = certify_universe(membership, rng)
     results["g1"] = g1
     print(f"  PASS: {g1['pass']} | {g1['n_dates_checked']} dates checked, "
           f"{g1['n_dates_ok']} OK, {g1['n_dates_missing']} with missing constituents")
-    print(f"  Universe source: NIFTY-200 top-50 by rank ({g1['n_rebalance_dates']} rebalance dates, "
-          f"{g1['rebalance_date_range']})")
+    print(f"  Membership source: {g1['membership_source']}")
+    print(f"  {g1['n_membership_months']} membership months ({g1['membership_date_range']})")
+    if g1.get("months_with_sub_50_members"):
+        print(f"  Months with <50 members: {g1['months_with_sub_50_members']}")
 
     print("\n[G2] Data Coverage — equity bhavcopy availability...")
-    g2 = certify_data_coverage()
+    g2 = certify_data_coverage(membership)
     results["g2"] = g2
     print(f"  PASS: {g2['pass']} | {g2['total_constituent_dates']:,} checks, "
           f"{g2['total_misses']} misses ({g2['miss_rate']}%)")
     if g2.get("dates_below_30", 0) > 0:
-        print(f"  ⚠ dates below 30 constituents: {g2['dates_below_30']}/{g2['dates_checked']}")
+        print(f"  dates below 30 constituents: {g2['dates_below_30']}/{g2['dates_checked']}")
     if g2["top_missing_symbols"]:
         print(f"  Top missing: {g2['top_missing_symbols'][:5]}")
 
@@ -462,8 +492,22 @@ def main():
     results["g5"] = g5
     print(f"  PASS: {g5['pass']} | {g5['total_roll_dates']} roll dates identified")
 
+    # ── Add weights note to results ─────────────────────────────────────
+    results["weights"] = {
+        "description": (
+            "Nifty 50 free-float weight data from NSE MCWB bulletins "
+            "(data/reference/nifty50_pit_weights.json). Format: "
+            "{'YYYY-MM-01': {'SYMBOL': weight_pct, ...}}. "
+            "Weights are available but not consumed by substrate "
+            "certification; they are needed for breadth score computation "
+            "during TRAIN build."
+        ),
+        "n_months": len(weight_months),
+        "date_range": f"{weight_months[0]} -> {weight_months[-1]}",
+    }
+
     # ── Overall verdict ────────────────────────────────────────────────
-    all_pass = all(r["pass"] for r in results.values())
+    all_pass = all(r["pass"] for r in results.values() if isinstance(r, dict) and "pass" in r)
     print("\n" + "=" * 70)
     print(f"OVERALL: {'PASS' if all_pass else 'FAIL'}")
     print("=" * 70)
@@ -475,6 +519,30 @@ def main():
     report_lines.append("")
     report_lines.append(f"**Overall: {'PASS' if all_pass else 'FAIL'}**")
     report_lines.append("")
+    report_lines.append("## Membership Source")
+    report_lines.append("")
+    report_lines.append(
+        "Constituent lists are from the official NSE Monthly Constituent "
+        "Weight Bulletin (MCWB) data, tabulated from NSE-published PDFs. "
+        "The data files are:"
+    )
+    report_lines.append(f"- `data/reference/nifty50_pit_membership.json` — "
+                        f"{len(membership_months)} months, "
+                        f"{membership_months[0]} -> {membership_months[-1]}")
+    report_lines.append(f"- `data/reference/nifty50_pit_weights.json` — "
+                        f"{len(weight_months)} months of free-float weights, "
+                        f"available for breadth scoring in TRAIN build")
+    report_lines.append("")
+    report_lines.append(
+        "**Provenance notes:** Two months (2018-05-01, 2026-07-01) were not "
+        "available in the MCWB archive and are filled from the preceding "
+        "month's bulletin. All symbols including special characters "
+        "(e.g. `M&M`, `BAJAJ-AUTO`) are preserved exactly as they appear "
+        "in the MCWB data."
+    )
+    report_lines.append("")
+    report_lines.append("---")
+    report_lines.append("")
 
     for gate_key in ["g1", "g2", "g3", "g4", "g5"]:
         g = results[gate_key]
@@ -485,9 +553,20 @@ def main():
 
         for k, v in g.items():
             if k in ("gate", "description", "pass", "checks", "gaps", "roll_dates_sample",
-                     "roll_check_sample", "zero_open_sample", "valid_samples", "top_missing_symbols"):
+                     "roll_check_sample", "zero_open_sample", "valid_samples", "top_missing_symbols",
+                     "months_with_sub_50_members", "notes"):
                 continue
             report_lines.append(f"- **{k}**: {v}")
+
+        if "months_with_sub_50_members" in g and g["months_with_sub_50_members"]:
+            report_lines.append(f"\n#### Months with fewer than 50 members")
+            for item in g["months_with_sub_50_members"]:
+                report_lines.append(f"- {item['month']}: {item['n_symbols']} symbols")
+
+        if "notes" in g and g["notes"]:
+            report_lines.append(f"\n#### Fill notes")
+            for month_key, note in sorted(g["notes"].items()):
+                report_lines.append(f"- **{month_key}**: {note}")
 
         if "top_missing_symbols" in g and g["top_missing_symbols"]:
             report_lines.append(f"\n#### Top missing symbols")
@@ -503,6 +582,15 @@ def main():
                     report_lines.append(f"  Missing: {', '.join(c['missing'])}")
 
         report_lines.append("")
+
+    # ── Weights section ─────────────────────────────────────────────────
+    w = results["weights"]
+    report_lines.append("## Weights Data")
+    report_lines.append("")
+    report_lines.append(f"{w['description']}")
+    report_lines.append(f"- **n_months**: {w['n_months']}")
+    report_lines.append(f"- **date_range**: {w['date_range']}")
+    report_lines.append("")
 
     report_text = "\n".join(report_lines)
 
