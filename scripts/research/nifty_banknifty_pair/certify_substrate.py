@@ -38,10 +38,14 @@ WEIGHTS_PATH = ROOT / "data" / "reference" / "nifty50_pit_weights.json"
 # Format: {"YYYY-MM-01": ["SYMBOL", ...], ...}
 # Source: CSV files from NSE MCWB ZIP archives downloaded from niftyindices.com.
 # Two months (2018-05-01, 2026-07-01) were missing from the MCWB archive
-# and are filled from the preceding month's bulletin — membership was
-# unchanged in both periods. All other months have >=50 members; months
-# with <50 members reflect Nifty 50 expansions that were in progress
-# (e.g. early 2016 the index was transitioning from 50 to 51 stocks).
+# and are filled from the preceding month's bulletin. Seventeen months
+# (2016-04 through 2017-07, plus 2023-08, 2025-01, 2025-02) have 51
+# symbols: the DVR era (TATAMTRDVR double-listed alongside TATAMOTORS
+# as a separate weighted line) accounts for the 2016-2017 bulk; genuine
+# MCWB rebalance-overlap months account for the other three (2023-08:
+# JIOFIN addition; 2025-01/02: ITCHOTELS addition).
+# The DVR double-count must be handled during TRAIN build (the index
+# had 51 weighted lines but 50 distinct underlying companies).
 
 
 def _load_membership() -> dict:
@@ -55,27 +59,40 @@ def _load_weights() -> dict:
 
 
 def _get_membership_month(trade_date):
-    """Return the YYYY-MM-01 key for a given trade_date."""
+    """Return the YYYY-MM-01 key for a given trade_date.
+
+    Uses a one-month lag: the MCWB bulletin for month M is published at the
+    end of month M. A computation on any day in month M must use the bulletin
+    for month M-1 (the most recent available at that time). This eliminates
+    lookahead — the signal computed after the day-t close cannot see the
+    same-month bulletin that has not been published yet.
+    """
     if isinstance(trade_date, str):
         trade_date = date.fromisoformat(trade_date)
-    return f"{trade_date.year:04d}-{trade_date.month:02d}-01"
+    # One-month lag: use the previous month's bulletin
+    if trade_date.month == 1:
+        return f"{trade_date.year - 1:04d}-12-01"
+    return f"{trade_date.year:04d}-{trade_date.month - 1:02d}-01"
 
 
 def _get_constituents_for(trade_date, membership: dict):
     """Return the set of Nifty 50 symbols active on `trade_date`.
-    Looks up the month key; if missing, falls back to the previous available month."""
+
+    Uses a one-month-lagged MCWB bulletin (see _get_membership_month).
+    If the lagged key falls before any available bulletin, the earliest
+    available month is used (no lookahead — the earliest bulletin is
+    already published before any subsequent trade date)."""
     key = _get_membership_month(trade_date)
     if key in membership:
         return set(membership[key])
-    # Fallback: find the most recent preceding month
+    # Key before earliest available month: use the first available
     months = sorted(membership.keys())
-    candidate = None
+    if key < months[0]:
+        return set(membership[months[0]])
+    # Otherwise find the most recent preceding month
     for m in reversed(months):
         if m < key:
-            candidate = m
-            break
-    if candidate:
-        return set(membership[candidate])
+            return set(membership[m])
     return set()
 
 
@@ -145,10 +162,17 @@ def certify_universe(membership: dict, rng) -> dict:
             "Official Nifty 50 PIT membership from NSE Monthly Constituent "
             "Weight Bulletins (MCWB). Source: CSV files from NSE MCWB "
             "monthly ZIP archives (niftyindices.com). "
-            "Each trade date's membership is the bulletin for its month "
-            "(YYYY-MM-01). Two months (2018-05-01, 2026-07-01) were not "
+            "Each trade date's membership is the bulletin for the PREVIOUS "
+            "month (one-month lag: the bulletin for month M is published "
+            "at the end of M and is not available during M). "
+            "Two months (2018-05-01, 2026-07-01) were not "
             "available in the MCWB archive and are filled from the preceding "
-            "month's bulletin."
+            "month's bulletin. Seventeen months show 51 symbols: "
+            "the DVR era (TATAMTRDVR double-listed, 2016-2017) accounts "
+            "for the bulk; genuine rebalance-overlap months account for three "
+            "(JIOFIN Aug 2023, ITCHOTELS Jan-Feb 2025). The DVR double-count "
+            "must be handled during TRAIN build (51 weighted lines, "
+            "50 distinct underlying companies)."
         ),
         "pass": coverage_rate >= 0.95,
         "n_dates_checked": len(checks),
@@ -227,8 +251,9 @@ def certify_data_coverage(membership: dict) -> dict:
         "gate": "G2 — Data Coverage",
         "description": (
             "Official Nifty 50 PIT constituent equity bhavcopy availability, "
-            "2016-01-01 -> 2026-07-31. Membership per MCWB month key; "
-            "missing months fall back to previous available bulletin."
+            "2016-01-01 -> 2026-07-31. Membership uses previous-month MCWB "
+            "bulletin (one-month lag); missing months fall back to previous "
+            "available bulletin."
         ),
         "pass": miss_rate < 0.01 and dates_below_30 < dates_checked * 0.01,
         "total_constituent_dates": total_checks,

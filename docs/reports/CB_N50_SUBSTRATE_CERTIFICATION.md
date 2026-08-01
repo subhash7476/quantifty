@@ -15,14 +15,14 @@ Constituent lists are from the official NSE Monthly Constituent Weight Bulletin 
 
 ## G1 — Universe
 **PASS: True**
-Official Nifty 50 PIT membership from NSE Monthly Constituent Weight Bulletins (MCWB). Source: CSV files from NSE MCWB monthly ZIP archives (niftyindices.com). Each trade date's membership is the bulletin for its month (YYYY-MM-01). Two months (2018-05-01, 2026-07-01) were not available in the MCWB archive and are filled from the preceding month's bulletin.
+Official Nifty 50 PIT membership from NSE Monthly Constituent Weight Bulletins (MCWB). Source: CSV files from NSE MCWB monthly ZIP archives (niftyindices.com). Each trade date's membership is the bulletin for the PREVIOUS month (one-month lag: the bulletin for month M is published at the end of M and is not available during M). Two months (2018-05-01, 2026-07-01) were not available in the MCWB archive and are filled from the preceding month's bulletin. Seventeen months show 51 symbols: the DVR era (TATAMTRDVR double-listed, 2016-2017) accounts for the bulk; genuine rebalance-overlap months account for three (JIOFIN Aug 2023, ITCHOTELS Jan-Feb 2025). The DVR double-count must be handled during TRAIN build (51 weighted lines, 50 distinct underlying companies).
 
 - **n_dates_checked**: 20
-- **n_dates_ok**: 18
-- **n_dates_missing**: 2
+- **n_dates_ok**: 20
+- **n_dates_missing**: 0
 - **total_constituent_dates_checked**: 1007
-- **total_constituent_dates_present**: 1005
-- **coverage_rate**: 99.8
+- **total_constituent_dates_present**: 1007
+- **coverage_rate**: 100.0
 - **coverage_threshold**: 95%
 - **membership_source**: F:\Nifty\data\reference\nifty50_pit_membership.json
 - **n_membership_months**: 127
@@ -39,27 +39,26 @@ Official Nifty 50 PIT membership from NSE Monthly Constituent Weight Bulletins (
 - 2016-07-13: OK (51/51 present)
 - 2017-06-12: OK (51/51 present)
 - 2017-07-20: OK (51/51 present)
-- 2017-09-12: OK (50/50 present)
+- 2017-09-12: OK (51/51 present)
 - 2017-11-06: OK (50/50 present)
 - 2018-04-24: OK (50/50 present)
 - 2019-08-16: OK (50/50 present)
 
 ## G2 — Data Coverage
 **PASS: True**
-Official Nifty 50 PIT constituent equity bhavcopy availability, 2016-01-01 -> 2026-07-31. Membership per MCWB month key; missing months fall back to previous available bulletin.
+Official Nifty 50 PIT constituent equity bhavcopy availability, 2016-01-01 -> 2026-07-31. Membership uses previous-month MCWB bulletin (one-month lag); missing months fall back to previous available bulletin.
 
-- **total_constituent_dates**: 131466
-- **total_misses**: 54
-- **miss_rate**: 0.041
+- **total_constituent_dates**: 131463
+- **total_misses**: 32
+- **miss_rate**: 0.024
 - **threshold**: 1%
 - **dates_checked**: 2621
 - **dates_below_30**: 0
 
 #### Top missing symbols
-- ITCHOTELS: 20 dates
-- TMPV: 15 dates
-- JIOFIN: 13 dates
-- ETERNAL: 6 dates
+- HDFC: 13 dates
+- ZOMATO: 13 dates
+- TATAMOTORS: 6 dates
 
 ## G3 — Futures
 **PASS: True**
