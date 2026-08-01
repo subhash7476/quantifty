@@ -308,7 +308,19 @@ generous than anyone believes? It reads no market data, so it is free.
   receives **no TRAIN read**. Cost: one declaration file, zero data reads.
   *Consequence:* the engine is the **3-sleeve case** (Carry+Trend+Skew, central ≈ 0.75), and
   0.80 is now faced empirically by the composite after ≥2 TRAIN reads. A 3-sleeve engine
-  settled on realized ICs is a valid outcome; the 4th sleeve was correctly **not** forced in.
+   settled on realized ICs is a valid outcome; the 4th sleeve was correctly **not** forced in.
+- **RS-MOM: ABANDON** (2026-08-01, `rs_mom.py`, SHA-256 `67e3854b…`) — Nifty-BankNifty
+  relative-strength momentum. `per_trade_pnl` metric with n=186 weekly formations. Max power
+  **0.337** < 0.80. Even at Sharpe 0.65 (optimistic), ncp=S·√T=1.23. Would need Sharpe ≥1.30
+  (indefensible) or 763 weeks of sealed data. Cadence cancels; the 3.6-year sealed window is
+  the binding constraint. Kills any two-index `per_trade_pnl` construct.
+- **CB-N50: PROCEED** (2026-08-01, `cb_n50.py`, SHA-256 `e0437067…`) — constituent-to-index
+  breadth. `rank_ic` metric with n=887 daily formations over 50 Nifty 50 constituents. Max
+  power **1.00** at optimistic corner (δ=0.035, sd=0.15, ncp=6.95), n_required=147 < 887.
+  Clears because `rank_ic` decouples δ/sd from the calendar — √n=29.8 dominates. Three
+  features (momentum, basis, reversal), equal-weighted combination, pre-registered breadth
+  thresholds → Nifty futures. **PROCEED means "not provably infeasible"** — no authorization
+  to build, no TRAIN read taken.
 - Bands are **frozen at approval** (SHA-256 over the whole declaration file) and cannot be
   revised in response to results.
 
@@ -323,7 +335,11 @@ generous than anyone believes? It reads no market data, so it is free.
 | `docs/reports/RFA_RETROSPECTIVE.md` | Retrospective output |
 | `docs/reports/RFA_GATE_O1_REVIEW.md` | O1 review — withdrawal finding (§1) |
 | `governance/rfa/declarations/flow.py` | **FLOW declaration — frozen, ABANDON** (SHA-256 `d7a54cfb…`) |
-| `docs/reports/FLOW_RFA.md` | FLOW gate report — max power 0.6053, verified reproducible |
+| `governance/rfa/declarations/rs_mom.py` | **RS-MOM declaration — frozen, ABANDON** (SHA-256 `67e3854b…`) |
+| `governance/rfa/declarations/cb_n50.py` | **CB-N50 declaration — frozen, PROCEED** (SHA-256 `e0437067…`) |
+| `docs/reports/FLOW_RFA.md` | FLOW gate report — max power 0.6053 |
+| `docs/reports/RS_MOM_RFA.md` | RS-MOM gate report — max power 0.337, need 763 weeks |
+| `docs/reports/CB_N50_RFA.md` | CB-N50 gate report — max power 1.00, n_required=147 |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
 
@@ -446,6 +462,61 @@ Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SS
 | `governance/rfa/declarations/ts_basis_daily.py` | **FROZEN** TS Basis Daily RFA declaration |
 
 TS Basis Daily options selection is live-anchored: ATM struck on the live near-month futures LTP with a live bid/ask-spread + OI + volume tradeability screen (`MAX_SPREAD_PCT=5%`, `STRIKE_BAND=±3`, `MIN_OI=100`, volume ≥ 1 lot), falling back to EOD bhavcopy (`anchor_source`/`screen` labelled per contract) when the market is closed or the token is missing. Shared by `scripts/ts_basis_daily_options.py` and the `/ts-basis-daily/` panel via `core/analytics/options_selection.py`.
+
+---
+
+## Index Pair Research — Nifty/BankNifty (2026-08-01)
+
+**Status:** COMPLETE. Three constructs evaluated: two killed, one survives RFA.
+
+### Nifty-BankNifty Ratio Mean Reversion — NO OPPORTUNITY
+
+Deep research on pair trading the Nifty-BankNifty price ratio. EOD data 2016-2026 (2,620 obs) + 1m intraday 2023-2026 (315K obs). Ratio z-score mean reversion tested exhaustively.
+
+| Test | Result |
+|------|--------|
+| Cointegration (Johansen) | Not cointegrated at 5% (trace 14.42 < 15.49) |
+| Half-life | 166 days — far too slow for practical trading |
+| Bootstrap significance | p=0.354 — not distinguishable from random |
+| Fixed-parameter test | 9/11 positive years, but 54% of profit from COVID 2020 |
+| 2022-2023 (rate hikes) | Lost -2,451 bps under fixed params |
+| Parameters | Unstable across rolling 4-year windows (window drifts 10d→40d) |
+| Intraday (all 27 param combos) | All negative — ratio TRENDS (+1.10/+1.17 slopes), doesn't revert |
+
+**The intraday trending finding is a positive clue for momentum-based constructs** — it was the pair's strongest signal, just not harnessable via mean reversion. *(docs/reports/NIFTY_BANKNIFTY_PAIR_RESEARCH.md)*
+
+### RS-MOM (Relative-Strength Momentum) — RFA ABANDON
+
+Follow-the-trend pair construct: long stronger index, short weaker, weekly rebalance, beta-neutral. RFA gate killed it: `per_trade_pnl` metric with n=186 sealed weeks, max power 0.337 < 0.80. Root cause: `ncp = S·√T`, √T_sealed=1.89 fixed, requiring Sharpe ≥ 1.30 (indefensible). **This kills any two-index `per_trade_pnl` construct, not just momentum.** *(governance/rfa/declarations/rs_mom.py, SHA-256 `67e3854b…`; docs/reports/RS_MOM_PRE_REGISTRATION.md)*
+
+### CB-N50 (Constituent-to-Index Breadth) — RFA PROCEED
+
+**The credible avenue.** Stock-level cross-sectional signals over 50 Nifty 50 constituents, expressed via a single Nifty futures position. Three pre-specified features (momentum, basis, reversal), equal-weighted combination, pre-registered breadth thresholds (0.35/0.65). Primary metric: daily cross-sectional `rank_ic`.
+
+Why it clears: `rank_ic` metric with n=887 daily formations → √n=29.8 → ncp=(δ/sd)·√n=6.95 at optimistic corner, power=1.00. The `rank_ic` escape hatch works because IC dispersion (sd=0.15-0.25) is much smaller than the per_trade_pnl unit sd (1.0), and the daily cadence provides large n.
+
+**PROCEED means "not provably infeasible"** — no TRAIN read taken, no strategy code exists. 4-phase gate progression: substrate certification → TRAIN (feature selection, Bonferroni m=9) → HOLDOUT (confirmation) → SEALED (one-shot). BankNifty extension deferred pending constituent panel verification (methodology changing from 12 to 14 companies). *(governance/rfa/declarations/cb_n50.py, SHA-256 `e0437067…`; docs/reports/CB_N50_PRE_REGISTRATION.md)*
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `docs/reports/NIFTY_BANKNIFTY_PAIR_RESEARCH.md` | Pair research report — NO OPPORTUNITY on mean reversion |
+| `docs/reports/NIFTY_BANKNIFTY_PAIR_RESEARCH.json` | Frozen full-analysis snapshot |
+| `docs/reports/NIFTY_BANKNIFTY_PAIR_VALIDATION.json` | Train/test + walk-forward + regime validation |
+| `docs/reports/RS_MOM_PRE_REGISTRATION.md` | RS-MOM construct spec — ABANDON |
+| `docs/reports/RS_MOM_RFA.md` | RS-MOM formal gate report |
+| `docs/reports/CB_N50_PRE_REGISTRATION.md` | CB-N50 construct spec — PROCEED, 4-phase gates |
+| `docs/reports/CB_N50_RFA.md` | CB-N50 formal gate report |
+| `governance/rfa/declarations/rs_mom.py` | **FROZEN** RS-MOM RFA declaration (SHA-256 `67e3854b…`) |
+| `governance/rfa/declarations/cb_n50.py` | **FROZEN** CB-N50 RFA declaration (SHA-256 `e0437067…`) |
+| `scripts/research/nifty_banknifty_pair/` | Pair research code (data loader, analysis, validation, fixed-param test) |
+
+### Binding constraints discovered
+
+1. **per_trade_pnl on indices is dead.** √T_sealed=1.89 → need Sharpe ≥ 1.3 for power 0.80. All single-index and two-index constructs using per_trade_pnl face this wall — it is structural, not signal-dependent.
+2. **rank_ic with a genuine cross-section is the escape.** Daily cadence over 50 constituents gives √n=29.8, decoupling power from the sealed window length.
+3. **A "hidden" index timing under a stock-level veneer is invalid.** The primary hypothesis must be stock-level cross-sectional prediction. Using 50 stocks merely to manufacture a rank-IC statistic for an index-only price rule is not legitimate.
 
 ---
 
