@@ -40,13 +40,13 @@ For each trading day t:
 
 1. Compute each feature score for each Nifty 50 constituent (PIT membership)
 2. Cross-sectionally normalise each feature to z-scores within the panel
-3. Compute combined score = mean of normalised feature z-scores
-4. Compute **daily cross-sectional rank IC** = Spearman correlation between combined scores at t and next-day returns at t+1, across the Nifty 50 cross-section
-5. Compute **breadth score** = fraction of constituents with combined score above zero, weighted by free-float market cap
+3. Compute combined score = mean of normalised feature z-scores (§3.3)
+4. Compute **daily cross-sectional rank IC** = Spearman correlation between combined scores at t and open-to-open returns (t+1 open → t+2 open), across the Nifty 50 cross-section
+5. Compute **breadth score** = fraction of constituents with combined score above zero, weighted by free-float market cap (§3.5)
 
 ### 1.4 Index Position Rule (pre-registered)
 
-The breadth score maps to a Nifty futures position via a **fixed, pre-registered rule**:
+The breadth score maps to a Nifty futures position via a **fixed, pre-registered rule** (fully specified in §3.5):
 
 ```
 if breadth_score > 0.65:  LONG  Nifty futures (1 unit)
@@ -54,11 +54,7 @@ if breadth_score < 0.35:  SHORT Nifty futures (1 unit)
 else:                     FLAT
 ```
 
-The thresholds (0.35, 0.65) are pre-registered before any TRAIN read. They are symmetric around 0.5 and represent the top/bottom tercile of possible breadth values (50 stocks × binary signal). These are NOT fitted to data — they are pinned by the construct design.
-
-**Holding period**: 1 day. Re-evaluate daily. This matches the daily signal cadence and avoids overlapping-position complications.
-
-**Position sizing**: Fixed 1 unit of Nifty futures (lot size from instrument master at execution time). No volatility scaling, no Kelly sizing — the P&L from futures is an execution check, not a second optimisation surface.
+**Hold**: enter at open t+1, exit at open t+2. Re-evaluate daily. Execution timeline specified in §3.6. Position sizing is fixed 1 unit — the futures P&L is an execution-translation check, not a second optimisation surface.
 
 ### 1.5 Universe
 
@@ -68,11 +64,7 @@ Each day's cross-section contains exactly those stocks that were Nifty 50 member
 
 ### 1.6 Execution Vehicle
 
-Nifty futures (NSE FO segment). Single-leg only — no paired BankNifty position. The breadth score aggregates 50 stock-level predictions into one index-level direction; expressing it as a Nifty future is the natural mapping.
-
-**Cost model**: Nifty futures round-trip: brokerage + STT (0.0125% sell side) + exchange + SEBI + GST + stamp ≈ 2-3 bps. Exact schedule to be sourced from broker at execution time.
-
-**Roll handling**: Near-month futures, rolled 2 days before expiry. Roll cost (calendar spread) is a drag, not a signal — tracked separately in execution P&L but not optimised.
+Nifty futures (NSE FO segment). Single-leg only. The breadth score aggregates 50 stock-level predictions into one index-level direction. Execution timeline (enter at open t+1, exit at open t+2), cost model, slippage, and roll handling are fully specified in §3.6.
 
 ---
 
@@ -124,14 +116,17 @@ These are frozen specifications — none may be revised in response to TRAIN res
 
 ### 3.1 Universe
 
-- **Point-in-time Nifty 50 membership** from the NIFTY-200 universe data (`symbol_entity_intervals`). Membership changes (additions/deletions) apply on the effective date.
+- **Point-in-time Nifty 50 membership** determines eligibility. The NIFTY-200 universe dataset (`symbol_entity_intervals`) is the **data source** — it must not become a proxy universe. Every constituent included in the cross-section on a given date must be independently verified as a Nifty 50 member on that date, not merely a NIFTY-200 member.
+- **Survivorship bias**: membership is PIT — a stock that enters Nifty 50 mid-window is included from its effective date; a stock that leaves is excluded from its removal date. No look-ahead. The cross-section on a date contains only those stocks that WERE Nifty 50 members on that date.
 - **Free-float market-cap weights** from the same source, used for the weighted breadth score only (not for IC computation, which is equal-weighted rank correlation).
-- Each day's cross-section contains exactly those stocks that were Nifty 50 members on that date. Constituents with missing data on a given day (suspended, not yet listed, data gap) are excluded from that day's cross-section; the rank IC must be computed on the remaining N ≥ 30 stocks. Days with N < 30 are excluded entirely from the IC series.
+- **Missing-data rule**: constituents with missing data on a given day (suspended, not yet listed, data gap) are excluded from that day's cross-section. The rank IC must be computed on the remaining N ≥ 30 stocks. Days with N < 30 are excluded entirely from the IC series.
+- **Verification gate**: before any TRAIN read, verify Nifty 50 PIT membership against NSE published changes for ≥20 randomly sampled dates across 2016-2026. Cross-check that no NIFTY-200-but-not-Nifty-50 stocks appear in the cross-section.
 
 ### 3.2 Target and Metric
 
-- **Target horizon**: next-day close-to-close return (t to t+1). Not intraday, not overnight-only, not multi-day.
-- **Metric**: daily cross-sectional **Spearman** rank correlation between the combined signal score at time t and the next-day return at t+1, across the Nifty 50 constituents present on day t.
+- **Target return**: open-to-open. Specifically, the return from the open auction price on day t+1 to the open auction price on day t+2. This avoids the look-ahead bias of close-to-close: a signal computed from day t closing data cannot be executed at day t's close.
+- **Signal computation timing**: features are computed from closing data available at the end of trading day t. The combined score for day t is finalised after the day t close.
+- **Metric**: daily cross-sectional **Spearman** rank correlation between the combined signal score (computed after day t close) and the open-to-open return (t+1 open → t+2 open), across the Nifty 50 constituents present on day t.
 - **Observation unit**: one IC value per trading day. **Not** 50 × 887 pseudo-independent stock-days. The statistical test operates on the time series of 887 daily IC values, each computed from a cross-section of ~50 stocks.
 
 ### 3.3 Feature Set (closed, frozen)
@@ -161,7 +156,16 @@ Daily IC is serially correlated — a signal that persists across adjacent days 
 The breadth score maps to a Nifty futures position via a **fixed rule with no parameter to optimise**:
 
 ```
-breadth_score = fraction of constituents with combined_score > 0, weighted by free-float market cap
+For constituents i = 1..N on day t, where N = number with usable inputs:
+  S_i = combined_score_i           # mean of normalised feature z-scores (§3.3)
+  w_i = free_float_mcap_i          # from PIT Nifty 50 membership data
+  eligible_i = S_i is not NaN      # constituent has usable features
+
+Let M = count of eligible constituents on day t.
+If M = 0: day is unscorable — no position, no IC observation.
+
+breadth_score = sum(w_i for i where S_i > 0 and eligible_i) /
+                sum(w_i for i where eligible_i)
 
 if breadth_score > 0.65:  LONG  Nifty futures (1 unit)
 if breadth_score < 0.35:  SHORT Nifty futures (1 unit)
@@ -169,8 +173,40 @@ else:                     FLAT
 ```
 
 - **Thresholds (0.35, 0.65)** are symmetric around 0.5 and represent the top/bottom tercile of possible breadth values. They are pinned by the construct design, not fitted to data.
+- **Neutral region [0.35, 0.65]** represents days where the aggregate signal is too ambiguous to act. A FLAT position on these days is the correct behaviour — forcing a position when half the index is scored positive and half negative is noise-trading, not conviction.
+- **Low-N treatment**: if M < 30 eligible constituents, the day is unscorable — no breadth score computed, no IC observation generated, no position taken. This is consistent with the IC minimum-N rule in §3.1.
 - **No later threshold optimisation** is permitted. If the TRAIN data suggests different thresholds would have performed better, that finding is recorded as a caveat but the thresholds remain unchanged.
 - **Position sizing**: fixed 1 unit of Nifty futures. No volatility scaling, no Kelly sizing, no regime-dependent gearing. The futures P&L is an execution-translation check, not a second optimisation surface.
+
+### 3.6 Tradability Timing (execution alignment)
+
+A signal computed from day t closing data cannot be executed at that same close. The following timeline is pinned:
+
+```
+Day t:
+  - Market closes. Closing prices for all Nifty 50 constituents are final.
+  - Feature scores computed after close t using day t closing data.
+  - Combined score, breadth_score, and position decision finalised before
+    day t+1 open.
+
+Day t+1:
+  - ENTER position at the OPEN auction price of Nifty futures on day t+1.
+  - No intraday entry timing — the open price is the first executable price
+    after the signal is known.
+
+Day t+2:
+  - EXIT position at the OPEN auction price of Nifty futures on day t+2.
+  - The target return for IC validation is the constituent stock's
+    open(t+1)-to-open(t+2) return, consistent with the holding period.
+
+Rollover: if day t+2 is a roll date (2 days before futures expiry), the exit
+occurs on the expiring contract's open and the next entry (if any) occurs on
+the new near-month contract's open on day t+2.
+```
+
+- **Cost model**: Nifty futures round-trip: brokerage + STT (0.0125% sell side) + exchange transaction charge (0.0019%) + SEBI turnover fee (0.0001%) + stamp duty (0.002% buy side) + GST (18% on brokerage + exchange). Estimated total ~2-3 bps per round-trip. Exact schedule from broker at execution time; era-accurate statutory changes applied.
+- **Slippage**: κ = 2 bps/side added to the open auction price for entry and exit. This covers the bid-ask spread on Nifty futures at market open (typically 1-2 ticks = ~1-2 bps) plus a conservative buffer.
+- **No intraday execution**: entry and exit both at the open auction. This eliminates intraday timing as a free parameter and makes the backtest reproducible from daily OHLC data.
 
 ---
 
