@@ -354,12 +354,27 @@ def arm_fe():
 
     # Source-verified expected values (from circulars, not from futures_fees.py)
     test_cases = [
-        # STT: pre-2008 = 0; pre-hike 0.0125% (Rs 12.5/lakh); post-hike 0.02% (Rs 20/lakh)
-        # Source: Budget 2024 / Finance (No.2) Act 2024
+        # STT on sale of futures — four tiers, all source-verified:
+        #   pre 2008-06-01 : 0        (STT did not apply to derivatives)
+        #   2008-06-01     : 0.017%   (Rs 17/lakh) — derivatives brought into STT
+        #   2013-06-01     : 0.010%   (Rs 10/lakh) — Budget 2013 cut
+        #   2023-04-01     : 0.0125%  (Rs 12.5/lakh) — Finance Act 2023
+        #   2024-10-01     : 0.020%   (Rs 20/lakh) — Finance (No.2) Act 2024
+        # NOTE: only the 2013-06-01 tier onward is ever exercised in practice —
+        # the futures substrate starts 2016-02-11. The 2008/2013 boundaries are
+        # pinned for correctness, not because any read prices them.
         ((date(2008, 5, 31), "SELL", 100000), "stt", 0.0,
          "stt pre-2008 should be 0"),
-        ((date(2008, 6, 1), "SELL", 100000), "stt", 12.5,
-         "stt pre-hike should be 0.0125%"),
+        ((date(2008, 6, 1), "SELL", 100000), "stt", 17.0,
+         "stt 2008-06-01 -> 2013-05-31 should be 0.017%"),
+        ((date(2013, 5, 31), "SELL", 100000), "stt", 17.0,
+         "stt on 2013-05-31 (day before the Budget 2013 cut) should be 0.017%"),
+        ((date(2013, 6, 1), "SELL", 100000), "stt", 10.0,
+         "stt from 2013-06-01 (Budget 2013 cut) should be 0.010%"),
+        ((date(2023, 3, 31), "SELL", 100000), "stt", 10.0,
+         "stt on 2023-03-31 should still be 0.010%"),
+        ((date(2023, 4, 1), "SELL", 100000), "stt", 12.5,
+         "stt from 2023-04-01 (Finance Act 2023) should be 0.0125%"),
         ((date(2024, 9, 30), "SELL", 100000), "stt", 12.5,
          "stt pre-hike on 2024-09-30 should be 0.0125%"),
         ((date(2024, 10, 1), "SELL", 100000), "stt", 20.0,
