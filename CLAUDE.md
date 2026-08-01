@@ -316,8 +316,10 @@ generous than anyone believes? It reads no market data, so it is free.
   the binding constraint. Kills any two-index `per_trade_pnl` construct.
 - **CB-N50: PROCEED** (2026-08-01, `cb_n50.py`, SHA-256 `e0437067…`) — constituent-to-index
   breadth. `rank_ic` metric with n=887 daily formations over 50 Nifty 50 constituents. Max
-  power **1.00** at optimistic corner (δ=0.035, sd=0.15, ncp=6.95), n_required=147 < 887.
-  Clears because `rank_ic` decouples δ/sd from the calendar — √n=29.8 dominates. Three
+  power   **1.00** at optimistic corner (δ=0.035, sd=0.15, ncp=6.95), n_required=147 < 887.
+  Clears because daily cross-sectional IC provides 887 observations from the same
+  sealed window that yields only 186 weekly trades — and IC dispersion (sd=0.15–0.25)
+  is much smaller than the per_trade_pnl unit sd (1.0). √n=29.8 dominates. Three
   features (momentum, basis, reversal), equal-weighted combination, pre-registered breadth
   thresholds → Nifty futures. **PROCEED means "not provably infeasible"** — no authorization
   to build, no TRAIN read taken.
@@ -493,7 +495,7 @@ Follow-the-trend pair construct: long stronger index, short weaker, weekly rebal
 
 **The credible avenue.** Stock-level cross-sectional signals over 50 Nifty 50 constituents, expressed via a single Nifty futures position. Three pre-specified features (momentum, basis, reversal), equal-weighted combination, pre-registered breadth thresholds (0.35/0.65). Primary metric: daily cross-sectional `rank_ic`.
 
-Why it clears: `rank_ic` metric with n=887 daily formations → √n=29.8 → ncp=(δ/sd)·√n=6.95 at optimistic corner, power=1.00. The `rank_ic` escape hatch works because IC dispersion (sd=0.15-0.25) is much smaller than the per_trade_pnl unit sd (1.0), and the daily cadence provides large n.
+Why it clears: `rank_ic` metric with n=887 daily formations → √n=29.8 → ncp=(δ/sd)·√n=6.95 at optimistic corner, power=1.00. Same 2023-2026 sealed window as the rejected constructs, but daily cross-sectional IC provides 887 observations vs 186 weekly trades — and IC dispersion (sd=0.15-0.25) is much smaller than the per_trade_pnl unit sd (1.0).
 
 **PROCEED means "not provably infeasible"** — no TRAIN read taken, no strategy code exists. 4-phase gate progression: substrate certification → TRAIN (feature selection, Bonferroni m=9) → HOLDOUT (confirmation) → SEALED (one-shot). BankNifty extension deferred pending constituent panel verification (methodology changing from 12 to 14 companies). *(governance/rfa/declarations/cb_n50.py, SHA-256 `e0437067…`; docs/reports/CB_N50_PRE_REGISTRATION.md)*
 
@@ -515,7 +517,7 @@ Why it clears: `rank_ic` metric with n=887 daily formations → √n=29.8 → nc
 ### Binding constraints discovered
 
 1. **per_trade_pnl on indices is dead.** √T_sealed=1.89 → need Sharpe ≥ 1.3 for power 0.80. All single-index and two-index constructs using per_trade_pnl face this wall — it is structural, not signal-dependent.
-2. **rank_ic with a genuine cross-section is the escape.** Daily cadence over 50 constituents gives √n=29.8, decoupling power from the sealed window length.
+2. **rank_ic with a genuine cross-section is the escape.** Daily cadence over 50 constituents gives √n=29.8 from the same sealed window — measurement density rather than a longer calendar does the work.
 3. **A "hidden" index timing under a stock-level veneer is invalid.** The primary hypothesis must be stock-level cross-sectional prediction. Using 50 stocks merely to manufacture a rank-IC statistic for an index-only price rule is not legitimate.
 
 ---

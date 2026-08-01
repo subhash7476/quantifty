@@ -108,16 +108,73 @@ The optimistic corner clears by a wide margin (ncp=6.95). The central case clear
 |---|---|---|
 | Metric | per_trade_pnl | rank_ic |
 | ncp formula | S × √T | (δ/sd) × √n |
-| Key constraint | √T_sealed=1.89 fixed | n=887 (daily) scales with √n |
+| Sealed window | Same 2023-2026 | Same 2023-2026 |
+| n (observations) | 186 (weekly trades) | 887 (daily ICs) |
 | sd (noise) | 1.0 (by construction) | 0.15-0.25 (IC dispersion) |
 | δ/sd ratio | S=0.65 max | 0.035/0.15=0.233 |
 | ncp | 0.65×1.89=1.23 | 0.233×29.8=6.95 |
 
-The `rank_ic` metric benefits from: (a) daily cadence → large n (887 vs 186), and (b) IC dispersion (sd=0.15-0.25) is much smaller than the per_trade_pnl unit sd (1.0). The combination gives ncp≈7 at the optimistic corner vs ncp≈1.2 for RS-MOM.
+Both constructs use the same 3.6-year sealed window. The difference is **measurement density**: `rank_ic` produces one observation per trading day (a cross-sectional rank correlation over 50 constituents), while `per_trade_pnl` produces one observation per completed trade cycle. The daily cross-section gives 887 IC observations from the same window that yields only 186 weekly trades. IC dispersion (sd=0.15-0.25) is also much smaller than the per_trade_pnl unit standard deviation (1.0). Together: ncp ≈ 7 at the optimistic corner vs ncp ≈ 1.2 for RS-MOM.
 
 ---
 
-## 3. Research Phases
+## 3. Pre-TRAIN Requirements (must be pinned before any data read)
+
+These are frozen specifications — none may be revised in response to TRAIN results.
+
+### 3.1 Universe
+
+- **Point-in-time Nifty 50 membership** from the NIFTY-200 universe data (`symbol_entity_intervals`). Membership changes (additions/deletions) apply on the effective date.
+- **Free-float market-cap weights** from the same source, used for the weighted breadth score only (not for IC computation, which is equal-weighted rank correlation).
+- Each day's cross-section contains exactly those stocks that were Nifty 50 members on that date. Constituents with missing data on a given day (suspended, not yet listed, data gap) are excluded from that day's cross-section; the rank IC must be computed on the remaining N ≥ 30 stocks. Days with N < 30 are excluded entirely from the IC series.
+
+### 3.2 Target and Metric
+
+- **Target horizon**: next-day close-to-close return (t to t+1). Not intraday, not overnight-only, not multi-day.
+- **Metric**: daily cross-sectional **Spearman** rank correlation between the combined signal score at time t and the next-day return at t+1, across the Nifty 50 constituents present on day t.
+- **Observation unit**: one IC value per trading day. **Not** 50 × 887 pseudo-independent stock-days. The statistical test operates on the time series of 887 daily IC values, each computed from a cross-section of ~50 stocks.
+
+### 3.3 Feature Set (closed, frozen)
+
+Three features. No additions, no removals after this specification is frozen.
+
+| Feature | Formula | Sign | Missing-data rule |
+|---------|---------|------|-------------------|
+| **Relative momentum** | (close_t / close_{t-L} - 1) − cross-sectional median | Positive | Exclude if fewer than L days of prior close available |
+| **Futures basis** | Residual basis = (futures_close / spot_close − 1) annualised, winsorised ±3σ, minus cross-sectional median | Positive | Exclude if no futures data exists for that underlying |
+| **Short-term reversal** | −(close_t / close_{t-1} − 1) − cross-sectional median | Positive | Exclude if prior close missing |
+
+- **Winsorisation**: cross-sectional z-scores clipped to ±3.0 before combination, applied within each day independently.
+- **Normalisation**: each feature is cross-sectionally z-scored within the daily Nifty 50 panel (subtract cross-sectional mean, divide by cross-sectional std) before combination.
+- **Combination**: equal-weighted sum of z-scored features (weight = 1/3 per feature). If a feature is unavailable for a given stock (e.g., basis for non-F&O constituent), the stock is still scored on the remaining features with equal weights among available features.
+
+### 3.4 Autocorrelation-Aware Inference
+
+Daily IC is serially correlated — a signal that persists across adjacent days produces correlated IC values. The statistical inference must account for this:
+
+- **Effective sample size**: the noncentral-t power computation assumes independent observations. The RFA gate does not apply an AC haircut, so the PROCEED verdict depends on the declared bands being defensible even at a reduced effective n. At AC₁=0.3, effective n ≈ 887 × (1−0.3)/(1+0.3) ≈ 477 — the optimistic corner still clears (ncp ≈ 5.1, power ≈ 1.00).
+- **TRAIN/HOLDOUT/SEALED inference**: all IC hypothesis tests must use **Newey-West standard errors** with a lag length chosen by automatic bandwidth selection (Andrews 1991). The t-statistic is computed as mean(IC) / Newey-West SE(mean). This replaces the naive t-test that assumes independent IC observations.
+- **Pre-committed AC₁ disclosure**: the AC₁ of the daily IC series must be reported alongside every gate result. If AC₁ > 0.5, the observation density is mostly redundant and the construct should be reconsidered.
+
+### 3.5 Index Position Rule (frozen)
+
+The breadth score maps to a Nifty futures position via a **fixed rule with no parameter to optimise**:
+
+```
+breadth_score = fraction of constituents with combined_score > 0, weighted by free-float market cap
+
+if breadth_score > 0.65:  LONG  Nifty futures (1 unit)
+if breadth_score < 0.35:  SHORT Nifty futures (1 unit)
+else:                     FLAT
+```
+
+- **Thresholds (0.35, 0.65)** are symmetric around 0.5 and represent the top/bottom tercile of possible breadth values. They are pinned by the construct design, not fitted to data.
+- **No later threshold optimisation** is permitted. If the TRAIN data suggests different thresholds would have performed better, that finding is recorded as a caveat but the thresholds remain unchanged.
+- **Position sizing**: fixed 1 unit of Nifty futures. No volatility scaling, no Kelly sizing, no regime-dependent gearing. The futures P&L is an execution-translation check, not a second optimisation surface.
+
+---
+
+## 4. Research Phases
 
 ### Phase 1: Substrate Certification
 
@@ -152,23 +209,23 @@ One-shot read. Never re-run.
 
 ---
 
-## 4. Acceptance Criteria
+## 5. Acceptance Criteria
 
-### 4.1 Phase 2 (TRAIN) Gates
+### 5.1 Phase 2 (TRAIN) Gates
 
 | Gate | Criterion | Consequence of Failure |
 |------|-----------|----------------------|
 | G1 | Combined IC Newey-West t-test, Bonferroni p<0.05 (m=9) | No HOLDOUT read |
 | G2 | At least one feature has positive mean IC after lookback selection | Drop that feature, re-test |
 
-### 4.2 Phase 3 (HOLDOUT) Gates
+### 5.2 Phase 3 (HOLDOUT) Gates
 
 | Gate | Criterion | Consequence of Failure |
 |------|-----------|----------------------|
 | G3 | Combined IC significant at p<0.05 (single test) | No SEALED read |
 | G4 | Nifty futures net P&L > 0 after costs | No SEALED read |
 
-### 4.3 Phase 4 (SEALED) Gates
+### 5.3 Phase 4 (SEALED) Gates
 
 | Gate | Criterion | Consequence of Failure |
 |------|-----------|----------------------|
@@ -177,7 +234,7 @@ One-shot read. Never re-run.
 
 ---
 
-## 5. What This Is NOT
+## 6. What This Is NOT
 
 Explicitly rejected formulations:
 
@@ -192,7 +249,7 @@ Explicitly rejected formulations:
 
 ---
 
-## 6. BankNifty Extension (Deferred)
+## 7. BankNifty Extension (Deferred)
 
 The same methodology applies to BankNifty constituents but is **deferred** until the constituent panel is confirmed. NSE changed the BankNifty methodology from 12 to 14 companies (Nifty Bank methodology update, Dec 2025). The point-in-time membership must be verified before any research begins.
 
@@ -204,7 +261,7 @@ When authorised, the BankNifty extension:
 
 ---
 
-## 7. Prior Exposure Disclosure
+## 8. Prior Exposure Disclosure
 
 | Read | Data | Frequency | Relevance |
 |------|------|-----------|-----------|
@@ -218,7 +275,7 @@ When authorised, the BankNifty extension:
 
 ---
 
-## 8. References
+## 9. References
 
 - `docs/reports/NIFTY_BANKNIFTY_PAIR_RESEARCH.md` — pair research (NO OPPORTUNITY)
 - `docs/reports/RS_MOM_PRE_REGISTRATION.md` — RS-MOM ABANDON
