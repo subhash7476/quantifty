@@ -1,0 +1,92 @@
+{
+  "phase": "TRAIN",
+  "window": "2016-01-01 to 2019-12-31",
+  "n_trading_days": 986,
+  "n_ic_observations": 983,
+  "lookback_selection": [
+    {
+      "feature": "momentum",
+      "L": 5,
+      "mean_IC": -0.040661,
+      "NW_SE": 0.005688,
+      "NW_t": -7.1486,
+      "p_raw": 0.0,
+      "n_obs": 979,
+      "significant": "True"
+    },
+    {
+      "feature": "momentum",
+      "L": 10,
+      "mean_IC": -0.028082,
+      "NW_SE": 0.005887,
+      "NW_t": -4.7699,
+      "p_raw": 2e-06,
+      "n_obs": 974,
+      "significant": "True"
+    },
+    {
+      "feature": "momentum",
+      "L": 20,
+      "mean_IC": -0.020718,
+      "NW_SE": 0.00595,
+      "NW_t": -3.482,
+      "p_raw": 0.00052,
+      "n_obs": 964,
+      "significant": "True"
+    },
+    {
+      "feature": "reversal",
+      "L": 1,
+      "mean_IC": 0.045875,
+      "NW_SE": 0.005445,
+      "NW_t": 8.4245,
+      "p_raw": 0.0,
+      "n_obs": 983,
+      "significant": "True"
+    },
+    {
+      "feature": "basis",
+      "L": 1,
+      "mean_IC": 0.055679,
+      "NW_SE": 0.004589,
+      "NW_t": 12.134,
+      "p_raw": 0.0,
+      "n_obs": 954,
+      "significant": "True"
+    }
+  ],
+  "best_momentum_L": 20,
+  "feature_signs": {
+    "momentum": -0.020718,
+    "reversal": 0.045875,
+    "basis": 0.055679
+  },
+  "features_dropped": [
+    "momentum"
+  ],
+  "active_features": [
+    "reversal",
+    "basis"
+  ],
+  "combined_ic": {
+    "mean_IC": 0.058674,
+    "ic_std": 0.167917,
+    "ac1": -0.0627,
+    "nw_mean": 0.058674,
+    "nw_se": 0.005166,
+    "nw_t": 11.3583,
+    "p_value": 0.0,
+    "bonferroni_alpha": 0.005556,
+    "m_multiplicity": 9,
+    "significant": true
+  },
+  "breadth": {
+    "n_observations": 985,
+    "breadth_mean": 0.5397,
+    "n_long": 48,
+    "n_short": 2,
+    "n_flat": 935
+  },
+  "gate_g1": "PASS",
+  "gate_g2": "PASS"
+}
