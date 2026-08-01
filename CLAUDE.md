@@ -491,13 +491,28 @@ Deep research on pair trading the Nifty-BankNifty price ratio. EOD data 2016-202
 
 Follow-the-trend pair construct: long stronger index, short weaker, weekly rebalance, beta-neutral. RFA gate killed it: `per_trade_pnl` metric with n=186 sealed weeks, max power 0.337 < 0.80. Root cause: `ncp = S·√T`, √T_sealed=1.89 fixed, requiring Sharpe ≥ 1.30 (indefensible). **This kills any two-index `per_trade_pnl` construct, not just momentum.** *(governance/rfa/declarations/rs_mom.py, SHA-256 `67e3854b…`; docs/reports/RS_MOM_PRE_REGISTRATION.md)*
 
-### CB-N50 (Constituent-to-Index Breadth) — RFA PROCEED
+### CB-N50 (Constituent-to-Index Breadth) — CLOSED
 
-**The credible avenue.** Stock-level cross-sectional signals over 50 Nifty 50 constituents, expressed via a single Nifty futures position. Three pre-specified features (momentum, basis, reversal), equal-weighted combination, pre-registered breadth thresholds (0.35/0.65). Primary metric: daily cross-sectional `rank_ic`.
+**Status:** CLOSED 2026-08-01. All useful gates consumed. **SEALED window preserved.**
 
-Why it clears: `rank_ic` metric with n=887 daily formations → √n=29.8 → ncp=(δ/sd)·√n=6.95 at optimistic corner, power=1.00. Same 2023-2026 sealed window as the rejected constructs, but daily cross-sectional IC provides 887 observations vs 186 weekly trades — and IC dispersion (sd=0.15-0.25) is much smaller than the per_trade_pnl unit sd (1.0).
+| Phase | Gate | Result | Detail |
+|-------|------|--------|--------|
+| RFA | — | PROCEED | rank_ic, n=887, ncp=6.95, power=1.00 |
+| Substrate | G1-G5 | PASS | Official NSE MCWB PIT membership, 0.024% miss rate |
+| TRAIN | G1 | PASS | IC +0.059, NW t=11.4, p<0.0001 (Bonferroni α=0.0056) |
+| TRAIN | G2 | PASS | 2 features correct sign; momentum dropped (daily momentum IS reversal, IC -0.02) |
+| HOLDOUT | G3 | PASS | IC +0.029, NW t=4.4, p<0.00002 (single test, α=0.05) |
+| HOLDOUT | G4 | NOT EVALUATED | Breadth→futures known-fail from TRAIN directional check; sealed preserved |
 
-**PROCEED means "not provably infeasible"** — no TRAIN read taken, no strategy code exists. 4-phase gate progression: substrate certification → TRAIN (feature selection, Bonferroni m=9) → HOLDOUT (confirmation) → SEALED (one-shot). BankNifty extension deferred pending constituent panel verification (methodology changing from 12 to 14 companies). *(governance/rfa/declarations/cb_n50.py, SHA-256 `e0437067…`; docs/reports/CB_N50_PRE_REGISTRATION.md)*
+**Finding:** Daily cross-sectional rank IC of +0.029 (OOS, 2020-2022) on Nifty 50 constituents, using reversal + basis features. Momentum dropped — at daily frequency it is short-term reversal (negative IC), not continuation.
+
+**Why it closed:** The breadth→futures expression was the chosen execution vehicle, but TRAIN showed the 0.35/0.65 thresholds produce ~5% signal days with wrong directional sign. Rather than spend the sealed window on a P&L gate we can predict fails, G4 was intentionally not evaluated. The SEALED window 2023-2026 remains unread.
+
+**Forward-looking caveat (load-bearing for successor RFA):**
+- The honest effect-size estimate is the HOLDOUT +0.029, NOT the TRAIN +0.059. The IC halved out-of-sample — normal shrinkage from lookback-selection and feature-drop degrees of freedom, but +0.059 is selection-inflated.
+- A successor L/S constituent-book construct using `per_trade_pnl` must anchor its Sharpe band on the shrunk IC, not the TRAIN number. This is the "SD must be independently defended, not inherited from a short in-sample read" lesson that bit C2.
+- Prior-exposure disclosure: both TRAIN (2016-2019) and HOLDOUT (2020-2022) of the Nifty 50 daily cross-section are now burned. The successor reuses the same 2023-2026 sealed window — exactly one unread confirmatory window remains. Its RFA must clear on `per_trade_pnl`, which is a much harder wall (as RS-MOM showed, √T_sealed ≈ 1.89 requires Sharpe ≥ ~1.3 for power 0.80 on a single time series, but a ~50-name L/S book may have lower per-trade sd than the unit-sd assumption).
+- *(This closure hand-off is recorded in `CB_N50_HOLDOUT_REPORT.md`; lead review at `CB_N50_TRAIN_REPORT.md` and `CB_N50_HOLDOUT_REPORT.md`.)*
 
 ### Key files
 
@@ -513,6 +528,9 @@ Why it clears: `rank_ic` metric with n=887 daily formations → √n=29.8 → nc
 | `governance/rfa/declarations/rs_mom.py` | **FROZEN** RS-MOM RFA declaration (SHA-256 `67e3854b…`) |
 | `governance/rfa/declarations/cb_n50.py` | **FROZEN** CB-N50 RFA declaration (SHA-256 `e0437067…`) |
 | `scripts/research/nifty_banknifty_pair/` | Pair research code (data loader, analysis, validation, fixed-param test) |
+| `docs/reports/CB_N50_TRAIN_REPORT.md` | CB-N50 TRAIN report (feature selection, combined IC) |
+| `docs/reports/CB_N50_HOLDOUT_REPORT.md` | CB-N50 HOLDOUT report (OOS IC confirmation, closure hand-off) |
+| `docs/reports/CB_N50_SUBSTRATE_CERTIFICATION.md` | CB-N50 substrate cert (5 gates, MCWB PIT membership) |
 
 ### Binding constraints discovered
 
