@@ -1,0 +1,1054 @@
+{
+  "correlation": {
+    "return_correlation": 0.8892,
+    "rolling_corr_mean": 0.8641,
+    "rolling_corr_min": 0.6228,
+    "rolling_corr_max": 0.9761,
+    "rolling_corr_std": 0.0492,
+    "rolling_beta_mean": 1.1343,
+    "rolling_beta_std": 0.1762,
+    "ratio_mean": 2.2897,
+    "ratio_min": 1.8932,
+    "ratio_max": 2.6649,
+    "ratio_std": 0.1586
+  },
+  "ratio_stats": {
+    "full": {
+      "mean": 2.2841,
+      "std": 0.1611,
+      "min": 1.8932,
+      "max": 2.6649,
+      "latest": 2.3485
+    },
+    "2016-2019": {
+      "mean": 2.3902,
+      "std": 0.1597,
+      "min": 1.9447,
+      "max": 2.6649,
+      "n": 985
+    },
+    "2020-2022": {
+      "mean": 2.2015,
+      "std": 0.1479,
+      "min": 1.8932,
+      "max": 2.6415,
+      "n": 748
+    },
+    "2023-now": {
+      "mean": 2.2359,
+      "std": 0.0967,
+      "min": 2.0337,
+      "max": 2.4207,
+      "n": 887
+    }
+  },
+  "cointegration": {
+    "trace_stat_r0": 14.4242,
+    "trace_crit_95_r0": 15.4943,
+    "trace_stat_r1": 0.7354,
+    "trace_crit_95_r1": 3.8415,
+    "eigen_stat_r0": 13.6888,
+    "eigen_crit_95_r0": 14.2639,
+    "eigen_stat_r1": 0.7354,
+    "eigen_crit_95_r1": 3.8415,
+    "cointegrated": "False"
+  },
+  "half_life": {
+    "method": "full_sample_ols",
+    "beta": -0.004163,
+    "half_life_days": 166.5,
+    "mean_reverting": "True",
+    "r2": 0.0021
+  },
+  "half_life_rolling": {
+    "method": "rolling_ols",
+    "window": 252,
+    "half_life_mean": 137.7,
+    "half_life_median": 41.7,
+    "half_life_std": 2047.9,
+    "observations": 2290
+  },
+  "eod_strategies": [
+    {
+      "label": "EOD_z1.5_ex0.0_w20",
+      "params": {
+        "entry_z": 1.5,
+        "exit_z": 0.0,
+        "window": 20
+      },
+      "n_trades": 115,
+      "gross_pnl_bps": 3963.9,
+      "cost_total_bps": 690.0,
+      "net_pnl_bps": 3273.9,
+      "gross_per_trade_bps": 34.5,
+      "net_per_trade_bps": 28.5,
+      "annualized_net_bps": 311.7,
+      "win_rate": 41.7,
+      "profit_factor": 1.45,
+      "max_drawdown_bps": -1092.2,
+      "start_date": "2016-01-29",
+      "end_date": "2026-07-31",
+      "year_span": 10.5
+    },
+    {
+      "label": "EOD_z1.5_ex0.0_w60",
+      "params": {
+        "entry_z": 1.5,
+        "exit_z": 0.0,
+        "window": 60
+      },
+      "n_trades": 51,
+      "gross_pnl_bps": -1166.2,
+      "cost_total_bps": 306.0,
+      "net_pnl_bps": -1472.2,
+      "gross_per_trade_bps": -22.9,
+      "net_per_trade_bps": -28.9,
+      "annualized_net_bps": -142.4,
+      "win_rate": 29.4,
+      "profit_factor": 0.8,
+      "max_drawdown_bps": -2256.0,
+      "start_date": "2016-03-30",
+      "end_date": "2026-07-31",
+      "year_span": 10.34
+    },
+    {
+      "label": "EOD_z1.5_ex0.0_w120",
+      "params": {
+        "entry_z": 1.5,
+        "exit_z": 0.0,
+        "window": 120
+      },
+      "n_trades": 28,
+      "gross_pnl_bps": -1201.9,
+      "cost_total_bps": 168.0,
+      "net_pnl_bps": -1369.9,
+      "gross_per_trade_bps": -42.9,
+      "net_per_trade_bps": -48.9,
+      "annualized_net_bps": -135.8,
+      "win_rate": 32.1,
+      "profit_factor": 0.75,
+      "max_drawdown_bps": -2164.1,
+      "start_date": "2016-06-28",
+      "end_date": "2026-07-31",
+      "year_span": 10.09
+    },
+    {
+      "label": "EOD_z1.5_ex0.5_w20",
+      "params": {
+        "entry_z": 1.5,
+        "exit_z": 0.5,
+        "window": 20
+      },
+      "n_trades": 99,
+      "gross_pnl_bps": 3386.3,
+      "cost_total_bps": 594.0,
+      "net_pnl_bps": 2792.3,
+      "gross_per_trade_bps": 34.2,
+      "net_per_trade_bps": 28.2,
+      "annualized_net_bps": 265.9,
+      "win_rate": 44.4,
+      "profit_factor": 1.37,
+      "max_drawdown_bps": -1090.9,
+      "start_date": "2016-01-29",
+      "end_date": "2026-07-31",
+      "year_span": 10.5
+    },
+    {
+      "label": "EOD_z1.5_ex0.5_w60",
+      "params": {
+        "entry_z": 1.5,
+        "exit_z": 0.5,
+        "window": 60
+      },
+      "n_trades": 43,
+      "gross_pnl_bps": -2588.3,
+      "cost_total_bps": 258.0,
+      "net_pnl_bps": -2846.3,
+      "gross_per_trade_bps": -60.2,
+      "net_per_trade_bps": -66.2,
+      "annualized_net_bps": -275.4,
+      "win_rate": 27.9,
+      "profit_factor": 0.66,
+      "max_drawdown_bps": -3998.4,
+      "start_date": "2016-03-30",
+      "end_date": "2026-07-31",
+      "year_span": 10.34
+    },
+    {
+      "label": "EOD_z1.5_ex0.5_w120",
+      "params": {
+        "entry_z": 1.5,
+        "exit_z": 0.5,
+        "window": 120
+      },
+      "n_trades": 26,
+      "gross_pnl_bps": -1959.8,
+      "cost_total_bps": 156.0,
+      "net_pnl_bps": -2115.8,
+      "gross_per_trade_bps": -75.4,
+      "net_per_trade_bps": -81.4,
+      "annualized_net_bps": -209.7,
+      "win_rate": 30.8,
+      "profit_factor": 0.64,
+      "max_drawdown_bps": -2887.4,
+      "start_date": "2016-06-28",
+      "end_date": "2026-07-31",
+      "year_span": 10.09
+    },
+    {
+      "label": "EOD_z1.5_ex1.0_w20",
+      "params": {
+        "entry_z": 1.5,
+        "exit_z": 1.0,
+        "window": 20
+      },
+      "n_trades": 87,
+      "gross_pnl_bps": 1782.0,
+      "cost_total_bps": 522.0,
+      "net_pnl_bps": 1260.0,
+      "gross_per_trade_bps": 20.5,
+      "net_per_trade_bps": 14.5,
+      "annualized_net_bps": 120.0,
+      "win_rate": 46.0,
+      "profit_factor": 1.17,
+      "max_drawdown_bps": -1287.8,
+      "start_date": "2016-01-29",
+      "end_date": "2026-07-31",
+      "year_span": 10.5
+    },
+    {
+      "label": "EOD_z1.5_ex1.0_w60",
+      "params": {
+        "entry_z": 1.5,
+        "exit_z": 1.0,
+        "window": 60
+      },
+      "n_trades": 36,
+      "gross_pnl_bps": -2638.5,
+      "cost_total_bps": 216.0,
+      "net_pnl_bps": -2854.5,
+      "gross_per_trade_bps": -73.3,
+      "net_per_trade_bps": -79.3,
+      "annualized_net_bps": -276.2,
+      "win_rate": 33.3,
+      "profit_factor": 0.64,
+      "max_drawdown_bps": -3674.2,
+      "start_date": "2016-03-30",
+      "end_date": "2026-07-31",
+      "year_span": 10.34
+    },
+    {
+      "label": "EOD_z1.5_ex1.0_w120",
+      "params": {
+        "entry_z": 1.5,
+        "exit_z": 1.0,
+        "window": 120
+      },
+      "n_trades": 25,
+      "gross_pnl_bps": -3453.6,
+      "cost_total_bps": 150.0,
+      "net_pnl_bps": -3603.6,
+      "gross_per_trade_bps": -138.1,
+      "net_per_trade_bps": -144.1,
+      "annualized_net_bps": -357.2,
+      "win_rate": 32.0,
+      "profit_factor": 0.48,
+      "max_drawdown_bps": -4043.8,
+      "start_date": "2016-06-28",
+      "end_date": "2026-07-31",
+      "year_span": 10.09
+    },
+    {
+      "label": "EOD_z2.0_ex0.0_w20",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 0.0,
+        "window": 20
+      },
+      "n_trades": 85,
+      "gross_pnl_bps": 1380.0,
+      "cost_total_bps": 510.0,
+      "net_pnl_bps": 870.0,
+      "gross_per_trade_bps": 16.2,
+      "net_per_trade_bps": 10.2,
+      "annualized_net_bps": 82.8,
+      "win_rate": 44.7,
+      "profit_factor": 1.14,
+      "max_drawdown_bps": -1246.8,
+      "start_date": "2016-01-29",
+      "end_date": "2026-07-31",
+      "year_span": 10.5
+    },
+    {
+      "label": "EOD_z2.0_ex0.0_w60",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 0.0,
+        "window": 60
+      },
+      "n_trades": 40,
+      "gross_pnl_bps": -1360.1,
+      "cost_total_bps": 240.0,
+      "net_pnl_bps": -1600.1,
+      "gross_per_trade_bps": -34.0,
+      "net_per_trade_bps": -40.0,
+      "annualized_net_bps": -154.8,
+      "win_rate": 27.5,
+      "profit_factor": 0.73,
+      "max_drawdown_bps": -2218.6,
+      "start_date": "2016-03-30",
+      "end_date": "2026-07-31",
+      "year_span": 10.34
+    },
+    {
+      "label": "EOD_z2.0_ex0.0_w120",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 0.0,
+        "window": 120
+      },
+      "n_trades": 22,
+      "gross_pnl_bps": -1458.3,
+      "cost_total_bps": 132.0,
+      "net_pnl_bps": -1590.3,
+      "gross_per_trade_bps": -66.3,
+      "net_per_trade_bps": -72.3,
+      "annualized_net_bps": -157.6,
+      "win_rate": 36.4,
+      "profit_factor": 0.63,
+      "max_drawdown_bps": -2221.5,
+      "start_date": "2016-06-28",
+      "end_date": "2026-07-31",
+      "year_span": 10.09
+    },
+    {
+      "label": "EOD_z2.0_ex0.5_w20",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 0.5,
+        "window": 20
+      },
+      "n_trades": 77,
+      "gross_pnl_bps": 709.5,
+      "cost_total_bps": 462.0,
+      "net_pnl_bps": 247.5,
+      "gross_per_trade_bps": 9.2,
+      "net_per_trade_bps": 3.2,
+      "annualized_net_bps": 23.6,
+      "win_rate": 42.9,
+      "profit_factor": 1.03,
+      "max_drawdown_bps": -1853.1,
+      "start_date": "2016-01-29",
+      "end_date": "2026-07-31",
+      "year_span": 10.5
+    },
+    {
+      "label": "EOD_z2.0_ex0.5_w60",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 0.5,
+        "window": 60
+      },
+      "n_trades": 37,
+      "gross_pnl_bps": -2870.8,
+      "cost_total_bps": 222.0,
+      "net_pnl_bps": -3092.8,
+      "gross_per_trade_bps": -77.6,
+      "net_per_trade_bps": -83.6,
+      "annualized_net_bps": -299.2,
+      "win_rate": 29.7,
+      "profit_factor": 0.58,
+      "max_drawdown_bps": -3950.7,
+      "start_date": "2016-03-30",
+      "end_date": "2026-07-31",
+      "year_span": 10.34
+    },
+    {
+      "label": "EOD_z2.0_ex0.5_w120",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 0.5,
+        "window": 120
+      },
+      "n_trades": 22,
+      "gross_pnl_bps": -2840.8,
+      "cost_total_bps": 132.0,
+      "net_pnl_bps": -2972.8,
+      "gross_per_trade_bps": -129.1,
+      "net_per_trade_bps": -135.1,
+      "annualized_net_bps": -294.7,
+      "win_rate": 22.7,
+      "profit_factor": 0.47,
+      "max_drawdown_bps": -3089.3,
+      "start_date": "2016-06-28",
+      "end_date": "2026-07-31",
+      "year_span": 10.09
+    },
+    {
+      "label": "EOD_z2.0_ex1.0_w20",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 1.0,
+        "window": 20
+      },
+      "n_trades": 69,
+      "gross_pnl_bps": -644.9,
+      "cost_total_bps": 414.0,
+      "net_pnl_bps": -1058.9,
+      "gross_per_trade_bps": -9.3,
+      "net_per_trade_bps": -15.3,
+      "annualized_net_bps": -100.8,
+      "win_rate": 46.4,
+      "profit_factor": 0.86,
+      "max_drawdown_bps": -1817.4,
+      "start_date": "2016-01-29",
+      "end_date": "2026-07-31",
+      "year_span": 10.5
+    },
+    {
+      "label": "EOD_z2.0_ex1.0_w60",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 1.0,
+        "window": 60
+      },
+      "n_trades": 31,
+      "gross_pnl_bps": -1980.3,
+      "cost_total_bps": 186.0,
+      "net_pnl_bps": -2166.3,
+      "gross_per_trade_bps": -63.9,
+      "net_per_trade_bps": -69.9,
+      "annualized_net_bps": -209.6,
+      "win_rate": 32.3,
+      "profit_factor": 0.65,
+      "max_drawdown_bps": -3076.5,
+      "start_date": "2016-03-30",
+      "end_date": "2026-07-31",
+      "year_span": 10.34
+    },
+    {
+      "label": "EOD_z2.0_ex1.0_w120",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 1.0,
+        "window": 120
+      },
+      "n_trades": 21,
+      "gross_pnl_bps": -3948.2,
+      "cost_total_bps": 126.0,
+      "net_pnl_bps": -4074.2,
+      "gross_per_trade_bps": -188.0,
+      "net_per_trade_bps": -194.0,
+      "annualized_net_bps": -403.8,
+      "win_rate": 19.0,
+      "profit_factor": 0.37,
+      "max_drawdown_bps": -4077.7,
+      "start_date": "2016-06-28",
+      "end_date": "2026-07-31",
+      "year_span": 10.09
+    },
+    {
+      "label": "EOD_z2.5_ex0.0_w20",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 0.0,
+        "window": 20
+      },
+      "n_trades": 43,
+      "gross_pnl_bps": -611.5,
+      "cost_total_bps": 258.0,
+      "net_pnl_bps": -869.5,
+      "gross_per_trade_bps": -14.2,
+      "net_per_trade_bps": -20.2,
+      "annualized_net_bps": -82.8,
+      "win_rate": 41.9,
+      "profit_factor": 0.76,
+      "max_drawdown_bps": -1426.7,
+      "start_date": "2016-01-29",
+      "end_date": "2026-07-31",
+      "year_span": 10.5
+    },
+    {
+      "label": "EOD_z2.5_ex0.0_w60",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 0.0,
+        "window": 60
+      },
+      "n_trades": 28,
+      "gross_pnl_bps": -1183.6,
+      "cost_total_bps": 168.0,
+      "net_pnl_bps": -1351.6,
+      "gross_per_trade_bps": -42.3,
+      "net_per_trade_bps": -48.3,
+      "annualized_net_bps": -130.8,
+      "win_rate": 28.6,
+      "profit_factor": 0.66,
+      "max_drawdown_bps": -1665.2,
+      "start_date": "2016-03-30",
+      "end_date": "2026-07-31",
+      "year_span": 10.34
+    },
+    {
+      "label": "EOD_z2.5_ex0.0_w120",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 0.0,
+        "window": 120
+      },
+      "n_trades": 12,
+      "gross_pnl_bps": -633.2,
+      "cost_total_bps": 72.0,
+      "net_pnl_bps": -705.2,
+      "gross_per_trade_bps": -52.8,
+      "net_per_trade_bps": -58.8,
+      "annualized_net_bps": -69.9,
+      "win_rate": 33.3,
+      "profit_factor": 0.72,
+      "max_drawdown_bps": -1441.3,
+      "start_date": "2016-06-28",
+      "end_date": "2026-07-31",
+      "year_span": 10.09
+    },
+    {
+      "label": "EOD_z2.5_ex0.5_w20",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 0.5,
+        "window": 20
+      },
+      "n_trades": 43,
+      "gross_pnl_bps": -813.2,
+      "cost_total_bps": 258.0,
+      "net_pnl_bps": -1071.2,
+      "gross_per_trade_bps": -18.9,
+      "net_per_trade_bps": -24.9,
+      "annualized_net_bps": -102.0,
+      "win_rate": 39.5,
+      "profit_factor": 0.75,
+      "max_drawdown_bps": -2116.8,
+      "start_date": "2016-01-29",
+      "end_date": "2026-07-31",
+      "year_span": 10.5
+    },
+    {
+      "label": "EOD_z2.5_ex0.5_w60",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 0.5,
+        "window": 60
+      },
+      "n_trades": 26,
+      "gross_pnl_bps": -1863.3,
+      "cost_total_bps": 156.0,
+      "net_pnl_bps": -2019.3,
+      "gross_per_trade_bps": -71.7,
+      "net_per_trade_bps": -77.7,
+      "annualized_net_bps": -195.4,
+      "win_rate": 26.9,
+      "profit_factor": 0.55,
+      "max_drawdown_bps": -2224.7,
+      "start_date": "2016-03-30",
+      "end_date": "2026-07-31",
+      "year_span": 10.34
+    },
+    {
+      "label": "EOD_z2.5_ex0.5_w120",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 0.5,
+        "window": 120
+      },
+      "n_trades": 12,
+      "gross_pnl_bps": -1257.7,
+      "cost_total_bps": 72.0,
+      "net_pnl_bps": -1329.7,
+      "gross_per_trade_bps": -104.8,
+      "net_per_trade_bps": -110.8,
+      "annualized_net_bps": -131.8,
+      "win_rate": 25.0,
+      "profit_factor": 0.59,
+      "max_drawdown_bps": -1876.5,
+      "start_date": "2016-06-28",
+      "end_date": "2026-07-31",
+      "year_span": 10.09
+    },
+    {
+      "label": "EOD_z2.5_ex1.0_w20",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 1.0,
+        "window": 20
+      },
+      "n_trades": 39,
+      "gross_pnl_bps": -2165.9,
+      "cost_total_bps": 234.0,
+      "net_pnl_bps": -2399.9,
+      "gross_per_trade_bps": -55.5,
+      "net_per_trade_bps": -61.5,
+      "annualized_net_bps": -228.5,
+      "win_rate": 35.9,
+      "profit_factor": 0.52,
+      "max_drawdown_bps": -2881.5,
+      "start_date": "2016-01-29",
+      "end_date": "2026-07-31",
+      "year_span": 10.5
+    },
+    {
+      "label": "EOD_z2.5_ex1.0_w60",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 1.0,
+        "window": 60
+      },
+      "n_trades": 24,
+      "gross_pnl_bps": -2207.8,
+      "cost_total_bps": 144.0,
+      "net_pnl_bps": -2351.8,
+      "gross_per_trade_bps": -92.0,
+      "net_per_trade_bps": -98.0,
+      "annualized_net_bps": -227.6,
+      "win_rate": 20.8,
+      "profit_factor": 0.5,
+      "max_drawdown_bps": -2625.1,
+      "start_date": "2016-03-30",
+      "end_date": "2026-07-31",
+      "year_span": 10.34
+    },
+    {
+      "label": "EOD_z2.5_ex1.0_w120",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 1.0,
+        "window": 120
+      },
+      "n_trades": 12,
+      "gross_pnl_bps": -2026.7,
+      "cost_total_bps": 72.0,
+      "net_pnl_bps": -2098.7,
+      "gross_per_trade_bps": -168.9,
+      "net_per_trade_bps": -174.9,
+      "annualized_net_bps": -208.0,
+      "win_rate": 16.7,
+      "profit_factor": 0.44,
+      "max_drawdown_bps": -2157.2,
+      "start_date": "2016-06-28",
+      "end_date": "2026-07-31",
+      "year_span": 10.09
+    }
+  ],
+  "bootstrap": {
+    "actual_net_pnl_bps": 709.5,
+    "null_mean_bps": -217.7,
+    "null_std_bps": 2607.9,
+    "p_value": 0.354,
+    "significant_at_5pct": "False",
+    "n_bootstrap": 2000
+  },
+  "gap_analysis": {
+    "ratio_change_autocorr_lag1": 0.0861,
+    "reversal_rate_all": 48.9,
+    "reversal_rate_big_up": 48.1,
+    "reversal_rate_big_down": 48.1,
+    "n_big_up": 318,
+    "n_big_down": 291,
+    "threshold": 64.7
+  },
+  "intraday": {
+    "n_days": 844,
+    "autocorrelation_ratio_changes": {
+      "lag_1": -0.025074,
+      "lag_5": 0.00475,
+      "lag_15": 0.000368,
+      "lag_30": 0.013271,
+      "lag_60": 0.006061
+    },
+    "daily_ratio_range_mean_bps": 61.7,
+    "daily_ratio_std_mean_bps": 13.6,
+    "mean_reversion_up_slope": 1.098273,
+    "mean_reversion_up_r": 0.7872,
+    "mean_reversion_down_slope": 1.171027,
+    "mean_reversion_down_r": 0.7615,
+    "intraday_mean_reverting": false
+  },
+  "intraday_strategies": [
+    {
+      "label": "1M_z2.0_ex0.5_w60",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 0.5,
+        "window": 60
+      },
+      "n_trades": 4302,
+      "gross_pnl_bps": -192.7,
+      "cost_total_bps": 25812.0,
+      "net_pnl_bps": -26004.7,
+      "gross_per_trade_bps": -0.0,
+      "net_per_trade_bps": -6.0,
+      "annualized_net_bps": -7432.1,
+      "win_rate": 21.0,
+      "profit_factor": 0.41,
+      "max_drawdown_bps": -26011.3,
+      "start_date": "2023-01-02 10:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.0_ex0.5_w120",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 0.5,
+        "window": 120
+      },
+      "n_trades": 2426,
+      "gross_pnl_bps": -325.2,
+      "cost_total_bps": 14556.0,
+      "net_pnl_bps": -14881.2,
+      "gross_per_trade_bps": -0.1,
+      "net_per_trade_bps": -6.1,
+      "annualized_net_bps": -4253.0,
+      "win_rate": 24.2,
+      "profit_factor": 0.5,
+      "max_drawdown_bps": -14989.6,
+      "start_date": "2023-01-02 11:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.0_ex0.5_w240",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 0.5,
+        "window": 240
+      },
+      "n_trades": 1302,
+      "gross_pnl_bps": 30.5,
+      "cost_total_bps": 7812.0,
+      "net_pnl_bps": -7781.5,
+      "gross_per_trade_bps": 0.0,
+      "net_per_trade_bps": -6.0,
+      "annualized_net_bps": -2223.9,
+      "win_rate": 26.8,
+      "profit_factor": 0.61,
+      "max_drawdown_bps": -8216.0,
+      "start_date": "2023-01-02 13:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.0_ex1.0_w60",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 1.0,
+        "window": 60
+      },
+      "n_trades": 3821,
+      "gross_pnl_bps": -371.4,
+      "cost_total_bps": 22926.0,
+      "net_pnl_bps": -23297.4,
+      "gross_per_trade_bps": -0.1,
+      "net_per_trade_bps": -6.1,
+      "annualized_net_bps": -6658.4,
+      "win_rate": 22.7,
+      "profit_factor": 0.44,
+      "max_drawdown_bps": -23314.6,
+      "start_date": "2023-01-02 10:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.0_ex1.0_w120",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 1.0,
+        "window": 120
+      },
+      "n_trades": 2129,
+      "gross_pnl_bps": 569.7,
+      "cost_total_bps": 12774.0,
+      "net_pnl_bps": -12204.3,
+      "gross_per_trade_bps": 0.3,
+      "net_per_trade_bps": -5.7,
+      "annualized_net_bps": -3488.0,
+      "win_rate": 26.2,
+      "profit_factor": 0.56,
+      "max_drawdown_bps": -12363.6,
+      "start_date": "2023-01-02 11:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.0_ex1.0_w240",
+      "params": {
+        "entry_z": 2.0,
+        "exit_z": 1.0,
+        "window": 240
+      },
+      "n_trades": 1151,
+      "gross_pnl_bps": 211.5,
+      "cost_total_bps": 6906.0,
+      "net_pnl_bps": -6694.5,
+      "gross_per_trade_bps": 0.2,
+      "net_per_trade_bps": -5.8,
+      "annualized_net_bps": -1913.3,
+      "win_rate": 28.9,
+      "profit_factor": 0.65,
+      "max_drawdown_bps": -7299.8,
+      "start_date": "2023-01-02 13:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.5_ex0.5_w60",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 0.5,
+        "window": 60
+      },
+      "n_trades": 3026,
+      "gross_pnl_bps": 662.9,
+      "cost_total_bps": 18156.0,
+      "net_pnl_bps": -17493.1,
+      "gross_per_trade_bps": 0.2,
+      "net_per_trade_bps": -5.8,
+      "annualized_net_bps": -4999.5,
+      "win_rate": 23.0,
+      "profit_factor": 0.45,
+      "max_drawdown_bps": -17510.5,
+      "start_date": "2023-01-02 10:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.5_ex0.5_w120",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 0.5,
+        "window": 120
+      },
+      "n_trades": 1792,
+      "gross_pnl_bps": 55.3,
+      "cost_total_bps": 10752.0,
+      "net_pnl_bps": -10696.7,
+      "gross_per_trade_bps": 0.0,
+      "net_per_trade_bps": -6.0,
+      "annualized_net_bps": -3057.1,
+      "win_rate": 26.7,
+      "profit_factor": 0.53,
+      "max_drawdown_bps": -10762.5,
+      "start_date": "2023-01-02 11:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.5_ex0.5_w240",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 0.5,
+        "window": 240
+      },
+      "n_trades": 988,
+      "gross_pnl_bps": 753.0,
+      "cost_total_bps": 5928.0,
+      "net_pnl_bps": -5175.0,
+      "gross_per_trade_bps": 0.8,
+      "net_per_trade_bps": -5.2,
+      "annualized_net_bps": -1479.0,
+      "win_rate": 29.9,
+      "profit_factor": 0.67,
+      "max_drawdown_bps": -5962.3,
+      "start_date": "2023-01-02 13:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.5_ex1.0_w60",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 1.0,
+        "window": 60
+      },
+      "n_trades": 2801,
+      "gross_pnl_bps": 306.6,
+      "cost_total_bps": 16806.0,
+      "net_pnl_bps": -16499.4,
+      "gross_per_trade_bps": 0.1,
+      "net_per_trade_bps": -5.9,
+      "annualized_net_bps": -4715.5,
+      "win_rate": 24.3,
+      "profit_factor": 0.47,
+      "max_drawdown_bps": -16527.4,
+      "start_date": "2023-01-02 10:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.5_ex1.0_w120",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 1.0,
+        "window": 120
+      },
+      "n_trades": 1624,
+      "gross_pnl_bps": 999.6,
+      "cost_total_bps": 9744.0,
+      "net_pnl_bps": -8744.4,
+      "gross_per_trade_bps": 0.6,
+      "net_per_trade_bps": -5.4,
+      "annualized_net_bps": -2499.1,
+      "win_rate": 28.9,
+      "profit_factor": 0.6,
+      "max_drawdown_bps": -9025.6,
+      "start_date": "2023-01-02 11:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z2.5_ex1.0_w240",
+      "params": {
+        "entry_z": 2.5,
+        "exit_z": 1.0,
+        "window": 240
+      },
+      "n_trades": 893,
+      "gross_pnl_bps": 1071.0,
+      "cost_total_bps": 5358.0,
+      "net_pnl_bps": -4287.0,
+      "gross_per_trade_bps": 1.2,
+      "net_per_trade_bps": -4.8,
+      "annualized_net_bps": -1225.2,
+      "win_rate": 30.8,
+      "profit_factor": 0.71,
+      "max_drawdown_bps": -5149.3,
+      "start_date": "2023-01-02 13:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z3.0_ex0.5_w60",
+      "params": {
+        "entry_z": 3.0,
+        "exit_z": 0.5,
+        "window": 60
+      },
+      "n_trades": 1716,
+      "gross_pnl_bps": 1732.9,
+      "cost_total_bps": 10296.0,
+      "net_pnl_bps": -8563.1,
+      "gross_per_trade_bps": 1.0,
+      "net_per_trade_bps": -5.0,
+      "annualized_net_bps": -2447.3,
+      "win_rate": 27.4,
+      "profit_factor": 0.53,
+      "max_drawdown_bps": -8559.1,
+      "start_date": "2023-01-02 10:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z3.0_ex0.5_w120",
+      "params": {
+        "entry_z": 3.0,
+        "exit_z": 0.5,
+        "window": 120
+      },
+      "n_trades": 1193,
+      "gross_pnl_bps": 135.6,
+      "cost_total_bps": 7158.0,
+      "net_pnl_bps": -7022.4,
+      "gross_per_trade_bps": 0.1,
+      "net_per_trade_bps": -5.9,
+      "annualized_net_bps": -2007.0,
+      "win_rate": 29.6,
+      "profit_factor": 0.57,
+      "max_drawdown_bps": -7034.2,
+      "start_date": "2023-01-02 11:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z3.0_ex0.5_w240",
+      "params": {
+        "entry_z": 3.0,
+        "exit_z": 0.5,
+        "window": 240
+      },
+      "n_trades": 726,
+      "gross_pnl_bps": 616.5,
+      "cost_total_bps": 4356.0,
+      "net_pnl_bps": -3739.5,
+      "gross_per_trade_bps": 0.8,
+      "net_per_trade_bps": -5.2,
+      "annualized_net_bps": -1068.7,
+      "win_rate": 31.1,
+      "profit_factor": 0.69,
+      "max_drawdown_bps": -4434.5,
+      "start_date": "2023-01-02 13:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z3.0_ex1.0_w60",
+      "params": {
+        "entry_z": 3.0,
+        "exit_z": 1.0,
+        "window": 60
+      },
+      "n_trades": 1641,
+      "gross_pnl_bps": 1420.1,
+      "cost_total_bps": 9846.0,
+      "net_pnl_bps": -8425.9,
+      "gross_per_trade_bps": 0.9,
+      "net_per_trade_bps": -5.1,
+      "annualized_net_bps": -2408.1,
+      "win_rate": 27.8,
+      "profit_factor": 0.55,
+      "max_drawdown_bps": -8433.7,
+      "start_date": "2023-01-02 10:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z3.0_ex1.0_w120",
+      "params": {
+        "entry_z": 3.0,
+        "exit_z": 1.0,
+        "window": 120
+      },
+      "n_trades": 1114,
+      "gross_pnl_bps": 993.6,
+      "cost_total_bps": 6684.0,
+      "net_pnl_bps": -5690.4,
+      "gross_per_trade_bps": 0.9,
+      "net_per_trade_bps": -5.1,
+      "annualized_net_bps": -1626.3,
+      "win_rate": 31.9,
+      "profit_factor": 0.64,
+      "max_drawdown_bps": -6010.4,
+      "start_date": "2023-01-02 11:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    },
+    {
+      "label": "1M_z3.0_ex1.0_w240",
+      "params": {
+        "entry_z": 3.0,
+        "exit_z": 1.0,
+        "window": 240
+      },
+      "n_trades": 676,
+      "gross_pnl_bps": 760.6,
+      "cost_total_bps": 4056.0,
+      "net_pnl_bps": -3295.4,
+      "gross_per_trade_bps": 1.1,
+      "net_per_trade_bps": -4.9,
+      "annualized_net_bps": -941.8,
+      "win_rate": 32.2,
+      "profit_factor": 0.72,
+      "max_drawdown_bps": -4091.9,
+      "start_date": "2023-01-02 13:14:00",
+      "end_date": "2026-07-03 15:29:00",
+      "year_span": 3.5
+    }
+  ]
+}
