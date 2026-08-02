@@ -1,7 +1,11 @@
 # N50-LS: Nifty 50 Cross-Sectional Long-Short — Pre-Registration
 
-**Status:** DRAFT — pending RFA gate. Not frozen until the RFA declaration
-(`governance/rfa/declarations/n50_ls.py`) is written, SHA-pinned, and gated.
+**Status:** ABANDONED — RFA gate returned ABANDON (max power 0.7466 < 0.80
+hurdle, 2026-08-01). Declaration frozen at SHA-256
+`5727e29ff9e467e94244bce60a416437b4251817508726f271a9f14fc2290ecf`
+(`governance/rfa/declarations/n50_ls.py`). Gate report:
+`docs/reports/N50-LS_RFA.md`. **No build, no signal code, sealed window
+untouched.** This is a terminal state; do not re-open.
 **Lineage:** fresh namespace. Combines the validated CB-N50 cross-sectional
 ranking with the TS-Basis time-series-basis calculation. **Not** a CB-N50
 continuation and **not** a TS-Basis re-authorization (see §6).
