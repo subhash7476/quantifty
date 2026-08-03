@@ -143,6 +143,27 @@ Every formation `t` is tagged with all four dimensions (bull/bear, high/low VIX,
 bucket); a formation belongs to both a market regime and a VIX regime. Report `n` per regime cell
 so small-cell regimes are visible, never hidden.
 
+**Axis overlap — two interpretation rules that bind before any cell is read:**
+
+- **(a) A gate's self-defining axis is excluded from its own consistency count.** The VIX axis is
+  the G1 gate's *own knob*: G1 admits on `vix_t ≤ k·vix_med_t` (k=1.5), while the High/Low VIX
+  split is the same variable at k=1.0. Inside Low-VIX G1 admits ~everything (marginal effect ≈ 0
+  by construction); inside High-VIX it excludes most. Those two cells are not independent
+  environments for G1 — they are G1's own threshold. So **for G1, judge consistency on Bull/Bear
+  and Pre/COVID/Post only**, and annotate its VIX cells **circular** (reported but not counted in
+  its `k/m`). G2 and G3 have no overlap with any axis, so they are unaffected. Stating this in the
+  gate's row prevents G1 from being graded twice on its defining variable.
+- **(b) The seven cells are three overlapping partitions, not seven independent environments.**
+  Bear ≈ High-VIX ≈ COVID tag largely the same formations, so a COVID-concentrated gate reads
+  positive in Bear and High-VIX too (same dates) — it could satisfy "majority of non-blank cells"
+  while genuinely riding one regime. The overlap cuts both ways: a gate can also falsely trip
+  "negative in ≥2" on three cells that are one environment. So the **concentration test is anchored
+  on the calendar axis only** — Pre/COVID/Post is the single mutually-exclusive, exhaustive
+  partition, where a "share of total ΔIC" is well-defined. Bull/Bear and VIX are **corroborating
+  lenses, not additive votes**: they appear in the table and the consistency count, but the
+  ">50% from one regime" concentration test (rule ii) is computed over the three calendar buckets
+  only.
+
 **The required table** — for each gate, the **per-regime marginal contribution** measured on the
 drop-column pair (full vs. full-minus-gate), as Δ mean IC (in IC points) and Δ fixed-δ power:
 
@@ -151,18 +172,21 @@ drop-column pair (full vs. full-minus-gate), as Δ mean IC (in IC points) and Δ
 
 - **Cell value** = the gate's marginal ΔIC (or Δ power) **within that regime only** — the drop-column
   pair recomputed on the regime's formations. A blank/"—" marks a regime with too few formations
-  (`n < 20`); count blanks, do not silently fill them.
-- **Consistency** = the fraction of non-blank regime cells where the gate's ΔIC > 0, stated as
-  `k/m`. Report **concentration** alongside it: the largest single regime's share of the gate's
-  total positive ΔIC across the window. This is the "riding one regime" test.
+  (`n < 20`); count blanks, do not silently fill them. A G1 VIX cell is marked **circular** per rule
+  (a) and excluded from G1's consistency count.
+- **Consistency** = the fraction of non-blank, non-circular regime cells where the gate's ΔIC > 0,
+  stated as `k/m`. Report **concentration** alongside it: the largest single **calendar** bucket's
+  share of the gate's total positive ΔIC across the window, per rule (b). This is the "riding one
+  regime" test — and "regime" here means a calendar era, not a correlated label.
 - **Verdict rule (pre-specified):** a gate is **stability-clear** only if (i) ΔIC > 0 in a majority
-  of non-blank regime cells, AND (ii) no single regime accounts for > 50% of its total positive
-  ΔIC, AND (iii) it is not negative in ≥ 2 non-blank regimes. A gate that fails any of these is
-  **regime-dependent** — flag it as such even if §5's overall marginal table says it earns its
-  place. A COVID-only gate is exactly the outcome this table exists to catch (the Nifty–BankNifty
-  pair research found 54% of its profit in COVID 2020; G1's stress evidence is likewise ~one
-  event). Report this table for the base signal too (all cells = 0 by construction) so the reader
-  sees the regime mix of the window itself.
+  of non-blank, non-circular regime cells, AND (ii) no single calendar bucket accounts for > 50% of
+  its total positive ΔIC (rule b), AND (iii) it is not negative in ≥ 2 non-blank, non-circular
+  regimes *drawn from different partitions* (a Bear negative and a High-VIX negative that tag the
+  same dates count once). A gate that fails any of these is **regime-dependent** — flag it as such
+  even if §5's overall marginal table says it earns its place. A COVID-only gate is exactly the
+  outcome this table exists to catch (the Nifty–BankNifty pair research found 54% of its profit in
+  COVID 2020; G1's stress evidence is likewise ~one event). Report this table for the base signal
+  too (all cells = 0 by construction) so the reader sees the regime mix of the window itself.
 
 ## 7. Pre-registered predictions (state BEFORE running; report held/failed)
 
@@ -177,10 +201,11 @@ before the run):
   probe is expected to recommend removing at least one gate. (Falsified if all three earn their
   place.)
 - **P6 (stability, §6):** at least one gate that passes §5's marginal table is **not
-  stability-clear** — it fails majority-of-regimes, single-regime concentration, or ≥2 negative
-  cells. The prime suspect is **G1**: its stress evidence is ~one event (COVID in HOLDOUT), so it
-  is the most likely to ride one regime. (Falsified if every §5-passing gate is also
-  stability-clear.)
+  stability-clear** — it fails majority-of-regimes, calendar-axis concentration, or ≥2 negatives in
+  different partitions. The prime suspect is **G1**: its stress evidence is ~one event (COVID in
+  HOLDOUT), so it is the most likely to ride one regime. Note the circularity guard works against
+  G1 here: its VIX cells are excluded from its own `k/m`, so a G1 that only "works" in the VIX
+  cells it defines cannot count them. (Falsified if every §5-passing gate is also stability-clear.)
 
 ## 8. Deliverables
 
@@ -193,8 +218,9 @@ before the run):
    §2.1/§3.2.
 3. `tests/ts_basis_filter/test_sd_probe.py` — fence test (§1), IC-sign/rank-invariance sanity,
    drop-column bookkeeping (config 5 names ⊆ config 6/7/8 as expected), OI-coverage accounting,
-   and a stability-table bookkeeping check (every formation tagged with a non-blank regime cell on
-   at least one dimension; blanks only where `n < 20`).
+   and stability-table bookkeeping checks (every formation tagged with a non-blank regime cell on
+   at least one dimension; blanks only where `n < 20`; G1's VIX cells flagged circular and
+   excluded from its `k/m`; concentration computed over the three calendar buckets only).
 
 ## 9. What this probe is NOT
 
