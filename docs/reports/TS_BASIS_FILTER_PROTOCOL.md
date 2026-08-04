@@ -1,6 +1,28 @@
-# TS Basis — Directional-Strength Filter Protocol (Pre-Registration)
+# TS Basis — Directional-Strength Filter Protocol V1 (Pre-Registration)
 
-**Status:** DRAFT — for testing combinations only, no strategy code, no allocation.
+> **⚠️ CLOSED 2026-08-03 — TS_BASIS_FILTER_PROTOCOL_V1. Status: No filter recommended.**
+>
+> **Reason:** the proposed admission gates — G1 (VIX-regime), G2 (OI-confirmation), G3 (expiry) —
+> do not provide sufficient marginal value to justify inclusion in the construct. Measured on the
+> burned 2016–2022 surface (`TS_BASIS_FILTER_SD_PROBE_REPORT.md`, commit `83b3726`), fence-guarded,
+> sealed window untouched: **G2 REMOVE** (halves names 179→96, inflates sd_IC +0.0277, negative in
+> 0/7 regimes), **G3 REMOVE** (inert — Δsd≈0, Δn_req 0), **G1 regime-dependent** (its only marginal
+> credit is COVID-concentrated 82%; §5's "KEEP (mild)" is overridden by §6's NOT-stability-clear —
+> the two-stage design working as intended). No tested gate earns its place.
+>
+> **Scope of this null — precise for the research ledger.** What is closed is *this implementation*
+> of the structural-conditioning hypothesis: G1/G2/G3 as these three specific admission rules. The
+> probe did **not** test every realization of the §0 hypothesis. The correct claim is **"no tested
+> admission gate earns its place,"** NOT "structural conditioning does not work." The broader
+> question — whether cross-sectional carry conditions on structural regime at all — remains **open**
+> to a genuinely different structural mechanism, which would start its own pre-registration.
+>
+> **RFA moot** — there is no surviving filtered construct to declare. The construct reduces to plain
+> TS Basis Daily (already research-only, 2026-08-01). **The preserved 876-formation sealed window
+> (2023-01-01 → 2026-07-24) was never read and remains intact.** The §0 economic hypothesis below
+> stays frozen as the record of what V1 claimed. Cost of this closure: ≈ $0 (burned surface only).
+
+**Status:** CLOSED (V1) — no filter recommended. See the banner above, `TS_BASIS_FILTER_SD_PROBE_REPORT.md`, and `TS_BASIS_FILTER_PROTOCOL_REVIEW.md`.
 **Branch:** research/strategy-challenge
 **Origin:** `docs/reports/STRUCTURAL_ALPHA_DOSSIER.md` (Edges 3, 6, 2) + empirical read from
 `TS_BASIS_DAILY_EQUITY_SIGNAL_STRENGTH.md` (past-month direction hit ≈ 54% H=1d, SHORT side weaker).
@@ -8,6 +30,54 @@
 remains PRESERVED. Nothing in this protocol reads it. Filters are selected on TRAIN/HOLDOUT
 only; if a filter survives, the sealed window is spent once, one-shot, exactly as
 `TS_BASIS_DAILY_SEALED_READ_PROTOCOL.md` requires.
+
+---
+
+## 0. Economic Hypothesis — FROZEN 2026-08-03
+
+**Frozen economic claim (operator, 2026-08-03):**
+
+> Cross-sectional carry is expected to produce *materially stronger* predictive cross-sectional
+> rankings when three structural conditions are simultaneously present: (1) a dispersion-friendly
+> volatility regime, (2) per-name futures OI confirming the basis signal, and (3) formations free
+> from expiry-related mechanical distortions. Outside these conditions, the economic mechanism is
+> expected to weaken sufficiently that *excluding* those observations may improve the quality of
+> the measured signal.
+
+This is a **graded** conditional-alpha claim, deliberately not an on/off one: the edge is not
+asserted to vanish outside the conditions, only to weaken enough that exclusion may raise measured
+signal quality. It is falsifiable — it predicts that mean rank-IC on the **admitted** subsample
+exceeds mean rank-IC on the **full** sample by enough to survive the formations that admission
+removes.
+
+**Metric: `rank_ic`** (operator decision, 2026-08-03). What follows from this metric choice and the
+graded claim above:
+
+- All three gates are **admission criteria**, tested as sample-conditioning — not sizing. G1 and G3
+  admit/reject at the **formation** level; G2 admits/rejects at the **name** level. All three are
+  rank_ic-compatible in this form.
+- **G1 is operationalized as a formation-admission gate**, *not* the continuous exposure scalar
+  `clip(vix_med/vix, 0.25, 2.0)` (variant A1). A common book-exposure scalar leaves every name's
+  rank unchanged and is therefore invisible to `rank_ic` — it is a sizing overlay, **out of scope
+  for this construct** (it may be revisited later purely as a drawdown control, judged in
+  realized-return space). Only a gate that drops/retains whole formations (the A2 form) expresses
+  the hypothesis in IC-measurable terms.
+- **The instrument is exclusion, not down-weighting.** Graded down-weighting of a formation is
+  itself a sizing scalar and is equally IC-invisible; the hypothesis' own words ("*excluding* those
+  observations") commit to hard admission, which is the only rank_ic-expressible form of the claim.
+- **Demonstrability cost, carried forward (not a blocker):** every admission gate spends a scarce
+  resource — G1/G3 lower **n** (formations), G2 raises **sd_IC** (fewer names per formation ⇒
+  noisier per-formation IC). The unfiltered daily construct was already at central power ≈ **0.7472
+  at n = 876** (reauthorization §B.3). The graded claim implies a *smaller* filtering benefit than
+  an on/off claim would, so the probe must show each gate's IC lift on the retained subsample
+  outweighs the n/breadth it costs. **The RFA is declared on the *filtered* n and sd, never the
+  base**, and δ is anchored on a HOLDOUT-class read, never the burned sealed +0.077 (C2 lesson).
+
+**Status unchanged:** the protocol remains **DRAFT**. The hypothesis above is frozen; the window
+ledger (§3.2) and success metrics (§3.3–§3.4) are **not** — §3.3/§3.4 are still stated in hit-rate
+units, and §3.2 contains two stale window rows (monthly SEALED already spent; daily HOLDOUT already
+burned as a selection surface). Both are to be corrected, and a `rank_ic` RFA run, before any
+confirmatory read. See `TS_BASIS_FILTER_PROTOCOL_REVIEW.md`.
 
 ---
 
