@@ -28,7 +28,6 @@ sys.path.insert(0, str(ROOT))
 _logger = logging.getLogger("carry_forward")
 
 FACTS_DB = ROOT / "data" / "signal_engine" / "carry" / "facts.duckdb"
-SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "signals.duckdb"
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 PROD_DB = ROOT / "data" / "signal_engine" / "carry" / "production.duckdb"
 
@@ -185,7 +184,6 @@ def main():
         gross_exposure_policy=paper_gross_exposure_policy,
         bhavcopy_db_path=str(FUT_DB),
         metrics_sink=sink,
-        signals_db_path=str(SIG_DB),
     )
 
     config = DriverConfig(mode=Mode.REPLAY, symbols=symbols, max_bars=500_000)

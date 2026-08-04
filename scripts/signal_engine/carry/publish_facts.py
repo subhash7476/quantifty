@@ -108,6 +108,8 @@ def _publish(sig_con, fac_db_path, forward: bool = False):
             z_carry_neut     DOUBLE,
             quintile         TINYINT,
             eligible         BOOLEAN NOT NULL,
+            raw_z            DOUBLE,
+            basis_reverting  BOOLEAN DEFAULT FALSE,
             PRIMARY KEY (formation_date, underlying)
         )
     """)
@@ -115,9 +117,17 @@ def _publish(sig_con, fac_db_path, forward: bool = False):
         CREATE INDEX IF NOT EXISTS idx_facts_date ON carry_facts (formation_date)
     """)
 
+    cols = {r[1] for r in fc.execute("PRAGMA table_info('carry_facts')").fetchall()}
+    if "raw_z" not in cols:
+        fc.execute("ALTER TABLE carry_facts ADD COLUMN raw_z DOUBLE")
+    if "basis_reverting" not in cols:
+        fc.execute("ALTER TABLE carry_facts ADD COLUMN basis_reverting BOOLEAN DEFAULT FALSE")
+
     if facts:
         fc.executemany(
-            "INSERT OR REPLACE INTO carry_facts VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO carry_facts "
+            "(formation_date, underlying, sector, z_carry, z_carry_neut, quintile, eligible) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
             [(str(fd), u, sec, z, zn, q, elig) for fd, u, sec, z, zn, q, elig in facts],
         )
 
@@ -134,6 +144,9 @@ def _publish(sig_con, fac_db_path, forward: bool = False):
 def main():
     forward = "--forward" in sys.argv
     mode = "forward" if forward else "rebuild"
+
+    if forward and "--incremental" not in sys.argv:
+        sys.argv.append("--incremental")
 
     print(f"=== Step 1: build_carry (frozen construction) [{mode}] ===")
     rc = build_carry.main()
