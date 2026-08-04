@@ -21,10 +21,21 @@ from core.risk.span.span_snapshot import SpanSnapshot, SpanRiskArray
 logger = logging.getLogger(__name__)
 
 
+_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
+
+
 def _default_download(url: str, dest: Path) -> bytes:
-    """Real download via HTTP GET. Injectable for testing."""
+    """Real download via HTTP GET. Injectable for testing.
+
+    A browser User-Agent is required: archive.nseclearing.in resets a bare
+    connection (verified 2026-08-04); with the header it returns HTTP 200.
+    """
     import urllib.request
-    with urllib.request.urlopen(url) as resp:
+    req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    with urllib.request.urlopen(req) as resp:
         data = resp.read()
     return data
 
