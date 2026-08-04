@@ -1,0 +1,14 @@
+{
+  "_note": "Announcement dates sourced from contemporaneous public coverage (NSE Indices press release republigations). Keys: (index, effective_month, symbol, direction) -> [date, source]. UNKNOWN events are preserved as UNKNOWN in the register; effective dates are never substituted.",
+  "announcements": {
+    "nifty50|2025-03-01|JIOFIN|add": ["2025-02-24", "thenewsstrike.com NSE Indices announces stock replacements effective March 28, 2025 (article dated Feb 24, 2025)"],
+    "nifty50|2025-03-01|ZOMATO|add": ["2025-02-24", "thenewsstrike.com NSE Indices announces stock replacements effective March 28, 2025 (article dated Feb 24, 2025)"],
+    "nifty50|2025-03-01|BPCL|drop": ["2025-02-24", "thenewsstrike.com NSE Indices announces stock replacements effective March 28, 2025 (article dated Feb 24, 2025)"],
+    "nifty50|2025-03-01|BRITANNIA|drop": ["2025-02-24", "thenewsstrike.com NSE Indices announces stock replacements effective March 28, 2025 (article dated Feb 24, 2025)"],
+    "nifty50|2025-03-01|ITCHOTELS|drop": ["2025-02-24", "thenewsstrike.com NSE Indices announces stock replacements effective March 28, 2025 (article dated Feb 24, 2025)"],
+    "nifty50|2025-09-01|INDIGO|add": ["2025-08-22", "reuters.com Max Healthcare, IndiGo parent to enter India's Nifty 50 index (2025-08-22)"],
+    "nifty50|2025-09-01|MAXHEALTH|add": ["2025-08-22", "reuters.com Max Healthcare, IndiGo parent to enter India's Nifty 50 index (2025-08-22)"],
+    "nifty50|2025-09-01|HEROMOTOCO|drop": ["2025-08-22", "reuters.com Max Healthcare, IndiGo parent to enter India's Nifty 50 index (2025-08-22)"],
+    "nifty50|2025-09-01|INDUSINDBK|drop": ["2025-08-22", "reuters.com Max Healthcare, IndiGo parent to enter India's Nifty 50 index (2025-08-22)"]
+  }
+}
