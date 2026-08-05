@@ -45,6 +45,7 @@ Dropped (date, name) tallies:
 | §3.4 no ATM IV cell | 5 | 0 |
 | IV inversion discard (attempted) | 10/73752 (0.0%) | 0/1476 (0.0%) |
 | §3.7 pairing dropped (neither leg paired to t+1) | 47 | — |
+| §3.7 leg-level pairing (call/put legs attempted -> paired) | 73446/73644 (attrition 0.3%) | — |
 
 ## 4. Names per day (variant A and B universes)
 
@@ -66,10 +67,17 @@ Dropped (date, name) tallies:
 
 ## 5. THE HEADLINE NUMBERS
 
-| Variant | n_dates | mean_IC | **sd_IC** | Newey-West t (lag 5) | AC1 |
-|---|---|---|---|---|---|
-| A (pure cross-section) | 713 | -0.1298 | **0.1938** | -14.6401 | 0.0721 |
-| B (index-anchored) | 484 | -0.1196 | **0.1989** | -9.5577 | 0.2194 |
+The ladder is keyed on the **skip-a-day (double-lag)** IC — richness at `t`, delta-hedged
+return over `t+1 -> t+2` — because the same-day form is contaminated: `V_t` enters the
+signal (richness via IV inversion) and the return (dh) with opposite signs, so settle
+bounce mechanically pushes the same-day IC negative (lead review CRITICAL-1).
+
+| Variant | construction | n_dates | mean_IC | **sd_IC** | Newey-West t (lag 5) | AC1 |
+|---|---|---|---|---|---|---|
+| A same-day (contaminated) | 713 | -0.1298 | **0.1938** | -14.6401 | 0.0721 |
+| B same-day (contaminated) | 484 | -0.1196 | **0.1989** | -9.5577 | 0.2194 |
+| A skip-a-day **LADDER INPUT** | 712 | -0.1130 | **0.1877** | -15.0908 | -0.0248 |
+| B skip-a-day **LADDER INPUT** | 483 | -0.0786 | **0.1814** | -7.9671 | 0.0902 |
 
 **Expected sign is NEGATIVE** (rich options subsequently underperform delta-hedged). Nothing is flipped.
 
@@ -82,6 +90,11 @@ Dropped (date, name) tallies:
 | Median PC1 share (raw) | 20.17% |
 | Median N (names populated through window) | 46 |
 | Median raw names/day | 50 |
+
+**Direction of bias (MINOR-1, lead review):** the breadth panel is built from
+`dh_return_scaled`, which carries the same per-name `V_t` noise that drives the same-day
+IC artifact. That noise is largely **idiosyncratic per name**, so it dilutes cross-name
+correlation: `rho_bar` is pushed down and `N_eff` up. **The raw `N_eff` = 5.9 is an upper estimate** of true effective breadth. The headline conclusion — breadth sits between OSC's 1.9 and nominal ~45 — survives a downward correction comfortably.
 
 ### Demeaned panel (SECONDARY — artifact warning)
 
@@ -108,12 +121,13 @@ rho_imp is NOT clipped and NOT used as a per-name signal.
 
 ## 8. Feasibility read-out (decision ladder, §5)
 
-Ladder applied mechanically via `power.n_required`, two-sided, power 0.80, at both confirmatory-n readings:
+Ladder applied mechanically via `power.n_required`, two-sided, power 0.80, at both confirmatory-n readings.
+**Keyed on the skip-a-day sd_IC** (the clean measurement, CRITICAL-1):
 
-| Variant | sd_IC | n=1,701 (permissive) | n≈495 (strict) |
+| Variant | sd_IC (skip-a-day) | n=1,701 (permissive) | n≈495 (strict) |
 |---|---|---|---|
-| A | 0.1938 | **Green** | **Red-amber** |
-| B | 0.1989 | **Green** | **Red-amber** |
+| A | 0.1877 | **Green** | **Red-amber** |
+| B | 0.1814 | **Green** | **Red-amber** |
 
 Rung semantics (identical to OSC's anchors, applied at both readings):
 
@@ -134,12 +148,12 @@ Rung semantics (identical to OSC's anchors, applied at both readings):
 | P2 | Raw rho_bar >= 0.15 | 0.150 | **HELD** |
 | P3 | Raw median N_eff < 15 | 5.9 | **HELD** |
 | P4 | Raw median N_eff > 1.9 | 5.9 | **HELD** |
-| P5 | mean_IC (variant A) negative | -0.1298 | **HELD** |
-| P6a | sd_IC(A) <= 0.30 | 0.1938 | **HELD** |
-| P6b | sd_IC(A) >= 0.15 | 0.1938 | **HELD** |
-| P7 | sd_IC(B) >= sd_IC(A) | 0.1989 | **HELD** |
+| P5 | mean_IC (variant A) negative [skip-a-day] | -0.1130 | **HELD** |
+| P6a | sd_IC(A) <= 0.30 [skip-a-day] | 0.1877 | **HELD** |
+| P6b | sd_IC(A) >= 0.15 [skip-a-day] | 0.1877 | **HELD** |
+| P7 | sd_IC(B) >= sd_IC(A) [skip-a-day] | 0.1814 | **FAILED** |
 | P8 | IV inversion discard rate < 10% (stocks) | 0.0% | **HELD** |
-| P9 | t+1 pairing attrition < 25% of (date,name) cells | 0.1% | **HELD** |
+| P9 | t+1 pairing attrition < 25% of (date,name) cells [leg-level] | 0.3% | **HELD** |
 | P10 | Median renormalization mass >= 0.85 | 1.000 | **HELD** |
 
 ## 10. Implementation notes

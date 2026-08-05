@@ -189,3 +189,43 @@ class TestNeweyWest:
         x = np.array([1.0, 2.0])
         m, se = _newey_west(x, 5)
         assert np.isnan(m) and np.isnan(se)
+
+
+class TestSkipADayConstruction:
+    """CRITICAL-1 corrective: richness at t paired with the dh return over
+    t+1 -> t+2 (double-lag), so V_t never enters both signal and return."""
+
+    def _build_panel(self):
+        # Two names, five consecutive dates, one row per (date, name).
+        dates = pd.to_datetime(["2024-01-02", "2024-01-03", "2024-01-04", "2024-01-05", "2024-01-08"])
+        rows = []
+        for name in ("A", "B"):
+            for i, td in enumerate(dates):
+                rows.append({"trade_date": td, "underlying": name,
+                             "richA": 0.1 * (i + 1) if name == "A" else -0.1 * (i + 1),
+                             "dh_return_scaled": 0.2 * (i + 1) if name == "A" else -0.2 * (i + 1)})
+        return pd.DataFrame(rows)
+
+    def test_dh_skip_is_shifted_one_day_forward(self):
+        df = self._build_panel()
+        panel = df.sort_values(["underlying", "trade_date"]).copy()
+        panel["dh_skip"] = panel.groupby("underlying")["dh_return_scaled"].shift(-1)
+        # Row at t=2024-01-03, name A: dh_skip should be the t=2024-01-04 return.
+        row = panel[(panel["underlying"] == "A") & (panel["trade_date"] == pd.Timestamp("2024-01-03"))]
+        assert row["dh_skip"].iloc[0] == 0.2 * 3
+        # Last date has no skip (no t+1) -> NaN.
+        last = panel[(panel["underlying"] == "A") & (panel["trade_date"] == pd.Timestamp("2024-01-08"))]
+        assert np.isnan(last["dh_skip"].iloc[0])
+        # No cross-name leakage.
+        b_row = panel[(panel["underlying"] == "B") & (panel["trade_date"] == pd.Timestamp("2024-01-03"))]
+        assert b_row["dh_skip"].iloc[0] == -0.2 * 3
+
+    def test_skip_uses_richness_at_t(self):
+        # The skip frame must retain the richness AT t, not a shifted richness.
+        df = self._build_panel()
+        panel = df.sort_values(["underlying", "trade_date"]).copy()
+        panel["dh_skip"] = panel.groupby("underlying")["dh_return_scaled"].shift(-1)
+        panel = panel.dropna(subset=["dh_skip"])
+        # Row at t=2024-01-03 name A: richness is 0.1*2 (at t), return is 0.2*3 (over t+1->t+2).
+        row = panel[(panel["underlying"] == "A") & (panel["trade_date"] == pd.Timestamp("2024-01-03"))]
+        assert row["richA"].iloc[0] == 0.1 * 2

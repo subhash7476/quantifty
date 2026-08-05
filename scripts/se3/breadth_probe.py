@@ -409,6 +409,9 @@ def build_panel():
         "iv_discard": {"stock": 0, "idx": 0},
         "iv_attempted": {"stock": 0, "idx": 0},
         "pairing_dropped": 0,
+        "leg_pairing_attempted": 0,
+        "leg_pairing_dropped": 0,
+        "leg_pairing_paired": 0,
     }
 
     # ── stock options pipeline ───────────────────────────────────────────────
@@ -647,24 +650,27 @@ def build_panel():
             u = r["underlying"]
             exp = r["expiry_dt"]
             F_t = r["F_t"]
+            legs = [c for c in (r["iv_call"], r["iv_put"]) if c is not None]
+            attrit["leg_pairing_attempted"] += len(legs)
             F_t1 = _stock_forward(t1, u, exp)
             if not np.isfinite(F_t1) or F_t1 <= 0:
                 attrit["pairing_dropped"] += 1
+                attrit["leg_pairing_dropped"] += len(legs)
                 continue
             T = _dte(exp, td) / 365.0
             scaled = []
-            for cell in (r["iv_call"], r["iv_put"]):
-                if cell is None:
-                    continue
+            for cell in legs:
                 strike, ot, iv, V_t = cell
                 try:
                     V_t1 = float(traded_settle.loc[(t1, u, exp, strike, ot)])
                 except KeyError:
+                    attrit["leg_pairing_dropped"] += 1
                     continue
                 delta_t = black76_delta(F_t, strike, iv, T, ot)
                 vega_t = black76_vega(F_t, strike, iv, T)
                 dh = (V_t1 - V_t) - delta_t * (F_t1 - F_t)
                 scaled.append(dh / max(vega_t, 1e-6))
+                attrit["leg_pairing_paired"] += 1
             if not scaled:
                 attrit["pairing_dropped"] += 1
                 continue
@@ -677,10 +683,29 @@ def build_panel():
     panel = stock_df.merge(dh_df, on=["trade_date", "underlying"], how="inner")
 
     # ── §3.9 IC series ───────────────────────────────────────────────────────
-    icA = panel[["trade_date", "richA", "dh_return_scaled"]].rename(columns={"richA": "richness"})
-    icB = panel[["trade_date", "richB", "dh_return_scaled"]].rename(columns={"richB": "richness"})
-    seriesA, statsA = _ic_series(icA, MIN_NAMES_IC)
-    seriesB, statsB = _ic_series(icB, MIN_NAMES_IC)
+    # Same-day IC is contaminated: V_t enters the signal (richness via IV
+    # inversion) with a positive sign and the return (dh) with a negative sign,
+    # so any settle noise induces a mechanically negative IC.  Per the lead
+    # review CRITICAL-1, the skip-a-day (double-lag) construction is the clean
+    # measurement: richness at t, delta-hedged return over t+1 -> t+2.  Both
+    # are computed; the ladder is keyed on skip-a-day.
+    icA_same = panel[["trade_date", "richA", "dh_return_scaled"]].rename(columns={"richA": "richness"})
+    icB_same = panel[["trade_date", "richB", "dh_return_scaled"]].rename(columns={"richB": "richness"})
+    seriesA_same, statsA_same = _ic_series(icA_same, MIN_NAMES_IC)
+    seriesB_same, statsB_same = _ic_series(icB_same, MIN_NAMES_IC)
+
+    # Skip-a-day: per name, pair richness at t with the dh return over t+1 -> t+2.
+    panel_skip = panel.sort_values(["underlying", "trade_date"]).copy()
+    panel_skip["dh_skip"] = panel_skip.groupby("underlying")["dh_return_scaled"].shift(-1)
+    panel_skip = panel_skip.dropna(subset=["dh_skip"])
+    icA_skip = panel_skip[["trade_date", "richA", "dh_skip"]].rename(
+        columns={"richA": "richness", "dh_skip": "dh_return_scaled"}
+    )
+    icB_skip = panel_skip[["trade_date", "richB", "dh_skip"]].rename(
+        columns={"richB": "richness", "dh_skip": "dh_return_scaled"}
+    )
+    seriesA_skip, statsA_skip = _ic_series(icA_skip, MIN_NAMES_IC)
+    seriesB_skip, statsB_skip = _ic_series(icB_skip, MIN_NAMES_IC)
 
     # ── §3.10 effective breadth ──────────────────────────────────────────────
     print("Computing effective breadth ...")
@@ -748,7 +773,8 @@ def build_panel():
 
     n_permissive, n_strict = 1701, 495
     ladder = {}
-    for v, st in (("A", statsA), ("B", statsB)):
+    # Ladder keyed on skip-a-day sd_IC (the clean measurement, CRITICAL-1).
+    for v, st in (("A", statsA_skip), ("B", statsB_skip)):
         if st is None:
             ladder[v] = None
             continue
@@ -790,8 +816,14 @@ def build_panel():
         "idx_df": idx_df,
         "sigma_I": sigma_I,
         "panel": panel,
-        "statsA": statsA,
-        "statsB": statsB,
+        "statsA_same": statsA_same,
+        "statsB_same": statsB_same,
+        "statsA": statsA_skip,
+        "statsB": statsB_skip,
+        "seriesA_same": seriesA_same,
+        "seriesB_same": seriesB_same,
+        "seriesA": seriesA_skip,
+        "seriesB": seriesB_skip,
         "rho_raw": rho_raw,
         "neff_raw": neff_raw,
         "pc1_raw": pc1_raw,
@@ -819,6 +851,7 @@ def run(output_path):
 def _write_report(path, d):
     att = d["attrit"]
     statsA, statsB = d["statsA"], d["statsB"]
+    statsA_same, statsB_same = d["statsA_same"], d["statsB_same"]
     med_neff_raw = float(np.median(d["neff_raw"])) if d["neff_raw"] else np.nan
     med_rho_raw = float(np.median(d["rho_raw"])) if d["rho_raw"] else np.nan
     med_pc1_raw = float(np.median(d["pc1_raw"])) if d["pc1_raw"] else np.nan
@@ -878,6 +911,8 @@ def _write_report(path, d):
     l(f"| §3.4 no ATM IV cell | {att['dropped_no_atm']['stock']} | {att['dropped_no_atm']['idx']} |")
     l(f"| IV inversion discard (attempted) | {att['iv_discard']['stock']}/{att['iv_attempted']['stock']} ({att['iv_discard']['stock']/max(att['iv_attempted']['stock'],1):.1%}) | {att['iv_discard']['idx']}/{att['iv_attempted']['idx']} ({att['iv_discard']['idx']/max(att['iv_attempted']['idx'],1):.1%}) |")
     l(f"| §3.7 pairing dropped (neither leg paired to t+1) | {att['pairing_dropped']} | — |")
+    leg_attr = att["leg_pairing_dropped"] / max(att["leg_pairing_attempted"], 1)
+    l(f"| §3.7 leg-level pairing (call/put legs attempted -> paired) | {att['leg_pairing_paired']}/{att['leg_pairing_attempted']} (attrition {leg_attr:.1%}) | — |")
     l("")
     l("## 4. Names per day (variant A and B universes)")
     l("")
@@ -899,18 +934,19 @@ def _write_report(path, d):
     l("")
     l("## 5. THE HEADLINE NUMBERS")
     l("")
-    l("| Variant | n_dates | mean_IC | **sd_IC** | Newey-West t (lag 5) | AC1 |")
-    l("|---|---|---|---|---|---|")
+    l("The ladder is keyed on the **skip-a-day (double-lag)** IC — richness at `t`, delta-hedged")
+    l("return over `t+1 -> t+2` — because the same-day form is contaminated: `V_t` enters the")
+    l("signal (richness via IV inversion) and the return (dh) with opposite signs, so settle")
+    l("bounce mechanically pushes the same-day IC negative (lead review CRITICAL-1).")
+    l("")
+    l("| Variant | construction | n_dates | mean_IC | **sd_IC** | Newey-West t (lag 5) | AC1 |")
+    l("|---|---|---|---|---|---|---|")
     def _row(label, st):
         return f"| {label} | {st['n_dates']} | {st['mean_ic']:.4f} | **{st['sd_ic']:.4f}** | {st['nw_t']:.4f} | {st['ac1']:.4f} |"
-    if statsA:
-        l(_row("A (pure cross-section)", statsA))
-    else:
-        l("| A (pure cross-section) | 0 | — | — | — | — |")
-    if statsB:
-        l(_row("B (index-anchored)", statsB))
-    else:
-        l("| B (index-anchored) | 0 | — | — | — | — |")
+    for lbl, st in (("A", statsA_same), ("B", statsB_same)):
+        l(_row(f"{lbl} same-day (contaminated)", st))
+    for lbl, st in (("A", statsA), ("B", statsB)):
+        l(_row(f"{lbl} skip-a-day **LADDER INPUT**", st))
     l("")
     l("**Expected sign is NEGATIVE** (rich options subsequently underperform delta-hedged). Nothing is flipped.")
     l("")
@@ -923,6 +959,11 @@ def _write_report(path, d):
     l(f"| Median PC1 share (raw) | {med_pc1_raw:.2%} |")
     l(f"| Median N (names populated through window) | {med_n_raw:.0f} |")
     l(f"| Median raw names/day | {med_names_day:.0f} |")
+    l("")
+    l("**Direction of bias (MINOR-1, lead review):** the breadth panel is built from")
+    l("`dh_return_scaled`, which carries the same per-name `V_t` noise that drives the same-day")
+    l("IC artifact. That noise is largely **idiosyncratic per name**, so it dilutes cross-name")
+    l(f"correlation: `rho_bar` is pushed down and `N_eff` up. **The raw `N_eff` = {med_neff_raw:.1f} is an upper estimate** of true effective breadth. The headline conclusion — breadth sits between OSC's 1.9 and nominal ~45 — survives a downward correction comfortably.")
     l("")
     l("### Demeaned panel (SECONDARY — artifact warning)")
     l("")
@@ -953,9 +994,10 @@ def _write_report(path, d):
         l("")
     l("## 8. Feasibility read-out (decision ladder, §5)")
     l("")
-    l("Ladder applied mechanically via `power.n_required`, two-sided, power 0.80, at both confirmatory-n readings:")
+    l("Ladder applied mechanically via `power.n_required`, two-sided, power 0.80, at both confirmatory-n readings.")
+    l("**Keyed on the skip-a-day sd_IC** (the clean measurement, CRITICAL-1):")
     l("")
-    l("| Variant | sd_IC | n=1,701 (permissive) | n≈495 (strict) |")
+    l("| Variant | sd_IC (skip-a-day) | n=1,701 (permissive) | n≈495 (strict) |")
     l("|---|---|---|---|")
     for v in ("A", "B"):
         ld = d["ladder"].get(v)
@@ -994,13 +1036,13 @@ def _write_report(path, d):
 
 
 def _predictions(d):
-    statsA, statsB = d["statsA"], d["statsB"]
+    statsA, statsB = d["statsA"], d["statsB"]  # skip-a-day
     med_neff_raw = float(np.median(d["neff_raw"])) if d["neff_raw"] else np.nan
     med_rho_raw = float(np.median(d["rho_raw"])) if d["rho_raw"] else np.nan
     namesA = d["panel"][d["panel"]["richA"].notna()].groupby("trade_date").size()
     rho_imp = d["rho_imp_diag"]
     att = d["attrit"]
-    pairing_attr = att["pairing_dropped"] / max(att["stock_after_iv"] + att["pairing_dropped"], 1)
+    leg_attr = att["leg_pairing_dropped"] / max(att["leg_pairing_attempted"], 1)
     out = []
 
     def add(pid, text, held, actual):
@@ -1011,17 +1053,20 @@ def _predictions(d):
     add("P2", "Raw rho_bar >= 0.15", not np.isnan(med_rho_raw) and med_rho_raw >= 0.15, f"{med_rho_raw:.3f}")
     add("P3", "Raw median N_eff < 15", not np.isnan(med_neff_raw) and med_neff_raw < 15, f"{med_neff_raw:.1f}")
     add("P4", "Raw median N_eff > 1.9", not np.isnan(med_neff_raw) and med_neff_raw > 1.9, f"{med_neff_raw:.1f}")
-    add("P5", "mean_IC (variant A) negative", statsA is not None and statsA["mean_ic"] < 0,
+    # P5 is evaluated on the skip-a-day (clean) mean_IC. As written it was
+    # unfalsifiable in the same-day form (the artifact returns negative by
+    # construction); the skip-a-day sign is the informative reading.
+    add("P5", "mean_IC (variant A) negative [skip-a-day]", statsA is not None and statsA["mean_ic"] < 0,
         f"{statsA['mean_ic']:.4f}" if statsA else "n/a")
-    add("P6a", "sd_IC(A) <= 0.30", statsA is not None and statsA["sd_ic"] <= 0.30,
+    add("P6a", "sd_IC(A) <= 0.30 [skip-a-day]", statsA is not None and statsA["sd_ic"] <= 0.30,
         f"{statsA['sd_ic']:.4f}" if statsA else "n/a")
-    add("P6b", "sd_IC(A) >= 0.15", statsA is not None and statsA["sd_ic"] >= 0.15,
+    add("P6b", "sd_IC(A) >= 0.15 [skip-a-day]", statsA is not None and statsA["sd_ic"] >= 0.15,
         f"{statsA['sd_ic']:.4f}" if statsA else "n/a")
-    add("P7", "sd_IC(B) >= sd_IC(A)", statsA is not None and statsB is not None and statsB["sd_ic"] >= statsA["sd_ic"],
+    add("P7", "sd_IC(B) >= sd_IC(A) [skip-a-day]", statsA is not None and statsB is not None and statsB["sd_ic"] >= statsA["sd_ic"],
         f"{statsB['sd_ic']:.4f}" if statsB else "n/a")
     iv_rate = att["iv_discard"]["stock"] / max(att["iv_attempted"]["stock"], 1)
     add("P8", "IV inversion discard rate < 10% (stocks)", iv_rate < 0.10, f"{iv_rate:.1%}")
-    add("P9", "t+1 pairing attrition < 25% of (date,name) cells", pairing_attr < 0.25, f"{pairing_attr:.1%}")
+    add("P9", "t+1 pairing attrition < 25% of (date,name) cells [leg-level]", leg_attr < 0.25, f"{leg_attr:.1%}")
     if rho_imp:
         add("P10", "Median renormalization mass >= 0.85", rho_imp["median_mass"] >= 0.85, f"{rho_imp['median_mass']:.3f}")
     else:
