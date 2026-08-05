@@ -209,6 +209,13 @@ V, F                read at t+1 and t+2
 dh_return_scaled    = ((V_{t+2} - V_{t+1}) - Delta_{t+1} * (F_{t+2} - F_{t+1})) / max(vega_{t+1}, 1e-6)
 ```
 
+**The contract is held fixed across the return window.** The `(expiry_dt, strike, option_type)`
+selected at `t+1` is the same one whose `settle` is read at `t+2`, and the forward at `t+2` is that
+same expiry's `FUTSTK` settle — verified at `breadth_probe.py:655` (`_stock_forward(t1, u, exp)`
+reuses the row's `exp`) and `:665` (`(t1, u, exp, strike, ot)`). **Do not re-apply A3/A7/A8 at
+`t+2`.** Re-selecting there would pair the price of one contract against the price of another and
+silently change the return.
+
 This is not a choice — it is the construction that produced the declared `sd_IC = 0.1877`, and the
 declaration's sd band is only transportable if the confirmatory construction matches it. It is also
 the executable timeline: signal from the close of `t`, position opened at `t+1`, closed at `t+2`.
@@ -380,16 +387,27 @@ Binding on the implementation:
 | Q2 | Median names/day over the whole span ≥ 20 (the A11/A13 minimum) |
 | Q3 | IV inversion discard rate < 10% of cells passing A5–A7, in every year |
 | Q4 | No calendar month has zero admissible expiry under A3 (S4) |
-| Q5 | At least one new `DUMMY*` / `TMPV*` style symbol appears in the 2016–2022 MCWB archives that was not in the probe's 2023–2025 set — and is reported as source pollution, not a member |
-| Q6 | First usable formation date is ~21 trading days after 2016-02-11, i.e. **March 2016** — not 2023-03-28's ~60-day analogue (§1.2) |
+| Q5 | First usable formation date is ~21 trading days after 2016-02-11, i.e. **March 2016** — not 2023-03-28's ~60-day analogue (§1.2) |
+
+**Not a prediction — a reporting requirement.** Every `DUMMY*` / `TMPV*` style symbol found in the
+2016–2022 MCWB archives is reported by symbol and first-seen month (S1). **Zero is a valid finding.**
+All four the probe found (`DUMMYREL` 2023-07, `TMPV` 2026-06, `DUMMYTATAM` 2025-10, `DUMMYHDLVR`
+2026-01) are 2023-or-later, so there is no basis for predicting the practice existed in the earlier
+era in either direction — a prediction here would discriminate nothing.
 
 **Phase 2:**
 
 | # | Prediction |
 |---|---|
-| Q7 | Realized `sd_IC` falls inside the declared band **[0.1877, 0.26]** (D2). A value outside it is the C2 failure mode and must be reported prominently |
-| Q8 | Realized raw `N_eff` is **below** the probe's 5.9 — the probe's own report labels 5.9 an **upper** estimate (MINOR-1: idiosyncratic `V_t` noise dilutes cross-name correlation) |
-| Q9 | Realized `rho_bar` is **above** the probe's 0.150, for the same reason |
+| Q6 | Realized `sd_IC` falls inside the declared band **[0.1877, 0.26]** (D2). A value outside it is the C2 failure mode and must be reported prominently |
+| Q7 | Realized raw `rho_bar` is **above** the probe's 0.150 — the probe's own report labels its breadth an **upper** estimate (MINOR-1: idiosyncratic `V_t` noise dilutes cross-name correlation) |
+
+**Q7 is deliberately stated on `rho_bar`, not on `N_eff`.** Since
+`N_eff = N / (1 + (N−1)·rho_bar)`, at fixed `N` the two are the same claim, and listing both would
+show one piece of evidence as two HELD rows. **Report realized `N_eff` and `N` alongside it**
+without a prediction attached: §3.4 warns early-era thinness may move `N` materially, and if `N`
+falls then `N_eff` and `rho_bar` genuinely can move together rather than inversely. That decoupling
+is informative and must be visible rather than predicted.
 
 **There is no prediction on the IC itself.** Pre-reg §4's outcome matrix is the pre-declared reading
 of G1/G2, and predicting the primary result would invite reading the outcome as confirmation of the
