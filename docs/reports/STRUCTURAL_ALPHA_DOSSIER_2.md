@@ -7,7 +7,21 @@
 
 ---
 
-> ## ⚠️ REVISION 2026-08-04 — SE-1's arithmetic claim is FALSIFIED; its ranking is SUSPENDED
+> ## ⚠️ REVISION 2026-08-05 — SE-1 is ABANDONED at the RFA gate. Its ranking is RESOLVED, not suspended.
+>
+> **The question this banner left open on 2026-08-04 has been answered, and the answer is no.** The literature check it demanded was performed, a Sharpe band was defended, frozen, and gated: **SE-1 returns ABANDON at max achievable power 0.7674 < 0.80** (`SE-1_RFA.md`; declaration `governance/rfa/declarations/se1.py`, SHA-256 `5fbf35ac…`, commit `7dd46fc`). n_required is **24** announcement clusters at the optimistic corner against **22** available; the required annualized Sharpe is **0.8375** against a defended ceiling of 0.80.
+>
+> **SE-1 is not ranked. It is closed.** Treat every SE-1 recommendation below as superseded by this line.
+>
+> Two corrections the gate made to this document's own reasoning, both worth keeping:
+> - The hurdle was hand-derived as 0.810. It is **0.8375**.
+> - This banner implied the calendar could not rescue SE-1. It can move it: n_required at the band ceiling is **two** more clusters (~Sept 2026), not twelve. But moving is not rescuing — reaching 0.80 at n=24 still requires the truth to sit at the very top of a band whose centre projects power ~0.50. **The revisit condition is a conjunction:** n ≥ 24 **AND** a defensible ceiling ≥ 0.8375, the latter requiring new evidence on effect size or within-cluster correlation — not a re-read of the same literature, and not a band widened because the first one abandoned.
+>
+> **Cost of the whole SE-1 sequence: zero market data.** No price, return, or futures data has ever been consumed for SE-1. The counting pass read MCWB membership only. The gate killed it on arithmetic, before a window was opened — the gate working exactly as designed, for the third time (after FLOW and RS-MOM).
+>
+> ---
+>
+> *The 2026-08-04 finding that produced this closure, retained as the record:*
 >
 > This dossier claimed SE-1 was *"the only candidate whose demonstrability arithmetic is comfortable rather than marginal"* and ranked it **#1** on that basis. **The claim is false.** Measured by `scripts/se1/count_index_events.py` (`SE1_EVENT_COUNTING_REPORT.md`, 2026-08-04):
 >
@@ -160,9 +174,11 @@ Seven survived rejection. The mandate asked for a Top 10 and simultaneously said
 
 ---
 
-## SE-1 — Forced passive rebalancing flow (index reconstitution)
+## SE-1 — Forced passive rebalancing flow (index reconstitution) — **✗ CLOSED, ABANDON at the RFA gate 2026-08-05**
 
-*Overlaps Round 1's Edge 8, which ranked it #4. This pass ranks it #1 and disagrees on what the hard part is.*
+> **Read this section as history.** SE-1 was gated on 2026-08-05 and returned **ABANDON** — max achievable power **0.7674** < 0.80, n_required **24** announcement clusters against **22** available (`SE-1_RFA.md`; declaration SHA-256 `5fbf35ac…`). Everything below describes the mechanism accurately and none of it is retracted; the construct died on **demonstrability at n=22**, not on the mechanism, the data, or the accessibility. Note in particular that §E below judged the observation structure the best in the dossier — **that judgement was wrong**, and the counting pass is what proved it.
+
+*Overlaps Round 1's Edge 8, which ranked it #4. This pass ranked it #1 and disagreed on what the hard part is — and was wrong about the hard part. The hard part was n.*
 
 ### A. Description
 Index providers publish constituent changes on a **pre-announced schedule with a pre-announced effective date**. NSE Indices reviews the Nifty 50 semi-annually on data through 31 January / 31 July, effective the last trading day of March / September, with **four weeks' prior notice** ([NSE methodology](https://archives.nseindia.com/content/indices/ind_nifty50.pdf), [Bajaj AMC](https://www.bajajamc.com/knowledge-centre/nifty-50-rebalancing)). MSCI reviews quarterly (Feb/May/Aug/Nov), effective roughly 10–21 days after announcement ([Marketcalls](https://www.marketcalls.in/investment/msci-rebalancing-explained-a-comprehensive-guide-for-indian-investors-and-traders.html)). Every benchmarked fund must transact the change, at the effective-date close, in the size the index dictates, irrespective of price.
@@ -353,7 +369,7 @@ Prior exposure: the SSF 2016–2022 panel is burned for basis-family work. This 
 **Medium.** Single-stock futures/options held days. The real difficulty is that the trade concentrates at exactly the moment liquidity is worst.
 
 ### H. Research priority
-**4.** Genuine forced-trade mechanism, genuine event cross-section, data mostly on hand. Below SE-1 mainly because the effect size has no published Indian anchor and the regime breaks are severe.
+**4.** Genuine forced-trade mechanism, genuine event cross-section, data mostly on hand. Ranked below SE-1 mainly because the effect size has no published Indian anchor and the regime breaks are severe. **Revised 2026-08-05:** SE-1 is now closed at the gate, and the comparison inverts on the axis that decided it — SE-4's ~2,000 name-expiry events against SE-1's 22 clusters. The missing Indian effect-size anchor and the two regime breaks are still real and still unaddressed, so this is **not** an automatic promotion; it is a note that the reason SE-4 sat below SE-1 no longer holds.
 
 ---
 
@@ -516,7 +532,7 @@ Even with the data, the observation structure is the familiar wall: an overnight
 
 | # | Edge | Escape claimed | Breadth risk | Confirmatory window | Mechanism | Independent-researcher accessible? |
 |---|---|---|---|---|---|---|
-| **susp.** | **SE-1 Forced passive rebalancing flow** | A (event cross-section) | **Measured: 66 events → 22 clusters, ratio 3.0** | **Event-time — unburned** | Strong | **Yes — capacity-limited in your favour** |
+| **✗ CLOSED** | **SE-1 Forced passive rebalancing flow** — **ABANDON at the RFA gate 2026-08-05**, max power 0.7674 | A (event cross-section) | **Measured: 66 events → 22 clusters, ratio 3.0. n_required 24 > 22 available** | Event-time — **unburned, and stays that way** | Strong | Yes — but demonstrability, not access, is what killed it |
 | 2 | **SE-2 Constituent liquidity provision (SSF-executed)** | A (`rank_ic`, contested) | Low (ρ = −0.04) | **Nifty-50 daily 2023–26 PRESERVED** | Strong | Yes, with effort |
 | 3 | **SE-3 Implied-correlation / dispersion premium** | A (**breadth unmeasured**) | **Unknown — probe first** | Partly burned (Skew) | **Strongest** | Marginal |
 | 4 | **SE-4 Physical-delivery expiry forced roll** | A (name-expiry events) | Low | Event-time; substrate partly burned | Strong | **Yes** |
@@ -526,9 +542,9 @@ Even with the data, the observation structure is the familiar wall: an overnight
 
 ## 2. Which deserve immediate research
 
-**SE-1, then SE-3's breadth probe, then SE-2 — and only with SE-2's metric question settled in advance.**
+~~**SE-1, then SE-3's breadth probe, then SE-2**~~ → **SE-3's breadth probe, then SE-2 — and only with SE-2's metric question settled in advance.** *(Revised 2026-08-05: SE-1 ran first, as this section directed, and closed at the gate. The remaining order is unchanged.)*
 
-- **SE-1 first — done, and it came back marginal.** The counting pass ran 2026-08-04. The "comfortable arithmetic" premise is falsified (see the revision banner); the required cluster-level `δ/sd` is 0.6264. **The next SE-1 step is not construct work — it is the literature check** on whether Indian inclusion-premium effect sizes support that ratio, plus sourcing the ~22 cluster announcement dates. Both touch no window.
+- ~~**SE-1 first**~~ — **DONE, and SE-1 is CLOSED.** The counting pass ran 2026-08-04 (66 events → 22 clusters, required cluster-level `δ/sd` 0.6264, falsifying the "comfortable arithmetic" premise). The literature check this section demanded ran 2026-08-05 and produced a defended annualized Sharpe band [0.35, 0.80], which the gate then rejected: **max power 0.7674 < 0.80, n_required 24 > 22 available.** No further SE-1 step exists. Sourcing the ~22 cluster announcement dates is no longer on the critical path — it was never the binding constraint, and the gate is decided on n and the band alone.
 - **SE-3's N_eff / sd_IC probe second**, on the already-burned window. Cheap, costs no purity, and it is the single number deciding whether the best mechanism here is reachable. Carry forward the **dispersion only**.
 - **SE-2 third.** rank_ic PASS with per_trade_pnl FAIL is a real possible outcome and must be pre-declared. The 2023–2026 constituent window is the last clean one; do not open it on an unsettled question.
 
@@ -545,26 +561,28 @@ Dealer gamma / GEX; participant-wise OI as a signal; FII/DII cash flows; overnig
 | **SE-5 SPAN margin shocks** | Historical daily SPAN risk-parameter files. **~14-month rolling window now on hand** (275 snapshots, 2025-06-19 → 2026-08-03, backfilled 2026-08-04). Not a research panel — still requires **forward collection to 2028**. | Forward collection **started 2026-08-04** (daily job, asserted freshness); older history not purchasable at retail scale. |
 | **SE-7 Overnight VRP** | Intraday option prices; GIFT/SGX Nifty history | Intraday: paid vendor. GIFT: separate venue, FPI-gated. |
 | **SE-6 Retail transfer** | Client-level trade panel | **No — regulator-only.** |
-| **SE-1 (partial)** | Contemporaneous index-change **announcement dates** | Yes, by hand assembly. **The highest-value manual data task available.** Note this is *not* the same as composition history, which Round 1 lists. |
+| ~~**SE-1 (partial)**~~ **— MOOT, SE-1 closed** | Contemporaneous index-change **announcement dates** | Yes, by hand assembly — but **no longer worth doing for SE-1.** It was never the binding constraint (the gate is decided on n and the Sharpe band alone), and the construct is abandoned. Retained only because the same calendar would serve any future event-time construct on index membership. Note this is *not* the same as composition history, which Round 1 lists. |
 | **SE-4 (partial)** | SLB borrow rates/availability history; pre-2020 delivery percentage | Partially — NSE publishes daily; depth unverified. |
 | **SE-3 (optional)** | BANKNIFTY options | **Yes — one filter change plus re-ingest.** Decide before measuring; it changes the breadth arithmetic. |
 
 **Three zero-cost data actions worth starting this week, none touching a sealed window:**
 1. ~~Archive the daily NSE SPAN files (enables SE-5 in ~2028)~~ — **DONE 2026-08-04** (`fetch_span_params.py`, daily chain, backfill to retention edge).
 2. Archive the daily participant-wise OI file (context for everything).
-3. Begin the point-in-time index-change **announcement** calendar (unblocks SE-1).
+3. ~~Begin the point-in-time index-change **announcement** calendar (unblocks SE-1).~~ — **dropped 2026-08-05.** SE-1 is abandoned at the gate, and the calendar never unblocked it in the first place: announcement-date coverage does not enter the power arithmetic.
 
 ## 5. Highest probability of durable alpha
 
-**SE-3 on mechanism; SE-1 on realizability.** They differ on *which* probability.
+~~**SE-3 on mechanism; SE-1 on realizability.**~~ → **SE-3 on mechanism. The realizability slot is now vacant.** *(Revised 2026-08-05 — SE-1 held it and is closed; SE-4 is the natural claimant on its ~2,000 name-expiry events, but it has never been gated, so promoting it here would be the post-hoc re-ranking this document warns against. Left vacant deliberately.)* The two axes still differ on *which* probability.
 
 - **SE-3**'s mechanism — compensation for correlation risk — is the most likely of anything here to be intact in 2040, protected by an Indian demand imbalance a determined regulator has failed to suppress. But it is Very High difficulty, its breadth is unmeasured, and it is short a tail.
-- **SE-1**'s mechanism decays but cannot vanish, because the forced side's mandate is explicitly anti-alpha and its AUM compounds at ~32%. It is the candidate most likely to survive contact with this platform's own gate.
+- ~~**SE-1**'s mechanism decays but cannot vanish, because the forced side's mandate is explicitly anti-alpha and its AUM compounds at ~32%. It is the candidate most likely to survive contact with this platform's own gate.~~ **FALSIFIED 2026-08-05 — and instructively.** The first clause stands: the mechanism is real and its forced side is mandated to be price-insensitive. The second is exactly backwards — SE-1 was the *first* of these candidates to meet the gate and it did not survive, at max power 0.7674. **A mechanism being real, durable, and forced says nothing about whether 22 observations can demonstrate it.** That is the dossier's own governing insight applied to its own #1 pick, and this document failed to apply it until the arithmetic was run.
 - **SE-2** has the highest probability that a *real effect exists* — already measured OOS at IC +0.029 — and the lowest probability of *durability*.
 
 ## 6. Realistically achievable by an independent researcher
 
-**Achievable: SE-1, SE-4, and SE-2 (with effort).** All three share the profile that makes an edge available to a small researcher and unattractive to a large one: **capacity-limited, low-frequency, data-assembly-heavy, requiring patience rather than infrastructure.** A multi-billion-dollar fund cannot deploy meaningfully into a few hundred crore of index-rebalancing flow or a single-stock expiry roll. You can.
+**Achievable: SE-4 and SE-2 (with effort)** — and SE-1 *was* achievable in this sense too, which is precisely the point. All three share the profile that makes an edge available to a small researcher and unattractive to a large one: **capacity-limited, low-frequency, data-assembly-heavy, requiring patience rather than infrastructure.** A multi-billion-dollar fund cannot deploy meaningfully into a few hundred crore of index-rebalancing flow or a single-stock expiry roll. You can.
+
+**But SE-1 is closed anyway, and the reason is worth carrying into SE-4 and SE-2.** Accessibility and demonstrability are independent axes. SE-1 scored top marks on the first — capacity-limited in your favour, event-time window unburned, no infrastructure required — and still died on the second, because a low-frequency edge available to a small researcher generates *few observations by the same property that makes it available*. **The profile praised in this paragraph is partly a description of a small-n problem.** SE-4's ~2,000 name-expiry events are the reason it survives that tension where SE-1 did not; SE-2 must answer it before its metric question is settled.
 
 **Not achievable: SE-6, SE-7, and every rejected microstructure idea.** They need market-making infrastructure, cross-venue FPI access, or a regulator's data. The correct response is not to approximate them — approximation is where OSC's N_eff = 1.9 came from — but to decline them.
 
@@ -578,7 +596,11 @@ Durable alpha is structurally possible in this market. The mechanisms are real, 
 
 But the honest answer to *"where is it most likely to originate?"* is **not where the money is.** The biggest, cleanest, most persistent transfer in Indian markets is captured by *having a market-making business*, and no amount of research skill substitutes for that.
 
-What is left for a researcher with excellent engineering, sixteen years of EOD data, and no exchange membership is narrower and less glamorous: **be the patient counterparty to someone who is forced to trade on a published schedule.** Index funds at reconstitution. Leveraged holders at physical-delivery expiry. Price-insensitive flow in the constituent cross-section. All three are slow, small, unfashionable, and — critically — produce **many independent observations from a single calendar year**, which is the only thing this platform's arithmetic has ever rewarded.
+What is left for a researcher with excellent engineering, sixteen years of EOD data, and no exchange membership is narrower and less glamorous: **be the patient counterparty to someone who is forced to trade on a published schedule.** Index funds at reconstitution. Leveraged holders at physical-delivery expiry. Price-insensitive flow in the constituent cross-section.
+
+> **CORRECTED 2026-08-05 — this paragraph's closing claim was false for the first of its three examples, and the error is the whole lesson.** The original text asserted that all three *"produce **many independent observations from a single calendar year**, which is the only thing this platform's arithmetic has ever rewarded."* The second clause is right. The first was **asserted, not counted** — and when it was counted, index reconstitution produced **2.335 announcement clusters per year**, the opposite of many. SE-1 died on exactly that.
+>
+> The corrected claim: **being forced-schedule is not the same as being observation-rich, and this document conflated them.** Expiry rolls (~2,000 name-events) and the constituent cross-section (daily × ~50 names) genuinely are observation-rich. Reconstitution is not, because the same schedule that makes the flow predictable also makes it *rare*. **A published schedule tells you the trade is real; only counting tells you whether it is demonstrable.** The dossier's own governing insight was available the entire time and was applied to SE-3 and not to SE-1 — which is why the counting pass, not the mechanism review, is what settled it.
 
 The pattern across ten dead constructs is not that the edges were absent. It is that they were expressed as **one number per period**. Every survivor here is an attempt to fix that, and the fix is always the same: **find the units, not the signal.**
 
