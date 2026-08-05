@@ -289,6 +289,13 @@ window; and the m = 2 variant selection resolved *a priori*.
    route to an honest cost answer. **Recommendation: yes, independently of this construct.**
 3. **Phase 1's S3 outcome may force re-approval** of `n_available`. Confirm that is understood as a
    stop-and-re-approve, not a proceed-and-note.
+4. **S3's "materially below 1,701" needs an integer, pinned now.** Left as a word, it becomes a
+   judgement made *after* seeing the count — post-hoc, on the confirmatory window. The constraint
+   that sets it is where the declared band's `n_required` boundaries sit (`SE-3_RFA.md`): **288**
+   optimistic corner / **756** central / **2,492** pessimistic floor. A shortfall leaving n well
+   above 756 changes nothing about which corner is demonstrable; dropping below 756 changes the
+   central case. The implementer may not choose it (§3.B forbids added parameters), so the operator
+   pins `S3_MIN_USABLE_DATES` before freeze. Raised by `SE3_IMPLEMENTATION_PROMPT.md` §3.4.
 
 ---
 
