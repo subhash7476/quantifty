@@ -382,8 +382,8 @@ generous than anyone believes? It reads no market data, so it is free.
 | `governance/rfa/declarations/se3.py` | **SE-3 declaration — frozen, PROCEED** (SHA-256 `fd91b1d5…`) |
 | `docs/reports/SE-3_RFA.md` | SE-3 gate report — max power 1.0000, n_required=288 vs 1,701 available |
 | `docs/reports/SE3_DELTA_ANCHOR_LITERATURE.md` | **δ band derivation** — four primary sources, every translation step exposed |
-| `docs/reports/SE3_PRE_REGISTRATION.md` | **DRAFT — not frozen.** One-shot confirmatory spec, variant A only; §9 open items |
-| `docs/reports/SE3_IMPLEMENTATION_PROMPT.md` | **INERT until the pre-reg is frozen** — implementer prompt for the two-phase confirmatory run |
+| `docs/reports/SE3_PRE_REGISTRATION.md` | **FROZEN 2026-08-05**, SHA-256 `917c688b…` (LF-normalized; CRLF clone hashes `9192c677…`). One-shot confirmatory spec, variant A only. §9 decisions: D1 runs as a sensitivity, spread collection starts independently, **`S3_MIN_USABLE_DATES = 756`** |
+| `docs/reports/SE3_IMPLEMENTATION_PROMPT.md` | **CLEARED for execution** — two-phase implementer prompt (Phase 1 substrate cert → Phase 2 one-shot read) |
 | `docs/reports/SE3_BREADTH_PROBE_REPORT.md` | Breadth/SD probe — sd_IC 0.1877, raw N_eff 5.9 (upper estimate) |
 | `docs/reports/SE3_BREADTH_PROBE_REVIEW{,_2}.md` | Probe lead reviews + the operator decision adopting n=1,701 |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |

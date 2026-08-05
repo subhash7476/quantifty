@@ -3,7 +3,11 @@
 **For:** DeepSeek V4 (implementer)
 **Author:** Claude (prompt + review only, per standing role split)
 **Date:** 2026-08-05
-**Authority:** `docs/reports/SE3_PRE_REGISTRATION.md`, SHA-256 `__________` *(unfilled — see §0.1)*
+**Authority:** `docs/reports/SE3_PRE_REGISTRATION.md` — **FROZEN 2026-08-05**,
+SHA-256 `917c688b65b3dbfcee360a14217271775c0768bc66de8287b77d28244398f66d` (20,347 bytes,
+**LF-normalized**). The repo runs `core.autocrlf=true`, so a fresh clone stores CRLF and hashes to
+`9192c677…` (20,673 bytes) — that is the same content, not a modified file. Verify with
+`sha256(open(p,'rb').read().replace(b'\r\n', b'\n'))`.
 **Declaration:** `governance/rfa/declarations/se3.py`, SHA-256 `fd91b1d5…` — RFA PROCEED
 **Context to read first, in this order:** `SE3_PRE_REGISTRATION.md` (the spec this prompt executes);
 `SE3_BREADTH_PROBE_PROMPT.md` §3 (the *a priori* parameter pin, cited as A1–A14);
@@ -12,24 +16,22 @@
 
 ---
 
-## 0. Status — this prompt is INERT
+## 0. Status — CLEARED FOR EXECUTION
 
-### 0.1 It cannot be executed yet
-
-`SE3_PRE_REGISTRATION.md` line 3 reads **"DRAFT — awaiting operator approval. Not frozen."** Its §9
-lists open items. **Nothing in this prompt may be run against the confirmatory window until all of
-the following are true**, and the check is the implementer's responsibility, not the author's:
+### 0.1 Preconditions — all closed 2026-08-05
 
 | # | Precondition | State |
 |---|---|---|
-| 0.1a | `SE3_PRE_REGISTRATION.md` status line reads FROZEN, and its SHA-256 is recorded in this document's header **and** in `CLAUDE.md` | **OPEN** |
-| 0.1b | Pre-reg §9.1 decided — is the P&L diagnostic (D1) run at all? | **OPEN** |
-| 0.1c | Pre-reg §9.2 decided — does forward spread collection start? (Independent of this run; does not block it) | **OPEN** |
-| 0.1d | Pre-reg §9.3 acknowledged — S3 shortfall is a **stop-and-re-approve**, not a proceed-and-note | **OPEN** |
-| 0.1e | **New item, escalated by this prompt:** `S3_MIN_USABLE_DATES` pinned to an integer by the operator (§3.4) | **OPEN** |
+| 0.1a | `SE3_PRE_REGISTRATION.md` reads FROZEN, SHA-256 recorded in this header **and** in `CLAUDE.md` | **CLOSED** — `917c688b…` |
+| 0.1b | Pre-reg §9.1 — is D1 run? | **CLOSED — YES**, labelled a sensitivity; §4's matrix binds |
+| 0.1c | Pre-reg §9.2 — forward spread collection | **CLOSED — YES**, starts independently; **not a dependency of this run** |
+| 0.1d | Pre-reg §9.3 — S3 is stop-and-re-approve | **CLOSED** — enforced in code by §1.6, not merely understood |
+| 0.1e | `S3_MIN_USABLE_DATES` pinned by the operator (§3.4) | **CLOSED — 756** (the declared band's central `n_required`) |
 
-If any row is OPEN, **stop and report it.** Do not run Phase 1 "just to see the counts" — Phase 1
-counts are structural facts about the confirmatory window and reading them early is a read.
+**Before running anything, re-verify 0.1a yourself.** Recompute the digest over
+`SE3_PRE_REGISTRATION.md` and confirm it matches the header. If it does not match either the
+LF or the CRLF value recorded there, **stop** — the authority has changed since this prompt was
+written and no read may be taken against it.
 
 This is not procedural fussiness. TS Basis's sealed window was opened on a gate that had not
 actually held, and the read is de-authorized as a result — not because the signal was bad, but
@@ -247,12 +249,12 @@ Pre-reg §6 Phase 1 says a usable-date count "materially below" 1,701 forces re-
 `n_available` before any IC is computed. **"Materially" is undefined, and left undefined it becomes
 a judgement made after seeing the count — post-hoc, on the confirmatory window.**
 
-**Escalated to the operator as precondition 0.1e.** The constraint that sets it is where the
-declared band's `n_required` boundaries sit (`SE-3_RFA.md`): **288** optimistic corner / **756**
-central / **2,492** pessimistic floor. A shortfall leaving n comfortably above 756 changes nothing
-about which corner is demonstrable; one that drops below 756 changes the central case. The
-implementer **does not pick this number** — §3.B forbids adding parameters. Run with the integer the
-operator pins, as a module constant `S3_MIN_USABLE_DATES`.
+**Resolved by the operator at freeze: `S3_MIN_USABLE_DATES = 756`** (pre-reg §9.4). That is the
+declared band's **central** `n_required` (`SE-3_RFA.md`; 288 optimistic corner, 2,492 pessimistic
+floor) — the only candidate tied to something the declaration actually asserts. At or above 756 the
+central case survives and the run proceeds **with the shortfall reported**; below it, only the
+optimistic corner is demonstrable and the declaration must be re-approved at the true n before any
+IC is computed. Hardcode it as a module constant; **do not expose it as a CLI flag.**
 
 **S3 is a coded stop, not a printed number.** Phase 1 must emit an explicit `S3: PASS` or
 `S3: FAIL` line, and Phase 2 must refuse to start on FAIL or absence (§1.6). The repo already has a

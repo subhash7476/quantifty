@@ -1,7 +1,10 @@
 # SE-3 — Index-versus-Constituent Dispersion: Pre-Registration
 
-**Status:** **DRAFT — awaiting operator approval. Not frozen.** No construct code exists. The
-confirmatory window has not been opened.
+**Status:** **FROZEN 2026-08-05** by operator approval, all §9 items resolved. No construct code
+exists. The confirmatory window has not been opened.
+**Digest:** SHA-256 over this whole file, recorded in `SE3_IMPLEMENTATION_PROMPT.md` and `CLAUDE.md`
+— **deliberately not written into this file**, because a digest taken over the whole file cannot be
+recorded inside it without being self-referential (the `cb_n50.py` defect, `CLAUDE.md` RFA §).
 **Declaration:** `governance/rfa/declarations/se3.py`, SHA-256 `fd91b1d5…` — **RFA PROCEED**,
 max power 1.0000 (`SE-3_RFA.md`).
 **δ band derivation:** `SE3_DELTA_ANCHOR_LITERATURE.md`. **sd source:** `SE3_BREADTH_PROBE_REPORT.md`.
@@ -223,14 +226,16 @@ confirmatory window through the back door.
 |---|---|
 | S1 | PIT membership resolves for every date in span; `DUMMY*`/`TMPV*` excluded and reported |
 | S2 | Names/day surviving A1–A11 — **report distribution; do not adjust filters in response** |
-| S3 | Dates with ≥20 names — the usable-date count, which must be reconciled against `n = 1,701` |
+| S3 | Usable formation dates, reconciled against `n = 1,701` — **explicit PASS/FAIL against `S3_MIN_USABLE_DATES = 756`** (§9.4) |
 | S4 | Expiry coverage: no month with zero admissible expiry under A3 |
 | S5 | IV inversion discard rate (A9) |
 | S6 | Fence assertion: no read outside 2016-02-11 → 2022-12-31 |
 
-**S3 is the one that can stop the project.** If usable dates fall materially below 1,701, the frozen
-`n_available` is wrong and **the declaration must be re-approved at the true n before any IC is
-computed** — not reinterpreted afterward.
+**S3 is the one that can stop the project.** If usable dates fall **below 756**, the frozen
+`n_available` is wrong in a way that matters and **the declaration must be re-approved at the true n
+before any IC is computed** — not reinterpreted afterward. A shortfall that leaves the count at or
+above 756 is reported, not acted on: it does not change which corner of the declared band is
+demonstrable.
 
 **No return, IC, or P&L may be computed in Phase 1.**
 
@@ -279,23 +284,32 @@ window; and the m = 2 variant selection resolved *a priori*.
 
 ---
 
-## 9. Open items the operator should decide before freezing
+## 9. Operator decisions — RESOLVED at freeze, 2026-08-05
 
-1. **Is the P&L diagnostic worth running at all?** §4 predicts "real but unharvestable" is the likely
-   outcome and §5 shows costs cannot be measured. Running it costs no extra window (same read), but
-   it produces a number that will be tempting to over-read. **Recommendation: run it, label it a
-   sensitivity, and let §4's matrix bind.**
-2. **Should the forward spread-collection task (§5.3) start now?** It costs no window and is the only
-   route to an honest cost answer. **Recommendation: yes, independently of this construct.**
-3. **Phase 1's S3 outcome may force re-approval** of `n_available`. Confirm that is understood as a
-   stop-and-re-approve, not a proceed-and-note.
-4. **S3's "materially below 1,701" needs an integer, pinned now.** Left as a word, it becomes a
-   judgement made *after* seeing the count — post-hoc, on the confirmatory window. The constraint
-   that sets it is where the declared band's `n_required` boundaries sit (`SE-3_RFA.md`): **288**
-   optimistic corner / **756** central / **2,492** pessimistic floor. A shortfall leaving n well
-   above 756 changes nothing about which corner is demonstrable; dropping below 756 changes the
-   central case. The implementer may not choose it (§3.B forbids added parameters), so the operator
-   pins `S3_MIN_USABLE_DATES` before freeze. Raised by `SE3_IMPLEMENTATION_PROMPT.md` §3.4.
+All four were open in the draft and are settled here. **Each is now a pinned term of this
+pre-registration and carries the same force as §3's parameters** — none may be revisited in response
+to a result.
+
+1. **Run the D1 P&L diagnostic — DECIDED: YES, labelled a sensitivity.** §4 predicts "real but
+   unharvestable" is the likely outcome and §5 shows costs cannot be measured, so the number will be
+   tempting to over-read. It runs anyway, because it costs no extra window (same read) and **§4's
+   outcome matrix binds how it is read**: significant IC with negative or indistinguishable P&L is
+   pre-declared **NO-BUILD with the IC finding standing**, not a failure of the hypothesis.
+2. **Forward spread collection (§5.3) — DECIDED: YES, starts independently.** It costs no window and
+   is the only route to an honest Indian single-stock option spread distribution. It is **not a
+   dependency of this run** and its absence does not delay Phase 1 or Phase 2; §5's ladder remains
+   an assumption regardless of when collection starts.
+3. **S3 is a stop-and-re-approve — DECIDED: confirmed, and enforced in code rather than understood.**
+   `SE3_IMPLEMENTATION_PROMPT.md` §1.6 requires Phase 2 to refuse to start unless the Phase-1 report
+   records S3 PASS — a hard exit, not a warning, not bypassable by a flag. The repo's own pitfall
+   applies: a value that is printed but never asserted is documentation, not a control.
+4. **`S3_MIN_USABLE_DATES` — DECIDED: 756.** This is the declared band's **central** `n_required`
+   (`SE-3_RFA.md`; 288 optimistic corner, 2,492 pessimistic floor). Rationale: it is the only
+   candidate tied to something this declaration actually asserts. At or above 756, every claim made
+   about the central case survives the shortfall and the run proceeds with the shortfall reported;
+   below it, only the optimistic corner remains demonstrable — a materially different claim from the
+   one approved, which is exactly the condition that requires re-approval at the true n. A
+   percentage-of-1,701 threshold was considered and rejected as arbitrary.
 
 ---
 
