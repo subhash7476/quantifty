@@ -323,6 +323,19 @@ generous than anyone believes? It reads no market data, so it is free.
   features (momentum, basis, reversal), equal-weighted combination, pre-registered breadth
   thresholds → Nifty futures. **PROCEED means "not provably infeasible"** — no authorization
   to build, no TRAIN read taken.
+- **SE-1: ABANDON** (2026-08-05, `se1.py`, SHA-256 `5fbf35ac…`) — forced passive rebalancing
+  flow (long index additions / short deletions, announcement → effective-date close, in SSF).
+  `per_trade_pnl`, one-sided, n=**22 announcement clusters** over T=9.42 yr (cadence 2.335/yr).
+  Max power **0.7674** at the optimistic corner S_ann=0.80; required S_ann is **0.8375**, and
+  n_required is 24 (corner) / 46 (central 0.575) / 120 (pessimistic 0.35). The band [0.35, 0.80]
+  spans the full within-cluster ρ∈[0,1] at a defended per-event δ/sd of 0.25–0.30.
+  **The gate corrected the lead twice:** the hand-derived hurdle 0.810 was wrong (0.8375), and
+  the claim that waiting could not help was wrong — n_required at the ceiling is **two** more
+  clusters (~Sept 2026), not twelve. Revisit is a **conjunction**: n ≥ 24 **AND** a defensible
+  band ceiling ≥ 0.8375; (a) arrives on the calendar, (b) needs new effect-size or
+  within-cluster-correlation evidence — not a re-read of the same literature, and not a band
+  widened because the first one abandoned. **No price, return, or futures data was ever
+  consumed for SE-1**; the counting pass constrains n, not δ.
 - Bands are **frozen at approval** (SHA-256 over the whole declaration file) and cannot be
   revised in response to results.
 
@@ -339,9 +352,11 @@ generous than anyone believes? It reads no market data, so it is free.
 | `governance/rfa/declarations/flow.py` | **FLOW declaration — frozen, ABANDON** (SHA-256 `d7a54cfb…`) |
 | `governance/rfa/declarations/rs_mom.py` | **RS-MOM declaration — frozen, ABANDON** (SHA-256 `67e3854b…`) |
 | `governance/rfa/declarations/cb_n50.py` | **CB-N50 declaration — frozen, PROCEED** (SHA-256 `e0437067…`) |
+| `governance/rfa/declarations/se1.py` | **SE-1 declaration — frozen, ABANDON** (SHA-256 `5fbf35ac…`) |
 | `docs/reports/FLOW_RFA.md` | FLOW gate report — max power 0.6053 |
 | `docs/reports/RS_MOM_RFA.md` | RS-MOM gate report — max power 0.337, need 763 weeks |
 | `docs/reports/CB_N50_RFA.md` | CB-N50 gate report — max power 1.00, n_required=147 |
+| `docs/reports/SE-1_RFA.md` | SE-1 gate report — max power 0.7674, n_required=24 vs 22 available |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
 
