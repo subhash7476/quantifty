@@ -150,3 +150,62 @@ pre-registration inherits the caveat rather than the headline.
 its clean dispersion is 0.1877, and the demonstrability arithmetic is feasible under the
 permissive window reading and not under the strict one. The δ half remains open and must be
 sourced externally at design time (§8).
+
+---
+
+## Operator decision, 2026-08-05 — the permissive reading is adopted
+
+**Decision:** the permissive `n = 1,701` reading is **defensible and adopted.** SE-3's
+confirmatory window is therefore **2016-02-11 → 2022-12-31, 1,701 daily formations, on both
+option legs**, and the Skew sleeve's 2016-07-31 → 2020-12-31 TRAIN read is treated as
+**disclosed prior exposure, not a spent window.**
+
+**Grounds** (recorded so a future reader can test them rather than inherit them):
+1. Skew measured a **different quantity** — 25-delta risk-reversal, a wing/asymmetry
+   feature — against SE-3's **ATM level richness**.
+2. At a **different cadence** — monthly formations against daily.
+3. Skew **failed** at §9 gate 2 (IC −0.018, t = −1.15), so no selection pressure was applied
+   toward a surviving variant on that surface. A failed read leaks less than a successful
+   one, because nothing was chosen on the strength of it.
+
+### Ladder consequence
+
+At `n = 1,701` both variants sit at **Green** — feasible even at a pessimistic δ = 0.015.
+The strict-reading Red-amber is now a **recorded sensitivity, not the operative verdict.**
+
+### What this does NOT authorize
+
+**Green is a floor, not a decision.** Verbatim from §8 of the prompt: this probe *"cannot by
+itself authorize SE-3 even if it returns Green — it supplies the SD half of the RFA input and
+leaves the δ half open."* Before any construct code exists, SE-3 still requires:
+
+1. A **δ band from external literature** — Goyal & Saretto (JFE 2009), Bakshi & Kapadia
+   (RFS 2003). **Not** this probe's `mean_IC`, **not** CB-N50's +0.029, **not** OSC's
+   +0.0167.
+2. A **frozen declaration** under contract v2, SHA-256 pinned.
+3. A **passing RFA gate run.** Probe-ladder Green and gate PROCEED are different tests
+   against different inputs. FLOW, RS-MOM and SE-1 all show the gate rejecting things that
+   looked reachable beforehand.
+
+### The condition that would retroactively invalidate this decision
+
+Stated now, before the construct is designed, so it cannot be negotiated later:
+
+> **If SE-3's eventual signal drifts from ATM level richness toward wing or skew features,
+> grounds (1) and (2) collapse and Skew's exposure becomes a spend.** `n` then falls to
+> ≈ 495, the rung falls to **Red-amber**, and the construct is not demonstrable at any
+> defensible δ.
+
+The pre-registration must therefore **pin the signal to ATM level richness** and either
+demonstrate low correlation with the risk-reversal quantity Skew tested, or accept the
+strict reading from the outset. This is a falsifiable guard on the decision above, not a
+caveat about it.
+
+### One further selection to declare
+
+The probe measured **two variants** and the eventual construct will adopt one. That choice
+is legitimate — it is made on the burned window, which is what a burned window is for — but
+it is a selection with **m = 2** and must be declared as such. **MEDIUM-2 means the
+comparison that would naturally inform that choice is confounded**, so the variant should be
+chosen on *a priori* grounds (which quantity the mechanism actually implies), not on the
+0.1877-vs-0.1814 gap.
