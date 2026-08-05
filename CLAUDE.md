@@ -336,8 +336,30 @@ generous than anyone believes? It reads no market data, so it is free.
   within-cluster-correlation evidence — not a re-read of the same literature, and not a band
   widened because the first one abandoned. **No price, return, or futures data was ever
   consumed for SE-1**; the counting pass constrains n, not δ.
+- **SE-3: PROCEED** (2026-08-05, `se3.py`, SHA-256 `fd91b1d5…`) — index-versus-constituent
+  dispersion as a **daily cross-section** of Nifty 50 constituents ranked on ATM option
+  richness against a vega-scaled delta-hedged return. `rank_ic`, two-sided, n=**1,701**
+  daily formations (2016-02-11 → 2022-12-31, permissive reading). δ ∈ [0.0146, 0.0311],
+  sd ∈ [0.1877, 0.26] → max power **1.0000**, n_required **288** (corner) / 756 (central) /
+  **2,492** (pessimistic). **Declared for variant A only** — δ is anchored on Cao & Han's
+  `VOL_deviation`, which is variant A's construction; variant B cannot borrow it.
+  **This PROCEED is close to a formality and must not be read as validation**: anything
+  above δ≈0.0128 clears at n=1,701. Three risks the noncentral-t gate cannot see —
+  (a) a dispersion book reports an attractive Sharpe until correlation goes to one;
+  (b) the anchor effect is largely eliminated by transaction costs **in its own source**
+  (1.4%/mo → 0.17%/mo at 50% effective spread, "within the no-trade band") and the gate's
+  δ is **gross**; (c) at the band floor n_required **2,492 exceeds the 1,701 available**,
+  so a pessimistic truth is not demonstrable even on the full window.
+  **δ came from external literature, never from the probe** — the probe's `mean_IC` −0.113
+  is prohibited as the anchor. **sd is measured** (skip-a-day, variant A). Next step is a
+  pre-registration; no construct code exists and no window has been opened.
 - Bands are **frozen at approval** (SHA-256 over the whole declaration file) and cannot be
   revised in response to results.
+- **Known defect in `cb_n50.py`:** its header records SHA-256 `e0437067…`, but the digest is
+  taken over the *whole file*, so a header carrying its own digest is self-referential and
+  can never match. Actual digest is `7e6abe4c…`. `se1.py` and `se3.py` avoid this by keeping
+  the SHA out of the header and recording it in the gate report and here instead. The CB-N50
+  verdict is unaffected; only its provenance record is stale.
 
 | File | Purpose |
 |---|---|
@@ -357,6 +379,11 @@ generous than anyone believes? It reads no market data, so it is free.
 | `docs/reports/RS_MOM_RFA.md` | RS-MOM gate report — max power 0.337, need 763 weeks |
 | `docs/reports/CB_N50_RFA.md` | CB-N50 gate report — max power 1.00, n_required=147 |
 | `docs/reports/SE-1_RFA.md` | SE-1 gate report — max power 0.7674, n_required=24 vs 22 available |
+| `governance/rfa/declarations/se3.py` | **SE-3 declaration — frozen, PROCEED** (SHA-256 `fd91b1d5…`) |
+| `docs/reports/SE-3_RFA.md` | SE-3 gate report — max power 1.0000, n_required=288 vs 1,701 available |
+| `docs/reports/SE3_DELTA_ANCHOR_LITERATURE.md` | **δ band derivation** — four primary sources, every translation step exposed |
+| `docs/reports/SE3_BREADTH_PROBE_REPORT.md` | Breadth/SD probe — sd_IC 0.1877, raw N_eff 5.9 (upper estimate) |
+| `docs/reports/SE3_BREADTH_PROBE_REVIEW{,_2}.md` | Probe lead reviews + the operator decision adopting n=1,701 |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
 
