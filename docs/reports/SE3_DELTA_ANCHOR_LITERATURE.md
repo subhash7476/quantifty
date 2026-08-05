@@ -85,9 +85,15 @@ And in the specification that carries both volatility variables jointly: `IVOL` 
 t = −15.78, `VOL_deviation` at **+0.0604 (t = 17.12)**, with average adj. R² rising from 0.0242 to
 0.0757 when `VOL_deviation` is added.
 
-**The "until next week" column is the single most valuable number in this pass** — it is a
-*measured* short-horizon coefficient, which converts the horizon translation in §4.2 from an
-assumption into an interpolation between two published points.
+**The "until next week" column is the most useful number in this pass**, but its value must be
+stated precisely: it is a *measured* short-horizon **coefficient**. Cao & Han report σ_cs only for
+*until maturity* (8.07%) and *until month-end* (5.13%) — **not for the next-week horizon** — so §4.2
+imputes σ_cs(week). It **partially** grounds the horizon translation; it does not fully convert it
+from an assumption into an interpolation. See §4.2 for what is and is not independent.
+
+**These are the calls panel.** SE-3 §3.7 averages the call and put legs. Cao & Han's put-panel
+coefficients are the same sign and comparable magnitude (puts, month-end: `IVOL` −0.0533,
+t = −25.96), so this is a fidelity note, not a correction.
 
 **Transaction costs (their §on profitability):** the IVOL quintile spread earns **1.4%/month at
 mid-quotes**, **0.79%** at 25% of the quoted spread, and **0.17%** at 50% of the quoted spread —
@@ -230,26 +236,37 @@ input.)*
 
 SE-3 forms daily; Cao & Han forms monthly. If a signal's edge accrues linearly in horizon `h` while
 noise accrues as `√h`, then `IC ∝ √h`. The published "until next week" column lets this be
-**checked rather than assumed**:
+**partially** checked:
 
 ```
 IC_week  = 0.0168 × 0.29 / (5.13 × sqrt(5/21)) = 0.1946
 IC_month = 0.0512 × 0.29 / 5.13                = 0.2894
-observed ratio = 0.6725     sqrt(h) predicts = 0.4880
-=> empirical exponent p = 0.2765  (IC ~ h^p)
+ratio = 0.6725              sqrt(h) predicts = 0.4880
+=> apparent exponent p = 0.2765  (IC ~ h^p)
 ```
 
-The measured decay is **slower** than `√h` — the signal is front-loaded. This is favourable, and it
-is deliberately **not** used in the ceiling:
+**This exponent is not an independent test of the horizon law, and must not be read as one.**
+Cao & Han does not publish σ_cs at the weekly horizon, so `σ_cs(week) = 5.13 × √(5/21)` is **imputed
+using the very scaling law being checked**. The ratio above therefore reduces to the coefficient
+ratio divided by `√h`, and p is partly an artifact of that imputation.
+
+**What is genuinely independent** is the *coefficient* ratio: `0.0168 / 0.0512 = 0.3281` against a
+horizon ratio of `5/21 = 0.2381`. The mean effect decays **slower than linearly** in `h`, which
+supports "front-loaded" directionally. It does not pin the exponent.
+
+Because the band uses `√h` at both ends, none of this moves the numbers — but §7.1 names the horizon
+step as the band's biggest single lever, and leaving the imputation unstated would make that
+disclosure hollow. The two candidate horizon models:
 
 | Horizon model | Daily IC from monthly |
 |---|--:|
 | `√h` (standard, conservative) | 0.0632 |
-| empirical `h^0.2765` | 0.1247 |
+| apparent `h^0.2765` | 0.1247 |
 
 Extrapolating below the shortest *measured* horizon (1 week → 1 day) is extrapolation, not
-interpolation, so **`√h` is used for both ends of the band.** The empirical exponent is recorded as
-an upside the band does not claim.
+interpolation — and here the apparent exponent is additionally contaminated by the imputation above.
+**`√h` is therefore used for both ends of the band.** The slower-decay evidence is recorded as an
+upside the band does not claim.
 
 ### 4.3 Haircuts
 
@@ -271,28 +288,43 @@ delta_lo = 0.2269 × 0.2182 × 0.492 × 0.60 = 0.01462
 delta_hi = 0.2894 × 0.2182 × 0.492        = 0.03107
 ```
 
+**This band is for variant A only.** See the note below — it is not transferable to variant B.
+
 | Parameter | Value |
 |---|---|
 | `metric` | `rank_ic` |
+| `test_type` | two-sided |
+| `cadence` | daily |
 | **`delta_lo`** | **0.0146** |
 | **`delta_hi`** | **0.0311** |
-| **`sd_lo`** | **0.18** |
+| **`sd_lo`** | **0.1877** |
 | **`sd_hi`** | **0.26** |
-| `test_type` | two-sided |
 | `n_available` | 1,701 (permissive) — 495 recorded as sensitivity |
 
+Contract check against `governance/rfa/declaration.py`: field names verified — `rank_ic` requires
+`delta_lo`/`delta_hi`/`sd_lo`/`sd_hi` plus non-empty **`delta_provenance`** and **`sd_provenance`**,
+and forbids `sharpe_*`/`cadence_per_year`. `window` and `prior_exposure` are also required and must
+be written at declaration time.
+
 **Corners are not crossed.** `delta_hi` takes the optimistic IC route and the lighter haircut but
-holds the horizon model at the conservative `√h`. Taking the empirical exponent as well would give
+holds the horizon model at the conservative `√h`. Taking the apparent exponent as well would give
 **0.0614**, which is not claimed.
 
-### The sd band, and why it is not the two measured points
+### Why `sd_lo` is 0.1877 and the band is variant-A only
 
-The probe measured `sd_IC` = 0.1877 (A) / 0.1814 (B) on 713/483 dates in a single three-year window.
-The gate reads the **optimistic** corner — high δ, **low** sd — so `sd_lo` is where a verdict can be
-silently manufactured, and it is set at **0.18**, essentially the measured floor. **It is not set
-below the measurement**, because nothing supports that.
+**An earlier draft set `sd_lo` = 0.18 and this was a crossed corner.** 0.18 is below *both* measured
+values, and it took the floor from **variant B**'s measurement (0.1814) while taking δ from
+**variant A**'s analogue: Cao & Han's `VOL_deviation` is IV residualized on realized vol, which is
+variant A's construction. Variant B is a trailing-β-on-index-IV construct that Cao & Han says
+nothing about. Mixing them is exactly what §5 claims not to do.
 
-`sd_hi` = 0.26 (≈ +40%) carries the C2 lesson explicitly: C2 was retired precisely because an SD
+`sd_lo` is therefore **0.1877 — variant A's own measured value**, and the band is declared for
+variant A. **A variant-B declaration would need its own δ defence; it cannot borrow this one.**
+
+The correction costs nothing: at `sd_lo` = 0.1877, ncp = 6.83 (permissive) and 3.68 (strict), power
+1.0000 and 0.9569 — see §8.
+
+`sd_hi` = 0.26 (≈ +39%) carries the C2 lesson explicitly: C2 was retired precisely because an SD
 estimated on a short window did not survive a wider one. SE-3's confirmatory window
 (2016-02-11 → 2022-12-31) spans **COVID**, and 2023–2025 does not. Cross-sectional IC dispersion is
 regime-dependent and a wider window should raise it.
@@ -361,19 +393,20 @@ Computed with `scripts/rfa/power.py`, two-sided, α = 0.05, target power 0.80. *
 frozen and no SHA is pinned; this is a sensitivity, and the real verdict is whatever the gate returns
 against an approved, frozen declaration.**
 
-| Reading | Optimistic corner (δ=0.0311, sd=0.18) | Central | Pessimistic (δ=0.0146, sd=0.26) |
+| Reading | Optimistic corner (δ=0.0311, sd=0.1877) | Central | Pessimistic (δ=0.0146, sd=0.26) |
 |---|--:|--:|--:|
-| **Permissive n = 1,701** | ncp 7.12, power **1.0000** | 0.9898 | 0.6397 |
-| **Strict n = 495** | ncp 3.84, power **0.9695** | 0.6353 | 0.2384 |
+| **Permissive n = 1,701** | ncp 6.83, power **1.0000** | 0.9877 | 0.6397 |
+| **Strict n = 495** | ncp 3.68, power **0.9569** | 0.6203 | 0.2384 |
 
-`n_required` at the optimistic corner: **266**. At the band floor: **2,485**.
+`n_required` at the optimistic corner: **289**. At the band floor: **2,485**.
 
 Three things worth stating plainly:
 
-- **The strict/permissive distinction stops binding.** The operator decision of 2026-08-05 adopted
+- **Both readings clear the gate's optimistic corner.** The operator decision of 2026-08-05 adopted
   the permissive reading and recorded strict as a sensitivity. At a literature-defended
-  `delta_hi` = 0.0311 — just above the ladder's Red-amber anchor of 0.029 — **both readings clear**.
-  The decision is materially de-risked, though its falsification condition (§7.3) still stands.
+  `delta_hi` = 0.0311 — just above the ladder's Red-amber anchor of 0.029 — the strict reading also
+  passes. **This is a claim about the optimistic corner only**: strict's *central* power is 0.6203,
+  so the two readings are not equivalent and §7.3's falsification condition stands undiminished.
 - **At the band floor SE-3 is not demonstrable even on the full permissive window** (`n_required`
   2,485 > 1,701 available). The gate reads the optimistic corner by design, so this does not change
   the verdict; it is the honest statement of what a pessimistic truth would mean.
