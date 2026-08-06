@@ -390,6 +390,8 @@ generous than anyone believes? It reads no market data, so it is free.
 | `docs/reports/SE3_CONFIRMATORY_REPORT.md` | Phase 2 confirmatory read — **G1/G2 PASS**: mean_IC **−0.1124**, sd_IC **0.1940** (in declared band), NW(5) t **−21.52**, p≈0, n=1,680. **Outcome: NO-BUILD, IC finding stands** (D1 net negative at every cost rung incl. 0 bp once statutory + futures-leg are folded in — pre-declared "real but unharvestable") |
 | `docs/reports/SE3_CONFIRMATORY_SNAPSHOT.json` | Frozen Phase 2 outputs (IC fields immutable; D1 ladder corrected 2026-08-06 per CRITICAL-1) |
 | `docs/reports/SE3_CONFIRMATORY_REVIEW.md` | Lead review — read valid, conclusion corrected to **NO-BUILD**; D1 cost stack, 1,680-vs-1,679 reconciliation, DVR cardinality, one-shot re-execution disclosure |
+| `docs/reports/SE3_CA_CONTAMINATION_REVIEW.md` | **Post-hoc substrate finding, confirmed** — FUTSTK settles un-adjusted for splits/bonuses; 98 guard-surviving events universe-wide (17 Nifty-50). **Verdict NOT moved** (NO-BUILD stands; CA bias on mean_IC bounded ≤0.04; one-shot NOT reopened) |
+| `docs/reports/SE3_CA_REGISTER_REPORT.md` | Corporate-action register for FUTSTK/OPTSTK underlyings 2016→present — provenance, register-vs-implied validation, unresolved events |
 | `scripts/se3/{certify_substrate,run_confirmatory,audit_dates,collect_option_spreads}.py` | Phase 1 cert, Phase 2 one-shot, date/cost audit, forward spread collection |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |

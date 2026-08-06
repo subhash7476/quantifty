@@ -66,6 +66,7 @@ S3_THRESHOLD = S3_MIN_USABLE_DATES
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 STOCK_OPTIONS_DB = PROJECT_ROOT / "data" / "market_data" / "stock_options_bhavcopy.duckdb"
 FUTURES_DB = PROJECT_ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
+EQUITY_DB = PROJECT_ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
 REF_DIR = PROJECT_ROOT / "data" / "reference"
 MANIFEST_PATH = REF_DIR / "mcwb_manifest.json"
 CERT_REPORT = PROJECT_ROOT / "docs" / "reports" / "SE3_SUBSTRATE_CERTIFICATION.md"
@@ -317,9 +318,65 @@ def _membership_for_date(snapshots, td, fills):
     return snapshots[fill_from]
 
 
-def _front_month_rv(g):
+def _load_ca_register():
+    """Load the corporate-action register for FUTSTK underlyings.
+
+    Authority: `adjustment_factors` in `equity_bhavcopy.duckdb` (built from the
+    NSE CF-CA feed by `scripts/csmp/ingest_corporate_actions.py`). The observed
+    futures price jump is CONFIRMATION ONLY — never the ratio source.
+
+    Returns {symbol: {ex_date: product_of_same_day_factors}}, where `symbol` is
+    BOTH the register's symbol and every alias of its entity resolved to that
+    symbol (via `symbol_entity_intervals`). This makes the map usable against a
+    FUTSTK `underlying` that may be a different ticker for the same entity (NSE
+    recycles tickers; a CA registered under a legacy ticker must drop the return
+    on the current one).
+    """
+    con = duckdb.connect(str(EQUITY_DB), read_only=True)
+    try:
+        rows = con.execute(
+            "SELECT symbol, ex_date, factor, action_type FROM adjustment_factors "
+            "WHERE action_type IN ('SPLIT','BONUS')"
+        ).fetchall()
+        iv_rows = con.execute(
+            "SELECT symbol, valid_from, valid_to, entity FROM symbol_entity_intervals"
+        ).fetchall()
+    finally:
+        con.close()
+
+    # entity -> set of symbols ever trading as it, and symbol -> entity at a date
+    entity_syms = {}
+    sym_iv = {}
+    for sym, vf, vt, ent in iv_rows:
+        entity_syms.setdefault(ent, set()).add(sym)
+        sym_iv.setdefault(sym, []).append((vf, vt, ent))
+
+    def _entity(sym, on_date):
+        for vf, vt, ent in sym_iv.get(sym, []):
+            if vf <= on_date < vt:
+                return ent
+        return sym
+
+    # primary key: raw symbol (matches FUTSTK underlying). For each entity that
+    # owns a CA, alias the ex-date onto every symbol the entity has traded as.
+    register = {}
+    for sym, ex, factor, at in rows:
+        if factor is None or factor <= 0:
+            continue
+        ent = _entity(sym, ex)
+        targets = entity_syms.get(ent, {sym})
+        for t in targets:
+            d = register.setdefault(t, {})
+            d[ex] = d.get(ex, 1.0) * float(factor)
+    return register
+
+
+def _front_month_rv(g, ca_ex_dates=None):
     """Per-underlying FUTSTK frame -> trailing 21-day annualized RV series.
-    Front-month = nearest expiry with DTE >= 7; roll-gap returns dropped."""
+    Front-month = nearest expiry with DTE >= 7; roll-gap returns dropped, and
+    (with `ca_ex_dates`) returns spanning a corporate-action ex-date are dropped
+    too — a split changes the price basis without changing the contract, so the
+    roll-gap guard alone is blind to it (SE3_CA_CONTAMINATION_REVIEW §7)."""
     g = g.sort_values("trade_date")
     fronts = []
     for td, gg in g.groupby("trade_date"):
@@ -335,6 +392,9 @@ def _front_month_rv(g):
     fdf["prev_settle"] = fdf["settle"].shift(1)
     fdf["ret"] = np.log(fdf["settle"] / fdf["prev_settle"])
     fdf.loc[fdf["expiry_dt"] != fdf["prev_exp"], "ret"] = np.nan
+    if ca_ex_dates:
+        ca_dates = pd.DatetimeIndex(sorted(pd.Timestamp(d) for d in ca_ex_dates))
+        fdf.loc[fdf["trade_date"].isin(ca_dates), "ret"] = np.nan
     fdf["rv"] = fdf["ret"].rolling(RV_WINDOW, min_periods=RV_MIN_OBS).std(ddof=1) * math.sqrt(252)
     fdf["n_obs"] = fdf["ret"].rolling(RV_WINDOW, min_periods=RV_MIN_OBS).count()
     fdf.loc[fdf["n_obs"] < RV_MIN_OBS, "rv"] = np.nan
@@ -526,9 +586,10 @@ def build_panel():
     )
 
     # --- A10 realized vol ---
+    ca_register = _load_ca_register()
     rv_map = {}
     for underlying, g in fut_stk.groupby("underlying"):
-        fdf = _front_month_rv(g)
+        fdf = _front_month_rv(g, ca_ex_dates=ca_register.get(underlying))
         if fdf is None or fdf.empty:
             continue
         rv_map[underlying] = fdf[["trade_date", "rv"]].dropna(subset=["rv"]).set_index("trade_date")["rv"]

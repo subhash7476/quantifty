@@ -2,6 +2,22 @@
 
 **Window:** 2016-02-11 -> 2022-12-31 | **Variant A only, skip-a-day** | **Run:** script-generated, no hand-edited numbers
 
+---
+
+> ## ⚠️ POST-HOC SUBSTRATE FINDING, 2026-08-06 (annotated; script-generated numbers below are NOT edited)
+>
+> The FUTSTK settle series feeding A10 RV is **un-adjusted for splits/bonuses**; 17 Nifty-50
+> corporate actions inside the window produce fabricated one-day crashes that survive the §3.5
+> roll-gap guard. **378 RV-contaminated and 72 dh-contaminated name-days (~0.44%).** Bounded
+> ceiling on mean_IC contribution ≈ **0.040** (`SE3_CA_CONTAMINATION_REVIEW.md` §3). **G1/G2 and the
+> NO-BUILD verdict are unaffected**; the point estimate −0.1124 carries a bounded CA bias and must
+> not be used as a δ anchor for any future construct. See `SE3_CA_CONTAMINATION_REVIEW.md`.
+>
+> This annotation is a disclosure attached to a frozen one-shot; Phase 2 was **not** re-run and the
+> snapshot is untouched.
+
+---
+
 ## 1. Fence proof
 
 - stock options: observed `trade_date` range [2016-02-11, 2022-12-30]
