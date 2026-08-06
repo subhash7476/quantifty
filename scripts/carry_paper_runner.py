@@ -14,15 +14,18 @@ from __future__ import annotations
 
 import duckdb
 import logging
+import sys
 from pathlib import Path
 from typing import List, Optional
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 from core.events import OHLCVBar, SignalEvent
 from core.execution.handler import ExecutionMode
 from core.runtime.signal_source import SignalSource
 from scripts.fno_runner import build_runner
 
-ROOT = Path(__file__).resolve().parents[2]
 FACTS_DB = ROOT / "data" / "signal_engine" / "carry" / "facts.duckdb"
 BHAVCOPY_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 
