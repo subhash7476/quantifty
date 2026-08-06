@@ -1,0 +1,62 @@
+{
+  "window": {
+    "start": "2016-02-11",
+    "end": "2022-12-31"
+  },
+  "n_dates": 1680,
+  "mean_ic": -0.11235832197042296,
+  "sd_ic": 0.1939544222119737,
+  "nw_t": -21.515741176041164,
+  "nw_p": 0.0,
+  "ac1": 0.07778907876738568,
+  "g1_significant": true,
+  "g2_sign_negative": true,
+  "declared_band": {
+    "lo": 0.1877,
+    "hi": 0.26
+  },
+  "sd_in_band": true,
+  "d3": {
+    "rho_bar": 0.19474982628407478,
+    "neff": 4.711053603722496,
+    "pc1": 0.24298007229359794,
+    "probe_reference": {
+      "rho_bar": 0.15,
+      "neff": 5.9
+    }
+  },
+  "d1_ladder": [
+    {
+      "bps": 0,
+      "n_days": 1680,
+      "gross_total": 6.816627447992276,
+      "net_total": -5081.0994,
+      "net_mean": -3.0245
+    },
+    {
+      "bps": 25,
+      "n_days": 1680,
+      "gross_total": 6.816627447992276,
+      "net_total": -5086.2026,
+      "net_mean": -3.0275
+    },
+    {
+      "bps": 50,
+      "n_days": 1680,
+      "gross_total": 6.816627447992276,
+      "net_total": -5091.3057,
+      "net_mean": -3.0305
+    },
+    {
+      "bps": 100,
+      "n_days": 1680,
+      "gross_total": 6.816627447992276,
+      "net_total": -5101.5121,
+      "net_mean": -3.0366
+    }
+  ],
+  "ls_direction": "long_bottom_short_top",
+  "s3_usable_dates": 1679,
+  "s3_threshold": 756,
+  "d1_revision": "2026-08-06 CRITICAL-1: net now folds in full pre-reg section 5.1 cost stack (statutory + futures-leg hedge). IC fields untouched."
+}

@@ -386,6 +386,11 @@ generous than anyone believes? It reads no market data, so it is free.
 | `docs/reports/SE3_IMPLEMENTATION_PROMPT.md` | **CLEARED for execution** — two-phase implementer prompt (Phase 1 substrate cert → Phase 2 one-shot read) |
 | `docs/reports/SE3_BREADTH_PROBE_REPORT.md` | Breadth/SD probe — sd_IC 0.1877, raw N_eff 5.9 (upper estimate) |
 | `docs/reports/SE3_BREADTH_PROBE_REVIEW{,_2}.md` | Probe lead reviews + the operator decision adopting n=1,701 |
+| `docs/reports/SE3_SUBSTRATE_CERTIFICATION.md` | Phase 1 substrate cert — **S3 PASS, 1,680 usable dates** (vs 756); S1 cardinality PASS (DVR-era 51-symbol snapshots explained); 2018-05 MCWB filled from 2018-04 |
+| `docs/reports/SE3_CONFIRMATORY_REPORT.md` | Phase 2 confirmatory read — **G1/G2 PASS**: mean_IC **−0.1124**, sd_IC **0.1940** (in declared band), NW(5) t **−21.52**, p≈0, n=1,680. **Outcome: NO-BUILD, IC finding stands** (D1 net negative at every cost rung incl. 0 bp once statutory + futures-leg are folded in — pre-declared "real but unharvestable") |
+| `docs/reports/SE3_CONFIRMATORY_SNAPSHOT.json` | Frozen Phase 2 outputs (IC fields immutable; D1 ladder corrected 2026-08-06 per CRITICAL-1) |
+| `docs/reports/SE3_CONFIRMATORY_REVIEW.md` | Lead review — read valid, conclusion corrected to **NO-BUILD**; D1 cost stack, 1,680-vs-1,679 reconciliation, DVR cardinality, one-shot re-execution disclosure |
+| `scripts/se3/{certify_substrate,run_confirmatory,audit_dates,collect_option_spreads}.py` | Phase 1 cert, Phase 2 one-shot, date/cost audit, forward spread collection |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
 

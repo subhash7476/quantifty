@@ -238,3 +238,71 @@ confirmations.
 subsequent delta-hedged underperformance, at a significance no reasonable cost assumption touches.
 What is in question is the sentence that follows from it — and on the artifact as computed, that
 sentence is **NO-BUILD, with the IC finding standing and recorded.**
+
+---
+
+## 10. Round 2 — corrective pass reviewed (2026-08-06)
+
+**Seven of eight dispositions are correctly resolved.** B-1 and B-2 are answered from artifacts:
+the pre-fix run's `nw_t`, `n_dates`, `mean_ic`, `sd_ic`, `ac1` are identical to the post-fix run's,
+which is what the structure predicts — NW t is computed independently of the p formula, so only
+`nw_p` could move. **The one-shot property is intact in substance; the re-execution is a disclosed
+deviation, not a defective read.** B-2 resolved at the warmup end as expected: Phase 1's flat
+`all_dates[20]` skip was off by one against A10's ≥18-obs floor, both scripts now certify and
+consume the same 1,680 dates (2016-03-10 … 2022-12-28), and the arithmetic reconciles
+(1,701 − 19 warmup − 2 tail = 1,680) with `t+2` landing on the store's final date 2022-12-30.
+MEDIUM-2's collision is correctly identified as **TATAMTRDVR** — NSE's documented
+50-companies / 51-securities quirk during the Tata Motors DVR listing, not source pollution.
+
+### CRITICAL-2 — the new D1 cost stack charges flat per-order fees against a per-unit P&L
+
+**Where:** `run_confirmatory.py:227` — `per_leg.append((spread_rs + stat_rs + fut_rs) / vega)`.
+
+Dividing a rupee cost by vega is the correct transform for putting costs on `dh_return_scaled`'s
+scale, and it is dimensionally sound **for proportional charges** (STT, exchange, SEBI, stamp — all
+percentages of premium or turnover, which scale with position size and therefore survive the
+division).
+
+**It is not sound for flat per-order charges, and the stack now contains two of them:** Rs 20
+brokerage per option leg, and `core/execution/futures/futures_fees.py`'s own Rs 20 brokerage on each
+hedge open and close. A flat fee does not scale with position size, so dividing it by a **per-unit**
+vega charges Rs 20 as though every single share-equivalent were its own order.
+
+**The result is visible in the ladder and is not credible:**
+
+| | Value |
+|---|---|
+| gross total (unchanged) | **+6.8166** |
+| net total @ 0 bp | **−5081.0994** |
+| net mean/day | **−3.02** vs gross mean/day **+0.0041** |
+| spread ladder 0 → 100 bp moves net by | **20.4** — i.e. the entire declared ladder is ~0.4% of the cost stack |
+
+The cost stack is ~745× the gross signal, and the proportional charges cannot produce that: option
+STT at 0.05% of premium on a ~Rs 60 premium is ~Rs 0.03 per leg, against Rs 20 of brokerage. **The
+−5,081 is therefore ~99% flat brokerage, inflated by roughly the lot size**, not a statement about
+Indian option trading costs.
+
+**Verdict impact: none.** NO-BUILD stands and stood before this fix — the original ladder already
+went net-negative at 50 bp on *proportional* spread costs alone, and pre-reg §4's row 2 covers
+"negative **or indistinguishable**" either way. The defect is that a governance artifact now carries
+a cost figure that overstates by orders of magnitude and will be cited later as if it measured
+something.
+
+**This is HIGH-1 restated, not a separate problem.** A flat per-order fee *requires* a position size
+to be meaningful, and the vega-scaled construction deliberately has none. The moment flat charges
+entered, D1 stopped being expressible in its own units.
+
+**Required — minimal, and it cannot touch G1/G2:** drop flat per-order charges from the vega-scaled
+ladder and state that **only proportional costs are representable in this diagnostic**; or define a
+position size (lot size × lots) and express D1 in rupees against a stated capital base. The first is
+cheaper and is what §4 already anticipates. Either way the reported conclusion is unchanged.
+
+### Disposition, round 2
+
+| Item | Grade | Action |
+|---|---|---|
+| B-1 / B-2 answered | **CLOSED** | One-shot intact in substance; date sets reconciled |
+| CRITICAL-1 outcome matrix → NO-BUILD | **CLOSED** | §7 now reads row 2 |
+| MEDIUM-1 / MEDIUM-2 / HIGH-2 / NOTE | **CLOSED** | Reconciled, asserted, disclosed, recorded |
+| **CRITICAL-2 flat fees in a per-unit ladder** | **OPEN** | Remove flat charges or state a position size |
+| HIGH-1 D1 units | **OPEN — same root cause as CRITICAL-2** | Resolved by the same fix |
