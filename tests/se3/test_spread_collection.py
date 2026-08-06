@@ -144,3 +144,113 @@ class TestCollectOnce:
                 "strike, instrument_key, best_bid, best_ask, spread_pct, screen, screen_reason "
                 "FROM spread_observations LIMIT 1")
         assert store.execute("SELECT COUNT(*) FROM spread_observations").fetchone()[0] == 2
+
+
+class TestFailureModes:
+    """A failed fetch must be counted as an ERROR, never as a skip, and a
+    fully-failed sweep must surface a non-zero exit — never a silent 0."""
+
+    def test_fetch_error_counts_as_error_not_skip(self, store, monkeypatch):
+        rows = [{"instrument_key": "NSE_FO|RELIANCE", "ticker": "RELIANCE",
+                 "expiry": datetime.date(2026, 8, 27), "opt_type": "CE", "strike": 2900.0}]
+        _patch_pick(monkeypatch, rows)
+
+        class FailingMarketData:
+            def fetch_quotes_batch(self, keys):
+                return {"quotes": {}, "error": "Upstox HTTP 401"}
+
+        n_obs, n_skip, err = s._collect_once(store, FailingMarketData())
+        assert n_obs == 0
+        assert n_skip == 0
+        assert err == 1
+        assert store.execute("SELECT COUNT(*) FROM spread_observations").fetchone()[0] == 0
+
+    def test_exit_code_1_on_fetch_error(self, monkeypatch):
+        assert s._exit_code(0, 5) == 1
+
+    def test_sweeps_mode_accumulates_exit_code(self, monkeypatch, tmp_path):
+        """A multi-sweep run must surface the ACCUMULATED failure, not a
+        hardcoded 0 — the freshness assertion applies to every mode."""
+        seen = {"n": 0}
+
+        def fake_collect(con, market_data):
+            seen["n"] += 1
+            if seen["n"] % 2 == 0:
+                return 0, 0, 1  # one failing sweep among successes
+            return 3, 0, 0
+
+        class FakeStore:
+            def close(self):
+                pass
+
+        monkeypatch.setattr(s, "_collect_once", fake_collect)
+        monkeypatch.setattr(s, "_init_store", lambda *a, **k: FakeStore())
+        monkeypatch.setattr(
+            "core.database.utils.market_hours.MarketHours.is_market_open",
+            staticmethod(lambda: True),
+        )
+
+        class FakeMD:
+            pass
+
+        monkeypatch.setattr(
+            "core.brokers.upstox_market_data.UpstoxMarketData",
+            lambda *a, **k: FakeMD(),
+        )
+        monkeypatch.setattr(s.time, "sleep", lambda _s: None)
+        assert s.run(2, None, False) == 1  # 3 obs, 1 err -> exit 1
+
+    def test_minutes_mode_accumulates_exit_code(self, monkeypatch):
+        """--minutes must also surface accumulated errors (exit 1), not 0."""
+        seen = {"n": 0}
+
+        def fake_collect(con, market_data):
+            seen["n"] += 1
+            return 0, 0, 1
+
+        def fake_time():
+            if seen["n"] == 0:
+                return 100.0
+            return 200.0  # beyond deadline (100 + minutes*60)
+
+        def fake_sleep(_s):
+            pass
+
+        class FakeStore:
+            def close(self):
+                pass
+
+        monkeypatch.setattr(s, "_collect_once", fake_collect)
+        monkeypatch.setattr(s, "_init_store", lambda *a, **k: FakeStore())
+        monkeypatch.setattr(s.time, "time", fake_time)
+        monkeypatch.setattr(s.time, "sleep", fake_sleep)
+
+        class FakeMD:
+            pass
+
+        monkeypatch.setattr(
+            "core.brokers.upstox_market_data.UpstoxMarketData",
+            lambda *a, **k: FakeMD(),
+        )
+        assert s.run(None, 1, False) == 1  # 0 obs, 1 err -> exit 1
+
+    def test_exit_code_2_when_market_open_and_zero_observed(self, monkeypatch):
+        monkeypatch.setattr(
+            "core.database.utils.market_hours.MarketHours.is_market_open",
+            staticmethod(lambda: True),
+        )
+        assert s._exit_code(0, 0) == 2
+
+    def test_exit_code_0_on_success(self, monkeypatch):
+        monkeypatch.setattr(
+            "core.database.utils.market_hours.MarketHours.is_market_open",
+            staticmethod(lambda: True),
+        )
+        assert s._exit_code(5, 0) == 0
+
+    def test_exit_code_0_when_market_closed(self, monkeypatch):
+        monkeypatch.setattr(
+            "core.database.utils.market_hours.MarketHours.is_market_open",
+            staticmethod(lambda: False),
+        )
+        assert s._exit_code(0, 0) == 0

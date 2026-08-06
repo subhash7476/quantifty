@@ -17,7 +17,10 @@ Properties:
                           option_type, strike, instrument_key, best_bid,
                           best_ask, ltp, oi, volume, spread_pct, screen,
                           screen_reason)
-    PK (observed_at, instrument_key) — dedupe on re-run, never overwrite.
+    PK (observed_at, instrument_key) — append-only per observation timestamp,
+    never overwrite. A repeated run gets a fresh observed_at and INSERTS new
+    rows, over-sampling that market moment into the distribution rather than
+    deduping it — an accidental double-run is not harmless; run once per sweep.
 
 Usage:
     python scripts/se3/collect_option_spreads.py --once         # one sweep, exit
@@ -30,6 +33,7 @@ rules cannot drift from the platform's live options path.
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -37,6 +41,7 @@ from pathlib import Path
 import duckdb
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(ROOT))
 STORE = ROOT / "data" / "se3" / "spread_collection.duckdb"
 
 DEFAULT_UNIVERSE = [
@@ -103,8 +108,11 @@ def _collect_once(con, market_data):
         if not key:
             n_skip += 1
             continue
-        quotes = market_data.fetch_quotes_batch([key]).get("quotes", {})
-        q = quotes.get(key)
+        result = market_data.fetch_quotes_batch([key])
+        if result.get("error"):
+            errors += 1
+            continue
+        q = result.get("quotes", {}).get(key)
         if not q or q.get("best_bid") is None or q.get("best_ask") is None:
             n_skip += 1
             continue
@@ -127,7 +135,7 @@ def _collect_once(con, market_data):
                  "pass" if ok else "skip", reason],
             )
             n_obs += 1
-        except Exception:
+        except duckdb.Error:
             errors += 1
     return n_obs, n_skip, errors
 
@@ -141,26 +149,51 @@ def run(sweeps: int | None, minutes: int | None, once: bool):
         if once:
             n_obs, n_skip, err = _collect_once(con, market_data)
             print(f"once: {n_obs} observed, {n_skip} skipped, {err} errors")
-            return
+            return _exit_code(n_obs, err)
         if sweeps is not None:
+            total_obs, total_err = 0, 0
             for i in range(sweeps):
                 n_obs, n_skip, err = _collect_once(con, market_data)
                 print(f"sweep {i+1}/{sweeps}: {n_obs} observed, {n_skip} skipped, {err} errors")
+                total_obs += n_obs
+                total_err += err
                 if i < sweeps - 1:
                     time.sleep(5)
-            return
+            return _exit_code(total_obs, total_err)
         if minutes is not None:
             deadline = time.time() + minutes * 60
             i = 0
+            total_obs, total_err = 0, 0
             while time.time() < deadline:
                 i += 1
                 n_obs, n_skip, err = _collect_once(con, market_data)
                 print(f"sweep {i}: {n_obs} observed, {n_skip} skipped, {err} errors")
+                total_obs += n_obs
+                total_err += err
                 time.sleep(5)
-            return
+            return _exit_code(total_obs, total_err)
         print("No mode selected. Use --once, --sweeps N, or --minutes N.")
+        return 0
     finally:
         con.close()
+
+
+def _exit_code(n_obs: int, errors: int) -> int:
+    """Freshness assertion — the collector must FAIL, not merely log, when it
+    goes quiet. Lives here so every invocation (manual, OS-scheduled) surfaces
+    the same non-zero signal:
+
+      0  sweep recorded observations (or market is closed — nothing expected)
+      1  fetch errors — a failed download must never be recorded as a skip
+      2  market was open but the sweep recorded zero observations — expired
+         token, silent auth failure, or a screen collapsing every name
+    """
+    if errors > 0:
+        return 1
+    from core.database.utils.market_hours import MarketHours
+    if MarketHours.is_market_open() and n_obs == 0:
+        return 2
+    return 0
 
 
 def main():
@@ -169,8 +202,8 @@ def main():
     parser.add_argument("--sweeps", type=int, default=None, help="run N sweeps")
     parser.add_argument("--minutes", type=int, default=None, help="loop for N minutes")
     args = parser.parse_args()
-    run(args.once, args.sweeps, args.minutes)
+    return run(args.sweeps, args.minutes, args.once)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
