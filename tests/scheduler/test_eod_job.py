@@ -70,7 +70,7 @@ def test_holiday_records_holiday_and_notifies(store):
 def test_chain_failure_records_chain_failed_and_alerts(store):
     sent = []
     deps = make_deps(
-        feeds(futures=TODAY),
+        feeds(equity=TODAY, futures=TODAY),
         chain_results=[StepResult("refresh_all_strategies.py", False, "", "BoomError")],
         sent=sent,
     )
@@ -99,7 +99,7 @@ def test_options_book_message_is_sent_after_chain(store):
 def test_book_suppressed_when_a_feed_is_stale(store):
     sent = []
     outcome = run_attempt(store, TODAY, 1, datetime(2026, 7, 31, 20, 0),
-                          make_deps(feeds(futures=TODAY), sent=sent))
+                          make_deps(feeds(equity=TODAY, futures=TODAY), sent=sent))
     assert outcome == "success"
     assert "BOOK SUPPRESSED" in sent[-1]
     assert "ATM OPTIONS" not in sent[-1]
@@ -108,8 +108,8 @@ def test_book_suppressed_when_a_feed_is_stale(store):
 def test_suppression_message_names_every_stale_feed(store):
     sent = []
     run_attempt(store, TODAY, 1, datetime(2026, 7, 31, 20, 0),
-                make_deps(all_fresh(equity=YESTERDAY), sent=sent))
-    assert "equity" in sent[-1]
+                make_deps(all_fresh(stock_options=YESTERDAY), sent=sent))
+    assert "stock_options" in sent[-1]
     assert "2026-07-30" in sent[-1]
     assert "futures" not in sent[-1]
 
@@ -121,7 +121,7 @@ def test_book_is_not_built_when_a_feed_is_stale(store):
         built.append(1)
         raise AssertionError("book must not be built on a stale feed")
 
-    deps = make_deps(feeds(futures=TODAY))
+    deps = make_deps(feeds(equity=TODAY, futures=TODAY))
     deps.book = boom
     run_attempt(store, TODAY, 1, datetime(2026, 7, 31, 20, 0), deps)
     assert built == []
@@ -129,7 +129,16 @@ def test_book_is_not_built_when_a_feed_is_stale(store):
 
 def test_suppressed_run_still_records_success_and_is_terminal(store):
     outcome = run_attempt(store, TODAY, 1, datetime(2026, 7, 31, 20, 0),
-                          make_deps(feeds(futures=TODAY)))
+                          make_deps(feeds(equity=TODAY, futures=TODAY)))
     assert outcome == "success"
     assert store.is_date_terminal(TODAY) is True
     assert "suppressed" in store.latest_run()["detail"]
+
+
+def test_stale_equity_retries_instead_of_chaining(store):
+    sent = []
+    outcome = run_attempt(store, TODAY, 1, datetime(2026, 7, 31, 20, 0),
+                          make_deps(feeds(futures=TODAY), sent=sent))
+    assert outcome == "retry"
+    assert store.is_date_terminal(TODAY) is False
+    assert sent == []
