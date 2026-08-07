@@ -85,8 +85,15 @@ def main():
             print("TS Basis facts: up to date (0 new formations)")
             return 0
         fc = duckdb.connect(str(TS_FACTS_DB))
+        cols = {r[1] for r in fc.execute("PRAGMA table_info('carry_facts')").fetchall()}
+        if "raw_z" not in cols:
+            fc.execute("ALTER TABLE carry_facts ADD COLUMN raw_z DOUBLE")
+        if "basis_reverting" not in cols:
+            fc.execute("ALTER TABLE carry_facts ADD COLUMN basis_reverting BOOLEAN DEFAULT FALSE")
         fc.executemany(
-            "INSERT INTO carry_facts VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO carry_facts "
+            "(formation_date, underlying, z_carry_neut, quintile, eligible) "
+            "VALUES (?, ?, ?, ?, ?)",
             [(str(fd), u, z, q, elig) for fd, u, z, q, elig in fact_rows],
         )
     else:
@@ -98,6 +105,8 @@ def main():
                 z_carry_neut     DOUBLE,
                 quintile         TINYINT,
                 eligible         BOOLEAN NOT NULL,
+                raw_z            DOUBLE,
+                basis_reverting  BOOLEAN DEFAULT FALSE,
                 PRIMARY KEY (formation_date, underlying)
             )
         """)

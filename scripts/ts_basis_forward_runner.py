@@ -24,8 +24,6 @@ sys.path.insert(0, str(ROOT))
 _logger = logging.getLogger("ts_basis_forward")
 
 TS_FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis" / "ts_facts.duckdb"
-TS_SIG_DB = ROOT / "data" / "signal_engine" / "ts_basis" / "ts_signals.duckdb"
-CARRY_SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "signals.duckdb"
 CARRY_FACTS_DB = ROOT / "data" / "signal_engine" / "carry" / "facts.duckdb"
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 PROD_DB = ROOT / "data" / "signal_engine" / "carry" / "production.duckdb"
@@ -95,6 +93,48 @@ def _refresh_ts_facts():
         _logger.error("publish_facts FAILED: %s", result.stderr)
         return False
     return True
+
+
+class MonthEndRebalanceGate:
+    """Restrict CarryRebalancerHook to month-end formation dates.
+
+    The frozen TS Basis construct is MONTHLY (pre-reg §4: last trading day
+    of each calendar month). The on-disk ts_facts.duckdb was rebuilt weekly
+    (2026-07-26), so this gate selects only the last formation date of each
+    calendar month before delegating to the underlying hook. The month-end
+    set is re-read when the facts DB advances so a newly published formation
+    is picked up by the running process.
+    """
+
+    def __init__(self, inner, facts_db_path: str):
+        self._inner = inner
+        self._facts_db = facts_db_path
+        self._month_end: set = set()
+        self._seen_max: object = None
+        self._reload()
+
+    def _reload(self):
+        con = duckdb.connect(str(self._facts_db), read_only=True)
+        rows = con.execute(
+            "SELECT DISTINCT formation_date FROM carry_facts ORDER BY formation_date"
+        ).fetchall()
+        con.close()
+        by_month = {}
+        for (fd,) in rows:
+            by_month[(fd.year, fd.month)] = fd
+        self._month_end = set(by_month.values())
+
+    def __call__(self, ts, execution):
+        bar_date = ts.date() if hasattr(ts, 'date') else ts
+        con = duckdb.connect(str(self._facts_db), read_only=True)
+        cur_max = con.execute("SELECT MAX(formation_date) FROM carry_facts").fetchone()[0]
+        con.close()
+        if cur_max != self._seen_max:
+            self._seen_max = cur_max
+            self._reload()
+        if bar_date not in self._month_end:
+            return False
+        return self._inner(ts, execution)
 
 
 def main():
@@ -189,8 +229,8 @@ def main():
         facts_db_path=str(TS_FACTS_DB), execution_handler=execution,
         gross_exposure_policy=paper_gross_exposure_policy,
         bhavcopy_db_path=str(FUT_DB), metrics_sink=sink,
-        signals_db_path=str(TS_SIG_DB), max_positions_per_leg=5,
     )
+    gate = MonthEndRebalanceGate(hook, str(TS_FACTS_DB))
 
     config = DriverConfig(mode=Mode.REPLAY, symbols=symbols, max_bars=500_000)
 
@@ -207,7 +247,7 @@ def main():
             config=config,
             clock=ReplayClock(start_time=datetime.combine(today, dt_time.min)),
             provider=provider, source=None, execution=execution,
-            rebalance_hook=hook.__call__,
+            rebalance_hook=gate.__call__,
         )
         driver.run()
 

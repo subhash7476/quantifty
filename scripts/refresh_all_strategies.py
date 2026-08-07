@@ -112,6 +112,8 @@ def _publish_carry_facts():
             z_carry_neut     DOUBLE,
             quintile         TINYINT,
             eligible         BOOLEAN NOT NULL,
+            raw_z            DOUBLE,
+            basis_reverting  BOOLEAN DEFAULT FALSE,
             PRIMARY KEY (formation_date, underlying)
         )
     """)
@@ -119,6 +121,8 @@ def _publish_carry_facts():
 
     fc.execute("""
         INSERT INTO carry_facts
+            (formation_date, underlying, sector, z_carry, z_carry_neut,
+             quintile, eligible)
         WITH raw AS (
             SELECT s.formation_date, s.underlying, s.sector,
                    s.z_carry, s.z_carry_neut, s.liquid
