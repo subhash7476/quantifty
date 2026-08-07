@@ -73,13 +73,19 @@ standing reference for the ledger format and auditability.
 · — · — · automatic · Fault fixture strategy identity reserved at ledger creation. AlwaysRaisesSource and BadMetadataSource are throwaway guard-proof fixtures per ADR-020 §3. Never promotable; no CONFORMANT certification sought or granted.
 ```
 
+### E004 — nifty_shield_v1 Stage 0 identity reservation (first external strategy)
+
+```
+2026-08-07 · nifty_shield_v1 · (unpinned@Stage1, unpinned@Stage1) · 1.0 · null → DEVELOPMENT
+· docs/reports/NIFTY_SHIELD_ADOPTION_ASSESSMENT.md · 48e455a · operator · First external strategy on the ladder. Identity reserved for the NiftyShield port — a regime-adaptive weekly Nifty options premium seller — from the retired D:\BOT\root platform. Routed through the MM12.5 promotion pipeline (safety), NOT the research/RFA track (assessment §2); RFA recorded Not Applicable with reasons (§2.1). code_ref and config_hash are unpinned at Stage 0 and pinned at the Stage 1 submission (§4.0). The bundled strategy fails Stage 1 CONFORMANT as-copied (illegal core.* imports, forbidden execution/broker handles, side-effects in on_bar — assessment §4) and will be re-expressed as a dumb SignalSource; the copy-in path is void. Stage 0 grants nothing (§4.0). Binding on downstream work: the OSC-preserved unread index-options window (2016→2022) must not be backtested (assessment §3); the DayType model identity hole (§5.1) and sweep_filter (§5.4) are excluded from this identity. Per §5.2, this strategy_id is never reused if abandoned.
+```
+
 ---
 
 ## Open entries (reserved for future use)
 
-*No entries beyond E003 exist at ledger creation time. The following slots are reserved for the first external strategy's promotion path:*
+*E004 consumed 2026-08-07 (see Entries above). The following slots remain reserved for `nifty_shield_v1`'s onward promotion path (or, if it is abandoned, the next external strategy's — a retired id is never reused, §5.2):*
 
-- E004 — (first external strategy Stage 0 identity reservation)
 - E005 — (first external strategy Stage 1 CONFORMANT grant)
 - E006 — (first external strategy Stage 2 PAPER VALIDATED grant)
 - E007 — (first external strategy Stage 3 LIVE CANDIDATE grant)
