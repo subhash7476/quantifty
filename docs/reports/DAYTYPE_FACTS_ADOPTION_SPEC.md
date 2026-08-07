@@ -52,6 +52,7 @@ with **no override**. Therefore:
 | File (bundle) | Destination (mandatory) |
 |---|---|
 | `daytype/daytype_engine.py` | `core/state/daytype_engine.py` |
+| `core/analytics/day_features.py` (`D:\BOT\root` vintage) | `core/analytics/day_features.py` — **engine dependency discovered at implementation** (not in the bundle, absent from F:\nifty): `daytype_engine._compute_features` imports `compute_session_twap`, `AM_END_BAR`, `CLV_THRESHOLD`, `_range_epsilon` from it. Source code (causal, deterministic — reviewed clean, review §3/F1), not a trained artifact; same `D:\BOT\root`-vintage / not-validated-on-F:\nifty provenance as the models. |
 | `daytype/build_intraday_features.py` | `scripts/build_intraday_features.py` (repoint its data paths to F:\nifty — see §6) |
 | `daytype/models/daytype/logistic_13pm_prod/` | `models/daytype/logistic_13pm_prod/` |
 | `daytype/models/daytype/logistic_10am/`, `logistic_11am/` | `models/daytype/…` (AM checkpoints load without warnings) |
