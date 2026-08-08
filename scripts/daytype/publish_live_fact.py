@@ -181,7 +181,7 @@ def make_driver_hook(db_path: Path, today: Optional[date] = None):
     """
     def hook(bar_timestamp: datetime) -> Optional[dict]:
         session = today or bar_timestamp.date()
-        return publish_live(db_path, today=session)
+        return publish_live(Path(db_path), today=session)
     return hook
 
 

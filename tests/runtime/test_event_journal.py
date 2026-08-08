@@ -124,9 +124,12 @@ def test_all_event_types_present():
         "PORTFOLIO_UNPRICEABLE",
         # MM12.3: GuardedSignalSource boundary guard (ADR-018, ADR-019).
         "STRATEGY_ERROR", "STRATEGY_QUARANTINED", "SIGNAL_CONTRACT_REJECTED",
+        # E007 (Stage-2 PAPER): additive Stage-2 evidence events.
+        "FACT_PUBLISH_SKIPPED", "ENTRY_MARGIN", "ENTRY_SKIPPED",
+        "STRUCTURE_CLOSE",
     }
     assert {e.value for e in EventType} == expected
-    assert len(EventType) == 20
+    assert len(EventType) == 24
 
 
 def test_default_severity_defined_for_every_event_type():

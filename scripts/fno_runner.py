@@ -27,7 +27,7 @@ default to the production construction and exist so the characterization net
 can isolate the canonical store, the live provider, and the wall clock.
 """
 
-from datetime import date
+from datetime import date, time
 import logging
 import pickle
 from typing import Any, Callable, Dict, List, Optional, Sequence
@@ -120,6 +120,10 @@ def build_runner(
     max_bars: Optional[int] = None,
     initial_capital: float = 100_000.0,
     rebalance_hook_factory: Optional[Callable[[Any], Any]] = None,
+    publish_hook_factory: Optional[Callable[[Any], Optional[Callable]]] = None,
+    publish_checkpoint_time: Optional[time] = None,
+    handler_factory: Optional[Callable[..., Any]] = None,
+    mode: Optional[Mode] = None,
 ) -> LoopDriver:
     """Compose and return a live F&O LoopDriver around the injected source.
 
@@ -241,11 +245,26 @@ def build_runner(
     if metrics_path is not None:
         handler_kwargs["metrics_path"] = metrics_path
     handler_kwargs["journal"] = journal
-    execution = ExecutionHandler(**handler_kwargs)
+    # E7-1: an optional handler_factory lets a strategy's PAPER composition inject
+    # its execution subclass (e.g. NiftyShieldExecutionHandler) while reusing every
+    # other construction step and the semantic refusals above. Absent = the
+    # standard ExecutionHandler, unchanged.
+    if handler_factory is not None:
+        execution = handler_factory(**handler_kwargs)
+    else:
+        execution = ExecutionHandler(**handler_kwargs)
 
     rebalance_hook = None
     if rebalance_hook_factory is not None:
         rebalance_hook = rebalance_hook_factory(execution)
+
+    # E7-1: the DS2-2 pre-signal publish hook — a per-session fact publisher the
+    # driver fires at `publish_checkpoint_time` before on_bar. The factory
+    # receives the execution handler (for the E7-2 DS2-4 journaling wrapper's
+    # seams); the driver stays journal-agnostic.
+    publish_hook = None
+    if publish_hook_factory is not None:
+        publish_hook = publish_hook_factory(execution)
 
     # MM9.3-S2: PortfolioView for enriched telemetry. Uses the handler's
     # existing PortfolioGreeks instance (handler.py:203) — not a new one — so
@@ -265,7 +284,11 @@ def build_runner(
         source, journal=journal, telemetry=telemetry,
     )
 
-    config = DriverConfig(mode=Mode.LIVE, symbols=list(symbols), max_bars=max_bars)
+    # E007 (Stage-2 PAPER): the replay-evidence item re-drives a recorded session
+    # through this same root in REPLAY. Default stays LIVE (no behaviour change
+    # for existing callers); the caller passes a ReplayClock + mode=Mode.REPLAY.
+    mode = mode or Mode.LIVE
+    config = DriverConfig(mode=mode, symbols=list(symbols), max_bars=max_bars)
 
     return LoopDriver(
         config,
@@ -280,4 +303,6 @@ def build_runner(
         portfolio_view=portfolio_view,
         span_readiness=span_readiness,
         rebalance_hook=rebalance_hook,
+        publish_hook=publish_hook,
+        publish_checkpoint_time=publish_checkpoint_time,
     )

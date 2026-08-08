@@ -86,6 +86,15 @@ class EventType(Enum):
     STRATEGY_ERROR = "STRATEGY_ERROR"
     STRATEGY_QUARANTINED = "STRATEGY_QUARANTINED"
     SIGNAL_CONTRACT_REJECTED = "SIGNAL_CONTRACT_REJECTED"
+    # E007 (Stage-2 PAPER): additive Stage-2 evidence events. FACT_PUBLISH_SKIPPED
+    # is the DS2-4 durable skipped-session line (a not-ready live 13:00 fact
+    # publish); ENTRY_MARGIN is the per-entry SPAN+ELM evidence (§7.7, datasheet
+    # §11 open item). Both are non-breaking additions — the journal's minimum
+    # type set (DRIVER_SPECIFICATION §15.4) is a floor, not a ceiling.
+    FACT_PUBLISH_SKIPPED = "FACT_PUBLISH_SKIPPED"
+    ENTRY_MARGIN = "ENTRY_MARGIN"
+    ENTRY_SKIPPED = "ENTRY_SKIPPED"
+    STRUCTURE_CLOSE = "STRUCTURE_CLOSE"
 
 
 # Normative default severity per event type (section 15.4). BROKER_ERROR is
@@ -112,6 +121,10 @@ _DEFAULT_SEVERITY: Dict["EventType", "Severity"] = {
     EventType.STRATEGY_ERROR: Severity.WARNING,
     EventType.STRATEGY_QUARANTINED: Severity.CRITICAL,
     EventType.SIGNAL_CONTRACT_REJECTED: Severity.WARNING,
+    EventType.FACT_PUBLISH_SKIPPED: Severity.WARNING,
+    EventType.ENTRY_MARGIN: Severity.INFO,
+    EventType.ENTRY_SKIPPED: Severity.WARNING,
+    EventType.STRUCTURE_CLOSE: Severity.INFO,
 }
 
 
