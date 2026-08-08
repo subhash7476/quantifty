@@ -6,9 +6,19 @@ produced_by=live@<commit>. Reuses the offline publisher's engine path — the
 same DayTypeEngine and the same feature pipeline, so a live fact is byte-for-byte
 comparable with an offline fact for the same session bars (spec §5).
 
+Intraday VIX (DS2-3): the live fact carries the session's ~13:00 India VIX in the
+distinct nullable `vix_at_checkpoint` column, read from the India VIX 1m series
+exactly as NF/BN are (last 1m close at or before 13:00) — never from the EOD 1d
+store, which does not exist intraday. The legacy `vix_close` column keeps its EOD
+meaning and is NULL on live rows (its meaning never depends on `produced_by`).
+
 Data source: the per-day 1m store for today if present; else the live buffer
 (candles_today.duckdb). Requires >= MIN_BARS session bars up to 13:00, else it
 reports "not ready" and writes nothing (a Stage-2 gate, not an error).
+
+Also exposes `make_driver_hook()` — the per-session pre-signal seam (DS2-2) that
+wires `publish_live` into the LoopDriver's tick so the fact is written before the
+source's `on_bar` reads it.
 
 Usage:
   python scripts/daytype/publish_live_fact.py
@@ -19,7 +29,7 @@ from __future__ import annotations
 
 import argparse
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -31,14 +41,14 @@ sys.path.insert(0, str(ROOT))
 
 from scripts.daytype.publish_facts import (  # noqa: E402
     CANDLE_DIR_1M, CHECKPOINT, MIN_BARS, TRAINED_ON,
-    commit_ref, model_hash, regime_fact_version, vix_close,
+    commit_ref, model_hash, regime_fact_version,
 )
 
-CANDLE_DIR_1D = ROOT / "data" / "market_data" / "nse" / "candles" / "1d"
 LIVE_BUFFER = ROOT / "data" / "live_buffer" / "candles_today.duckdb"
 
 NF_SYMBOL = "NSE_INDEX|Nifty 50"
 BN_SYMBOL = "NSE_INDEX|Nifty Bank"
+VIX_SYMBOL = "NSE_INDEX|India VIX"
 
 
 def _session_bars_from_df(df: pd.DataFrame, upto_min: int = 780) -> Optional[pd.DataFrame]:
@@ -85,6 +95,21 @@ def _today_bars(symbol: str, today: date) -> Optional[pd.DataFrame]:
     return None
 
 
+def vix_at_checkpoint(today: date) -> Optional[float]:
+    """Last India VIX 1m close at or before 13:00 (DS2-3).
+
+    Read from the same live/per-day 1m source used for NF/BN — never the EOD
+    1d store (which does not exist intraday). `_today_bars` filters to
+    9:15..13:00 and requires >= MIN_BARS, so None means the VIX feed is
+    missing/thin — the publisher then writes nothing and the source skips the
+    session (F2 NULL-VIX skip, DS2-4).
+    """
+    df = _today_bars(VIX_SYMBOL, today)
+    if df is None or df.empty:
+        return None
+    return float(df["close"].iloc[-1])
+
+
 def publish_live(db_path: Path, today: Optional[date] = None) -> dict:
     from core.state.daytype_engine import DayTypeEngine, CHECKPOINT_BARS
 
@@ -102,9 +127,9 @@ def publish_live(db_path: Path, today: Optional[date] = None) -> dict:
         return {"ready": False, "reason": "no 13pm checkpoint produced", "session": today}
 
     produced_by = f"live@{commit_ref()}"
-    vix = vix_close(today)
-    if vix is None:
-        return {"ready": False, "reason": "no VIX close for session", "session": today}
+    vix_cp = vix_at_checkpoint(today)
+    if vix_cp is None:
+        return {"ready": False, "reason": "no India VIX at 13:00 for session", "session": today}
     hash_val = model_hash()
     ver = regime_fact_version()
 
@@ -117,6 +142,7 @@ def publish_live(db_path: Path, today: Optional[date] = None) -> dict:
             regime              VARCHAR NOT NULL,
             regime_confidence   DOUBLE  NOT NULL,
             vix_close           DOUBLE,
+            vix_at_checkpoint   DOUBLE,
             regime_fact_version VARCHAR NOT NULL,
             model_hash          VARCHAR NOT NULL,
             produced_by         VARCHAR NOT NULL,
@@ -124,17 +150,39 @@ def publish_live(db_path: Path, today: Optional[date] = None) -> dict:
             PRIMARY KEY (session_date, checkpoint)
         )
     """)
+    # Migration for stores created before DS2-3.
+    con.execute(
+        "ALTER TABLE day_type_facts ADD COLUMN IF NOT EXISTS vix_at_checkpoint DOUBLE"
+    )
     con.execute(
         "INSERT OR REPLACE INTO day_type_facts "
         "(session_date, checkpoint, regime, regime_confidence, vix_close, "
-        " regime_fact_version, model_hash, produced_by, trained_on) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " vix_at_checkpoint, regime_fact_version, model_hash, produced_by, trained_on) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [today, CHECKPOINT, st["predicted_state"], float(st["confidence"]),
-         vix, ver, hash_val, produced_by, TRAINED_ON],
+         None, vix_cp, ver, hash_val, produced_by, TRAINED_ON],
     )
     con.close()
     return {"ready": True, "session": today, "regime": st["predicted_state"],
-            "confidence": st["confidence"], "vix": vix, "produced_by": produced_by}
+            "confidence": st["confidence"], "vix_at_checkpoint": vix_cp,
+            "produced_by": produced_by}
+
+
+def make_driver_hook(db_path: Path, today: Optional[date] = None):
+    """Return the per-session pre-signal publish hook for LoopDriver (DS2-2).
+
+    The returned callable takes the checkpoint bar's timestamp and publishes
+    that session's 13pm live fact (INSERT OR REPLACE — idempotent). The driver
+    invokes it once per session at/after the 13:00 tick, before on_bar; a
+    not-ready result means the source reads no fact and skips the session
+    (DS2-4). `today` is injectable for deterministic tests; the hook's return
+    value is the publish result dict so a wrapper can journal a skipped-entry
+    line.
+    """
+    def hook(bar_timestamp: datetime) -> Optional[dict]:
+        session = today or bar_timestamp.date()
+        return publish_live(db_path, today=session)
+    return hook
 
 
 def main() -> int:
@@ -150,7 +198,7 @@ def main() -> int:
         print(f"NOT READY: {result['session']} — {result['reason']}")
         return 2
     print(f"LIVE FACT {result['session']}: {result['regime']} "
-          f"conf={result['confidence']:.3f} vix={result['vix']} "
+          f"conf={result['confidence']:.3f} vix_at_checkpoint={result['vix_at_checkpoint']} "
           f"({result['produced_by']})")
     return 0
 

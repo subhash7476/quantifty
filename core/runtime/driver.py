@@ -82,6 +82,7 @@ phases, not modeled here.
 """
 
 import time
+from datetime import datetime, time as _time
 from enum import Enum
 from typing import AbstractSet, Any, Callable, Dict, List, Optional
 
@@ -156,7 +157,9 @@ class LoopDriver:
                  master_readiness: Optional[Callable[[], ReadinessVerdict]] = None,
                  portfolio_view: Optional[PortfolioView] = None,
                  span_readiness: Optional[Callable[[], SpanReadinessVerdict]] = None,
-                 rebalance_hook: Optional[Callable[..., bool]] = None):
+                 rebalance_hook: Optional[Callable[..., bool]] = None,
+                 publish_hook: Optional[Callable[[datetime], Optional[dict]]] = None,
+                 publish_checkpoint_time: Optional[_time] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
@@ -198,6 +201,18 @@ class LoopDriver:
         # live-only (unlike the watchdog, §9.5).
         self._publisher = publisher
         self._rebalance_hook = rebalance_hook
+        # Pre-signal publish seam (DS2-2): a per-session hook invoked once per
+        # session, on the first bar at/after `publish_checkpoint_time`, after
+        # the clock advance and before on_bar — so a fact the hook writes is
+        # readable by the source on the very same bar. Both params must be set
+        # to activate; absent, the loop is unchanged. It is a strategy-agnostic
+        # seam (the composition root supplies the checkpoint time and the
+        # publish callable — no daytype/strategy knowledge lives here). A
+        # failing hook is logged and the loop continues; the source then reads
+        # no fact and skips the session (DS2-4).
+        self._publish_hook = publish_hook
+        self._publish_checkpoint_time = publish_checkpoint_time
+        self._published_sessions: set = set()
         # Last telemetry-publish time, by the deterministic clock (§10.2 throttle).
         self._last_publish_at = None
         # Wall-clock process-start mark for the health uptime field (§10.5). Uptime
@@ -670,6 +685,25 @@ class LoopDriver:
             if not rebalance_done and self._rebalance_hook is not None and self._execution is not None:
                 self._rebalance_hook(bar.timestamp, self._execution)
                 rebalance_done = True
+            # Pre-signal publish seam (DS2-2): once per session, at/after the
+            # checkpoint tick, before on_bar. The hook writes a session fact the
+            # source reads on this same bar (a fact published after on_bar would
+            # be missed — the exact ordering the prerequisite needs). Per-session
+            # latch: a new session date re-arms it. Best-effort: a failing hook
+            # must not kill the loop — the source then reads no fact and skips
+            # the session (DS2-4), and the failure is logged, not swallowed.
+            if (self._publish_hook is not None
+                    and self._publish_checkpoint_time is not None
+                    and bar.timestamp.date() not in self._published_sessions
+                    and bar.timestamp.time() >= self._publish_checkpoint_time):
+                try:
+                    self._publish_hook(bar.timestamp)
+                except Exception as exc:
+                    self._logger.error(
+                        "pre-signal publish hook failed at %s: %s",
+                        bar.timestamp, exc,
+                    )
+                self._published_sessions.add(bar.timestamp.date())
             # MM9.2-S3-S2: warm the handler's price cache on every bar, not
             # only when a signal fires (spec §9). Placed after set_time so the
             # snapshot's timestamp is the bar's deterministic time, and before

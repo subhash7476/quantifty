@@ -157,6 +157,7 @@ def _schema(con) -> None:
             regime              VARCHAR NOT NULL,
             regime_confidence   DOUBLE  NOT NULL,
             vix_close           DOUBLE,
+            vix_at_checkpoint   DOUBLE,
             regime_fact_version VARCHAR NOT NULL,
             model_hash          VARCHAR NOT NULL,
             produced_by         VARCHAR NOT NULL,
@@ -164,6 +165,12 @@ def _schema(con) -> None:
             PRIMARY KEY (session_date, checkpoint)
         )
     """)
+    # Migration for stores created before DS2-3: the offline publisher never
+    # writes vix_at_checkpoint (EOD vix_close keeps its meaning, DS2-3); the
+    # column exists so live rows can carry the intraday 13:00 India VIX.
+    con.execute(
+        "ALTER TABLE day_type_facts ADD COLUMN IF NOT EXISTS vix_at_checkpoint DOUBLE"
+    )
 
 
 def publish(start: date, end: date, db_path: Path, produced_by: str,
