@@ -18,10 +18,10 @@
 | Field | Value |
 |---|---|
 | `strategy_id` | `nifty_shield_v1` |
-| `code_ref` | *[pins @ Stage 1]* — commit of the decomposed strategy package |
-| `config_hash` | *[pins @ Stage 1]* — SHA-256 of the certified `build_signal_source(config)` dict |
+| `code_ref` | *[pins @ Stage 1]* — commit of the decomposed strategy package (`strategies/nifty_shield_v1/`) |
+| `config_hash` | *[pins @ Stage 1]* — SHA-256 of the certified `build_signal_source(config)` dict → **`c5b722ff204d4e434f5cbffb1674136738a79693a3ced17bf07e46676d5336c6`** (computed over the datasheet §3 dict, excluding the `facts_db_path` runtime seam) |
 | `STRATEGY_CONTRACT_VERSION` | `1.0` |
-| Package/repository | *[pins @ Stage 1]* — the decomposed `SignalSource` package (path/commit) |
+| Package/repository | `strategies/nifty_shield_v1/` (external package; `build_signal_source` factory) |
 | Factory export | `build_signal_source(config)` |
 
 **1a. DayType model identity (§5.1 of the assessment — blocks freeze).** The strategy consumes
@@ -94,6 +94,16 @@ Proposed certified dict (freezes at Stage 1; `config_hash` computed over the fro
 *[pins @ Stage 1]* — `iv_default`'s disposition (real marks vs fallback) and `cost_per_lot_rs`
 (kept vs dropped in favour of the platform fee model) are settled at decomposition, then frozen.
 
+**Disposition (Stage-1 implementer).** The source never prices: `iv_default` and
+`cost_per_lot_rs` are **not read by `build_signal_source`** — pricing is execution's against
+real marks, and fees are the platform model's (`core/execution/options/fees.py` is
+authoritative). Both keys remain in `DEFAULT_CONFIG` for datasheet continuity but are inert for
+the source; the exit-manager reads only `profit_target_pct` / `stop_loss_multiplier` /
+`exit_time` / `max_portfolio_delta`. **Proposed: retain as declared-but-inert; drop them from
+the certified dict at the CONFORMANT grant if the grantor prefers a minimal surface.**
+`undefined_risk_stress_pts` (200) is the one new key added at decomposition — it feeds the
+per-leg `sl_distance`/`risk_r` declaration and the §7a max-DD number.
+
 ## 4. Universe
 
 | Field | Value |
@@ -122,18 +132,27 @@ bear-call (defined); Choppy VIX>16 → strangle (**undefined risk**); Choppy 14<
 
 | Field | Value |
 |---|---|
-| `on_bar` p99 latency budget | *[pins @ Stage 1]* — proposed **≤ 50 ms**. Light compute: regime read + structure select + strike math + Black-76 greeks on ≤4 legs; measured at conformance |
+| `on_bar` p99 latency budget | **≤ 50 ms — measured 0.0022 ms** (2,250-bar corpus, single-threaded; fact loaded at `on_start`, `on_bar` is a dict lookup + arithmetic) |
 
 ## 7. Risk declaration
 
 | Field | Value |
 |---|---|
-| Max drawdown (Rs) | *[pins @ Stage 1 — via §7a stress method; **NOT** from backtest]* |
-| Max drawdown (% of allocated capital) | *[pins @ Stage 1 — via §7a]* |
-| Per-trade risk (`risk_r` semantics) | **Not fixed-R.** Lot-based (1–2 lots ×75). Loss bounded by structure: defined = `(wing_width − net_credit) × 75 × lots`; undefined = 2× credit stop **+ intraday-spike slippage** (§7a) |
+| Max drawdown (Rs) | **Rs 30,000 worst single day / Rs 150,000 stressed 5-day streak** (computed via §7a stress method — *proposed, pins at freeze*) |
+| Max drawdown (% of allocated capital) | *[pins @ Stage 3 capital plan]* |
+| Per-trade risk (`risk_r` semantics) | **Not fixed-R.** Lot-based (1–2 lots ×75). Loss bounded by structure: defined = `(wing_width − net_credit) × 75 × lots`; undefined = 2× credit stop **+ intraday-spike slippage** (§7a). Declared per leg: `sl_distance` = wing width (defined) / 200-pt stress distance (undefined), `risk_r` = distance × 75 × declared lots |
 | `sl_distance` semantics | **Not a price-distance SL.** Exit is a **2× credit-received** stop on the structure, plus a **15:15 hard time-exit** and a **50% capture** target |
-| Max margin utilization | *[pins @ Stage 1]* — ceiling as % of allocated capital; margin computed **only** by `NseMarginEngine` (SPAN+ELM; ADR-011/013). Undefined-risk legs must show SPAN+ELM exercised in the PAPER report (§7.7) |
+| Max margin utilization | **Ceiling proposed at 25% of allocated capital**; margin computed **only** by `NseMarginEngine` (SPAN+ELM; ADR-011/013). Undefined-risk legs must show SPAN+ELM exercised in the PAPER report (§7.7) |
 | Allocated capital (Stage 3+) | *[pins @ Stage 3 capital plan]* |
+
+**§7a computed numbers (proposed, script-derived, no backtest input).** Per structure at
+declared lots (datasheet §5a sizing: `lots = max(1, round(2 × regime_mult))`, −1 if VIX>16
+non-strangle): bull_put/bear_call (1 lot, wing 150) → **Rs 11,250**; iron_fly (2 lots, wing 100)
+→ **Rs 15,000**; short_straddle/strangle (2 lots, 200-pt stress) → **Rs 30,000**. The declared
+max DD is the larger single worst-structure day (**Rs 30,000**) and a 5-consecutive-day stressed
+streak (**Rs 150,000**) — the undefined-risk stress distance is the config
+`undefined_risk_stress_pts = 200`, a *proposed freeze value*. Backtest DD is explicitly not an
+input.
 
 **7a. Max-DD derivation method (the §5.2 trap, handled).** The declared max DD is **not** read
 off the external backtest (flat IV + synthetic pricing + no gaps — §8). It is a **stress view**,
@@ -177,9 +196,9 @@ shortfall **ledgered as an accepted deviation, visible forever**.
 ## 11. Stage 1 freeze checklist
 
 - [ ] `code_ref` + `config_hash` pinned to the decomposed package/config.
-- [ ] DayType model identity resolved — vendored in `code_ref` (preferred) or content-hashed (§1a).
-- [ ] Max-DD **number** computed via §7a and inserted (backtest DD excluded).
-- [ ] Max margin utilization ceiling set; `NseMarginEngine` SPAN+ELM confirmed exercised.
-- [ ] `on_bar` p99 latency measured at conformance.
-- [ ] `iv_default` + `cost_per_lot_rs` decomposition disposition recorded.
+- [ ] DayType model identity resolved — vendored in `code_ref` (preferred) or content-hashed (§1a). **Resolved: content-hashed fact (D2 ratified); `config_hash` covers the strategy dict, the fact's `model_hash`/`regime_fact_version` are recorded per row.**
+- [ ] Max-DD **number** computed via §7a and inserted (backtest DD excluded). **Proposed: Rs 30,000 / Rs 150,000 streak.**
+- [ ] Max margin utilization ceiling set; `NseMarginEngine` SPAN+ELM confirmed exercised. **Ceiling proposed 25%; sizing service wired to the margin engine (D4).**
+- [ ] `on_bar` p99 latency measured at conformance. **Measured 0.0022 ms.**
+- [ ] `iv_default` + `cost_per_lot_rs` decomposition disposition recorded. **Inert for the source; see §3 note.**
 - [ ] Conformance report attached; datasheet frozen at the CONFORMANT grant.

@@ -61,6 +61,11 @@ config/credentials.json
 
 # Pickle files (model checkpoints, serialised state)
 *.pkl
+# DayType model binaries are tracked: the facts DB is reproducible only from the
+# recorded model + committed publisher (DAYTYPE_FACTS_ADOPTION_SPEC §4 DT1/DT4).
+!models/daytype/
+!models/daytype/**/model.pkl
+!models/daytype/**/scaler.pkl
 
 # Data repository directories (migrated from D:\bot\root, tracked by F:\nifty)
 historical/
