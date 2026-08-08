@@ -30,7 +30,9 @@ Produce a **PAPER Validation Report** (§9.2) proving `nifty_shield_v1` *behaves
 
 ## 2. Decisions to ratify (operator, before implementation)
 
-Each is stated with a recommendation. Do not implement until ratified.
+> **RATIFIED 2026-08-08 (operator): E7-1 through E7-6 all approved as recommended.** This prompt is the prompt of record; DeepSeek implements Phase A against the recommendations below.
+
+Each is stated with a recommendation.
 
 | # | Decision | Recommendation |
 |---|---|---|
