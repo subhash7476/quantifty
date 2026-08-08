@@ -80,13 +80,19 @@ standing reference for the ledger format and auditability.
 · docs/reports/NIFTY_SHIELD_ADOPTION_ASSESSMENT.md · 48e455a · operator · First external strategy on the ladder. Identity reserved for the NiftyShield port — a regime-adaptive weekly Nifty options premium seller — from the retired D:\BOT\root platform. Routed through the MM12.5 promotion pipeline (safety), NOT the research/RFA track (assessment §2); RFA recorded Not Applicable with reasons (§2.1). code_ref and config_hash are unpinned at Stage 0 and pinned at the Stage 1 submission (§4.0). The bundled strategy fails Stage 1 CONFORMANT as-copied (illegal core.* imports, forbidden execution/broker handles, side-effects in on_bar — assessment §4) and will be re-expressed as a dumb SignalSource; the copy-in path is void. Stage 0 grants nothing (§4.0). Binding on downstream work: the OSC-preserved unread index-options window (2016→2022) must not be backtested (assessment §3); the DayType model identity hole (§5.1) and sweep_filter (§5.4) are excluded from this identity. Per §5.2, this strategy_id is never reused if abandoned.
 ```
 
+### E005 — nifty_shield_v1 Stage 1 CONFORMANT grant (first external strategy certified)
+
+```
+2026-08-08 · nifty_shield_v1 · (ebfb7ec, c5b722ff204d4e434f5cbffb1674136738a79693a3ced17bf07e46676d5336c6) · 1.0 · DEVELOPMENT → CONFORMANT
+· docs/strategies/nifty_shield_v1/datasheet.md (v1, frozen), docs/reports/NIFTY_SHIELD_STAGE1_CONFORMANCE_REPORT.md, docs/reports/NIFTY_SHIELD_DECOMPOSITION_SPEC.md, docs/reports/DAYTYPE_FACTS_IMPLEMENTATION_REPORT.md, tests/strategies/test_nifty_shield_v1_conformance.py (7 conformance tests), tests/execution/test_nifty_shield_execution.py (15 execution tests) · 5594470 · Technical Lead · This is a SAFETY/CONTRACT grant, not an alpha grant — the conformance corpus is Nifty-50 index 1m bars + regime/VIX facts; no option marks, no P&L, no backtest is graded. The certified artifact is the re-expressed dumb SignalSource per NIFTY_SHIELD_DECOMPOSITION_SPEC.md (D1–D5); the bundled copy-in path is void (E004). Evidence: MM12.2 Layer 1+2 conformance PASS raw AND guard-wrapped; replay-twice byte-identical 16-signal stream; on_bar p99 0.0022 ms; §7a max-DD Rs 30,000 single / Rs 150,000 5-day streak (backtest DD excluded); margin ceiling 25%, NseMarginEngine wired (D4). config_hash reproduces exactly from strategies/nifty_shield_v1/config.py; frozen disposition — iv_default retained-inert, cost_per_lot_rs dropped, undefined_risk_stress_pts (200) retained. Prohibitions honoured: OSC index-options window 2016-02-11→2022-12-31 UNTOUCHED, no P&L presented as validation, sweep_filter excluded from the identity. STANDING PROVENANCE CAVEAT (operator-directed, carried forward): the DayType regime models are NOT trained on F:\Nifty data — they are the retired D:\BOT\root v2.0-train_thru2025 models, reused as-is; a retrain-on-F:\Nifty pass is deferred; the caveat rides each fact row via the trained_on column. LOW-2 (sizing min_lots=1 floor) is accepted as a conscious Stage-2 capital-plan note, NOT a code change. Stage 2 (PAPER VALIDATED, E006) is blocked on one prerequisite: the DayType live 13:00 publisher wired to a live bar feed — and, coupled to it, the RegimeFactsReader read-timing (it snapshots the whole facts table at on_start, when today's 13:00 fact does not yet exist) must move to a per-bar/at-13:00 read for live. Grant confers no LIVE authority.
+```
+
 ---
 
 ## Open entries (reserved for future use)
 
-*E004 consumed 2026-08-07 (see Entries above). The following slots remain reserved for `nifty_shield_v1`'s onward promotion path (or, if it is abandoned, the next external strategy's — a retired id is never reused, §5.2):*
+*E004 consumed 2026-08-07, E005 consumed 2026-08-08 (see Entries above). The following slots remain reserved for `nifty_shield_v1`'s onward promotion path (or, if it is abandoned, the next external strategy's — a retired id is never reused, §5.2):*
 
-- E005 — (first external strategy Stage 1 CONFORMANT grant)
 - E006 — (first external strategy Stage 2 PAPER VALIDATED grant)
 - E007 — (first external strategy Stage 3 LIVE CANDIDATE grant)
 - E008 — (first external strategy Stage 4 LIVE APPROVED grant)

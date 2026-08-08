@@ -1,15 +1,17 @@
 # Strategy Datasheet — `nifty_shield_v1`
 
 **Template version:** 1.0 (MM12.5)
-**Created at:** Stage 0 — **DRAFT** (frozen at the Stage 1 CONFORMANT grant, §4.1; any later change = new identity, §2)
-**Date:** 2026-08-07
-**Ledger:** E004 · **Spec of record:** `docs/reports/NIFTY_SHIELD_ADOPTION_ASSESSMENT.md`
+**Created at:** Stage 0 — **FROZEN at the Stage 1 CONFORMANT grant (Ledger E005, 2026-08-08)** (any later change = new identity, §2)
+**Date:** 2026-08-07 · **Frozen:** 2026-08-08
+**Ledger:** E004 (identity reservation), E005 (CONFORMANT grant) · **Spec of record:** `docs/reports/NIFTY_SHIELD_ADOPTION_ASSESSMENT.md`
 **Source design:** `F:\nifty_research_bundle\nifty_shield\` (retired `D:\BOT\root` platform)
 
 > The certified artifact is the **re-expressed dumb `SignalSource`** built per
 > `NIFTY_SHIELD_DECOMPOSITION_SPEC.md` — the bundled code does not pass Stage 1 as-copied
-> (assessment §4). Values below are bundle defaults carried as the **proposed** certified
-> config; fields marked *[pins @ Stage 1]* / *[pins @ Stage 3]* are not yet final.
+> (assessment §4). The §3 dict is **frozen** as the certified config: `config_hash`
+> `c5b722ff…536c` reproduces exactly from `strategies/nifty_shield_v1/config.py`. Fields
+> marked *[pins @ Stage 3]* remain deferred to the Stage 3 capital plan; all Stage-1 pins are
+> now final.
 
 ---
 
@@ -18,8 +20,8 @@
 | Field | Value |
 |---|---|
 | `strategy_id` | `nifty_shield_v1` |
-| `code_ref` | *[pins @ Stage 1]* — commit of the decomposed strategy package (`strategies/nifty_shield_v1/`) |
-| `config_hash` | *[pins @ Stage 1]* — SHA-256 of the certified `build_signal_source(config)` dict → **`c5b722ff204d4e434f5cbffb1674136738a79693a3ced17bf07e46676d5336c6`** (computed over the datasheet §3 dict, excluding the `facts_db_path` runtime seam) |
+| `code_ref` | **`ebfb7ec`** — commit of the decomposed strategy package (`strategies/nifty_shield_v1/`); merged to `main` via `5594470` |
+| `config_hash` | **`c5b722ff204d4e434f5cbffb1674136738a79693a3ced17bf07e46676d5336c6`** — SHA-256 of the certified `build_signal_source(config)` dict (the datasheet §3 dict, excluding the `facts_db_path` runtime seam); **reproduces from `config.py`** |
 | `STRATEGY_CONTRACT_VERSION` | `1.0` |
 | Package/repository | `strategies/nifty_shield_v1/` (external package; `build_signal_source` factory) |
 | Factory export | `build_signal_source(config)` |
@@ -87,22 +89,26 @@ Proposed certified dict (freezes at Stage 1; `config_hash` computed over the fro
   "expiry_days_min": 2,
   "strike_step": 50,
   "risk_free_rate": 0.065,
-  "iv_default": 0.14
+  "iv_default": 0.14,
+  "undefined_risk_stress_pts": 200
 }
 ```
 
-*[pins @ Stage 1]* — `iv_default`'s disposition (real marks vs fallback) and `cost_per_lot_rs`
-(kept vs dropped in favour of the platform fee model) are settled at decomposition, then frozen.
+**Frozen disposition (Stage 1, locked by the pinned `config_hash`).** The three questions the
+draft left open are settled by the hash the grantor pinned — changing any of them mints a new
+identity (§2):
 
-**Disposition (Stage-1 implementer).** The source never prices: `iv_default` and
-`cost_per_lot_rs` are **not read by `build_signal_source`** — pricing is execution's against
-real marks, and fees are the platform model's (`core/execution/options/fees.py` is
-authoritative). Both keys remain in `DEFAULT_CONFIG` for datasheet continuity but are inert for
-the source; the exit-manager reads only `profit_target_pct` / `stop_loss_multiplier` /
-`exit_time` / `max_portfolio_delta`. **Proposed: retain as declared-but-inert; drop them from
-the certified dict at the CONFORMANT grant if the grantor prefers a minimal surface.**
-`undefined_risk_stress_pts` (200) is the one new key added at decomposition — it feeds the
-per-leg `sl_distance`/`risk_r` declaration and the §7a max-DD number.
+- `iv_default` (0.14) — **retained, declared-but-inert.** The source never prices; execution
+  prices on real marks. Kept in the certified dict for continuity but not read by
+  `build_signal_source`.
+- `cost_per_lot_rs` — **dropped** from the certified dict (it is not in `DEFAULT_CONFIG`). The
+  platform fee model is authoritative (`core/execution/options/fees.py`).
+- `undefined_risk_stress_pts` (200) — **retained** in the certified dict; it feeds the per-leg
+  `sl_distance`/`risk_r` declaration and the §7a max-DD number.
+
+The "minimal-surface" option floated in the draft (drop the inert keys at grant) is **foreclosed**:
+dropping keys changes the hash, and the grantor pinned `c5b722ff…536c`. The exit-manager reads
+only `profit_target_pct` / `stop_loss_multiplier` / `exit_time` / `max_portfolio_delta`.
 
 ## 4. Universe
 
@@ -117,7 +123,7 @@ per-leg `sl_distance`/`risk_r` declaration and the §7a max-DD number.
 
 | Field | Value |
 |---|---|
-| `on_bar` signals per bar (max) | Up to **4** at the 13:00 entry bar (iron-fly = 4 legs); ≤ 2 otherwise (exit/hedge). *[confirm @ decomposition — one multi-leg signal vs per-leg]* |
+| `on_bar` signals per bar (max) | Up to **4** at the 13:00 entry bar (iron-fly = 4 legs); ≤ 2 otherwise (exit/hedge). **Resolved (D3): one `SignalEvent` per leg**, all legs sharing a deterministic `group_id`. |
 | Entry frequency band | **1 structure/session** at 13:00 (0 on VIX-skip days); no stacking (`_has_open_trade_today`) |
 | Exit frequency band | 1 structure closed/session (50% capture, 2× stop, or 15:15) |
 | Max simultaneous positions | **1 structure** (up to 4 legs) |
@@ -138,11 +144,11 @@ bear-call (defined); Choppy VIX>16 → strangle (**undefined risk**); Choppy 14<
 
 | Field | Value |
 |---|---|
-| Max drawdown (Rs) | **Rs 30,000 worst single day / Rs 150,000 stressed 5-day streak** (computed via §7a stress method — *proposed, pins at freeze*) |
+| Max drawdown (Rs) | **Rs 30,000 worst single day / Rs 150,000 stressed 5-day streak** (computed via §7a stress method — **pinned at E005**) |
 | Max drawdown (% of allocated capital) | *[pins @ Stage 3 capital plan]* |
 | Per-trade risk (`risk_r` semantics) | **Not fixed-R.** Lot-based (1–2 lots ×75). Loss bounded by structure: defined = `(wing_width − net_credit) × 75 × lots`; undefined = 2× credit stop **+ intraday-spike slippage** (§7a). Declared per leg: `sl_distance` = wing width (defined) / 200-pt stress distance (undefined), `risk_r` = distance × 75 × declared lots |
 | `sl_distance` semantics | **Not a price-distance SL.** Exit is a **2× credit-received** stop on the structure, plus a **15:15 hard time-exit** and a **50% capture** target |
-| Max margin utilization | **Ceiling proposed at 25% of allocated capital**; margin computed **only** by `NseMarginEngine` (SPAN+ELM; ADR-011/013). Undefined-risk legs must show SPAN+ELM exercised in the PAPER report (§7.7) |
+| Max margin utilization | **Ceiling pinned at 25% of allocated capital**; margin computed **only** by `NseMarginEngine` (SPAN+ELM; ADR-011/013). Undefined-risk legs must show SPAN+ELM exercised in the PAPER report (§7.7) |
 | Allocated capital (Stage 3+) | *[pins @ Stage 3 capital plan]* |
 
 **§7a computed numbers (proposed, script-derived, no backtest input).** Per structure at
@@ -175,10 +181,10 @@ and a single worst-structure day, in Rs and %. The backtest DD is explicitly not
 
 | Gate | Setting | Source |
 |---|---|---|
-| Drawdown limit | *[from §7 max DD]* | Handler drawdown gate |
+| Drawdown limit | **Rs 30,000 single day / Rs 150,000 5-day streak** (§7) | Handler drawdown gate |
 | Daily trade limit | **1 structure/session** | Handler daily-limit gate (from §5 entry band) |
 | Max positions | **1 structure** | Handler stacking gate (`_has_open_trade_today`) |
-| Margin budget | *[from §7 max margin utilization]* | Handler margin gate (`NseMarginEngine`) |
+| Margin budget | **25% of allocated capital** (§7) | Handler margin gate (`NseMarginEngine`) |
 | Greek limits | Portfolio \|Δ\| > **500** → **flatten the structure** (D1: close-only gate, **no dynamic hedge** in v1 — a new hedge would invert ADR-006) | Handler Greek gate (`max_portfolio_delta`) |
 
 ---
@@ -195,10 +201,10 @@ shortfall **ledgered as an accepted deviation, visible forever**.
 
 ## 11. Stage 1 freeze checklist
 
-- [ ] `code_ref` + `config_hash` pinned to the decomposed package/config.
-- [ ] DayType model identity resolved — vendored in `code_ref` (preferred) or content-hashed (§1a). **Resolved: content-hashed fact (D2 ratified); `config_hash` covers the strategy dict, the fact's `model_hash`/`regime_fact_version` are recorded per row.**
-- [ ] Max-DD **number** computed via §7a and inserted (backtest DD excluded). **Proposed: Rs 30,000 / Rs 150,000 streak.**
-- [ ] Max margin utilization ceiling set; `NseMarginEngine` SPAN+ELM confirmed exercised. **Ceiling proposed 25%; sizing service wired to the margin engine (D4).**
-- [ ] `on_bar` p99 latency measured at conformance. **Measured 0.0022 ms.**
-- [ ] `iv_default` + `cost_per_lot_rs` decomposition disposition recorded. **Inert for the source; see §3 note.**
-- [ ] Conformance report attached; datasheet frozen at the CONFORMANT grant.
+- [x] `code_ref` + `config_hash` pinned to the decomposed package/config. **`ebfb7ec` / `c5b722ff…536c` — hash reproduces from `config.py`.**
+- [x] DayType model identity resolved — vendored in `code_ref` (preferred) or content-hashed (§1a). **Resolved: content-hashed fact (D2 ratified); `config_hash` covers the strategy dict, the fact's `model_hash`/`regime_fact_version` are recorded per row.**
+- [x] Max-DD **number** computed via §7a and inserted (backtest DD excluded). **Rs 30,000 single day / Rs 150,000 5-day streak.**
+- [x] Max margin utilization ceiling set; `NseMarginEngine` SPAN+ELM confirmed exercised. **Ceiling pinned 25%; sizing service wired to the margin engine (D4, unit-tested). Scope note: the §7.7 SPAN+ELM confirmation on undefined-risk legs against *real marks* is a Stage-2 PAPER obligation — this tick covers ceiling-set + engine-wired, not the live-marks demonstration.**
+- [x] `on_bar` p99 latency measured at conformance. **Measured 0.0022 ms.**
+- [x] `iv_default` + `cost_per_lot_rs` decomposition disposition recorded. **`iv_default` retained-inert; `cost_per_lot_rs` dropped; `undefined_risk_stress_pts` retained — locked by the pinned hash (§3 frozen note).**
+- [x] Conformance report attached; datasheet frozen at the CONFORMANT grant. **`docs/reports/NIFTY_SHIELD_STAGE1_CONFORMANCE_REPORT.md`; frozen 2026-08-08 at Ledger E005.**
