@@ -1,0 +1,7 @@
+session_date,checkpoint,regime,regime_confidence,vix_close,regime_fact_version,model_hash,produced_by,trained_on
+2023-01-02,13pm,Choppy,0.6573,14.69,dt-v2.0-train_thru2025,cd11e08711e36aeac4693015d5f2f2d2bc2913dfa0f1a0202b16c6718fa106b5,offline@06b99e3,D:\BOT\root vintage — NOT F:\nifty data
+2023-01-03,13pm,Choppy,0.8221,14.39,dt-v2.0-train_thru2025,cd11e08711e36aeac4693015d5f2f2d2bc2913dfa0f1a0202b16c6718fa106b5,offline@06b99e3,D:\BOT\root vintage — NOT F:\nifty data
+2023-01-04,13pm,BearTrend,0.9262,15.2,dt-v2.0-train_thru2025,cd11e08711e36aeac4693015d5f2f2d2bc2913dfa0f1a0202b16c6718fa106b5,offline@06b99e3,D:\BOT\root vintage — NOT F:\nifty data
+2023-01-05,13pm,BearTrend,0.7081,14.98,dt-v2.0-train_thru2025,cd11e08711e36aeac4693015d5f2f2d2bc2913dfa0f1a0202b16c6718fa106b5,offline@06b99e3,D:\BOT\root vintage — NOT F:\nifty data
+2023-01-06,13pm,BearTrend,0.7683,15.03,dt-v2.0-train_thru2025,cd11e08711e36aeac4693015d5f2f2d2bc2913dfa0f1a0202b16c6718fa106b5,offline@06b99e3,D:\BOT\root vintage — NOT F:\nifty data
+2023-01-09,13pm,BullTrend,0.8217,14.65,dt-v2.0-train_thru2025,cd11e08711e36aeac4693015d5f2f2d2bc2913dfa0f1a0202b16c6718fa106b5,offline@06b99e3,D:\BOT\root vintage — NOT F:\nifty data
