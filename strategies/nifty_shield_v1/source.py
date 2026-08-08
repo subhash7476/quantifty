@@ -34,12 +34,16 @@ class NiftyShieldSignalSource(SignalSource):
 
     def __init__(self, config: Dict[str, Any]):
         self._cfg = dict(config)
-        self._facts: Dict[date, dict] = {}
+        self._reader: Optional[RegimeFactsReader] = None
         self._session_date: Optional[date] = None
         self._entered_today = False
 
     def on_start(self, context: Optional[Any] = None) -> None:
-        self._facts = RegimeFactsReader(self._cfg["facts_db_path"]).load()
+        # DS2-1: store the reader, do NOT snapshot. Live, today's 13:00 fact
+        # does not exist at session start (~09:15) — it is published intraday
+        # (DS2-2) and queried lazily at the 13:00 bar. Offline the fact is
+        # already present, so the per-session query is a provable no-op.
+        self._reader = RegimeFactsReader(self._cfg["facts_db_path"])
 
     def on_bar(self, bar: OHLCVBar) -> List[SignalEvent]:
         bar_dt = bar.timestamp
@@ -58,12 +62,14 @@ class NiftyShieldSignalSource(SignalSource):
         if bar_dt.time() != time(_ENTRY_HOUR, _ENTRY_MINUTE):
             return []
 
-        fact = self._facts.get(bar_date)
+        fact = self._reader.fact(bar_date)
         if fact is None:
             self._entered_today = True
             return []
 
-        vix = fact.get("vix_close")
+        # DS2-3: gate on the intraday 13:00 VIX when the row carries it (live),
+        # else the EOD vix_close (offline corpus — byte-identical fallback).
+        vix = fact.get("vix_at_checkpoint") or fact.get("vix_close")
         if vix is not None and vix > float(self._cfg.get("vix_skip_above", 20.0)):
             self._entered_today = True
             return []
@@ -77,7 +83,7 @@ class NiftyShieldSignalSource(SignalSource):
     def _build_legs(self, bar: OHLCVBar, fact: dict) -> List[SignalEvent]:
         regime = fact["regime"]
         conf = float(fact["regime_confidence"])
-        vix = fact.get("vix_close")
+        vix = fact.get("vix_at_checkpoint") or fact.get("vix_close")
         structure = structures.select_structure(regime, vix, self._cfg)
 
         base_lots = int(self._cfg.get("max_lots", 2))
