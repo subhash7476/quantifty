@@ -3,7 +3,7 @@
 **Template version:** 1.0 (MM12.5)
 **Created at:** Stage 0 — **FROZEN at the Stage 1 CONFORMANT grant (Ledger E005, 2026-08-08)** (any later change = new identity, §2)
 **Date:** 2026-08-07 · **Frozen:** 2026-08-08
-**Ledger:** E004 (identity reservation), E005 (CONFORMANT grant) · **Spec of record:** `docs/reports/NIFTY_SHIELD_ADOPTION_ASSESSMENT.md`
+**Ledger:** E004 (identity reservation), E005 (CONFORMANT grant), E006 (Stage-2-prereq re-cert, 2026-08-08) · **Spec of record:** `docs/reports/NIFTY_SHIELD_ADOPTION_ASSESSMENT.md`
 **Source design:** `F:\nifty_research_bundle\nifty_shield\` (retired `D:\BOT\root` platform)
 
 > The certified artifact is the **re-expressed dumb `SignalSource`** built per
@@ -20,7 +20,7 @@
 | Field | Value |
 |---|---|
 | `strategy_id` | `nifty_shield_v1` |
-| `code_ref` | **`ebfb7ec`** — commit of the decomposed strategy package (`strategies/nifty_shield_v1/`); merged to `main` via `5594470` |
+| `code_ref` | **`89fcdd6`** — merge commit of the re-certified package (Stage-2 prerequisite: DS2-1 lazy 13:00 read-timing + DS2-2 additive driver publish seam + DS2-3 intraday `vix_at_checkpoint`); re-granted at Ledger E006 (operator), 2026-08-08. Supersedes the Stage-1 `ebfb7ec` / `5594470` (E005); **`config_hash` unchanged**, so this is the *same identity* re-certified at a new `code_ref` (MM12.5 §5.2), not a new identity. The §6 latency row ("fact loaded at on_start") is now history — the fact is queried lazily at the 13:00 bar (p99 still within the 0.05 s budget) |
 | `config_hash` | **`c5b722ff204d4e434f5cbffb1674136738a79693a3ced17bf07e46676d5336c6`** — SHA-256 of the certified `build_signal_source(config)` dict (the datasheet §3 dict, excluding the `facts_db_path` runtime seam); **reproduces from `config.py`** |
 | `STRATEGY_CONTRACT_VERSION` | `1.0` |
 | Package/repository | `strategies/nifty_shield_v1/` (external package; `build_signal_source` factory) |
