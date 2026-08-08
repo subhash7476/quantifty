@@ -214,8 +214,31 @@ def test_metrics_report_round_trip_and_winrate(tmp_path):
     assert m.wins == 1 and m.losses == 1
     assert m.win_rate == pytest.approx(0.5)
     assert m.total_realized_pnl == pytest.approx(12000 - 3000 - 6000 + 1500)
+    # F2: R is normalized by the pinned declared risk_r (Rs) — computed, not 0.
+    assert m.r_normalized_structures == 2
+    assert m.avg_win_r == pytest.approx(9000.0 / 15000.0)
+    assert m.avg_loss_r == pytest.approx(-4500.0 / 15000.0)
     assert m.peak_margin_utilisation > 0.0
     assert m.profit_factor is not None and m.profit_factor > 0
+
+
+def test_metrics_r_is_vacuous_not_zero_when_risk_r_missing(tmp_path):
+    """F2: a structure whose risk_r is absent (a source/regression defect) must
+    surface the R columns as vacuous (None), never silently compute 0.0."""
+    journal = tmp_path / "j.jsonl"
+    event = _margin_event()
+    event["metadata"]["risk_r"] = None
+    _write_journal(journal, [event, _close_event()])
+    db = tmp_path / "trades.db"
+    _trades_db(db, [
+        ("t1", "s1", "2026-06-05", "NIFTY09JUN2623950CE", "SELL", 150, 100.0, 0, 12000, 0, "{}"),
+        ("t2", "s2", "2026-06-05", "NIFTY09JUN2624100CE", "BUY", 150, 20.0, 0, -3000, 0, "{}"),
+    ])
+    m = risk_metrics_report(str(journal), str(db), initial_capital=1_000_000.0)
+    assert m.round_trips == 1
+    assert m.avg_win_r is None                 # vacuous surfaced, not 0.0
+    assert m.r_normalized_structures == 0
+    assert m.per_structure[0]["r"] is None
 
 
 def test_metrics_report_guard_counters(tmp_path):

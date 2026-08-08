@@ -38,10 +38,10 @@ from core.execution.handler import ExecutionHandler
 from core.execution.options.nifty_shield_exit import NiftyShieldExitManager
 from core.execution.options.nifty_shield_groups import group_type_for
 from core.execution.options.nifty_shield_marks import (
-    OptionMarksSource, StaticMarksSource,
+    MarksSourceUnavailable, OptionMarksSource, StaticMarksSource,
 )
 from core.execution.options.nifty_shield_sizing import final_lots
-from core.runtime.event_journal import EventType
+from core.runtime.event_journal import EventType, Severity
 from core.risk.nse_margin_engine import NseMarginEngine
 
 STRATEGY_ID = "nifty_shield_v1"
@@ -191,7 +191,19 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
     def _enter_structure(self, group_id: str, structure: str,
                          signals: List[SignalEvent]) -> Optional[Any]:
         leg_symbols = [s.symbol for s in signals]
-        marks = self.marks(leg_symbols)
+        try:
+            marks = self.marks(leg_symbols)
+        except MarksSourceUnavailable as exc:
+            # F3: cache-unavailable is infra, not market state — journal at
+            # CRITICAL so the audit surfaces it; never a silent "missing marks".
+            self._record(
+                EventType.ENTRY_SKIPPED,
+                f"structure entry skipped: marks source unavailable: {exc}",
+                severity=Severity.CRITICAL,
+                group_id=group_id, structure=structure,
+                reason="marks source unavailable", error=str(exc),
+            )
+            return None
         missing = [s for s in signals if s.symbol not in marks]
         if missing:
             self._record(EventType.ENTRY_SKIPPED,
@@ -330,11 +342,13 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
     # ------------------------------------------------------------------ #
     # Evidence journaling (F / E7-2)
     # ------------------------------------------------------------------ #
-    def _record(self, event_type, message, **metadata) -> None:
+    def _record(self, event_type, message, *,
+                severity=None, **metadata) -> None:
         if self._journal is None:
             return
         try:
             self._journal.record(event_type, message,
+                                 severity=severity,
                                  source_component="NiftyShieldExecutionHandler",
                                  metadata=metadata)
         except Exception:
@@ -377,7 +391,11 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             engine=type(self.margin_tracker).__name__,
             session=now.date().isoformat() if now is not None else None,
             leg_symbols=[leg.symbol for leg in group.legs],
-            risk_r=float(leg_metadata.get("risk_r", 0.0)),
+            # F2: the declared risk_r is the pinned R base; if the leg metadata
+            # lacks it (a source/regression defect) journal None so the metrics
+            # report surfaces R as vacuous rather than silently 0.0.
+            risk_r=(float(leg_metadata["risk_r"])
+                    if leg_metadata.get("risk_r") else None),
         )
 
 
@@ -407,7 +425,18 @@ class NiftyShieldExitDriver:
             group = handler.group_tracker.get_group(gid)
             if group is not None:
                 symbols.extend(leg.symbol for leg in group.legs)
-        marks = self._marks_source.marks(symbols)
+        try:
+            marks = self._marks_source.marks(symbols)
+        except MarksSourceUnavailable as exc:
+            # F3: a mid-window cache outage cannot be papered over — an unpriced
+            # book cannot exit. Journal CRITICAL and stop the loop loudly.
+            handler._record(
+                EventType.ENTRY_SKIPPED,
+                f"exit evaluation halted: marks source unavailable: {exc}",
+                severity=Severity.CRITICAL,
+                reason="marks source unavailable", error=str(exc),
+            )
+            raise
         handler.warm_marks(list(marks))
 
         for gid in group_ids:

@@ -114,6 +114,11 @@ def build_nifty_shield_paper_driver(
         conn.execute(TRADING_TRADE_CONTEXT_SCHEMA)
 
     marks = marks_source or ChainSnapshotMarksSource(chain_db_path)
+    # F3: a broken marks cache must refuse to start, never silently skip every
+    # entry as "missing marks". StaticMarksSource (tests/smoke) has no cache.
+    check = getattr(marks, "check_available", None)
+    if check is not None:
+        check()
     span_snapshot = _load_span_snapshot()
     strategy_config = dict(DEFAULT_CONFIG)
 

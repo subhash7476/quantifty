@@ -115,13 +115,33 @@ strategy-attributable (E007 acceptance #8).]
 5. **E7-4 in Phase B:** the smoke run uses a deterministic `StaticMarksSource`; the LIVE window must
    wire `ChainSnapshotMarksSource` (real Upstox V3 chain cache) and journal any missing-mark gate
    outcome. The missing-mark path is already a journaled entry-skip (no synthetic fallback).
+6. **F3 — marks-cache failures are LOUD (review fix, pre-Phase-B).** `ChainSnapshotMarksSource`
+   now raises `MarksSourceUnavailable` on a missing/corrupt/unreadable cache (the repo's documented
+   "bare except turns 'we failed' into 'the source doesn't have it'" pitfall), returns `{}` only for
+   a VALID cache with no rows (market closed). `check_available()` is a startup gate the runner
+   calls before a live window — a misconfigured cache refuses to start. A mid-window outage is
+   journaled CRITICAL at entry and stops the loop from the exit driver.
+7. **F2 — R base PINNED before the window (review fix).** R = structure realized PnL (Rs) ÷ the
+   source's declared `risk_r` (Rs; datasheet §7: sl_distance × 75 × declared lots) → "Rs per
+   declared-risk-Rs-unit", computed at DECLARED lots. `risk_r` is journaled per entry (None if the
+   source/regression ever omits it), and the metrics report surfaces R columns as **vacuous
+   (None), never silently 0.0** (`r_normalized_structures` counts the computable samples).
 
-## 8. Carry-forward provenance (rides every session, E005)
+## 8. Pinned conventions (decide before you see the count — §10 discipline)
+
+| Convention | Pin | Where |
+|---|---|---|
+| Round-trip | 1 RT = 1 structure fully closed (iron fly = 1 RT); delta hedge is not an RT | datasheet §10 |
+| R base (F2) | R = structure PnL (Rs) ÷ declared `risk_r` (Rs); declared-lots basis | this report §7.7 |
+| Max DD gate | Rs 30,000 single day → handler gate = 30 000 ÷ initial_capital | datasheet §9 / `nifty_shield_gates.py` |
+| Marks infra (F3) | cache-unavailable = loud (refuse to start / CRITICAL); valid-empty = market closed | `nifty_shield_marks.py` |
+
+## 9. Carry-forward provenance (rides every session, E005)
 
 The DayType regime models are the retired `D:\BOT\root` `v2.0-train_thru2025` models reused as-is,
 **not** retrained on F:\Nifty — surfaced here, not buried; each fact row carries `trained_on`.
 
-## 9. Hand-back / sequencing
+## 10. Hand-back / sequencing
 
 - **E007 does not begin Stage 3.** LIVE CANDIDATE (E008) infrastructure (MM14 reconciliation) is
   built only when a candidate reaches Stage 3 — never ahead of need.

@@ -10,18 +10,31 @@ This module defines the marks-seam the execution layer prices legs against:
 - `OptionMarksSource` — the seam (per-leg `marks(symbols)` -> price map).
 - `StaticMarksSource` — deterministic marks (tests, smoke run).
 - `ChainSnapshotMarksSource` — REAL Upstox V3 option-chain marks read from the
-  latest `option_chain_snapshot` DuckDB cache (tradingsymbol -> ltp). Phase B
-  wires the live chain feed into that cache; the seam is already real.
+  latest `option_chain_snapshot` DuckDB cache (tradingsymbol -> ltp).
 
-A struck leg with no available mark is a journaled gate outcome to audit — the
-handler never fabricates a mark (E7-4: no synthetic fallback).
+F3 (loud infra failures): `ChainSnapshotMarksSource` distinguishes TWO absence
+classes, because the two mean different things and one of them must be LOUD:
+
+- **Cache unavailable** (file missing, DB corrupt, query/parse failure) — raises
+  `MarksSourceUnavailable`. A misconfigured live window must not silently skip
+  every entry as "missing marks" (the repo's documented "bare except turns 'we
+  failed' into 'the source doesn't have it'" pitfall).
+- **Market closed / strikes not in the snapshot** (cache valid, query succeeds,
+  no rows) — returns `{}` (a legitimate no-mark, journaled as an entry skip).
+
+`check_available()` is the startup validation the runner calls before a live
+window opens: a broken cache refuses to start, it never silently runs.
 """
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import duckdb
+
+
+class MarksSourceUnavailable(RuntimeError):
+    """The marks cache is absent/corrupt/unreadable — infra, not market state."""
 
 
 class OptionMarksSource(ABC):
@@ -47,32 +60,58 @@ class ChainSnapshotMarksSource(OptionMarksSource):
     """Real option-chain marks from the latest option_chain_snapshot snapshot.
 
     Reads `ltp` for each requested `tradingsymbol` from the most recent
-    `snapshot_timestamp` in the cache DB. Absent rows -> absent from the result
-    (the handler journals the missing-mark gate outcome; no synthetic fallback).
+    `snapshot_timestamp` in the cache DB. Raises `MarksSourceUnavailable` when
+    the cache itself is unavailable (F3); returns {} only for a VALID cache with
+    no rows for the requested symbols (market closed / strikes absent).
     """
 
-    def __init__(self, db_path: str,
-                 table: str = "option_chain_snapshot"):
+    def __init__(self, db_path: str, table: str = "option_chain_snapshot"):
         self._db_path = db_path
         self._table = table
+
+    def check_available(self) -> None:
+        """Startup gate: raise MarksSourceUnavailable if the cache cannot open."""
+        self._connect()
+
+    def _connect(self):
+        try:
+            con = duckdb.connect(self._db_path, read_only=True)
+        except Exception as exc:
+            raise MarksSourceUnavailable(
+                f"option-chain cache unavailable at {self._db_path}: {exc}"
+            ) from exc
+        return con
+
+    def _latest_timestamp(self, con) -> object:
+        try:
+            row = con.execute(
+                f"SELECT MAX(snapshot_timestamp) FROM {self._table}"
+            ).fetchone()
+        except Exception as exc:
+            raise MarksSourceUnavailable(
+                f"option-chain cache query failed (table {self._table!r}): {exc}"
+            ) from exc
+        return row[0] if row else None
 
     def marks(self, symbols: List[str]) -> Dict[str, float]:
         if not symbols:
             return {}
+        con = self._connect()
         try:
-            con = duckdb.connect(self._db_path, read_only=True)
-        except Exception:
-            return {}
-        try:
+            latest = self._latest_timestamp(con)
+            if latest is None:
+                return {}                    # valid cache, no snapshot yet
             placeholders = ", ".join("?" for _ in symbols)
-            rows = con.execute(
-                f"SELECT tradingsymbol, ltp FROM {self._table} "
-                f"WHERE snapshot_timestamp = (SELECT MAX(snapshot_timestamp) "
-                f"FROM {self._table}) AND tradingsymbol IN ({placeholders})",
-                list(symbols),
-            ).fetchall()
-        except Exception:
-            rows = []
+            try:
+                rows = con.execute(
+                    f"SELECT tradingsymbol, ltp FROM {self._table} "
+                    f"WHERE snapshot_timestamp = ? "
+                    f"AND tradingsymbol IN ({placeholders})",
+                    [latest] + list(symbols),
+                ).fetchall()
+            except Exception as exc:
+                raise MarksSourceUnavailable(
+                    f"option-chain cache query failed: {exc}") from exc
         finally:
             con.close()
         return {sym: float(ltp) for sym, ltp in rows

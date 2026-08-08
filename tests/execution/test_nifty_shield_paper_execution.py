@@ -29,7 +29,7 @@ from core.execution.options.nifty_shield_handler import (
     NiftyShieldExecutionHandler, NiftyShieldExitDriver,
 )
 from core.execution.options.nifty_shield_marks import (
-    ChainSnapshotMarksSource, StaticMarksSource,
+    ChainSnapshotMarksSource, MarksSourceUnavailable, StaticMarksSource,
 )
 from core.execution.persistence.execution_store import ExecutionStore
 from core.runtime.event_journal import EventType, RuntimeEventJournal
@@ -98,6 +98,10 @@ def _build_handler(tmp_path, monkeypatch, *, marks=None, journal=None,
     from core.database.schema import TRADING_TRADES_SCHEMA
     with dm.trading_writer() as conn:
         conn.execute(TRADING_TRADES_SCHEMA)
+    if marks is None:
+        marks = StaticMarksSource(_entry_marks())
+    elif not hasattr(marks, "marks"):              # a plain dict -> static source
+        marks = StaticMarksSource(marks)
     return NiftyShieldExecutionHandler(
         db_manager=dm,
         clock=clock,
@@ -107,7 +111,7 @@ def _build_handler(tmp_path, monkeypatch, *, marks=None, journal=None,
         load_db_state=True,
         initial_capital=initial_capital,
         journal=journal,
-        marks_source=StaticMarksSource(marks or _entry_marks()),
+        marks_source=marks,
         strategy_config=dict(DEFAULT_CONFIG),
     )
 
@@ -151,8 +155,43 @@ def test_chain_snapshot_marks_source_reads_latest(tmp_path):
     )
     con.close()
     src = ChainSnapshotMarksSource(str(db))
+    src.check_available()                        # valid cache -> no raise
     assert src.marks(["NIFTY10JAN2318150CE", "MISSING"]) == {
         "NIFTY10JAN2318150CE": 100.0}
+
+
+def test_chain_snapshot_raises_when_cache_unavailable(tmp_path):
+    """F3: a missing/corrupt cache is loud (MarksSourceUnavailable), never a
+    silent {} that reads as 'market closed'."""
+    missing = tmp_path / "nope.duckdb"
+    src = ChainSnapshotMarksSource(str(missing))
+    with pytest.raises(MarksSourceUnavailable):
+        src.check_available()
+    with pytest.raises(MarksSourceUnavailable):
+        src.marks(["NIFTY10JAN2318150CE"])
+
+    corrupt = tmp_path / "corrupt.duckdb"
+    corrupt.write_bytes(b"not a duckdb file at all")
+    src2 = ChainSnapshotMarksSource(str(corrupt))
+    with pytest.raises(MarksSourceUnavailable):
+        src2.marks(["NIFTY10JAN2318150CE"])
+
+
+def test_chain_snapshot_returns_empty_only_when_valid_but_no_rows(tmp_path):
+    """F3: a VALID cache with no snapshot is legitimately 'no marks' -> {} (the
+    market-closed path), distinct from an unavailable cache (which raises)."""
+    import duckdb
+    db = tmp_path / "chain.duckdb"
+    con = duckdb.connect(str(db))
+    con.execute("""
+        CREATE TABLE option_chain_snapshot (
+            tradingsymbol VARCHAR, ltp DOUBLE, snapshot_timestamp TIMESTAMP
+        )
+    """)
+    con.close()
+    src = ChainSnapshotMarksSource(str(db))
+    src.check_available()                        # valid cache, empty -> ok
+    assert src.marks(["NIFTY10JAN2318150CE"]) == {}
 
 
 # --------------------------------------------------------------------------- #
@@ -205,6 +244,42 @@ def test_entry_skips_when_marks_missing(tmp_path, monkeypatch):
                if e["event_type"] == EventType.ENTRY_SKIPPED.value]
     assert skipped
     assert "missing option marks" in skipped[0]["metadata"]["reason"]
+
+
+class _RaisingMarksSource:
+    """F3 fixture: a marks source whose cache is unavailable (loud)."""
+
+    def marks(self, symbols):
+        raise MarksSourceUnavailable("chain cache corrupt")
+
+
+def test_entry_journals_critical_on_marks_outage(tmp_path, monkeypatch):
+    """F3: a cache-unavailable marks source at entry is journaled CRITICAL and
+    blocks the entry — never a silent 'missing marks' skip."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _build_handler(tmp_path, monkeypatch, journal=journal,
+                             marks=_RaisingMarksSource())
+    results = [handler.process_signal(s, 24000.0) for s in _iron_fly_signals()]
+    assert results == [None, None, None, None]
+    events = [json.loads(l) for l in
+              open(str(tmp_path / "journal.jsonl"), encoding="utf-8")]
+    critical = [e for e in events
+                if e["event_type"] == EventType.ENTRY_SKIPPED.value
+                and e["severity"] == "CRITICAL"]
+    assert critical
+    assert "marks source unavailable" in critical[0]["metadata"]["reason"]
+    offenders = [s for s in _entry_marks()
+                 if handler.position_tracker.get_position(s).side.value != "FLAT"]
+    assert not offenders, f"positions opened despite marks outage: {offenders}"
+
+
+def test_exit_driver_raises_loudly_on_marks_outage(tmp_path, monkeypatch):
+    """F3: a mid-window marks outage cannot paper over an unpriced book — the
+    exit driver journals CRITICAL and re-raises (the loop stops loudly)."""
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    driver = NiftyShieldExitDriver(handler, _RaisingMarksSource())
+    with pytest.raises(MarksSourceUnavailable):
+        driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
 
 
 # --------------------------------------------------------------------------- #

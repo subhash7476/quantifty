@@ -6,6 +6,13 @@ round-trip count, win rate, avg win/loss in R, profit factor, max drawdown (Rs,
 per-gate rejection breakdown, and guard counters. PnL facts are included for the
 owner's judgment — they are NOT pass/fail (§1.1).
 
+R base — PINNED before the window (F2): R = structure realized PnL (Rs) ÷ the
+source's declared `risk_r` (Rs), the datasheet §7 per-leg risk unit
+(sl_distance × 75 × declared lots). R is therefore "Rs per declared-risk-Rs-unit",
+computed at DECLARED lots, not the margin-clamped actual lots. When a structure's
+`risk_r` is absent (a source/regression defect), its R is None and the R columns
+are surfaced as vacuous (never silently 0.0).
+
 Inputs (injectable): journal JSONL, SQLite trading.db (trades = fills),
 initial_capital, and an optional execution-metrics JSON (for the max-DD %).
 """
@@ -31,8 +38,13 @@ class RiskMetricsReport:
     wins: int = 0
     losses: int = 0
     win_rate: float = 0.0
-    avg_win_r: float = 0.0
-    avg_loss_r: float = 0.0
+    # R columns are Optional: None when there is no computable R sample (no
+    # win/loss, or every sample's risk_r was absent) — never a fabricated 0.0.
+    avg_win_r: Optional[float] = None
+    avg_loss_r: Optional[float] = None
+    wins_with_r: int = 0
+    losses_with_r: int = 0
+    r_normalized_structures: int = 0          # closed structures with computable R
     profit_factor: Optional[float] = None
     max_drawdown_pct: float = 0.0
     peak_gross_exposure: float = 0.0
@@ -108,7 +120,8 @@ def risk_metrics_report(
     for e in entries:
         md = e["metadata"]
         gid = md["group_id"]
-        risk_r = float(md.get("risk_r", 0.0))
+        risk_r = (float(md["risk_r"]) if md.get("risk_r") is not None
+                  else None)
         legs = md.get("leg_symbols", [])
         # structure realized pnl + gross = sum over its legs' closed trades.
         pnl = 0.0
@@ -146,10 +159,16 @@ def risk_metrics_report(
     report.losses = len(losses)
     report.win_rate = (len(wins) / len(closed_structures)
                        if closed_structures else 0.0)
-    report.avg_win_r = (sum(p["r"] or 0.0 for p in wins) / len(wins)
-                        if wins else 0.0)
-    report.avg_loss_r = (sum(p["r"] or 0.0 for p in losses) / len(losses)
-                         if losses else 0.0)
+    # R normalization (pinned base, F2): only structures with a declared risk_r
+    # contribute; a missing risk_r is surfaced as vacuous (None), never 0.0.
+    win_rs = [p["r"] for p in wins if p["r"] is not None]
+    loss_rs = [p["r"] for p in losses if p["r"] is not None]
+    report.wins_with_r = len(win_rs)
+    report.losses_with_r = len(loss_rs)
+    report.r_normalized_structures = (
+        report.wins_with_r + report.losses_with_r)
+    report.avg_win_r = (sum(win_rs) / len(win_rs) if win_rs else None)
+    report.avg_loss_r = (sum(loss_rs) / len(loss_rs) if loss_rs else None)
     gross_win = sum(p["pnl_rs"] for p in wins)
     gross_loss = abs(sum(p["pnl_rs"] for p in losses))
     report.profit_factor = (
