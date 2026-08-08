@@ -1,7 +1,8 @@
 """nifty_shield_v1 — dumb 13:00 SignalSource (Stage-1 decomposition §3).
 
-Driven on `NSE_INDEX|Nifty 50` 1m bars. At the first bar at/after the 13:00
-checkpoint of a session it reads the session's published regime/VIX fact, selects
+Driven on `NSE_INDEX|Nifty 50` 1m bars. At exactly the 13:00 checkpoint bar of a
+session (a session with no 13:00 bar is skipped — a Stage-2 live-feed concern, not
+a corpus one) it reads the session's published regime/VIX fact, selects
 a structure, computes strikes arithmetically, and emits one `SignalEvent` per leg
 sharing a deterministic `group_id` (D3). It emits NO EXIT signals, reads no
 option marks, sizes nothing, and mutates no platform state (the `entered_today`
