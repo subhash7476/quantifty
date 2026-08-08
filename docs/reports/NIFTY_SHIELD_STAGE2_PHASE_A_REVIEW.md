@@ -46,3 +46,11 @@ The REPLAY smoke's date (2026-06-05) precedes the instrument snapshots → `lot_
 
 ## 4. Recommendation
 **Proceed to Phase B.** Address F2 and F3 before the first live evidence session (both change what the evidence *means* or whether a silent failure is visible); F1/F4/F5 are hygiene that can ride alongside. None requires touching the frozen strategy package. Claude re-reviews the completed report after Phase B; the operator grants E007.
+
+## 5. Follow-up — F2/F3 RESOLVED (commit `e2937fb`, verified 2026-08-08)
+Re-reviewed empirically. **Frozen package still untouched** (`git show --stat e2937fb -- strategies/nifty_shield_v1/` empty); smoke **PASS**; NiftyShield PAPER suites **24/24** (5 new); full suite **1623 passed** (standing G1 red only).
+- **F2 fixed.** R base pinned before the window (report §8): R = structure realized PnL ÷ source-declared `risk_r`. `avg_win_r`/`avg_loss_r` are `Optional=None` (never fabricated 0.0); `risk_r` journaled `None` when absent; `r_normalized_structures` makes "0 wins with computable R" distinct from "no R." Verdict: **resolved.**
+- **F3 fixed.** `ChainSnapshotMarksSource` raises `MarksSourceUnavailable` on missing/corrupt/unreadable cache and query failure; returns `{}` **only** for valid-cache-no-snapshot; `check_available()` is a runner startup gate (misconfigured window refuses to start); mid-window outage → CRITICAL entry journal + exit-driver raise (an unpriced book cannot exit). The bare-except pitfall is closed. Verdict: **resolved.**
+- **F1/F4/F5** acknowledged as hygiene; no frozen-package edits. F4's audit (1 structure/session) remains load-bearing to run **every** Phase-B session.
+
+**Phase A is complete and clean.** No further pre-Phase-B review items. Next milestone is the Phase-B forward window; Claude re-reviews the completed PAPER Validation Report; the operator grants E007.
