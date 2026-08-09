@@ -124,3 +124,55 @@ def test_parks_until_market_open_then_starts():
     deps, calls = _deps(market_open=lambda: next(opens))
     assert orch.start_sequence(deps) == "started"
     assert "session" in calls["spawned"]
+
+
+# --------------------------------------------------------------------------- #
+# Task 7 — supervise loop, cooperative stop, CLI
+# --------------------------------------------------------------------------- #
+import signal
+
+
+def test_stop_child_session_signals_group_and_waits():
+    spec = orch.CHILDREN["session"]
+    proc = _FakePopen(spec.argv)
+    proc.pid = 777
+    sent = {}
+
+    def killer(pid, sig):
+        sent["pid"], sent["sig"] = pid, sig
+        proc._alive = False
+
+    waited = {"n": 0}
+    proc.wait = lambda timeout=None: waited.__setitem__("n", waited["n"] + 1)
+    orch.stop_child(spec, proc, killer=killer)
+    assert sent["pid"] == 777
+    # Windows → CTRL_BREAK, POSIX → SIGTERM; both are cooperative, never kill.
+    expected = signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM
+    assert sent["sig"] == expected
+    assert waited["n"] >= 1
+
+
+def test_supervisor_restarts_crashed_owned_child():
+    started = {"ingestor": _FakePopen([])}
+    started["ingestor"]._alive = False            # crashed
+    respawns = []
+    sup = orch.Supervisor(
+        started=started,
+        spawn=lambda spec: respawns.append(spec.name) or _FakePopen([]),
+        child_alive=lambda spec: False,           # pid file also dead
+    )
+    sup.tick()
+    assert "ingestor" in respawns
+
+
+def test_supervisor_shutdown_leaves_adopted_children():
+    # only started children are torn down; eod (adopted, not in `started`) is left.
+    stops = []
+    sup = orch.Supervisor(
+        started={"session": _FakePopen([])},
+        spawn=lambda spec: _FakePopen([]),
+        child_alive=lambda spec: True,
+        stopper=lambda spec, proc: stops.append(spec.name),
+    )
+    sup.shutdown()
+    assert stops == ["session"]                   # session only; eod untouched
