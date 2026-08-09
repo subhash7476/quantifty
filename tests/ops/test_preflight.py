@@ -58,3 +58,25 @@ def test_all_block_checks_pass_on_healthy_context():
     for fn in (pf.check_token, pf.check_stop_file, pf.check_marks, pf.check_vix):
         assert fn(ctx).ok is True
         assert fn(ctx).tier == "block"
+
+
+def test_warn_checks_flag_but_do_not_block():
+    ctx = _ctx(span_present=False, master_age_days=5.0,
+               feed_fresh={"equity": False, "futures": True,
+                           "stock_options": True, "index": True},
+               eod_worker_alive=False)
+    results = pf.run_preflight(ctx)
+    # Every WARN failure is present but the verdict is still GO (blocks all pass).
+    warn_fail = [r for r in results if r.tier == "warn" and not r.ok]
+    assert {r.name for r in warn_fail} == {"span", "instrument_master",
+                                           "eod_feeds", "eod_worker"}
+    assert pf.verdict(results) == "GO"
+
+
+def test_verdict_no_go_on_any_block_failure():
+    results = pf.run_preflight(_ctx(token_expired=True))
+    assert pf.verdict(results) == "NO-GO"
+
+
+def test_run_preflight_returns_all_eight_checks():
+    assert len(pf.run_preflight(_ctx())) == 8
