@@ -191,11 +191,14 @@ def _heartbeat_age_s(now: datetime) -> Optional[float]:
 def _ingestor_alive(now: datetime) -> bool:
     """Liveness = status file written today AND its PID alive.
 
-    NOTE (plan deviation): `market_ingestor_status.json` is written only on
-    status TRANSITIONS (startup / connect / idle), not periodically, so a
-    heartbeat-recency window (e.g. the plan's 120 s) would false-BLOCK mid-
-    session. Data freshness is the VIX-bar check's job; here liveness means
-    "the ingestor process is up".
+    NOTE (plan deviation): the plan's 120 s heartbeat-recency window is dropped
+    as REDUNDANT, not because the file is stale — `market_ingestor.py:318/324`
+    calls `_update_heartbeat` every loop iteration (~1.5 s in-session, ~60 s when
+    closed), so `last_heartbeat` is in fact fresh. PID-liveness is the
+    authoritative "process is up" signal; data freshness is delegated to the
+    VIX-bar check (BLOCK during market hours). The one case this does NOT catch
+    that the window would: a wedged-but-alive ingestor pre-open (PID up, heartbeat
+    frozen, date still today) — low-risk, and in-session the VIX check catches it.
     """
     try:
         payload = json.loads(INGESTOR_STATUS.read_text(encoding="utf-8"))
