@@ -915,8 +915,8 @@ The ordered bring-up: orchestrator lock → STOP guard → Flask → token gate 
 
 **Interfaces:**
 - Produces:
-  - `Deps` dataclass: `spawn`, `child_alive`, `token_fresh: Callable[[], bool]`, `open_login: Callable[[], None]`, `preflight: Callable[[], str]` (returns "GO"/"NO-GO"), `marks_warm: Callable[[], bool]`, `dispatch_catchup: Callable[[], None]`, `sleep: Callable[[float], None]`, `now: Callable[[], datetime]`
-  - `start_sequence(deps, *, token_timeout_s=600.0, warmup_timeout_s=120.0) -> str` — returns `"started"` / `"blocked:<reason>"` / `"timeout:<stage>"`; spawns children in order via `deps.spawn`
+  - `Deps` dataclass: `spawn`, `child_alive`, `token_fresh: Callable[[], bool]`, `open_login: Callable[[], None]`, `preflight: Callable[[], str]` (returns "GO"/"NO-GO"), `marks_warm: Callable[[], bool]`, `dispatch_catchup: Callable[[], None]`, `stop_present: Callable[[], bool]`, `market_open: Callable[[], bool]`, `sleep: Callable[[float], None]`, `now: Callable[[], datetime]`
+  - `start_sequence(deps, *, token_timeout_s=600.0, warmup_timeout_s=120.0, park_timeout_s=21600.0) -> str` — returns `"started"` / `"blocked:<reason>"` (incl. `"blocked:stop"`, `"blocked:preflight"`) / `"timeout:<stage>"` (incl. `"timeout:token"`, `"timeout:market_open"`, `"timeout:warmup"`); refuses on a STOP file before any spawn, parks until market-open, spawns children in order via `deps.spawn`
 - Consumes: `CHILDREN`, `child_alive`, `spawn` (Task 5)
 
 - [ ] **Step 1: Write the failing test (append)**
@@ -943,6 +943,8 @@ def _deps(**over):
         preflight=lambda: "GO",
         marks_warm=lambda: True,
         dispatch_catchup=lambda: calls.__setitem__("catchup", calls["catchup"] + 1),
+        stop_present=lambda: False,
+        market_open=lambda: True,
         sleep=lambda s: None,
         now=lambda: datetime(2026, 8, 11, 9, 30),
     )
@@ -977,8 +979,21 @@ def test_token_gate_opens_login_then_waits():
 
 def test_warmup_timeout_when_marks_never_warm():
     deps, calls = _deps(marks_warm=lambda: False)
-    assert orch.start_sequence(deps, warmup_timeout_s=0.0).startswith("timeout:")
+    assert orch.start_sequence(deps, warmup_timeout_s=0.0) == "timeout:warmup"
     assert "session" not in calls["spawned"]
+
+
+def test_refuses_on_stop_file_before_any_spawn():
+    deps, calls = _deps(stop_present=lambda: True)
+    assert orch.start_sequence(deps) == "blocked:stop"
+    assert calls["spawned"] == []                 # refuse before Flask, no spawns
+
+
+def test_parks_until_market_open_then_starts():
+    opens = iter([False, False, True])            # opens on the 3rd poll
+    deps, calls = _deps(market_open=lambda: next(opens))
+    assert orch.start_sequence(deps) == "started"
+    assert "session" in calls["spawned"]
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -999,6 +1014,8 @@ class Deps:
     preflight: Callable[[], str]
     marks_warm: Callable[[], bool]
     dispatch_catchup: Callable[[], None]
+    stop_present: Callable[[], bool]
+    market_open: Callable[[], bool]
     sleep: Callable[[float], None]
     now: Callable[[], datetime]
 
@@ -1011,7 +1028,13 @@ def _ensure(deps: Deps, name: str) -> None:
 
 
 def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
-                   warmup_timeout_s: float = 120.0, poll_s: float = 2.0) -> str:
+                   warmup_timeout_s: float = 120.0, park_timeout_s: float = 21600.0,
+                   poll_s: float = 2.0, park_poll_s: float = 30.0) -> str:
+    # 1. STOP-file refusal BEFORE any spawn (design §5.1 step 1 / §6) — never
+    #    silently clear an operator kill switch.
+    if deps.stop_present():
+        return "blocked:stop"
+
     # 2. Flask (needed for the OAuth handshake).
     _ensure(deps, "flask")
 
@@ -1029,7 +1052,19 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     _ensure(deps, "ingestor")
     _ensure(deps, "poller")
 
-    # 5. Warm-up park — wait for marks to flow before the runner constructs.
+    # 5a. Park until market open — pre-open the poller idles, so marks CANNOT be
+    #     warm (design §5.1 step 5: PARK until market-open + warm-up). This wait
+    #     can be long (command run pre-open); the safety cap only guards a broken
+    #     clock, it is not a normal exit.
+    waited = 0.0
+    while not deps.market_open():
+        if waited >= park_timeout_s:
+            return "timeout:market_open"
+        deps.sleep(park_poll_s)
+        waited += park_poll_s
+
+    # 5b. Warm-up — once open, wait bounded for marks to flow before the runner
+    #     constructs (a valid-but-empty cache prices nothing).
     waited = 0.0
     while not deps.marks_warm():
         if waited >= warmup_timeout_s:
@@ -1055,13 +1090,13 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/ops/test_orchestrator.py -v`
-Expected: PASS (8 tests total).
+Expected: PASS (10 tests total).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add scripts/ops/orchestrator.py tests/ops/test_orchestrator.py
-git commit -m "feat(ops): orchestrator start state machine (token gate, warmup park, gated session start)"
+git commit -m "feat(ops): orchestrator start machine (STOP guard, token gate, market-open park, gated session start)"
 ```
 
 ---
@@ -1244,11 +1279,18 @@ def _live_deps(started: dict) -> Deps:
         ctx = preflight.build_context()
         return preflight.check_marks(ctx).ok
 
+    from core.database.utils.market_hours import MarketHours
+
+    def _market_open() -> bool:
+        return MarketHours.is_market_open()
+
     return Deps(
         spawn=_spawn, child_alive=child_alive, token_fresh=_token_fresh,
         open_login=_open_login,
         preflight=lambda: preflight.verdict(preflight.run_preflight(preflight.build_context())),
         marks_warm=_marks_warm, dispatch_catchup=_dispatch_catchup,
+        stop_present=lambda: (ROOT / "STOP").exists(),
+        market_open=_market_open,
         sleep=time.sleep, now=datetime.now,
     )
 
@@ -1354,7 +1396,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `python -m pytest tests/ops/test_orchestrator.py -v`
-Expected: PASS (11 tests total).
+Expected: PASS (13 tests total).
 
 Then a dry-run smoke (spawns nothing):
 Run: `python scripts/ops/orchestrator.py start --dry-run`
