@@ -50,3 +50,77 @@ def test_session_child_spawns_in_new_group():
     assert spec.new_group is True
     assert "session.py" in " ".join(spec.argv)
     assert "--no-record" not in spec.argv        # recording must stay ON (F-B1)
+
+
+# --------------------------------------------------------------------------- #
+# Task 6 — start state machine (injected Deps; no processes/network/clock)
+# --------------------------------------------------------------------------- #
+from datetime import datetime
+
+
+def _deps(**over):
+    calls = {"spawned": [], "catchup": 0, "login": 0}
+
+    def spawn(spec, **kw):
+        calls["spawned"].append(spec.name)
+        return _FakePopen(spec.argv)
+
+    base = dict(
+        spawn=spawn,
+        child_alive=lambda spec: spec.name == "eod",   # eod already up (adopt)
+        token_fresh=lambda: True,
+        open_login=lambda: calls.__setitem__("login", calls["login"] + 1),
+        preflight=lambda: "GO",
+        marks_warm=lambda: True,
+        dispatch_catchup=lambda: calls.__setitem__("catchup", calls["catchup"] + 1),
+        stop_present=lambda: False,
+        market_open=lambda: True,
+        sleep=lambda s: None,
+        now=lambda: datetime(2026, 8, 11, 9, 30),
+    )
+    base.update(over)
+    d = orch.Deps(**base)
+    return d, calls
+
+
+def test_happy_path_starts_in_dependency_order():
+    deps, calls = _deps()
+    assert orch.start_sequence(deps) == "started"
+    # flask before ingestor/poller before session; eod adopted, not re-spawned.
+    order = calls["spawned"]
+    assert order.index("flask") < order.index("ingestor") < order.index("session")
+    assert "poller" in order and order.index("poller") < order.index("session")
+    assert "eod" not in order                     # already alive → adopted
+    assert calls["catchup"] == 1                  # background catch-up dispatched
+
+
+def test_blocks_when_preflight_no_go():
+    deps, calls = _deps(preflight=lambda: "NO-GO")
+    assert orch.start_sequence(deps).startswith("blocked:")
+    assert "session" not in calls["spawned"]      # never start the session on NO-GO
+
+
+def test_token_gate_opens_login_then_waits():
+    seq = iter([False, False, True])              # fresh on 3rd poll
+    deps, calls = _deps(token_fresh=lambda: next(seq))
+    assert orch.start_sequence(deps) == "started"
+    assert calls["login"] == 1                    # login opened exactly once
+
+
+def test_warmup_timeout_when_marks_never_warm():
+    deps, calls = _deps(marks_warm=lambda: False)
+    assert orch.start_sequence(deps, warmup_timeout_s=0.0) == "timeout:warmup"
+    assert "session" not in calls["spawned"]
+
+
+def test_refuses_on_stop_file_before_any_spawn():
+    deps, calls = _deps(stop_present=lambda: True)
+    assert orch.start_sequence(deps) == "blocked:stop"
+    assert calls["spawned"] == []                 # refuse before Flask, no spawns
+
+
+def test_parks_until_market_open_then_starts():
+    opens = iter([False, False, True])            # opens on the 3rd poll
+    deps, calls = _deps(market_open=lambda: next(opens))
+    assert orch.start_sequence(deps) == "started"
+    assert "session" in calls["spawned"]
