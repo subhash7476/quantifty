@@ -26,6 +26,7 @@ from typing import Optional, Sequence
 
 from core.clock import Clock, ReplayClock
 from core.database.manager import DatabaseManager
+from core.database.providers.live_market import LiveDuckDBMarketDataProvider
 from core.execution.handler import ExecutionMode
 from core.execution.options.nifty_shield_handler import (
     NiftyShieldExecutionHandler, NiftyShieldExitDriver,
@@ -33,6 +34,7 @@ from core.execution.options.nifty_shield_handler import (
 from core.execution.options.nifty_shield_marks import (
     ChainSnapshotMarksSource, OptionMarksSource,
 )
+from core.execution.watchdog import RuntimeWatchdog
 from core.runtime.config import Mode
 from core.runtime.metrics import InMemoryTelemetrySink, TelemetrySink
 from core.runtime.event_journal import RuntimeEventJournal
@@ -43,6 +45,7 @@ from strategies.nifty_shield_v1.config import DEFAULT_CONFIG
 
 from scripts.fno_runner import build_runner
 from scripts.nifty_shield_paper.journal_hook import journaled_publish_hook_factory
+from scripts.nifty_shield_paper.recorder import SessionRecorder
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -95,8 +98,18 @@ def build_nifty_shield_paper_driver(
     initial_capital: float = 1_000_000.0,
     symbols: Sequence[str] = (NF_SYMBOL,),
     max_bars: Optional[int] = None,
+    recorder: Optional[SessionRecorder] = None,
+    provider: Optional[object] = None,
+    span_snapshot: Optional[object] = None,
 ):
-    """Compose the full NiftyShield PAPER pipeline (LIVE or REPLAY)."""
+    """Compose the full NiftyShield PAPER pipeline (LIVE or REPLAY).
+
+    When `recorder` is set (Phase B forward window), the source, marks source
+    and market-data provider are wrapped in the recorder's seams so the session
+    package captures exactly what the composition root consumed (replay-evidence
+    input, deliverable G). `provider` overrides the market-data provider (the
+    REPLAY-evidence harness injects a recorded-bar provider).
+    """
     db_manager = db_manager or DatabaseManager()
     journal = journal or RuntimeEventJournal(
         "logs/nifty_shield_runtime_events.jsonl")
@@ -119,8 +132,20 @@ def build_nifty_shield_paper_driver(
     check = getattr(marks, "check_available", None)
     if check is not None:
         check()
-    span_snapshot = _load_span_snapshot()
+    if span_snapshot is None:
+        span_snapshot = _load_span_snapshot()
     strategy_config = dict(DEFAULT_CONFIG)
+
+    source = build_signal_source({"facts_db_path": facts_db_path})
+    if recorder is not None:
+        # Phase B: wrap every input seam so the session package captures exactly
+        # what the composition root consumed. The wrapped objects are still the
+        # same interface — no pipeline behaviour change.
+        source = recorder.wrap_source(source)
+        marks = recorder.wrap_marks(marks)
+        if provider is None:
+            provider = LiveDuckDBMarketDataProvider(list(symbols), db_manager)
+        provider = recorder.wrap_provider(provider)
 
     def handler_factory(**kwargs):
         kwargs.setdefault("journal", journal)
@@ -137,11 +162,16 @@ def build_nifty_shield_paper_driver(
     def publish_hook_factory(execution):
         return journaled_publish_hook_factory(journal, facts_db_path)(execution)
 
+    def watchdog_factory(execution):
+        # LIVE-only: heartbeat + staleness evidence for the PAPER window. The
+        # driver drives it per tick (live-gated internally, §9.5).
+        return RuntimeWatchdog(execution, heartbeat_path=heartbeat_path)
+
     if mode is Mode.REPLAY and clock is None:
         clock = ReplayClock(_REPLAY_DEFAULT_START)
 
     return build_runner(
-        source=build_signal_source({"facts_db_path": facts_db_path}),
+        source=source,
         symbols=symbols,
         execution_mode=ExecutionMode.PAPER,
         db_manager=db_manager,
@@ -153,8 +183,10 @@ def build_nifty_shield_paper_driver(
         rebalance_hook_factory=exit_hook_factory,
         publish_hook_factory=publish_hook_factory,
         publish_checkpoint_time=CHECKPOINT,
+        watchdog_factory=watchdog_factory if mode is Mode.LIVE else None,
         mode=mode,
         clock=clock,
+        provider=provider,
         max_bars=max_bars,
     )
 

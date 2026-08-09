@@ -123,6 +123,7 @@ def build_runner(
     publish_hook_factory: Optional[Callable[[Any], Optional[Callable]]] = None,
     publish_checkpoint_time: Optional[time] = None,
     handler_factory: Optional[Callable[..., Any]] = None,
+    watchdog_factory: Optional[Callable[[Any], Any]] = None,
     mode: Optional[Mode] = None,
 ) -> LoopDriver:
     """Compose and return a live F&O LoopDriver around the injected source.
@@ -266,6 +267,14 @@ def build_runner(
     if publish_hook_factory is not None:
         publish_hook = publish_hook_factory(execution)
 
+    # Phase-B (E007): an optional live watchdog factory — the session runner
+    # wires a RuntimeWatchdog (heartbeat + staleness) around the execution
+    # handler so the PAPER window carries heartbeat evidence. Additive: absent
+    # (default) leaves the driver watchdog-free, byte-for-byte unchanged.
+    watchdog = None
+    if watchdog_factory is not None:
+        watchdog = watchdog_factory(execution)
+
     # MM9.3-S2: PortfolioView for enriched telemetry. Uses the handler's
     # existing PortfolioGreeks instance (handler.py:203) — not a new one — so
     # both the risk gate (S1B) and telemetry read the same stateless aggregator.
@@ -302,6 +311,7 @@ def build_runner(
         master_readiness=master_readiness,
         portfolio_view=portfolio_view,
         span_readiness=span_readiness,
+        watchdog=watchdog,
         rebalance_hook=rebalance_hook,
         publish_hook=publish_hook,
         publish_checkpoint_time=publish_checkpoint_time,
