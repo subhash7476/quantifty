@@ -289,34 +289,12 @@ class DatabaseManager:
                 conn.close()
 
     @contextmanager
-    def live_buffer_writer(self) -> Generator[Dict[str, duckdb.DuckDBPyConnection], None, None]:
-        self._check_duckdb_write_permission()
-        lock_path = self.data_root / 'live_buffer' / '.writer.lock'
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
-
-        with self._get_thread_lock('live_buffer'):
-            with WriterLock(str(lock_path), timeout=10.0):
-                ticks_path = self.data_root / 'live_buffer' / 'ticks_today.duckdb'
-                candles_path = self.data_root / 'live_buffer' / 'candles_today.duckdb'
-
-                ticks_conn = self._duckdb_connect(ticks_path, read_only=False)
-                candles_conn = self._duckdb_connect(candles_path, read_only=False)
-                from core.database.schema import MARKET_TICKS_SCHEMA, MARKET_CANDLES_SCHEMA
-                ticks_conn.execute(MARKET_TICKS_SCHEMA)
-                candles_conn.execute(MARKET_CANDLES_SCHEMA)
-                try:
-                    yield {'ticks': ticks_conn, 'candles': candles_conn}
-                finally:
-                    ticks_conn.close()
-                    candles_conn.close()
-
-    @contextmanager
     def live_buffer_reader(self) -> Generator[Dict[str, duckdb.DuckDBPyConnection], None, None]:
         """Read from live buffer with thread synchronization to coordinate with writers."""
         ticks_path = self.data_root / 'live_buffer' / 'ticks_today.duckdb'
         candles_path = self.data_root / 'live_buffer' / 'candles_today.duckdb'
 
-        # CRITICAL: Use thread lock to coordinate with live_buffer_writer()
+        # CRITICAL: Use thread lock to coordinate with live-buffer writers
         # This prevents unlimited concurrent readers from blocking writers
         with self._get_thread_lock('live_buffer'):
             conns = {}

@@ -156,11 +156,10 @@ def insert_all_candles_to_db(db_manager: DatabaseManager, symbol_results: list, 
         except Exception as e:
             logger.error(f"Error writing historical data for {d}: {e}")
 
-    # 2. Write live buffer data
+    # 2. Write live buffer data (short-lived open; never the long-hold batch path)
     if live_groups:
         try:
-            with db_manager.live_buffer_writer() as conns:
-                conn = conns['candles']
+            with db_manager.live_candles_writer() as conn:
                 conn.execute(schema.MARKET_CANDLES_SCHEMA)
                 for d, rows in live_groups.items():
                     _batch_insert_rows(conn, rows)
