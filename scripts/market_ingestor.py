@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 from core.database.ingestors.websocket_ingestor import WebSocketIngestor
 from core.database.ingestors.recovery_manager import RecoveryManager
 from core.database.ingestors.db_tick_aggregator import DBTickAggregator
+from core.database.ingestors.live_buffer_writer import LiveBufferWriter, Aggregate, Purge
 from core.database.schema import bootstrap_config_db
 from core.database.utils.market_hours import MarketHours
 from core.api.upstox_client import UpstoxClient
@@ -73,6 +74,7 @@ class MarketIngestorDaemon:
         logger.addHandler(TelemetryHandler(self.telemetry))
         
         self.aggregator = DBTickAggregator(db_manager=self.db_manager, zmq_publisher=self.zmq_publisher)
+        self.writer = LiveBufferWriter(self.db_manager, aggregator=self.aggregator, zmq_publisher=self.zmq_publisher)
         self.symbols = self._load_universe()
 
         # Ensure cleanup on exit
@@ -123,6 +125,8 @@ class MarketIngestorDaemon:
         self._update_websocket_status("CLOSED")
         if self.ingestor:
             self.ingestor.stop()
+        if hasattr(self, 'writer'):
+            self.writer.stop()
         
         # Explicitly close ZMQ publishers to release ports
         if hasattr(self, 'zmq_publisher'):
@@ -192,26 +196,24 @@ class MarketIngestorDaemon:
             logger.error(f"Failed to update websocket_status: {e}")
 
     def _try_connect(self, token: str):
-        """Start recovery + WebSocket with the given token."""
         upstox_client = UpstoxClient(access_token=token)
-        try:
-            recovery = RecoveryManager(upstox_client, db_manager=self.db_manager)
-            logger.info("Running initial recovery/backfill...")
-            recovery.run_recovery(self.symbols)
-        except Exception as e:
-            logger.warning(f"Recovery failed (non-blocking): {e}")
-        self.ingestor = WebSocketIngestor(self.symbols, access_token=token, db_manager=self.db_manager)
+        self.ingestor = WebSocketIngestor(self.symbols, access_token=token, writer=self.writer)
         self.ingestor.start()
         self._update_websocket_status("OPEN")
         logger.info("WebSocket ingestor started successfully.")
+
+        def _backfill():
+            try:
+                RecoveryManager(upstox_client, db_manager=self.db_manager, writer=self.writer).run_recovery(self.symbols)
+            except Exception as e:
+                logger.warning(f"Recovery failed (non-blocking): {e}")
+        threading.Thread(target=_backfill, name="recovery-backfill", daemon=True).start()
 
     def _purge_stale_live_buffer(self, today):
         """Delete ticks and candles from previous trading sessions (keep today only)."""
         try:
             cutoff = datetime(today.year, today.month, today.day)
-            with self.db_manager.live_buffer_writer() as conns:
-                conns['ticks'].execute("DELETE FROM ticks WHERE timestamp < ?", [cutoff])
-                conns['candles'].execute("DELETE FROM candles WHERE timestamp < ?", [cutoff])
+            self.writer.submit(Purge(cutoff))
             self._last_cleanup_date = today
             logger.info(f"[Ingestor] EOD purge: live buffer cleared of rows before {today}.")
         except Exception as e:
@@ -223,6 +225,7 @@ class MarketIngestorDaemon:
         # self._acquire_lock()
 
         logger.info("Market Ingestor Daemon started.")
+        self.writer.start()
 
         if not mock:
             # 1. Re-read credentials fresh from disk (singleton may be stale)
@@ -293,13 +296,13 @@ class MarketIngestorDaemon:
                         except Exception as e:
                             logger.error(f"Late-connect failed: {e}")
 
-                self.aggregator.aggregate_outstanding_ticks(self.symbols)
+                self.writer.submit(Aggregate(self.symbols))
                 ws_live = self.ingestor is not None and self.ingestor.is_running
                 self._update_heartbeat("CONNECTED" if ws_live else "WAITING_FOR_TOKEN")
                 self._update_websocket_status("OPEN" if ws_live else "DISCONNECTED")
                 time.sleep(1.5)
             else:
-                self.aggregator.aggregate_outstanding_ticks(self.symbols)
+                self.writer.submit(Aggregate(self.symbols))
                 logger.info("Market closed. Sleeping.")
                 self._update_heartbeat("IDLE (Market Closed)")
                 self._update_websocket_status("CLOSED")
