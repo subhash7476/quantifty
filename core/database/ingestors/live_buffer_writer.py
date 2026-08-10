@@ -94,18 +94,28 @@ class LiveBufferWriter:
     def _run(self):
         while True:
             # 1. Drain ALL pending control commands first (never dropped).
+            #    Coalesce redundant Aggregates: an Aggregate re-reads current
+            #    state, so N piled ones are identical to the last — running only
+            #    the newest keeps candle writes from starving the tick flush.
+            drained = []
+            saw_sentinel = False
             while True:
                 try:
                     cmd = self._control.get_nowait()
                 except queue.Empty:
                     break
                 if cmd is _SENTINEL:
-                    self._final_drain()
-                    return
+                    saw_sentinel = True
+                    break
+                drained.append(cmd)
+            for cmd in self._coalesce_control(drained):
                 try:
                     self._dispatch(cmd)
                 except Exception as e:
                     logger.error(f"LiveBufferWriter control command failed: {e}")
+            if saw_sentinel:
+                self._final_drain()
+                return
             # 2. Coalesce + flush ticks; brief block so we don't busy-spin and so
             #    stop() (sentinel on the control queue) is seen within ~50 ms.
             try:
@@ -140,6 +150,15 @@ class LiveBufferWriter:
                 self._dispatch(cmd)
             except Exception as e:
                 logger.error(f"LiveBufferWriter drain control failed: {e}")
+
+    @staticmethod
+    def _coalesce_control(cmds):
+        last_agg = -1
+        for i, c in enumerate(cmds):
+            if isinstance(c, Aggregate):
+                last_agg = i
+        return [c for i, c in enumerate(cmds)
+                if not (isinstance(c, Aggregate) and i != last_agg)]
 
     def _coalesce_ticks(self, first: TickFrame):
         frames = [first]
