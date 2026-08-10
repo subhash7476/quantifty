@@ -7,6 +7,7 @@ import pytz
 from core.api.upstox_client import UpstoxClient
 from core.database.manager import DatabaseManager
 from core.database.utils.market_hours import MarketHours
+from core.database.ingestors.live_buffer_writer import RecoverBars
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,10 @@ class RecoveryManager:
       4. No gap (< 2 min):  skip — nothing to do
     """
 
-    def __init__(self, upstox_client: UpstoxClient, db_manager: DatabaseManager):
+    def __init__(self, upstox_client: UpstoxClient, db_manager: DatabaseManager, writer):
         self.client = upstox_client
         self.db = db_manager
+        self.writer = writer
 
     def run_recovery(self, symbols: List[str]):
         """Executes recovery for all symbols."""
@@ -40,7 +42,8 @@ class RecoveryManager:
         for symbol in symbols:
             self._recover_symbol(symbol)
 
-    def _recover_symbol(self, symbol: str):
+    def _should_recover(self, symbol: str) -> Optional[tuple]:
+        """Return (last_ts, cutoff) when a recoverable gap exists, else None."""
         now   = MarketHours.get_ist_now()
         today = now.date()
 
@@ -48,7 +51,7 @@ class RecoveryManager:
         # After market close the live buffer may have been rolled over (empty).
         if not MarketHours.is_market_open(now):
             logger.debug(f"[Recovery] {symbol}: market closed — skipping.")
-            return
+            return None
 
         last_ts = self._get_last_bar_timestamp(symbol)
 
@@ -60,7 +63,7 @@ class RecoveryManager:
             if now < session_open_dt:
                 # Market hasn't opened yet — nothing to recover
                 logger.info(f"[Recovery] {symbol}: market not open yet, buffer empty — nothing to do.")
-                return
+                return None
 
             # Market has opened. Set last_ts to one minute before session open
             # so the write filter (ts > last_ts) includes the 09:15 bar.
@@ -75,68 +78,36 @@ class RecoveryManager:
         gap = now - last_ts
         if gap < timedelta(minutes=2):
             logger.info(f"[Recovery] {symbol}: no significant gap (last bar {last_ts.strftime('%H:%M')} IST).")
-            return
+            return None
 
         logger.info(
             f"[Recovery] {symbol}: gap of {int(gap.total_seconds() // 60)} min "
             f"(last bar {last_ts.strftime('%H:%M')} IST) — fetching intraday data..."
         )
+        return last_ts, now.replace(second=0, microsecond=0)
 
+    def _recover_symbol(self, symbol: str):
+        decision = self._should_recover(symbol)
+        if decision is None:
+            return
+        last_ts, cutoff = decision
         try:
-            # Always use the intraday endpoint — we are always filling today's gaps.
-            # The write filter (ts > last_ts) below ensures only the missing bars
-            # are inserted regardless of how many candles the API returns.
-            candles = self.client.fetch_intraday_candles_v3(
-                instrument_key=symbol,
-                unit="minutes",
-                interval=1
-            )
-
-            if not candles:
-                logger.warning(f"[Recovery] {symbol}: API returned 0 candles.")
-                return
-
-            recovered_count = 0
-            cutoff = now.replace(second=0, microsecond=0)  # exclude the current (incomplete) minute
-
-            # Retry loop for DuckDB lock conflicts
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    with self.db.live_buffer_writer() as conns:
-                        candles_conn = conns['candles']
-                        for candle in candles:
-                            ts = candle['timestamp']
-                            # Only insert bars strictly after last_ts and before current minute
-                            if ts > last_ts and ts < cutoff:
-                                candles_conn.execute(
-                                    """
-                                    INSERT OR IGNORE INTO candles
-                                    (symbol, timeframe, timestamp, open, high, low, close, volume, is_synthetic)
-                                    VALUES (?, '1m', ?, ?, ?, ?, ?, ?, TRUE)
-                                    """,
-                                    [symbol, ts,
-                                     candle['open'], candle['high'], candle['low'],
-                                     candle['close'], int(candle['volume'])]
-                                )
-                                recovered_count += 1
-                    logger.info(f"[Recovery] {symbol}: recovered {recovered_count} bars.")
-                    break  # success
-                except Exception as write_error:
-                    if attempt < max_retries - 1:
-                        logger.warning(
-                            f"[Recovery] {symbol}: write failed "
-                            f"(attempt {attempt + 1}/{max_retries}): {write_error}"
-                        )
-                        time.sleep(0.2 * (attempt + 1))
-                    else:
-                        logger.error(
-                            f"[Recovery] {symbol}: write failed after "
-                            f"{max_retries} attempts: {write_error}"
-                        )
-
+            candles = self.client.fetch_intraday_candles_v3(instrument_key=symbol, unit="minutes", interval=1)
         except Exception as e:
             logger.error(f"[Recovery] {symbol}: fetch failed — {e}")
+            return
+        if not candles:
+            logger.warning(f"[Recovery] {symbol}: API returned 0 candles.")
+            return
+        rows = []
+        for candle in candles:
+            ts = candle['timestamp']
+            if ts > last_ts and ts < cutoff:
+                rows.append((symbol, ts, candle['open'], candle['high'],
+                             candle['low'], candle['close'], int(candle['volume'])))
+        if rows:
+            self.writer.submit(RecoverBars(rows))
+            logger.info(f"[Recovery] {symbol}: enqueued {len(rows)} bars.")
 
     def _get_last_bar_timestamp(self, symbol: str) -> Optional[datetime]:
         """Get last bar timestamp from the live buffer with retry logic."""
