@@ -223,6 +223,52 @@ class DatabaseManager:
     # LIVE BUFFER (Today's data)
     # ─────────────────────────────────────────────────────────────
 
+    _LIVE_READ_RETRIES = 5
+    _LIVE_READ_RETRY_DELAY_S = 0.05
+
+    def _live_paths(self):
+        base = self.data_root / 'live_buffer'
+        base.mkdir(parents=True, exist_ok=True)
+        return base / 'ticks_today.duckdb', base / 'candles_today.duckdb'
+
+    def bootstrap_live_buffer(self) -> None:
+        self._check_duckdb_write_permission()
+        from core.database.schema import MARKET_TICKS_SCHEMA, MARKET_CANDLES_SCHEMA
+        ticks_path, candles_path = self._live_paths()
+        with self._get_thread_lock('live_buffer'):
+            tc = self._duckdb_connect(ticks_path, read_only=False)
+            try:
+                tc.execute(MARKET_TICKS_SCHEMA)
+            finally:
+                tc.close()
+            cc = self._duckdb_connect(candles_path, read_only=False)
+            try:
+                cc.execute(MARKET_CANDLES_SCHEMA)
+            finally:
+                cc.close()
+
+    @contextmanager
+    def live_ticks_writer(self):
+        self._check_duckdb_write_permission()
+        ticks_path, _ = self._live_paths()
+        with self._get_thread_lock('live_buffer'):
+            conn = self._duckdb_connect(ticks_path, read_only=False)
+            try:
+                yield conn
+            finally:
+                conn.close()
+
+    @contextmanager
+    def live_candles_writer(self):
+        self._check_duckdb_write_permission()
+        _, candles_path = self._live_paths()
+        with self._get_thread_lock('live_buffer'):
+            conn = self._duckdb_connect(candles_path, read_only=False)
+            try:
+                yield conn
+            finally:
+                conn.close()
+
     @contextmanager
     def live_buffer_writer(self) -> Generator[Dict[str, duckdb.DuckDBPyConnection], None, None]:
         self._check_duckdb_write_permission()
@@ -265,7 +311,19 @@ class DatabaseManager:
                     except Exception as _te:
                         logger.debug(f"live_buffer ticks open failed (proceeding without): {_te}")
                 if candles_path.exists():
-                    conns['candles'] = self._duckdb_connect(candles_path, read_only=True)
+                    for attempt in range(self._LIVE_READ_RETRIES):
+                        try:
+                            conns['candles'] = self._duckdb_connect(candles_path, read_only=True)
+                            break
+                        except Exception as exc:
+                            transient = (
+                                "being used by another process" in str(exc)
+                                or "Conflicting lock" in str(exc)
+                                or "Cannot open file" in str(exc)
+                            )
+                            if not transient or attempt == self._LIVE_READ_RETRIES - 1:
+                                raise
+                            time.sleep(self._LIVE_READ_RETRY_DELAY_S)
                 yield conns
             finally:
                 for conn in conns.values():
