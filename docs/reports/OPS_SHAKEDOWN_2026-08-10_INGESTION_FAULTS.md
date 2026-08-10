@@ -18,9 +18,9 @@ frozen at 09:13; single ingestor (PID 14084) up but in a WebSocket reconnect sto
 | Fault | Status | Where |
 |---|---|---|
 | **F2** | **FIXED** (symmetric warm-up park on marks+VIX; final gate retries/park on "still warming", only a warm-stack NO-GO is a genuine block) | `scripts/ops/orchestrator.py` `start_sequence`; design spec §5.1 updated; 4 new tests |
-| **F3** | Root cause **CONFIRMED** — sync DuckDB writes on the asyncio event loop (see F3 below); fix not yet implemented (ingestion-core, needs review) | `core/database/ingestors/websocket_ingestor.py` |
-| **F4** | Root cause **CONFIRMED** — `DBTickAggregator` holds one RW `live_buffer_writer()` for the whole batch; causally linked to F3; fix not yet implemented (buffer access design decision) | `core/database/ingestors/db_tick_aggregator.py` |
-| **F1** | Fix plan written (connect-then-backfill); not implemented (needs design decision) | `scripts/market_ingestor.py` `_try_connect` |
+| **F3** | **FIXED** (writer-worker redesign — WS handler enqueues raw frames only; parse+tz+DB moved to the `LiveBufferWriter` worker thread; explicit ping params). **Live-morning close-out check below** | `core/database/ingestors/websocket_ingestor.py`, `core/database/ingestors/live_buffer_writer.py` (new) |
+| **F4** | **FIXED** (single-writer worker: tick path opens `ticks` only, candle writes chunked per-symbol short-lived, reader bounded-retry on candles open, DDL bootstrapped once). **Live-morning close-out check below** | `core/database/ingestors/live_buffer_writer.py` (new), `db_tick_aggregator.py`, `manager.py` |
+| **F1** | **FIXED** (connect-then-async-backfill — WS starts first; `RecoveryManager` runs on a background thread, recovered bars enqueued to the worker as `RecoverBars`) | `scripts/market_ingestor.py` `_try_connect` |
 | **F5** | **FIXED** — idempotent config-schema bootstrap applied at ingestor + Flask startup | `core/database/schema.py::bootstrap_config_db`; 2 new tests |
 | **F6** | **FIXED** — dead `scripts.daily_historical_fill` reference removed (module never existed in git; superseded by startup recovery) | `scripts/market_ingestor.py` |
 
@@ -111,6 +111,25 @@ config DB) at ingestor/Flask startup.
 **Evidence:** `[DailyFill] Failed (non-blocking): No module named
 'scripts.daily_historical_fill'` at ingestor startup (10:55:26).
 **Fix direction:** restore the module or remove the dead reference.
+
+---
+
+## F3/F4 close-out — live-morning verification checklist (MANDATORY before trust)
+
+The writer-worker redesign (2026-08-10) is proven by a cross-process integration test
+(`tests/database/ingestors/test_reader_no_contention.py`) and 18 ingestor-suite tests,
+but the two concrete cross-process readers F4 exists to unblock cannot run headless —
+they need the real `data/live_buffer` and a live feed. Run these on the next live
+morning before this branch is trusted for a live window:
+
+1. **VIX BLOCK check reads through.** With the ingestor + worker under real load, run
+   `python scripts/ops/preflight.py` and confirm the VIX BLOCK check reads
+   `candles_today.duckdb` (no "being used by another process") and goes warm.
+2. **13:00 day-type publisher.** At/near 13:00, confirm
+   `scripts/daytype/publish_live_fact.py` opens `candles_today.duckdb` read-only and
+   publishes the day-type fact without a lock error.
+3. **No WS keepalive storm.** Confirm the WS stays connected through the open with no
+   `1011 keepalive ping timeout` reconnect in the ingestor log (F3 closed).
 
 ---
 
