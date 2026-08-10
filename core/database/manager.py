@@ -223,13 +223,32 @@ class DatabaseManager:
     # LIVE BUFFER (Today's data)
     # ─────────────────────────────────────────────────────────────
 
-    _LIVE_READ_RETRIES = 5
-    _LIVE_READ_RETRY_DELAY_S = 0.05
+    _LIVE_RETRIES = 5
+    _LIVE_RETRY_DELAY_S = 0.05
 
     def _live_paths(self):
         base = self.data_root / 'live_buffer'
         base.mkdir(parents=True, exist_ok=True)
         return base / 'ticks_today.duckdb', base / 'candles_today.duckdb'
+
+    def _live_connect_with_retry(self, path, read_only: bool = False):
+        # Cross-process RW<->RO contention on one DuckDB file raises
+        # "Cannot open file ... used by another process" (duckdb.IOException).
+        # _duckdb_connect's own retry only fires on "could not open" — a string
+        # DuckDB never emits here — so this is the one retry that matches reality.
+        for attempt in range(self._LIVE_RETRIES):
+            try:
+                return self._duckdb_connect(path, read_only=read_only)
+            except Exception as exc:
+                transient = (
+                    "being used by another process" in str(exc)
+                    or "Conflicting lock" in str(exc)
+                    or "Cannot open file" in str(exc)
+                )
+                if not transient or attempt == self._LIVE_RETRIES - 1:
+                    raise
+                time.sleep(self._LIVE_RETRY_DELAY_S)
+        raise RuntimeError("unreachable")  # defensive
 
     def bootstrap_live_buffer(self) -> None:
         self._check_duckdb_write_permission()
@@ -252,7 +271,7 @@ class DatabaseManager:
         self._check_duckdb_write_permission()
         ticks_path, _ = self._live_paths()
         with self._get_thread_lock('live_buffer'):
-            conn = self._duckdb_connect(ticks_path, read_only=False)
+            conn = self._live_connect_with_retry(ticks_path, read_only=False)
             try:
                 yield conn
             finally:
@@ -263,7 +282,7 @@ class DatabaseManager:
         self._check_duckdb_write_permission()
         _, candles_path = self._live_paths()
         with self._get_thread_lock('live_buffer'):
-            conn = self._duckdb_connect(candles_path, read_only=False)
+            conn = self._live_connect_with_retry(candles_path, read_only=False)
             try:
                 yield conn
             finally:
@@ -311,19 +330,7 @@ class DatabaseManager:
                     except Exception as _te:
                         logger.debug(f"live_buffer ticks open failed (proceeding without): {_te}")
                 if candles_path.exists():
-                    for attempt in range(self._LIVE_READ_RETRIES):
-                        try:
-                            conns['candles'] = self._duckdb_connect(candles_path, read_only=True)
-                            break
-                        except Exception as exc:
-                            transient = (
-                                "being used by another process" in str(exc)
-                                or "Conflicting lock" in str(exc)
-                                or "Cannot open file" in str(exc)
-                            )
-                            if not transient or attempt == self._LIVE_READ_RETRIES - 1:
-                                raise
-                            time.sleep(self._LIVE_READ_RETRY_DELAY_S)
+                    conns['candles'] = self._live_connect_with_retry(candles_path, read_only=True)
                 yield conns
             finally:
                 for conn in conns.values():

@@ -69,3 +69,29 @@ def test_stop_drains_all_buffered_ticks(tmp_path):
     n = c.execute("SELECT count(*) FROM ticks").fetchone()[0]
     c.close()
     assert n == 50
+
+def test_tick_flush_survives_transient_rw_collision(tmp_path):
+    # HIGH-1: a cross-process reader holding ticks RO must not permanently drop a
+    # dequeued tick batch. The writer's live_ticks_writer bounded-retries the RW
+    # open (matching the real Windows error string); the batch survives in memory
+    # through the retry.
+    DatabaseManager.reset_instance()
+    db = DatabaseManager(tmp_path, read_only=False)
+    w = LiveBufferWriter(db)
+    w.start()
+    real = db._duckdb_connect
+    state = {"n": 0}
+    def flaky(path, read_only=False):
+        if "ticks_today" in str(path) and not read_only and state["n"] < 3:
+            state["n"] += 1
+            raise duckdb.IOException("Cannot open file: being used by another process")
+        return real(path, read_only=read_only)
+    db._duckdb_connect = flaky
+    for i in range(20):
+        w.enqueue_frame(_frame("X", float(i + 1), 1723276800000 + i * 1000, 1))
+    w.stop()
+    c = _ticks(tmp_path)
+    n = c.execute("SELECT count(*) FROM ticks").fetchone()[0]
+    c.close()
+    assert n == 20
+    assert state["n"] == 3  # the transient collisions were retried, not fatal
