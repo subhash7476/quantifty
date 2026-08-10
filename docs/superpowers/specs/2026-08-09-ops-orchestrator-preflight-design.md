@@ -253,14 +253,17 @@ console while `start` holds the first.
                          poll credentials every 5s until fresh (timeout T, default 10m).
      (A fresh OAuth also refreshed the instrument master via the callback.)
 4. Start market_ingestor + chain_poller.
-5. Warm-up wait:
-     ingestor CONNECTED (heartbeat) AND poller rows>0 + recent heartbeat.
+5. Warm-up wait (symmetric — F2, ops shakedown 2026-08-10):
+     ingestor/VIX warm (ingestor alive + fresh VIX bar) AND poller marks warm
+     (rows>0 + recent heartbeat). A single cold feed holds the whole sequence.
      pre-open → PARK: poll every 30s for market-open + warm-up; the runner start
      waits here without failing.
 6. Dispatch background catch-up: if any EOD feed is stale, spawn download_all_data
      (incremental) as a detached one-shot. Non-blocking; result logged, never gates.
-7. Preflight — final snapshot gate. BLOCK → report + halt (children already up are
-     left for inspection or torn down per flag).
+7. Preflight — final snapshot gate. BLOCK while the stack is STILL WARMING
+     (marks/VIX cold again) → RETRY/PARK, never tear down; BLOCK while warm
+     (token/STOP) → genuine → halt. Children already up are left for inspection
+     or torn down per flag.
 8. Start the session: `python scripts/nifty_shield_paper/session.py --date <today>
      --data-root data/nifty_shield` (recording ON; marks warm by construction of step 5).
 9. Ensure EOD worker alive — adopt if its lock PID is alive, else start it.

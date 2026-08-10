@@ -72,6 +72,7 @@ def _deps(**over):
         open_login=lambda: calls.__setitem__("login", calls["login"] + 1),
         preflight=lambda: "GO",
         marks_warm=lambda: True,
+        vix_warm=lambda: True,
         dispatch_catchup=lambda: calls.__setitem__("catchup", calls["catchup"] + 1),
         stop_present=lambda: False,
         market_open=lambda: True,
@@ -124,6 +125,47 @@ def test_parks_until_market_open_then_starts():
     deps, calls = _deps(market_open=lambda: next(opens))
     assert orch.start_sequence(deps) == "started"
     assert "session" in calls["spawned"]
+
+
+# --------------------------------------------------------------------------- #
+# F2 (ops shakedown 2026-08-10): warm-up park must be symmetric — wait on VIX /
+# ingestor warmth too, and the final preflight gate must retry/park on "still
+# warming" rather than hard-shutting-down the stack.
+# --------------------------------------------------------------------------- #
+def test_warmup_waits_for_vix_too():
+    warms = iter([False, False, True])            # VIX warms on the 3rd poll
+    deps, calls = _deps(vix_warm=lambda: next(warms))
+    assert orch.start_sequence(deps) == "started"
+    assert "session" in calls["spawned"]
+
+
+def test_final_gate_retries_while_warming_not_shutdown():
+    # VIX is cold when the gate first runs (preflight NO-GO) but warms up; the
+    # sequence must park/retry, NOT return blocked and let _cmd_start tear down.
+    state = {"n": 0}
+
+    def vix_warm():
+        state["n"] += 1
+        return state["n"] >= 3
+
+    deps, calls = _deps(preflight=lambda: "GO" if vix_warm() else "NO-GO",
+                        vix_warm=vix_warm)
+    assert orch.start_sequence(deps) == "started"
+    assert "session" in calls["spawned"]
+
+
+def test_final_gate_halts_on_genuine_block():
+    # Warm marks+VIX but preflight still NO-GO → the block is genuine (token/STOP),
+    # so the sequence must halt, not loop forever.
+    deps, calls = _deps(preflight=lambda: "NO-GO")
+    assert orch.start_sequence(deps) == "blocked:preflight"
+    assert "session" not in calls["spawned"]
+
+
+def test_final_gate_warming_times_out():
+    deps, calls = _deps(preflight=lambda: "NO-GO", vix_warm=lambda: False)
+    assert orch.start_sequence(deps, warmup_timeout_s=0.0) == "timeout:warmup"
+    assert "session" not in calls["spawned"]
 
 
 # --------------------------------------------------------------------------- #

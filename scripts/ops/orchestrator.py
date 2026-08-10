@@ -84,6 +84,7 @@ class Deps:
     open_login: Callable[[], None]
     preflight: Callable[[], str]
     marks_warm: Callable[[], bool]
+    vix_warm: Callable[[], bool]
     dispatch_catchup: Callable[[], None]
     stop_present: Callable[[], bool]
     market_open: Callable[[], bool]
@@ -134,10 +135,12 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
         deps.sleep(park_poll_s)
         waited += park_poll_s
 
-    # 5b. Warm-up — once open, wait bounded for marks to flow before the runner
-    #     constructs (a valid-but-empty cache prices nothing).
+    # 5b. Warm-up — once open, wait bounded for marks AND VIX/ingestor to flow
+    #     before the runner constructs (F2: the park must be symmetric — a valid-
+    #     but-empty marks cache prices nothing, and a cold VIX feed skips the
+    #     13:00 fact). A single cold feed holds the whole sequence.
     waited = 0.0
-    while not deps.marks_warm():
+    while not (deps.marks_warm() and deps.vix_warm()):
         if waited >= warmup_timeout_s:
             return "timeout:warmup"
         deps.sleep(poll_s)
@@ -146,9 +149,17 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     # 6. Background catch-up (non-blocking; never gates the session).
     deps.dispatch_catchup()
 
-    # 7. Final preflight gate.
-    if deps.preflight() != "GO":
-        return "blocked:preflight"
+    # 7. Final preflight gate — F2: a NO-GO that is only "still warming" (marks
+    #     or VIX went cold again after the park) is retried/parked; only a NO-GO
+    #     while the stack IS warm is a genuine block (token/STOP) that halts.
+    waited = 0.0
+    while deps.preflight() != "GO":
+        if deps.marks_warm() and deps.vix_warm():
+            return "blocked:preflight"
+        if waited >= warmup_timeout_s:
+            return "timeout:warmup"
+        deps.sleep(poll_s)
+        waited += poll_s
 
     # 8. Start the session (recording ON via CHILDREN["session"]).
     _ensure(deps, "session")
@@ -259,11 +270,16 @@ def _live_deps(started: dict) -> Deps:
         ctx = preflight.build_context()
         return preflight.check_marks(ctx).ok
 
+    def _vix_warm() -> bool:
+        ctx = preflight.build_context()
+        return preflight.check_vix(ctx).ok
+
     return Deps(
         spawn=_spawn, child_alive=child_alive, token_fresh=_token_fresh,
         open_login=_open_login,
         preflight=lambda: preflight.verdict(preflight.run_preflight(preflight.build_context())),
-        marks_warm=_marks_warm, dispatch_catchup=_dispatch_catchup,
+        marks_warm=_marks_warm, vix_warm=_vix_warm,
+        dispatch_catchup=_dispatch_catchup,
         stop_present=lambda: (ROOT / "STOP").exists(),
         market_open=lambda: MarketHours.is_market_open(),
         sleep=time.sleep, now=datetime.now,
