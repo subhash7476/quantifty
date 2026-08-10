@@ -27,6 +27,7 @@ window opens: a broken cache refuses to start, it never silently runs.
 """
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
 from typing import Dict, List
 
@@ -63,7 +64,21 @@ class ChainSnapshotMarksSource(OptionMarksSource):
     `snapshot_timestamp` in the cache DB. Raises `MarksSourceUnavailable` when
     the cache itself is unavailable (F3); returns {} only for a VALID cache with
     no rows for the requested symbols (market closed / strikes absent).
+
+    R1 (chain-poller review): the poller publishes each snapshot via an atomic
+    `os.replace` into this file. On Windows, when that rename overlaps a fresh
+    `duckdb.connect(read_only=True)` here, the OS hands the sharing violation to
+    whichever side loses — occasionally THIS open. That transient millisecond
+    collision must not read as "cache unavailable" (fatal under F3 at the 13:00
+    entry checkpoint and every exit). `_connect()` therefore retries a small
+    bounded number of times for a transient open failure, and raises
+    `MarksSourceUnavailable` only after the bound (or immediately for a
+    non-transient error) — a persistently unavailable cache still raises, so F3
+    is preserved.
     """
+
+    _CONNECT_RETRIES = 5
+    _CONNECT_RETRY_DELAY_S = 0.05
 
     def __init__(self, db_path: str, table: str = "option_chain_snapshot"):
         self._db_path = db_path
@@ -74,13 +89,23 @@ class ChainSnapshotMarksSource(OptionMarksSource):
         self._connect()
 
     def _connect(self):
-        try:
-            con = duckdb.connect(self._db_path, read_only=True)
-        except Exception as exc:
-            raise MarksSourceUnavailable(
-                f"option-chain cache unavailable at {self._db_path}: {exc}"
-            ) from exc
-        return con
+        last = None
+        for attempt in range(self._CONNECT_RETRIES):
+            try:
+                return duckdb.connect(self._db_path, read_only=True)
+            except Exception as exc:
+                last = exc
+                transient = (
+                    "being used by another process" in str(exc)
+                    or "Conflicting lock" in str(exc)
+                    or "Cannot open file" in str(exc)
+                )
+                if not transient or attempt == self._CONNECT_RETRIES - 1:
+                    raise MarksSourceUnavailable(
+                        f"option-chain cache unavailable at {self._db_path}: {exc}"
+                    ) from exc
+                time.sleep(self._CONNECT_RETRY_DELAY_S)
+        raise MarksSourceUnavailable(str(last))  # unreachable; defensive
 
     def _latest_timestamp(self, con) -> object:
         try:
