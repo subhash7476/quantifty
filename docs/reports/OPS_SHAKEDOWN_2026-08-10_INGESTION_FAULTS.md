@@ -13,6 +13,19 @@ frozen at 09:13; single ingestor (PID 14084) up but in a WebSocket reconnect sto
 
 ---
 
+## Fix status (post-market pass, 2026-08-10, branch `feat/ops-orchestrator`)
+
+| Fault | Status | Where |
+|---|---|---|
+| **F2** | **FIXED** (symmetric warm-up park on marks+VIX; final gate retries/park on "still warming", only a warm-stack NO-GO is a genuine block) | `scripts/ops/orchestrator.py` `start_sequence`; design spec §5.1 updated; 4 new tests |
+| **F3** | Root cause **CONFIRMED** — sync DuckDB writes on the asyncio event loop (see F3 below); fix not yet implemented (ingestion-core, needs review) | `core/database/ingestors/websocket_ingestor.py` |
+| **F4** | Root cause **CONFIRMED** — `DBTickAggregator` holds one RW `live_buffer_writer()` for the whole batch; causally linked to F3; fix not yet implemented (buffer access design decision) | `core/database/ingestors/db_tick_aggregator.py` |
+| **F1** | Fix plan written (connect-then-backfill); not implemented (needs design decision) | `scripts/market_ingestor.py` `_try_connect` |
+| **F5** | **FIXED** — idempotent config-schema bootstrap applied at ingestor + Flask startup | `core/database/schema.py::bootstrap_config_db`; 2 new tests |
+| **F6** | **FIXED** — dead `scripts.daily_historical_fill` reference removed (module never existed in git; superseded by startup recovery) | `scripts/market_ingestor.py` |
+
+---
+
 ## F1 — Startup recovery gates the WebSocket connect (minutes-long)
 **Severity:** HIGH (blocks the live feed at every startup).
 **Evidence:** `scripts/market_ingestor.py:195` calls
@@ -38,29 +51,48 @@ be distinguished from a genuine BLOCK — retry/park rather than hard-shutdown t
 stack. Update the design spec §5.1 accordingly.
 
 ## F3 — WebSocket 1011 keepalive-ping-timeout reconnect storm
-**Severity:** HIGH (feed cannot stay up). **Root cause not yet confirmed.**
+**Severity:** HIGH (feed cannot stay up). **Root cause CONFIRMED (post-market pass).**
 **Evidence:** After the WS started (10:55:26), repeated
 `sent 1011 (internal error) keepalive ping timeout; no close frame received.
 Reconnecting in 1.0s…`. Confirmed **single** ingestor process (PID 14084) — NOT a
-duplicate-token connection. Prime suspect: event-loop starvation — the tick handler /
-1.5s aggregation blocks the asyncio loop so the keepalive pong is processed too late
-and the client self-closes 1011.
-**Investigate:** `core/database/ingestors/websocket_ingestor.py` — is the DuckDB tick
-write done inline on the event loop? What are `ping_interval`/`ping_timeout`? **Fix
-direction:** offload the write off the event loop (queue + worker thread) and/or tune
-ping settings.
+duplicate-token connection.
+**Root cause (confirmed by code trace):** the WS message handler runs **inline on
+the asyncio event loop** (`websocket_ingestor.py:175-180` — `async for message in
+ws: … self._handle_message(message)`), and `_handle_message` → `TickBuffer.add_tick`
+→ `TickBuffer.flush()` performs **synchronous DuckDB writes on the loop thread**:
+`live_buffer_writer()` (open 2 RW connections + `CREATE TABLE IF NOT EXISTS` +
+`executemany`), a `WriterLock` file lock, and a `time.sleep` retry path. With ~200
+symbols at 100-tick/0.5s flush cadence, plus contention for the buffer's
+thread/file lock with the main-thread aggregator (see F4), the loop is blocked well
+past `websockets`' default keepalive `ping_timeout` → the client self-closes 1011.
+**Fix direction (not yet implemented):** offload the DuckDB write off the event loop
+(queue + worker thread, so `_handle_message` only buffers in memory) and/or tune
+`ping_interval`/`ping_timeout`; combined with F4's short-lived buffer writes.
 
 ## F4 — Live-buffer DuckDB held RW-locked; readers contend
 **Severity:** HIGH (blocks the 13:00 day-type fact even if the WS is healthy).
+**Root cause CONFIRMED (post-market pass).**
 **Evidence:** with the ingestor up, a read-only open of
 `data/live_buffer/candles_today.duckdb` fails: `Cannot open file … being used by
 another process … already open in … PID 14084`. DuckDB permits only one read-write
 holder. The 13:00 publisher (`scripts/daytype/publish_live_fact.py` opens the buffer
 `read_only`), the preflight VIX check, and `LiveDuckDBMarketDataProvider` all read the
 same file and will contend.
-**Fix direction:** the ingestor must not hold a persistent RW connection during the
-read window — either the temp-DB + `os.replace` pattern the chain poller uses, short-
-lived per-flush writes, or a reader-friendly access mode. Design decision required.
+**Root cause (confirmed by code trace):** `DBTickAggregator.aggregate_outstanding_ticks`
+(`db_tick_aggregator.py:30`) opens **one** `live_buffer_writer()` RW connection for the
+whole ~200-symbol batch and holds it while iterating (comment: "Open connections once
+for the entire batch"). DuckDB allows only one RW holder, and `live_buffer_reader()`
+additionally waits on the same in-process `_get_thread_lock('live_buffer')` — so the
+hold blocks both external readers and the ingestor's own event-loop tick flush (the
+F3 link).
+**Fix direction (design decision required):** the chain-poller temp-DB + `os.replace`
+pattern is the model the report names, but the live buffer is a continuously-appended
+per-day store (ticks + candles), so a snapshot-swap is not a drop-in. Options: (a)
+short-lived per-symbol/small-chunk RW transactions so no holder outlives ~ms, with
+readers using a bounded retry; (b) a reader-friendly access mode; (c) a dedicated
+writer process owning the file with readers served from a replica. The chain poller's
+atomic-swap proof (this shakedown: readers never contended with it) is the target
+shape.
 
 ## F5 — `websocket_status` table missing (config DB never bootstrapped)
 **Severity:** MEDIUM (log spam + broken dashboard panel). **Stopgapped live.**
@@ -94,8 +126,10 @@ config DB) at ingestor/Flask startup.
   contention — the model F4 should follow.
 
 ## Suggested fix order (post-market)
-1. **F2** (our code; smallest, unblocks the one-command start's core behavior).
-2. **F4** (buffer lock) and **F3** (WS storm) — the two that actually gate a live feed;
-   needs `systematic-debugging` on `websocket_ingestor.py` + the buffer access pattern.
-3. **F1** (recovery gating) — restructure connect-then-backfill.
-4. **F5**, **F6** — schema bootstrap + missing module (quick).
+1. **F2** — DONE (2026-08-10, `start_sequence` symmetric park + retry-not-teardown gate).
+2. **F5**, **F6** — DONE (2026-08-10, config bootstrap + dead reference removed).
+3. **F4** (buffer lock) and **F3** (WS storm) — the two that actually gate a live feed;
+   root causes confirmed (long-held RW batch vs. sync DuckDB writes on the event loop,
+   causally linked); implementation needs a buffer-access design decision + review of
+   `websocket_ingestor.py` / `db_tick_aggregator.py`.
+4. **F1** (recovery gating) — restructure connect-then-backfill (design decision).
