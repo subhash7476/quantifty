@@ -165,13 +165,20 @@ models were trained on, from a different data vendor.
 
 | | D:\bot\root (old) | F:\Nifty (new, with reference data) |
 |---|---|---|
-| **EOD feature window** | 2023–2026 (~4 years) | **2012–2026 (~14 years)** |
-| **Intraday feature window** | 2023–2026 (~4 years) | **2012–2026 (~14 years)** |
-| **Classifier train split** | 712 days (2023-24) | **~2,500+ days (e.g., 2012-22)** |
-| **Classifier val split** | 30 days (2025) | **~250 days (2023)** |
-| **Classifier holdout split** | ~30 days (2026) | **~220+ days (2024)** |
+| **EOD feature window** | 2023–2026 (~4 years) | **2012–2025 (~13 years)** |
+| **Intraday feature window** | 2023–2026 (~4 years) | **2012–2025 (~13 years)** |
+| **Classifier train split** | 712 days (2023-24) | **~2,800 days (2012–2023)** |
+| **Classifier val split** | 30 days (2025) | **~250 days (2024)** |
+| **Classifier holdout split** | ~30 days (2026) | **~250 days (2025)** — start of options-chain forward window |
 | **Regime coverage** | Post-COVID only | **Full cycle: 2013 taper, 2014-15 bull, 2016 demo, 2018 IL&FS, 2020 COVID, 2021-22 recovery** |
-| **Cluster stability test** | 2023-24 vs 2025-26 | **Multiple subperiods across 14 years** |
+| **Cluster stability test** | 2023-24 vs 2025-26 | **Multiple subperiods across 13 years** |
+
+> **Split rationale:** Train=2012–2023, Val=2024, Holdout=2025. The 2025 holdout
+> is the first year of the separate-location options chain data (2025–Jul 2026).
+> This means the classifier's out-of-sample accuracy is measured on the same
+> calendar window where strategy-level P&L validation will run — a consistency
+> check: if the classifier degrades in 2025, the strategy-level forward test
+> cannot be attributed to execution noise alone.
 
 ### Why this matters
 
@@ -215,22 +222,44 @@ Copy and adapt from `D:\BOT\root\scripts\` to `F:\Nifty\scripts\daytype\`:
 
 ### Phase 3: Cluster on extended window
 
-Run `cluster_day_types.py` on 2012–2026 EOD features:
-- Verify the auto-selected k=3 still holds on the wider window
-- Verify seed stability and subperiod stability
+Run `cluster_day_types.py` on EOD features. Two options for the clustering window:
+
+| Option | Window | Pro | Con |
+|--------|--------|-----|-----|
+| **A (purist)** | 2012–2023 only | Zero label leakage — classifier trains on labels from unseen data | Fewer samples for stable clusters |
+| **B (old-pipeline style)** | 2012–2025 | More data → more stable clusters, same approach as D:\bot\root | Subtle leakage: 2025 labels influenced by 2025 data that classifier is later evaluated on |
+
+The old pipeline used Option B (all available data). The difference is academic at
+these sample sizes — unsupervised KMeans on 3,000+ days of 35 features is stable
+regardless of ±250 days.
+
+- Verify auto-selected k=3 still holds
+- Verify seed stability (ARI) and subperiod stability (centroid similarity)
 - Inspect centroid profiles for semantic consistency with the old labels
 - Auto-map clusters to BullTrend/BearTrend/Choppy by centroid z-scores
 
 ### Phase 4: Train classifier
 
 Train logistic regression (and LightGBM ceiling) on the extended intraday features:
-- Train: 2012–2022 (~2,500 days)
-- Val: 2023 (~250 days)  
-- Holdout: 2024 (~250 days)
+
+```
+python scripts/daytype/train_daytype_classifier.py \
+    --checkpoint 13pm \
+    --train-thru 2023 \
+    --no-block-a \
+    --model-name logistic_13pm_prod
+```
+
+| Split | Years | ~Days |
+|-------|-------|-------|
+| Train | 2012–2023 | ~2,800 |
+| Val | 2024 | ~250 |
+| Holdout | 2025 | ~250 (first year of options-chain forward window) |
+
 - Compare accuracy against the old model's baseline (75.56% train / 80% val)
 - Produce `logistic_13pm_prod` model with `--no-block-a`
 
-**Expected range from the old docs:** 13pm logistic should land 75–85%. With ~3.5x
+**Expected range from the old docs:** 13pm logistic should land 75–85%. With ~4x
 more training data spanning multiple regimes, the Choppy class should improve and
 holdout stability should be stronger. But the ceiling is structural — a 3-class
 classifier on partial-day features cannot reach much above ~85%.
@@ -277,7 +306,7 @@ If the new model passes validation:
 | Risk | Mitigation |
 |------|-----------|
 | Reference data quality differs from Upstox feed | Compare overlapping period (2023-01) between reference CSV and existing DuckDB — if OHLC differs systematically, note the vendor as a caveat |
-| k=3 doesn't hold on 14-year window | The old pipeline is designed to auto-select k — if k=4 or k=5 emerges as more stable, that changes the classification scheme NiftyShield depends on. Requires operator sign-off before proceeding |
+| k=3 doesn't hold on 13-year window | The old pipeline is designed to auto-select k — if k=4 or k=5 emerges as more stable, that changes the classification scheme NiftyShield depends on. Requires operator sign-off before proceeding |
 | New model is worse than old on the forward-validation window | This is the point of the validation — if it loses, keep the old model and document why. The provenance cleanup is not worth a worse model |
 | Sealed window leakage | The options chain data must stay in its separate location. No analysis script may read it until Phase 5 validation |
 
