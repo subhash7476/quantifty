@@ -136,6 +136,12 @@ def create_app(test_config=None):
     db_manager = DatabaseManager(data_root)
     app.db_manager = db_manager # Attach to app instance
 
+    # F5 (ops shakedown 2026-08-10): ensure the config schema (websocket_status
+    # etc.) exists idempotently — it was never bootstrapped at runtime, so the
+    # dashboard's status reads/writes fail on config DBs that predate it.
+    from core.database.schema import bootstrap_config_db
+    bootstrap_config_db(db_manager)
+
     # Initialize Telemetry Bridge
     zmq_config = load_zmq_config()
     global telemetry_bridge

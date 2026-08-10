@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT))
 from core.database.ingestors.websocket_ingestor import WebSocketIngestor
 from core.database.ingestors.recovery_manager import RecoveryManager
 from core.database.ingestors.db_tick_aggregator import DBTickAggregator
+from core.database.schema import bootstrap_config_db
 from core.database.utils.market_hours import MarketHours
 from core.api.upstox_client import UpstoxClient
 from core.auth.credentials import credentials
@@ -41,13 +42,17 @@ class MarketIngestorDaemon:
     def __init__(self, db_manager: Optional[DatabaseManager] = None, zmq_config_file: Optional[Path] = None):
         self._is_running = True
         self._is_stopping = False
-        self._daily_fill_done = False
         self._last_cleanup_date = None
         self.ingestor = None
         
         # Initialize Database Manager if not provided
         # Ingestor is the SOLE WRITER
         self.db_manager = db_manager or DatabaseManager(ROOT / "data", read_only=False)
+
+        # F5 (ops shakedown 2026-08-10): the config schema (websocket_status
+        # etc.) was never bootstrapped at runtime; apply it idempotently before
+        # any status write so the bare INSERT stops erroring every 1.5s.
+        bootstrap_config_db(self.db_manager)
         
         # Initialize ZMQ Publisher
         self.zmq_config_file = zmq_config_file or ZMQ_CONFIG_FILE
@@ -199,31 +204,6 @@ class MarketIngestorDaemon:
         self.ingestor.start()
         self._update_websocket_status("OPEN")
         logger.info("WebSocket ingestor started successfully.")
-
-        # Trigger daily historical fill (once per session, non-blocking)
-        if not self._daily_fill_done:
-            threading.Thread(
-                target=self._run_daily_fill,
-                args=(token,),
-                name="DailyHistoricalFill",
-                daemon=True,
-            ).start()
-
-    def _run_daily_fill(self, token: str):
-        """Background: fetch previous trading day's 1m data for entire universe."""
-        try:
-            from scripts.daily_historical_fill import fill_previous_day
-            result = fill_previous_day(token, self.db_manager)
-            self._daily_fill_done = True
-            if result.get("skipped"):
-                logger.info(f"[DailyFill] Skipped — {result['date']} already has data.")
-            else:
-                logger.info(
-                    f"[DailyFill] Complete: {result['date']} | "
-                    f"{result['symbols_fetched']} symbols | {result['total_bars']} bars"
-                )
-        except Exception as e:
-            logger.error(f"[DailyFill] Failed (non-blocking): {e}")
 
     def _purge_stale_live_buffer(self, today):
         """Delete ticks and candles from previous trading sessions (keep today only)."""

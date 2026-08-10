@@ -324,6 +324,37 @@ BOOTSTRAP_STATEMENTS = [
     OPTIONS_CHAIN_SNAPSHOT_SCHEMA,
 ]
 
+# F5 (ops shakedown 2026-08-10): the SQLite config schema was never applied at
+# runtime, so `websocket_status` was missing on config DBs that predate it and
+# the ingestor's bare INSERT errored every 1.5s. Config-only subset (BOOTSTRAP
+#_STATEMENTS mixes DuckDB + SQLite and cannot run against the SQLite config DB),
+# all idempotent — CREATE TABLE IF NOT EXISTS / INSERT ... ON CONFLICT DO NOTHING.
+CONFIG_BOOTSTRAP_STATEMENTS = [
+    CONFIG_USERS_SCHEMA,
+    CONFIG_ROLES_SCHEMA,
+    CONFIG_ROLES_SEED,
+    CONFIG_WATCHLIST_SCHEMA,
+    CONFIG_INSTRUMENT_META_SCHEMA,
+    CONFIG_RUNNER_STATE_SCHEMA,
+    CONFIG_WEBSOCKET_STATUS_SCHEMA,
+    CONFIG_FO_STOCKS_SCHEMA,
+    CONFIG_DOWNLOAD_JOBS_SCHEMA,
+]
+
+
+def bootstrap_config_db(db_manager=None) -> None:
+    """Apply the SQLite config schema idempotently (F5).
+
+    Safe to run on every startup: every statement is CREATE TABLE IF NOT EXISTS
+    or INSERT ... ON CONFLICT DO NOTHING.
+    """
+    from .manager import DatabaseManager
+    dm = db_manager or DatabaseManager()
+    with dm.config_writer() as conn:
+        for stmt in CONFIG_BOOTSTRAP_STATEMENTS:
+            conn.execute(stmt)
+
+
 INDEX_STATEMENTS = [
     OPTIONS_INDEXES_SCHEMA,
 ]
