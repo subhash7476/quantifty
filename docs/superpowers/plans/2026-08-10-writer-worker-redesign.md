@@ -257,7 +257,7 @@ def test_drop_oldest_backpressure(tmp_path):
     for i in range(25):
         w.enqueue_frame(_frame("X", float(i), 1723276800000, 1))
     assert w.dropped_frames >= 15
-    assert w._queue.qsize() <= 10
+    assert w._ticks.qsize() <= 10
 
 def test_stop_drains_all_buffered_ticks(tmp_path):
     db = DatabaseManager(tmp_path, read_only=False)
@@ -338,7 +338,8 @@ class LiveBufferWriter:
         self.db = db_manager
         self.aggregator = aggregator
         self.zmq_publisher = zmq_publisher
-        self._queue: "queue.Queue" = queue.Queue(maxsize=max_queue)
+        self._ticks: "queue.Queue" = queue.Queue(maxsize=max_queue)
+        self._control: "queue.Queue" = queue.Queue()  # unbounded; control never dropped
         self._thread: Optional[threading.Thread] = None
         self._running = False
         self.dropped_frames = 0
@@ -355,92 +356,98 @@ class LiveBufferWriter:
         if not self._running:
             return
         self._running = False
-        self._queue.put(_SENTINEL)
+        self._control.put_nowait(_SENTINEL)
         if self._thread:
             self._thread.join(timeout=timeout)
 
     def enqueue_frame(self, raw: bytes):
+        # Tick queue only ever holds TickFrames, so drop-oldest can never touch
+        # a control command.
         try:
-            self._queue.put_nowait(TickFrame(raw))
+            self._ticks.put_nowait(TickFrame(raw))
         except queue.Full:
-            self._drop_oldest_frame()
             try:
-                self._queue.put_nowait(TickFrame(raw))
+                self._ticks.get_nowait()  # drop oldest tick
+                self.dropped_frames += 1
+            except queue.Empty:
+                pass
+            try:
+                self._ticks.put_nowait(TickFrame(raw))
             except queue.Full:
                 self.dropped_frames += 1
 
     def submit(self, cmd):
-        # Control commands must not be dropped; block briefly if full.
-        self._queue.put(cmd)
-
-    def _drop_oldest_frame(self):
-        # Remove one oldest TickFrame to make room; keep control commands.
-        try:
-            item = self._queue.get_nowait()
-        except queue.Empty:
-            return
-        if isinstance(item, TickFrame):
-            self.dropped_frames += 1
-        else:
-            # not a tick — put it back at the end (rare)
-            try:
-                self._queue.put_nowait(item)
-            except queue.Full:
-                pass
+        # Control commands are never dropped and never block the caller
+        # (unbounded control queue → put_nowait cannot raise Full).
+        self._control.put_nowait(cmd)
 
     def _run(self):
         while True:
-            item = self._queue.get()
-            if item is _SENTINEL:
-                self._drain_remaining()
-                return
+            # 1. Drain ALL pending control commands first (never dropped).
+            while True:
+                try:
+                    cmd = self._control.get_nowait()
+                except queue.Empty:
+                    break
+                if cmd is _SENTINEL:
+                    self._final_drain()
+                    return
+                try:
+                    self._dispatch(cmd)
+                except Exception as e:
+                    logger.error(f"LiveBufferWriter control command failed: {e}")
+            # 2. Coalesce + flush ticks; brief block so we don't busy-spin and so
+            #    stop() (sentinel on the control queue) is seen within ~50 ms.
             try:
-                self._dispatch(item)
+                first = self._ticks.get(timeout=0.05)
+            except queue.Empty:
+                continue
+            try:
+                self._coalesce_ticks(first)
             except Exception as e:
-                logger.error(f"LiveBufferWriter command failed: {e}")
+                logger.error(f"LiveBufferWriter tick flush failed: {e}")
 
-    def _drain_remaining(self):
+    def _final_drain(self):
         pending = []
         while True:
             try:
-                item = self._queue.get_nowait()
+                pending.append(self._ticks.get_nowait())
             except queue.Empty:
                 break
-            if item is _SENTINEL:
-                continue
-            pending.append(item)
-        for item in pending:
+        if pending:
             try:
-                self._dispatch(item)
+                self._flush_ticks(pending)
             except Exception as e:
-                logger.error(f"LiveBufferWriter drain command failed: {e}")
+                logger.error(f"LiveBufferWriter drain tick flush failed: {e}")
+        while True:
+            try:
+                cmd = self._control.get_nowait()
+            except queue.Empty:
+                break
+            if cmd is _SENTINEL:
+                continue
+            try:
+                self._dispatch(cmd)
+            except Exception as e:
+                logger.error(f"LiveBufferWriter drain control failed: {e}")
+
+    def _coalesce_ticks(self, first: TickFrame):
+        frames = [first]
+        while len(frames) < _TICK_COALESCE_MAX:
+            try:
+                frames.append(self._ticks.get_nowait())
+            except queue.Empty:
+                break
+        self._flush_ticks(frames)
 
     def _dispatch(self, item):
-        if isinstance(item, TickFrame):
-            self._handle_ticks(item)
-        elif isinstance(item, Aggregate):
+        if isinstance(item, Aggregate):
             if self.aggregator:
                 self.aggregator.aggregate(item.symbols, self.db, self.zmq_publisher)
         elif isinstance(item, RecoverBars):
             self._handle_recover(item)
         elif isinstance(item, Purge):
             self._handle_purge(item)
-
-    def _handle_ticks(self, first: TickFrame):
-        frames = [first]
-        while len(frames) < _TICK_COALESCE_MAX:
-            try:
-                nxt = self._queue.get_nowait()
-            except queue.Empty:
-                break
-            if isinstance(nxt, TickFrame):
-                frames.append(nxt)
-            else:
-                # non-tick: handle after this batch to preserve order
-                self._flush_ticks(frames)
-                self._dispatch(nxt)
-                return
-        self._flush_ticks(frames)
 
     def _flush_ticks(self, frames: List[TickFrame]):
         rows = []
@@ -917,7 +924,7 @@ In `scripts/market_ingestor.py`:
 4. Replace both `self.aggregator.aggregate_outstanding_ticks(self.symbols)` calls in the main loop with `self.writer.submit(Aggregate(self.symbols))`.
 5. Replace `_purge_stale_live_buffer` body's `with self.db_manager.live_buffer_writer()...` with `self.writer.submit(Purge(cutoff))` (keep the `_last_cleanup_date` bookkeeping).
 6. In `stop()`, add `self.writer.stop()` (before closing zmq) so buffered ticks drain.
-7. In `db_tick_aggregator.py`, delete `aggregate_outstanding_ticks`, `_aggregate_symbol`, `_table_exists`, `_get_last_bar_timestamp` — all superseded by `aggregate()` from Task 3. Keep `__init__` and `aggregate`/`_aggregate_one`.
+7. In `db_tick_aggregator.py`, delete `aggregate_outstanding_ticks`, `_aggregate_symbol`, `_table_exists`, `_get_last_bar_timestamp` — all superseded by `aggregate()` from Task 3. Keep `__init__` and `aggregate`/`_aggregate_one`. **Scope guard:** `RecoveryManager._get_last_bar_timestamp` (`recovery_manager.py:141`) is a *separate* method in a different file that Task 4's `_should_recover` still depends on — **do not touch it**. Only the copy in `db_tick_aggregator.py` is deleted.
 
 - [ ] **Step 4: Run test + regression to verify**
 
@@ -945,53 +952,67 @@ git commit -m "feat(ingestor): wire LiveBufferWriter — connect-then-async-back
 
 - [ ] **Step 1: Write the cross-process reader-contention integration test**
 
+This must be a **genuine separate process** — a same-process reader is serialized by `_get_thread_lock('live_buffer')` and never hits the DuckDB cross-process file lock that F4 is about. A child process (mirroring the design-phase probe) is the only honest proof.
+
 ```python
 # tests/database/ingestors/test_reader_no_contention.py
-import time, threading
+import subprocess, sys, textwrap, threading, time
 from datetime import datetime
 from core.database.manager import DatabaseManager
 from core.database.ingestors.live_buffer_writer import LiveBufferWriter, Aggregate
+from core.database.ingestors.db_tick_aggregator import DBTickAggregator
 from core.data.MarketDataFeedV3_pb2 import FeedResponse
 
 def _frame(sym, ltp, ms):
     fr = FeedResponse(); f = fr.feeds[sym]; f.ltpc.ltp = ltp; f.ltpc.ltt = ms; f.ltpc.ltq = 1
     return fr.SerializeToString()
 
-def test_reader_lands_during_active_writing(tmp_path):
+def test_cross_process_reader_lands_during_active_writing(tmp_path):
     db = DatabaseManager(tmp_path, read_only=False)
-    from core.database.ingestors.db_tick_aggregator import DBTickAggregator
+    db.bootstrap_live_buffer()
+    candles_path = str(tmp_path / "live_buffer" / "candles_today.duckdb")
+
     w = LiveBufferWriter(db, aggregator=DBTickAggregator(db))
     w.start()
     stop = threading.Event()
-    def writer_load():
-        base = int(datetime(2020,1,1,10,0).timestamp()*1000)
+    def load():
+        base = int(datetime(2020, 1, 1, 10, 0).timestamp() * 1000)
         i = 0
         while not stop.is_set():
-            w.enqueue_frame(_frame("X", 100.0 + (i % 5), base + i*1000))
+            w.enqueue_frame(_frame("X", 100.0 + (i % 5), base + i * 1000))
             w.submit(Aggregate(["X"]))
             i += 1
             time.sleep(0.005)
-    t = threading.Thread(target=writer_load); t.start()
+    t = threading.Thread(target=load); t.start()
 
-    # A separate reader (same process here, but uses the read-only reader path with retry)
-    ok = fail = 0
-    for _ in range(60):
-        try:
-            with db.live_buffer_reader() as conns:
-                if 'candles' in conns:
-                    conns['candles'].execute("SELECT count(*) FROM candles").fetchone()
-            ok += 1
-        except Exception:
-            fail += 1
-        time.sleep(0.01)
+    # Separate OS process: open candles read-only with the same bounded-retry
+    # shape the reader hardening uses (5 x 50ms).
+    child = textwrap.dedent(f"""
+        import duckdb, time
+        ok = fail = 0
+        for _ in range(50):
+            for attempt in range(5):
+                try:
+                    c = duckdb.connect(r"{candles_path}", read_only=True)
+                    c.execute("SELECT count(*) FROM candles").fetchone(); c.close()
+                    ok += 1; break
+                except Exception:
+                    if attempt == 4: fail += 1
+                    else: time.sleep(0.05)
+            time.sleep(0.01)
+        print(f"{{ok}} {{fail}}")
+    """)
+    proc = subprocess.run([sys.executable, "-c", child], capture_output=True, text=True, timeout=30)
     stop.set(); t.join(); w.stop()
-    assert ok >= 57  # near-total success; retry absorbs the rare collision
+    assert proc.stdout.strip(), f"child produced no output; stderr={proc.stderr[:400]}"
+    ok, fail = map(int, proc.stdout.split())
+    assert ok >= 48, f"cross-process reader failed too often: ok={ok} fail={fail} stderr={proc.stderr[:300]}"
 ```
 
 - [ ] **Step 2: Run it**
 
 Run: `python -m pytest tests/database/ingestors/test_reader_no_contention.py -v`
-Expected: PASS.
+Expected: PASS (near-total reader success; bounded retry absorbs the rare collision).
 
 - [ ] **Step 3: Grep for stale references and confirm scope**
 
@@ -1007,12 +1028,25 @@ Expected: the first returns nothing (all removed). The second returns only `core
 Run: `python -m pytest tests/database/ tests/nifty_shield_paper/ tests/execution/test_nifty_shield_paper_execution.py -v`
 Expected: all green.
 
+Also run the ops preflight import/collection to confirm nothing it depends on moved:
+Run: `python -m pytest tests/ops/ -v`
+Expected: all green (preflight's VIX BLOCK check reads the live buffer via the same reader path Task 1 hardened).
+
 - [ ] **Step 5: Commit**
 
 ```bash
 git add tests/database/ingestors/test_reader_no_contention.py
 git commit -m "test(ingestor): cross-process reader lands during active writing (F4 proof)"
 ```
+
+- [ ] **Step 6: Record the live-morning verification checklist (do not close F4 without it)**
+
+The two concrete cross-process readers F4 exists to unblock cannot run headless (they need the real `data/live_buffer` and a live feed). They MUST be confirmed on the next live-morning shakedown, before this branch is trusted for a live window. Add these to the shakedown doc `docs/reports/OPS_SHAKEDOWN_2026-08-10_INGESTION_FAULTS.md` as F3/F4 close-out checks:
+  1. With the ingestor + worker under real load, run `python scripts/ops/preflight.py` and confirm the **VIX BLOCK check reads through** (no "being used by another process") and goes warm.
+  2. At/near 13:00, confirm `scripts/daytype/publish_live_fact.py` opens `candles_today.duckdb` read-only and publishes the day-type fact without a lock error.
+  3. Confirm the WS stays connected through the open with **no `1011 keepalive ping timeout`** reconnect in the ingestor log (F3 closed).
+
+No commit for this step — it is a checklist entry; DeepSeek notes it in the shakedown doc and the operator runs it live.
 
 ---
 
