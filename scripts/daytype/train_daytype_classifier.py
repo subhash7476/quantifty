@@ -367,7 +367,7 @@ def run_checkpoint(cp: str, use_lgbm: bool,
                          version=version)
 
     # ── LightGBM ──────────────────────────────────────────────────────────────
-    if use_lgbm:
+    if use_lgbm and len(X_val_s) > 0:
         print(f"\n--- LightGBM ---")
         lgbm_model = train_lgbm(X_train_s, y_train.values, X_val_s, y_val.values)
         if lgbm_model is None:
