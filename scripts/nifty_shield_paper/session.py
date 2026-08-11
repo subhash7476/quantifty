@@ -192,6 +192,11 @@ def run_session(*, session_date: date, data_root: Path, chain_db_path: str,
     journal = RuntimeEventJournal(str(data_root / "journal.jsonl"))
     telemetry = InMemoryTelemetrySink()
     dm = DatabaseManager(data_root=data_root)
+    # The trade ledger lives under data_root (the session evidence dir), but the
+    # live market buffer is the ingestor's platform-global store at <repo>/data.
+    # Re-root the buffer explicitly, else the provider reads data_root/live_buffer
+    # (which never exists) and the driver processes 0 bars.
+    dm.set_live_buffer_root(Path(__file__).resolve().parents[2] / "data")
     _bootstrap_trading_schema(dm)
 
     recorder = SessionRecorder(str(data_root / "sessions" / session_date.isoformat())) \

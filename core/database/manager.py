@@ -45,6 +45,11 @@ class DatabaseManager:
         if getattr(self, "_initialized", False):
             return
         self.data_root = Path(data_root).resolve()
+        # Live buffer is a platform-global store (the ingestor writes it under the
+        # default data root); decoupled from data_root so a session rooted at its
+        # own evidence dir can still read the ingestor's buffer. Defaults to
+        # data_root — override via set_live_buffer_root().
+        self.live_buffer_root = self.data_root
         self.read_only = read_only # Only enforced for DuckDB market data
         self._legacy_db_path = self.data_root if self.data_root.suffix == ".duckdb" else None
         self._infra_locks: Dict[str, threading.Lock] = {}
@@ -226,8 +231,15 @@ class DatabaseManager:
     _LIVE_RETRIES = 5
     _LIVE_RETRY_DELAY_S = 0.05
 
+    def set_live_buffer_root(self, root: Union[str, Path]) -> None:
+        """Point live-buffer reads/writes at an explicit root, independent of
+        data_root. Required because __init__ no-ops on the process-wide singleton,
+        so a session that constructed the manager at its evidence root cannot
+        re-root the live buffer via the constructor."""
+        self.live_buffer_root = Path(root).resolve()
+
     def _live_paths(self):
-        base = self.data_root / 'live_buffer'
+        base = self.live_buffer_root / 'live_buffer'
         base.mkdir(parents=True, exist_ok=True)
         return base / 'ticks_today.duckdb', base / 'candles_today.duckdb'
 
@@ -291,8 +303,8 @@ class DatabaseManager:
     @contextmanager
     def live_buffer_reader(self) -> Generator[Dict[str, duckdb.DuckDBPyConnection], None, None]:
         """Read from live buffer with thread synchronization to coordinate with writers."""
-        ticks_path = self.data_root / 'live_buffer' / 'ticks_today.duckdb'
-        candles_path = self.data_root / 'live_buffer' / 'candles_today.duckdb'
+        ticks_path = self.live_buffer_root / 'live_buffer' / 'ticks_today.duckdb'
+        candles_path = self.live_buffer_root / 'live_buffer' / 'candles_today.duckdb'
 
         # CRITICAL: Use thread lock to coordinate with live-buffer writers
         # This prevents unlimited concurrent readers from blocking writers
