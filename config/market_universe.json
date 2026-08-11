@@ -1,7 +1,13 @@
 {
-  "description": "Market universe for live data ingestion - Verified NSE F&O stocks",
-  "last_updated": "2026-02-28",
+  "description": "Live websocket universe: the 3 required indices only (Nifty 50 / Nifty Bank / India VIX). NiftyShield's option marks come from the chain poller, not this feed. Equity F&O breadth is parked under parked_equities.",
+  "last_updated": "2026-08-11",
   "symbols": [
+    "NSE_INDEX|Nifty 50",
+    "NSE_INDEX|Nifty Bank",
+    "NSE_INDEX|India VIX"
+  ],
+  "parked_equities_note": "200 NSE F&O equities parked 2026-08-11. Subscribing all 203 keys in a single mode:full WS message exceeded Upstox's full-mode per-connection cap (only ~the first 42 keys kept flowing), starving India VIX every morning and stalling the orchestrator. NiftyShield needs none of these. When an intraday equity strategy is built, start from Nifty 50 constituents and prefer REST (fetch_upstox_historical, 2-5m late) for wide breadth; reserve the websocket for latency-critical instruments.",
+  "parked_equities": [
     "NSE_EQ|INE002A01018",
     "NSE_EQ|INE003A01024",
     "NSE_EQ|INE006I01046",
@@ -201,9 +207,6 @@
     "NSE_EQ|INE947Q01028",
     "NSE_EQ|INE974X01010",
     "NSE_EQ|INE976G01028",
-    "NSE_EQ|INE982J01020",
-    "NSE_INDEX|Nifty 50",
-    "NSE_INDEX|Nifty Bank",
-    "NSE_INDEX|India VIX"
+    "NSE_EQ|INE982J01020"
   ]
 }
