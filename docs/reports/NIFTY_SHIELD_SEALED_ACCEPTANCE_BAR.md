@@ -49,6 +49,35 @@ all three regimes traded · reconciliation exact. The 2026 thresholds are delibe
 **below** these (Sharpe 0.80 vs 1.47; DD −15K vs −9.8K) to allow for a weaker, shorter,
 truly-unseen half-year without being trivially passable.
 
+## VERDICT (post-read, 2026-01-01 → 2026-07-31) — INCONCLUSIVE (not a PASS)
+
+Read after the bar was frozen at commit `09ee7ca`. 2026 summary: 144 attempted, 117 trades.
+
+| Criterion | Threshold | 2026 actual | Result |
+|---|---|---|---|
+| 1 `total_pnl_rs` | > 0 | **+8,763.75** | PASS |
+| 2 `sharpe` | ≥ 0.80 | **0.7461** | **FAIL** (short by 0.054) |
+| 3 `max_drawdown_rs` | ≥ −15,000 | −14,006.25 | PASS |
+| integrity: reconciliation | exact | 117 + 27 = 144 | PASS |
+| integrity: all 3 regimes | count > 0 | Bear 35 / Bull 40 / Choppy 42 | PASS |
+
+Per the pre-registered verdict logic (criterion 1 holds, criterion 2 fails) → **INCONCLUSIVE,
+not a PASS.** The bar is NOT moved to accommodate the near-miss — that is the entire purpose of
+pre-registering it. No Phase 6 promotion.
+
+**Interpretation.** Gross-positive on the truly-unseen half-year with all regimes participating
+(Bear +7,373, Bull +5,048, Choppy −3,656), but risk-adjusted return fell just below the floor.
+The result is *gross* and per-lot: **mean ₹74.9/trade**. A multi-leg options round trip
+(STT on sold premium + brokerage + exchange/SEBI/GST) plausibly consumes most or all of that,
+so a Sharpe-0.75 gross edge is unlikely to survive fees — the near-miss is a soft confirmation,
+not bad luck. Do **not** rescue it by excluding Choppy or any other post-hoc slice.
+
+**Decision.** The retrain itself is validated (model honest, parity clean, all regimes trade);
+what is unproven is a promotable *strategy edge* on unseen data. This does not unlock promotion.
+Correct next step is the existing MM12.5 forward-PAPER window (E007) with real fills and real
+fees — the backtest has done its job (screened out a marginal-gross construct before capital),
+not the reverse. A longer forward window, not more historical re-reads, is what could change this.
+
 ## Rationale for the numbers
 
 - **`total_pnl_rs > 0`** is the minimal honest hurdle: a gross-negative result is disqualifying
