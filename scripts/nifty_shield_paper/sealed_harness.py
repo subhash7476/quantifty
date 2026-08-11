@@ -6,7 +6,11 @@ Self-contained script — reads 1m bars + options chain, runs DayType engine,
 selects structures, simulates entry at 13:00 and exit management to 15:15.
 
 Usage:
-    python run.py --bars-dir bars/ --options-dir options/ --models-dir models/ --output-dir output/
+    # Single CSV (all dates in one file — loads into memory once)
+    python run.py --bars-dir bars/ --options-file options/dhan_historical.csv --start 2025-01-01
+
+    # Per-date files in a directory
+    python run.py --bars-dir bars/ --options-dir options/ --start 2025-01-01 --end 2025-12-31
 
 Expected directory layout (sealed folder root):
     run.py
@@ -137,14 +141,51 @@ def _filter_session(df: pd.DataFrame) -> pd.DataFrame:
 
 # ── Options chain ───────────────────────────────────────────────────────────────
 
-def load_chain(options_dir: Path, session_date: date) -> pd.DataFrame | None:
-    """Load the options chain CSV for a given date. Finds the matching file."""
-    date_str = session_date.isoformat().replace("-", "")
-    for f in sorted(options_dir.glob("*.csv")):
-        if date_str in f.stem:
+_chain_cache: pd.DataFrame | None = None
+_cache_source: str | None = None
+
+
+def load_full_chain(path: str) -> pd.DataFrame:
+    """Load a single master CSV into memory once. Caches globally."""
+    global _chain_cache, _cache_source
+    if _cache_source == path and _chain_cache is not None:
+        return _chain_cache
+    print(f"Loading options chain from {path} ...")
+    df = pd.read_csv(path, parse_dates=["timestamp"])
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
+    _chain_cache = df
+    _cache_source = path
+    return df
+
+
+def get_date_chain(full_chain: pd.DataFrame | None, options_path: Path,
+                   session_date: date) -> pd.DataFrame | None:
+    """Return options chain rows for a single session date.
+    If full_chain is provided (single CSV mode), filter from it.
+    Otherwise search per-date files in options_path.
+    """
+    if full_chain is not None:
+        mask = full_chain["timestamp"].dt.date == session_date
+        df = full_chain[mask]
+        return df if not df.empty else None
+
+    # Per-date file mode — try DuckDB first, then CSV
+    date_str = session_date.isoformat()
+    db_path = options_path / f"{date_str}.duckdb"
+    if db_path.exists():
+        try:
+            con = duckdb.connect(str(db_path), read_only=True)
+            df = con.execute("SELECT * FROM options").df()
+            con.close()
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
+            return df
+        except Exception:
+            pass
+
+    for f in sorted(options_path.glob(f"*{date_str}*")):
+        if f.suffix == ".csv":
             try:
-                df = pd.read_csv(f, parse_dates=["timestamp"])
-                return df
+                return pd.read_csv(f, parse_dates=["timestamp"])
             except Exception:
                 return None
     return None
@@ -271,7 +312,8 @@ def get_timestamps_for_date(chain: pd.DataFrame, session_date: date) -> dict:
 
 
 def simulate_session(session_date: date, engine: DayTypeEngine,
-                     bars_dir: Path, options_dir: Path) -> dict | None:
+                     bars_dir: Path, options_path: Path,
+                     full_chain: pd.DataFrame | None = None) -> dict | None:
     """Run one session: classify regime, select structure, simulate entry + exit."""
     # Load bars and run engine
     nf, bn = load_bars(session_date, bars_dir)
@@ -296,7 +338,7 @@ def simulate_session(session_date: date, engine: DayTypeEngine,
         return {"date": str(session_date), "status": "skip", "reason": "no_regime"}
 
     # Load options chain
-    chain = load_chain(options_dir, session_date)
+    chain = get_date_chain(full_chain, options_path, session_date)
     if chain is None:
         return {"date": str(session_date), "status": "skip", "reason": "no_options_data"}
 
@@ -439,16 +481,19 @@ def simulate_session(session_date: date, engine: DayTypeEngine,
 def main():
     parser = argparse.ArgumentParser(description="NiftyShield sealed validation")
     parser.add_argument("--bars-dir", required=True, help="Path to 1m DuckDB bars")
-    parser.add_argument("--options-dir", required=True, help="Path to options chain CSVs")
+    parser.add_argument("--options-file", default=None, help="Single options CSV (all dates). Overrides --options-dir.")
+    parser.add_argument("--options-dir", default="options", help="Directory of per-date options CSVs (ignored if --options-file set)")
     parser.add_argument("--output-dir", default="output", help="Output directory")
     parser.add_argument("--start", default=None, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end", default=None, help="End date (YYYY-MM-DD)")
     args = parser.parse_args()
 
     bars_dir    = Path(args.bars_dir)
-    options_dir = Path(args.options_dir)
+    options_path = Path(args.options_file) if args.options_file else Path(args.options_dir)
     output_dir  = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    full_chain = load_full_chain(args.options_file) if args.options_file else None
 
     # ── Date range ──────────────────────────────────────────────────────────
     bar_dates = sorted(
@@ -475,7 +520,7 @@ def main():
         if i % 50 == 0:
             print(f"  {d} ({i}/{len(dates)})")
 
-        result = simulate_session(d, engine, bars_dir, options_dir)
+        result = simulate_session(d, engine, bars_dir, options_path, full_chain)
         if result is None:
             continue
 
