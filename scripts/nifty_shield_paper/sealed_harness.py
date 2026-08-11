@@ -254,7 +254,7 @@ def select_structure(regime: str, vix: float) -> dict | None:
             "name": "bull_put_spread",
             "legs": [
                 {"type": "PE", "offset": 0, "side": "sell"},       # short ATM PE
-                {"type": "PE", "offset": DIRECTIONAL_WING_PTS, "side": "buy"},  # long wing PE
+                {"type": "PE", "offset": -DIRECTIONAL_WING_PTS, "side": "buy"},  # long wing PE (OTM, below ATM)
             ],
         }
     elif regime == "BearTrend":
@@ -522,6 +522,7 @@ def main():
 
         result = simulate_session(d, engine, bars_dir, options_path, full_chain)
         if result is None:
+            skipped["load_failed"] = skipped.get("load_failed", 0) + 1
             continue
 
         if result["status"] == "skip":

@@ -64,6 +64,18 @@ BLOCK_A_FEATURES = [
     'prev_day_return', 'prev_day_range', 'prev_day_clv', 'prev_day_slope',
 ]
 
+# Features DayTypeEngine can NEVER serve when block_a_excluded=True:
+# - prev_day_vol_pct is part of the engine's BLOCK_A_COLS (daytype_engine.py),
+#   only injected by _inject_block_a(), which is skipped for such models.
+# - partial_vol_pct20 / partial_range_pct20 are rolling percentiles computed
+#   inside _inject_block_a() — also skipped.
+# A --no-block-a model must not train on them, or trained != served.
+ENGINE_UNAVAILABLE_WHEN_BLOCK_A_EXCLUDED = [
+    'prev_day_vol_pct',
+    'partial_vol_pct20',
+    'partial_range_pct20',
+]
+
 # Features to winsorize at 1%/99% before scaling
 WINSORIZE_COLS = [
     'partial_realized_vol',
@@ -106,10 +118,15 @@ def load_checkpoint_data(cp: str) -> pd.DataFrame:
 
 def split_data(df: pd.DataFrame,
                train_thru: int = 2024) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Split by year: train=<= train_thru, val=train_thru+1, holdout>=train_thru+2."""
+    """Split by year: train=<= train_thru, val=train_thru+1, holdout==train_thru+2.
+
+    Holdout is pinned to exactly one year (train_thru+2), not open-ended. This
+    keeps the sealed forward window (train_thru+3 onward) out of the classifier's
+    holdout by construction, even if the feature build later extends past it.
+    """
     train = df[df.index.year <= train_thru]
     val   = df[df.index.year == train_thru + 1]
-    hold  = df[df.index.year >= train_thru + 2]
+    hold  = df[df.index.year == train_thru + 2]
     return train, val, hold
 
 
@@ -317,6 +334,15 @@ def run_checkpoint(cp: str, use_lgbm: bool,
         X_train_raw = X_train_raw.drop(columns=drop_a, errors='ignore')
         X_val_raw   = X_val_raw.drop(columns=drop_a, errors='ignore')
         X_hold_raw  = X_hold_raw.drop(columns=drop_a, errors='ignore')
+
+        # Also drop features the engine cannot serve when Block A is excluded
+        drop_unavail = [c for c in ENGINE_UNAVAILABLE_WHEN_BLOCK_A_EXCLUDED
+                        if c in X_train_raw.columns]
+        if drop_unavail:
+            print(f"  Dropping engine-unavailable features ({len(drop_unavail)}): {drop_unavail}")
+        X_train_raw = X_train_raw.drop(columns=drop_unavail, errors='ignore')
+        X_val_raw   = X_val_raw.drop(columns=drop_unavail, errors='ignore')
+        X_hold_raw  = X_hold_raw.drop(columns=drop_unavail, errors='ignore')
 
     # Align feature columns (val/hold may have NaN after rolling warmup)
     feat_cols = X_train_raw.columns.tolist()

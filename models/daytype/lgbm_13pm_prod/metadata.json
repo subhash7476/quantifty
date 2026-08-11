@@ -39,10 +39,7 @@
     "bn_nf_partial_return_spread",
     "bn_nf_correlation_5m",
     "bn_nf_range_ratio",
-    "bn_leads_nifty",
-    "prev_day_vol_pct",
-    "partial_vol_pct20",
-    "partial_range_pct20"
+    "bn_leads_nifty"
   ],
   "cluster_names": {
     "0": "Choppy",
@@ -53,47 +50,47 @@
     {
       "split": "Train",
       "n": 2907,
-      "accuracy": 0.8046,
+      "accuracy": 0.7516,
       "per_class": {
-        "Choppy": 0.7844,
-        "BullTrend": 0.7855,
-        "BearTrend": 0.8605
+        "Choppy": 0.738,
+        "BullTrend": 0.783,
+        "BearTrend": 0.7421
       },
-      "high_conf_pct": 0.44,
-      "med_conf_pct": 0.338,
-      "low_conf_pct": 0.223,
-      "acc_high_conf": 0.9546,
-      "acc_med_conf": 0.7648
+      "high_conf_pct": 0.333,
+      "med_conf_pct": 0.357,
+      "low_conf_pct": 0.31,
+      "acc_high_conf": 0.9255,
+      "acc_med_conf": 0.7623
     },
     {
       "split": "Val",
       "n": 246,
-      "accuracy": 0.7033,
+      "accuracy": 0.6789,
       "per_class": {
-        "Choppy": 0.5841,
-        "BullTrend": 0.8194,
-        "BearTrend": 0.7869
+        "Choppy": 0.5752,
+        "BullTrend": 0.7639,
+        "BearTrend": 0.7705
       },
-      "high_conf_pct": 0.431,
-      "med_conf_pct": 0.321,
-      "low_conf_pct": 0.248,
-      "acc_high_conf": 0.8396,
-      "acc_med_conf": 0.7089
+      "high_conf_pct": 0.378,
+      "med_conf_pct": 0.333,
+      "low_conf_pct": 0.289,
+      "acc_high_conf": 0.8065,
+      "acc_med_conf": 0.7073
     },
     {
       "split": "Hold",
       "n": 248,
-      "accuracy": 0.7137,
+      "accuracy": 0.7016,
       "per_class": {
-        "Choppy": 0.6581,
-        "BullTrend": 0.8205,
-        "BearTrend": 0.6792
+        "Choppy": 0.6496,
+        "BullTrend": 0.8333,
+        "BearTrend": 0.6226
       },
-      "high_conf_pct": 0.448,
-      "med_conf_pct": 0.363,
-      "low_conf_pct": 0.19,
-      "acc_high_conf": 0.8378,
-      "acc_med_conf": 0.6889
+      "high_conf_pct": 0.371,
+      "med_conf_pct": 0.351,
+      "low_conf_pct": 0.278,
+      "acc_high_conf": 0.8043,
+      "acc_med_conf": 0.7356
     }
   ],
   "block_a_excluded": true,
