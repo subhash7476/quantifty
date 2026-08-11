@@ -508,7 +508,7 @@ def main():
     # ── Init engine ─────────────────────────────────────────────────────────
     # The DayTypeEngine auto-resolves ROOT/MODEL_DIR/FEATURE_DIR relative to
     # its own file location inside the sealed folder. No monkey-patching needed.
-    engine = DayTypeEngine(model_name="logistic_13pm_prod", eod_feature_path=None)
+    engine = DayTypeEngine(model_name="logistic", eod_feature_path=None)
 
     # ── Run sessions ────────────────────────────────────────────────────────
     trades = []
