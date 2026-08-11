@@ -56,7 +56,7 @@ def _fact_row(regime="Choppy", conf=0.70, vix_close=15.0,
     row = {
         "session_date": session, "checkpoint": "13pm", "regime": regime,
         "regime_confidence": conf, "vix_close": vix_close,
-        "regime_fact_version": "dt-v2.0-train_thru2025",
+        "regime_fact_version": "dt-v2.0-train_thru2023",
         "model_hash": "x" * 64, "produced_by": "offline@test",
         "trained_on": "test",
     }

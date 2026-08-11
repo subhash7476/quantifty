@@ -142,7 +142,7 @@ def test_model_hash_is_content_based():
 def test_regime_fact_version_reflects_metadata():
     if not _model_present():
         pytest.skip("models/daytype not present")
-    assert pf.regime_fact_version() == "dt-v2.0-train_thru2025"
+    assert pf.regime_fact_version() == "dt-v2.0-train_thru2023"
 
 
 # --------------------------------------------------------------------------- #
