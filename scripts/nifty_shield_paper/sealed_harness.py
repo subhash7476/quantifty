@@ -18,11 +18,11 @@ Expected directory layout (sealed folder root):
       __init__.py
       state/
         __init__.py
-        daytype_engine.py     # from F:\Nifty\core\state\
+        daytype_engine.py     # from core/state/
       analytics/
         __init__.py
-        day_features.py        # from F:\Nifty\core\analytics\
-        resampler.py           # from F:\Nifty\core\analytics\
+        day_features.py        # from core/analytics/
+        resampler.py           # from core/analytics/
     models/
       logistic_13pm_prod/
         model.pkl
