@@ -118,6 +118,54 @@ will name the cold feed in the console + log instead of failing silently.
 
 ---
 
+---
+
+## Addendum (2026-08-11) — the VIX feed root cause: Upstox "full"-mode subscription cap
+
+"Why do India VIX ticks stop ~09:58" — investigated. **It is not a VIX bug and not a
+writer-worker bug.** It is a positional subscription cap in the Upstox V3 WebSocket feed.
+
+### Evidence
+- At 09:58 the live feed collapsed from **all 203 subscribed symbols to exactly the first
+  42** (`market_universe.json` keys 0–41, all `NSE_EQ`), sustained ~50 min to 10:48.
+- All three index symbols stopped together (India VIX, Nifty 50, Nifty Bank — each `n=2`,
+  09:57 + 09:58 only), plus every equity at universe position ≥ 42. The first 42 equities
+  kept live ticks (`n=94`, bars 09:15 backfill → 10:48).
+- The cut is **positional and exact** (contiguous keys 0–41), which rules out the writer's
+  drop-oldest queue (temporal, whole multi-symbol frames) and the aggregator
+  (`Aggregate(self.symbols)` passes all 203; `_aggregate_one` iterates every symbol). The
+  writer's `_parse` has no per-symbol cap. So ticks for keys ≥ 42 simply **stopped arriving**
+  in the `ticks` table → no candles built.
+- `market_ingestor._load_universe()` returns `symbols + REQUIRED_INDEX_SYMBOLS` deduped —
+  so **the 3 required indices are appended LAST** (positions ~200–202). They are always
+  outside the surviving first-~42 window ⇒ **VIX is guaranteed to go dark every morning**,
+  which is exactly the `live_vix` BLOCK that stops the orchestrator.
+
+### Mechanism
+`websocket_ingestor.py` subscribes all 203 keys in a single `{"mode":"full", ...}` message.
+Upstox delivers an initial snapshot for all (the 09:57–09:58 burst), then sustains continuous
+`full`-mode updates for only ~the first 42 keys. (Exact documented per-connection `full`-mode
+instrument limit to be confirmed against Upstox V3 docs; the positional evidence is
+conclusive that a cap exists regardless of the exact number.)
+
+### This is NOT covered by the writer-worker redesign
+The writer-worker work (F1/F3/F4 — landed in commits `b44466b`, `d4d17b6`, `99582cc`,
+`62e53c2`, `3767b27`) fixes event-loop starvation and live-buffer reader/writer contention.
+It does nothing about the feed only carrying 42 symbols. This is a **separate, newly-found
+defect** in the subscription layer.
+
+### Fix directions (not yet implemented — needs operator decision)
+1. **Cheap mitigation (does not fix breadth):** put `REQUIRED_INDEX_SYMBOLS` **first** in the
+   subscribed list so VIX/Nifty/BankNifty fall inside the surviving window. Unblocks the
+   orchestrator immediately; equities beyond the cap still starve.
+2. **Correct fix:** respect Upstox's per-mode limits — subscribe the bulk universe in a
+   higher-limit mode (e.g. `ltpc`, which is all the aggregator uses anyway — `_extract_ltp`
+   only reads LTP/LTT/LTQ), reserving `full` for the few instruments that truly need depth;
+   and/or shard the universe across the allowed subscription budget / multiple connections.
+   Confirm the exact V3 mode limits against Upstox docs first.
+
+---
+
 ## What this is NOT
 - Not an unhandled exception / traceback.
 - Not a token, STOP-file, or preflight-WARN problem.
