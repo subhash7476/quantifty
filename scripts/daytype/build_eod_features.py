@@ -46,7 +46,6 @@ def build():
     dates = sorted(
         date.fromisoformat(p.stem)
         for p in sorted(CANDLE_DIR.glob("*.duckdb"))
-        if p.stem >= "2023-01-01"
     )
     print(f"Scanning {len(dates)} dates from {dates[0]} to {dates[-1]}")
 
@@ -86,6 +85,8 @@ def build():
     df_final = finalize_dataframe(df_all)
 
     for year, grp in df_final.groupby(df_final.index.year):
+        grp = grp.copy()
+        grp.index.name = "date"
         out_path = OUT_DIR / f"nifty_day_features_{year}.csv"
         grp.to_csv(out_path)
         print(f"  {out_path} ({len(grp)} rows, {grp.shape[1]} cols)")

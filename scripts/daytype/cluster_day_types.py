@@ -44,7 +44,7 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import StandardScaler
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 DATA_DIR   = ROOT / "data" / "features" / "day_type"
@@ -99,7 +99,8 @@ def load_features() -> pd.DataFrame:
     for year in range(2012, 2026):
         path = DATA_DIR / f"nifty_day_features_{year}.csv"
         if path.exists():
-            df = pd.read_csv(path, index_col='date', parse_dates=True)
+            df = pd.read_csv(path, index_col=0, parse_dates=True)
+            df.index.name = "date"
             dfs.append(df)
     if not dfs:
         raise FileNotFoundError(f"No feature CSVs found in {DATA_DIR}")

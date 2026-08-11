@@ -47,7 +47,7 @@ from sklearn.preprocessing import StandardScaler
 
 warnings.filterwarnings('ignore')
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 FEATURE_DIR = ROOT / "data" / "features" / "day_type"
@@ -85,9 +85,9 @@ DROP_FROM_X = {
 
 # Cluster label names (for reporting)
 CLUSTER_NAMES = {
-    0: 'BearTrend',
+    0: 'Choppy',
     1: 'BullTrend',
-    2: 'Choppy',
+    2: 'BearTrend',
 }
 
 
@@ -100,7 +100,7 @@ def load_checkpoint_data(cp: str) -> pd.DataFrame:
             f"Missing: {path}\n"
             f"Run: python scripts/build_intraday_features.py first"
         )
-    df = pd.read_csv(path, index_col='date', parse_dates=True)
+    df = pd.read_csv(path, index_col=0, parse_dates=True)
     return df.sort_index()
 
 

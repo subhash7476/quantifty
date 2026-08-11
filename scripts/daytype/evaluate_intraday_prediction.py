@@ -33,7 +33,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, confusion_matrix
 
-ROOT = Path(__file__).resolve().parent.parent
+ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 FEATURE_DIR = ROOT / "data" / "features" / "day_type"
@@ -41,15 +41,23 @@ MODEL_DIR   = ROOT / "models" / "daytype"
 OUTPUT_DIR  = FEATURE_DIR
 
 CHECKPOINTS  = ['10am', '11am', '13pm']
-CLUSTER_NAMES = {0: 'BearTrend', 1: 'BullTrend', 2: 'Choppy'}
+CLUSTER_NAMES = {0: 'Choppy', 1: 'BullTrend', 2: 'BearTrend'}
 CONF_HIGH   = 0.70
 CONF_MED    = 0.55
 
 
 # ── Model loading ─────────────────────────────────────────────────────────────
 
+PROD_OVERRIDE = {'13pm': 'logistic_13pm_prod', '10am': 'logistic_10am', '11am': 'logistic_11am'}
+
 def load_model_artifacts(model_name: str, cp: str) -> tuple | None:
-    base = MODEL_DIR / f"{model_name}_{cp}"
+    dir_name = f"{model_name}_{cp}"
+    base = MODEL_DIR / dir_name
+    if not (base / "model.pkl").exists():
+        # Check override path (e.g. logistic_13pm_prod)
+        override = PROD_OVERRIDE.get(cp)
+        if override and model_name in override:
+            base = MODEL_DIR / override
     if not (base / "model.pkl").exists():
         return None
     with open(base / "model.pkl", 'rb') as f:
@@ -67,7 +75,7 @@ def load_checkpoint_data(cp: str) -> pd.DataFrame:
     path = FEATURE_DIR / f"intraday_features_{cp}.csv"
     if not path.exists():
         raise FileNotFoundError(f"Missing: {path}")
-    return pd.read_csv(path, index_col='date', parse_dates=True).sort_index()
+    return pd.read_csv(path, index_col=0, parse_dates=True).sort_index()
 
 
 def prepare_X(df: pd.DataFrame, feature_names: list[str]) -> tuple[np.ndarray, pd.Series]:
@@ -143,9 +151,9 @@ def flip_rate(pred_a: np.ndarray, pred_b: np.ndarray) -> float:
 
 
 def print_section(title: str) -> None:
-    print(f"\n{'─'*55}")
+    print(f"\n{'-'*55}")
     print(f"  {title}")
-    print(f"{'─'*55}")
+    print(f"{'-'*55}")
 
 
 # ── Main report ───────────────────────────────────────────────────────────────
@@ -172,7 +180,7 @@ def main():
         # ── Per-checkpoint accuracy table ──────────────────────────────────────
         print_section("Accuracy by Checkpoint")
         print(f"  {'Checkpoint':>10}  {'N':>5}  {'Acc':>7}  {'Bear':>7}  {'Bull':>7}  {'Chop':>7}")
-        print(f"  {'─'*10}  {'─'*5}  {'─'*7}  {'─'*7}  {'─'*7}  {'─'*7}")
+        print(f"  {'-'*10}  {'-'*5}  {'-'*7}  {'-'*7}  {'-'*7}  {'-'*7}")
 
         all_predictions = {}   # {cp: (dates, y_true, y_pred, proba)}
         checkpoint_results = {}
@@ -252,7 +260,7 @@ def main():
                 pa = pred_a[np.isin(dates_a, common)]
                 pb = pred_b[np.isin(dates_b, common)]
                 fr = flip_rate(pa, pb)
-                print(f"  {cp_a} → {cp_b}: {fr:.1%} of days change prediction")
+                print(f"  {cp_a} -> {cp_b}: {fr:.1%} of days change prediction")
 
         # ── Confusion matrices ─────────────────────────────────────────────────
         print_section("Confusion Matrices (rows=actual, cols=predicted)")

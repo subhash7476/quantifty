@@ -1,6 +1,6 @@
 {
   "checkpoint": "13pm",
-  "model": "logistic",
+  "model": "lgbm",
   "feature_names": [
     "open_5m_ret",
     "open_15m_ret",
@@ -53,47 +53,47 @@
     {
       "split": "Train",
       "n": 2907,
-      "accuracy": 0.6963,
+      "accuracy": 0.8046,
       "per_class": {
-        "Choppy": 0.6385,
-        "BullTrend": 0.7374,
-        "BearTrend": 0.7539
+        "Choppy": 0.7844,
+        "BullTrend": 0.7855,
+        "BearTrend": 0.8605
       },
-      "high_conf_pct": 0.477,
-      "med_conf_pct": 0.312,
-      "low_conf_pct": 0.21,
-      "acc_high_conf": 0.8314,
-      "acc_med_conf": 0.63
+      "high_conf_pct": 0.44,
+      "med_conf_pct": 0.338,
+      "low_conf_pct": 0.223,
+      "acc_high_conf": 0.9546,
+      "acc_med_conf": 0.7648
     },
     {
       "split": "Val",
       "n": 246,
-      "accuracy": 0.7195,
+      "accuracy": 0.7033,
       "per_class": {
-        "Choppy": 0.6106,
-        "BullTrend": 0.7917,
-        "BearTrend": 0.8361
+        "Choppy": 0.5841,
+        "BullTrend": 0.8194,
+        "BearTrend": 0.7869
       },
-      "high_conf_pct": 0.492,
-      "med_conf_pct": 0.268,
-      "low_conf_pct": 0.24,
-      "acc_high_conf": 0.843,
-      "acc_med_conf": 0.6061
+      "high_conf_pct": 0.431,
+      "med_conf_pct": 0.321,
+      "low_conf_pct": 0.248,
+      "acc_high_conf": 0.8396,
+      "acc_med_conf": 0.7089
     },
     {
       "split": "Hold",
       "n": 248,
-      "accuracy": 0.7218,
+      "accuracy": 0.7137,
       "per_class": {
-        "Choppy": 0.6325,
-        "BullTrend": 0.8333,
-        "BearTrend": 0.7547
+        "Choppy": 0.6581,
+        "BullTrend": 0.8205,
+        "BearTrend": 0.6792
       },
-      "high_conf_pct": 0.456,
-      "med_conf_pct": 0.359,
-      "low_conf_pct": 0.185,
-      "acc_high_conf": 0.8142,
-      "acc_med_conf": 0.7865
+      "high_conf_pct": 0.448,
+      "med_conf_pct": 0.363,
+      "low_conf_pct": 0.19,
+      "acc_high_conf": 0.8378,
+      "acc_med_conf": 0.6889
     }
   ],
   "block_a_excluded": true,
