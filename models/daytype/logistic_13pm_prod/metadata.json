@@ -39,49 +39,61 @@
     "bn_nf_partial_return_spread",
     "bn_nf_correlation_5m",
     "bn_nf_range_ratio",
-    "bn_leads_nifty",
-    "prev_day_vol_pct",
-    "partial_vol_pct20",
-    "partial_range_pct20"
+    "bn_leads_nifty"
   ],
   "cluster_names": {
-    "0": "BearTrend",
+    "0": "Choppy",
     "1": "BullTrend",
-    "2": "Choppy"
+    "2": "BearTrend"
   },
   "results": [
     {
       "split": "Train",
-      "n": 712,
-      "accuracy": 0.7556,
+      "n": 2907,
+      "accuracy": 0.6615,
       "per_class": {
-        "BearTrend": 0.7868,
-        "BullTrend": 0.8067,
-        "Choppy": 0.6895
+        "Choppy": 0.6063,
+        "BullTrend": 0.7423,
+        "BearTrend": 0.6724
       },
-      "high_conf_pct": 0.614,
-      "med_conf_pct": 0.222,
-      "low_conf_pct": 0.164,
-      "acc_high_conf": 0.8604,
-      "acc_med_conf": 0.6709
+      "high_conf_pct": 0.378,
+      "med_conf_pct": 0.344,
+      "low_conf_pct": 0.278,
+      "acc_high_conf": 0.8218,
+      "acc_med_conf": 0.608
     },
     {
       "split": "Val",
-      "n": 30,
-      "accuracy": 0.8,
+      "n": 246,
+      "accuracy": 0.7073,
       "per_class": {
-        "BearTrend": 0.7273,
-        "BullTrend": 0.6667,
-        "Choppy": 0.9231
+        "Choppy": 0.6018,
+        "BullTrend": 0.8056,
+        "BearTrend": 0.7869
       },
-      "high_conf_pct": 0.8,
-      "med_conf_pct": 0.133,
-      "low_conf_pct": 0.067,
-      "acc_high_conf": 0.8333,
-      "acc_med_conf": 0.5
+      "high_conf_pct": 0.451,
+      "med_conf_pct": 0.305,
+      "low_conf_pct": 0.244,
+      "acc_high_conf": 0.8198,
+      "acc_med_conf": 0.6533
+    },
+    {
+      "split": "Hold",
+      "n": 248,
+      "accuracy": 0.7056,
+      "per_class": {
+        "Choppy": 0.6068,
+        "BullTrend": 0.8205,
+        "BearTrend": 0.7547
+      },
+      "high_conf_pct": 0.403,
+      "med_conf_pct": 0.323,
+      "low_conf_pct": 0.274,
+      "acc_high_conf": 0.8,
+      "acc_med_conf": 0.7625
     }
   ],
   "block_a_excluded": true,
-  "train_thru": 2025,
-  "version": "v2.0-train_thru2025"
+  "train_thru": 2023,
+  "version": "v2.0-train_thru2023"
 }

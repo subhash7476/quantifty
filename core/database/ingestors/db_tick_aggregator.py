@@ -1,8 +1,6 @@
 import logging
-import time
-import duckdb
-from datetime import datetime, date
-from typing import List, Optional, Dict
+from datetime import datetime
+from typing import Optional
 
 from core.database.manager import DatabaseManager
 from core.messaging.zmq_handler import ZmqPublisher
@@ -19,125 +17,62 @@ class DBTickAggregator:
         self.db_manager = db_manager
         self.zmq_publisher = zmq_publisher
 
-    def aggregate_outstanding_ticks(self, symbols: List[str]):
-        """
-        Scans 'ticks' for unaggregated minutes and creates bars in 'candles'.
-        """
-        max_retries = 3
-        for attempt in range(max_retries):
+    def aggregate(self, symbols, db_manager, zmq_publisher):
+        for symbol in symbols:
             try:
-                # Open connections once for the entire batch to improve performance and reduce connection churn
-                with self.db_manager.live_buffer_writer() as conns:
-                    ticks_conn = conns['ticks']
-                    candles_conn = conns['candles']
-                    for symbol in symbols:
-                        try:
-                            self._aggregate_symbol(symbol, ticks_conn, candles_conn)
-                        except Exception as e:
-                            logger.error(f"Aggregation failed for {symbol}: {e}")
-                return  # Success, exit retry loop
+                self._aggregate_one(symbol, db_manager, zmq_publisher)
             except Exception as e:
-                if attempt < max_retries - 1:
-                    logger.warning(f"Failed to acquire live buffer for aggregation batch (attempt {attempt+1}/{max_retries}): {e}")
-                    time.sleep(0.3 * (attempt + 1))  # Exponential backoff
-                else:
-                    logger.error(f"Failed to acquire live buffer for aggregation batch after {max_retries} attempts: {e}")
+                logger.error(f"Aggregation failed for {symbol}: {e}")
 
-    def _table_exists(self, conn: duckdb.DuckDBPyConnection, table_name: str) -> bool:
-        """Return True if table_name exists in the given DuckDB connection."""
-        try:
-            result = conn.execute(
-                "SELECT count(*) FROM information_schema.tables WHERE table_name = ?",
-                [table_name]
-            ).fetchone()
-            return bool(result and result[0] > 0)
-        except Exception:
-            return False
+    def _aggregate_one(self, symbol, db_manager, zmq_publisher):
+        with db_manager.live_buffer_reader() as conns:
+            if 'ticks' not in conns:
+                return
+            ticks_conn = conns['ticks']
+            last_bar_ts = None
+            if 'candles' in conns:
+                res = conns['candles'].execute(
+                    "SELECT MAX(timestamp) FROM candles WHERE symbol=? AND timeframe='1m' AND is_synthetic=FALSE",
+                    [symbol],
+                ).fetchone()
+                last_bar_ts = res[0] if res and res[0] else None
+            start_ts = last_bar_ts if last_bar_ts else datetime(2000, 1, 1)
+            rows = ticks_conn.execute(
+                """
+                SELECT date_trunc('minute', timestamp) AS bar_ts,
+                       first(price ORDER BY timestamp ASC) AS op,
+                       max(price) AS hi, min(price) AS lo,
+                       last(price ORDER BY timestamp ASC) AS cl,
+                       sum(volume) AS vol
+                FROM ticks WHERE symbol=? AND timestamp>=? GROUP BY 1 ORDER BY 1 ASC
+                """,
+                [symbol, start_ts],
+            ).fetchall()
 
-    def _aggregate_symbol(self, symbol: str, ticks_conn: duckdb.DuckDBPyConnection, candles_conn: duckdb.DuckDBPyConnection):
-        # Guard: ticks table may not exist yet (empty/new DB file)
-        if not self._table_exists(ticks_conn, 'ticks'):
-            logger.debug(f"Skipping {symbol}: ticks table not yet initialised in live buffer.")
+        current_minute = datetime.now().replace(second=0, microsecond=0)
+        completed = [r for r in rows if r[0] < current_minute and r[1] is not None and r[4] is not None]
+        if not completed:
             return
 
-        # 1. Find the last aggregated bar timestamp
-        last_bar_ts = self._get_last_bar_timestamp(symbol, candles_conn)
-
-        # 2. Start from the last bar OR far in the past
-        start_ts = last_bar_ts if last_bar_ts else datetime(2000, 1, 1)
-
-        # 3. Aggregate using DuckDB SQL
-        query = """
-            SELECT
-                date_trunc('minute', timestamp) as bar_ts,
-                first(price ORDER BY timestamp ASC) as op,
-                max(price) as hi,
-                min(price) as lo,
-                last(price ORDER BY timestamp ASC) as cl,
-                sum(volume) as vol
-            FROM ticks
-            WHERE symbol = ? AND timestamp >= ?
-            GROUP BY 1
-            ORDER BY 1 ASC
-        """
-
-        try:
-            results = ticks_conn.execute(query, [symbol, start_ts]).fetchall()
-
-            for row in results:
-                bar_ts, op, hi, lo, cl, vol = row
-
-                # Skip if bar is current (incomplete) minute
-                if bar_ts >= datetime.now().replace(second=0, microsecond=0):
-                    continue
-
-                if op is None or cl is None:
-                    logger.warning(f"Skipping null aggregate for {symbol} at {bar_ts}")
-                    continue
-
-                # Write to candles_conn
+        with db_manager.live_candles_writer() as candles_conn:
+            for bar_ts, op, hi, lo, cl, vol in completed:
                 candles_conn.execute(
                     """
                     INSERT INTO candles
                     (symbol, timeframe, timestamp, open, high, low, close, volume, is_synthetic)
                     VALUES (?, '1m', ?, ?, ?, ?, ?, ?, FALSE)
                     ON CONFLICT (symbol, timeframe, timestamp) DO UPDATE SET
-                        open = EXCLUDED.open,
-                        high = EXCLUDED.high,
-                        low = EXCLUDED.low,
-                        close = EXCLUDED.close,
-                        volume = EXCLUDED.volume,
-                        is_synthetic = FALSE
+                        open=EXCLUDED.open, high=EXCLUDED.high, low=EXCLUDED.low,
+                        close=EXCLUDED.close, volume=EXCLUDED.volume, is_synthetic=FALSE
                     """,
-                    [symbol, bar_ts, op, hi, lo, cl, int(vol)]
+                    [symbol, bar_ts, op, hi, lo, cl, int(vol)],
                 )
 
-                # Broadcast via ZMQ if publisher is available
-                if self.zmq_publisher:
-                    topic = f"market.candle.1m.{symbol}"
-                    data = {
-                        "symbol": symbol,
-                        "timeframe": "1m",
-                        "timestamp": bar_ts.isoformat(),
-                        "open": float(op),
-                        "high": float(hi),
-                        "low": float(lo),
-                        "close": float(cl),
-                        "volume": int(vol)
-                    }
-                    self.zmq_publisher.publish(topic, "market_candle", data)
-
-            if results and len(results) > 1:
-                logger.debug(f"Aggregated {len(results)} bars for {symbol}.")
-        except Exception as e:
-            logger.error(f"Aggregation failed for {symbol}: {e}")
-
-    def _get_last_bar_timestamp(self, symbol: str, candles_conn: duckdb.DuckDBPyConnection) -> Optional[datetime]:
-        try:
-            res = candles_conn.execute(
-                "SELECT MAX(timestamp) FROM candles WHERE symbol = ? AND timeframe = '1m' AND is_synthetic = FALSE",
-                [symbol]
-            ).fetchone()
-            return res[0] if res and res[0] else None
-        except:
-            return None
+        if zmq_publisher:
+            for bar_ts, op, hi, lo, cl, vol in completed:
+                zmq_publisher.publish(
+                    f"market.candle.1m.{symbol}", "market_candle",
+                    {"symbol": symbol, "timeframe": "1m", "timestamp": bar_ts.isoformat(),
+                     "open": float(op), "high": float(hi), "low": float(lo),
+                     "close": float(cl), "volume": int(vol)},
+                )

@@ -443,15 +443,15 @@ def main():
     # Load EOD features (all years)
     print("\n[1] Loading EOD features + cluster labels...")
     eod_dfs = []
-    for year in [2023, 2024, 2025, 2026]:
+    for year in range(2012, 2027):
         p = FEATURE_DIR / f"nifty_day_features_{year}.csv"
         if p.exists():
-            eod_dfs.append(pd.read_csv(p, index_col='date', parse_dates=True))
+            eod_dfs.append(pd.read_csv(p, index_col=0, parse_dates=True))
     if not eod_dfs:
         raise FileNotFoundError("No EOD feature CSVs found")
     eod_df = pd.concat(eod_dfs).sort_index()
 
-    labels_df = pd.read_csv(FEATURE_DIR / "cluster_labels.csv", index_col='date', parse_dates=True)
+    labels_df = pd.read_csv(FEATURE_DIR / "cluster_labels.csv", index_col=0, parse_dates=True)
     eod_df = eod_df.join(labels_df[['cluster_id']], how='left')
     print(f"    EOD rows: {len(eod_df)}, cluster labels joined: {eod_df['cluster_id'].notna().sum()}")
 

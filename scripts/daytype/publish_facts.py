@@ -46,7 +46,9 @@ TARGET_BAR = CHECKPOINT_BARS[CHECKPOINT]          # 225 (bars 0..224 used by the
 MIN_BARS = MIN_BARS_REQUIRED[CHECKPOINT]          # 100
 
 # Standing model provenance (operator-directed 2026-08-07; spec §4 trained_on).
-TRAINED_ON = r"D:\BOT\root vintage — NOT F:\nifty data"
+# Retrained v2.0-train_thru2023 from F:\Nifty reference 1m store (resolves the
+# E005/E006 standing caveat "models NOT trained on F:\Nifty data").
+TRAINED_ON = "F:\\Nifty reference 1m 2012-2023 + DuckDB store; retrained v2.0-train_thru2023"
 
 # Model dir resolved by the engine's hard path (core/state -> models/daytype).
 MODEL_DIR = ROOT / "models" / "daytype" / "logistic_13pm_prod"

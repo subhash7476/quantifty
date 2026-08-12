@@ -88,7 +88,7 @@ MIN_BARS_REQUIRED = {
     '13pm': 100,
 }
 
-CLUSTER_NAMES = {0: 'BearTrend', 1: 'BullTrend', 2: 'Choppy'}
+CLUSTER_NAMES = {0: 'Choppy', 1: 'BullTrend', 2: 'BearTrend'}
 CONF_HIGH = 0.70
 CONF_MED  = 0.55
 

@@ -71,6 +71,15 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 | `docs/DRIVER_SPECIFICATION.md` | LoopDriver spec and behavior contracts |
 | `docs/PLATFORM_CONSTITUTION.md` | Architectural principles and invariants |
 
+## Ops — Trading-Window Orchestrator
+
+One-command foreground supervisor for the NiftyShield PAPER window:
+`python scripts/ops/orchestrator.py` (Flask → Upstox login → ingestor → poller →
+session → EOD; Ctrl+C stops cleanly). Read-only health: `python scripts/ops/preflight.py`
+(BLOCK: token/STOP/marks/VIX; WARN: SPAN/master/feeds/EOD-worker). Full contract:
+`docs/superpowers/specs/2026-08-09-ops-orchestrator-preflight-design.md`;
+runbook: `docs/reports/OPS_ORCHESTRATOR_RUNBOOK.md`.
+
 ---
 
 ## Data Layout

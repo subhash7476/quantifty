@@ -1,0 +1,109 @@
+{
+  "checkpoint": "10am",
+  "model": "lgbm",
+  "feature_names": [
+    "open_5m_ret",
+    "open_15m_ret",
+    "open_30m_ret",
+    "open_30m_range",
+    "open_30m_range_ratio_partial",
+    "open_30m_high_break_min",
+    "open_30m_low_break_min",
+    "open_30m_twap_dist",
+    "partial_return",
+    "partial_range_pct",
+    "partial_clv",
+    "partial_linreg_r2",
+    "partial_linreg_slope",
+    "partial_hh_count_15m",
+    "partial_ll_count_15m",
+    "partial_realized_vol",
+    "partial_atr_5m",
+    "range_pct_before_11am_partial",
+    "partial_log_vol_expansion",
+    "partial_center_of_mass",
+    "partial_pct_above_twap",
+    "partial_twap_cross_count",
+    "partial_longest_above_twap",
+    "partial_longest_below_twap",
+    "partial_close_dist_twap",
+    "partial_twap_dist_std",
+    "partial_flip_count_15m",
+    "partial_dominant_direction_strength",
+    "partial_avg_adverse_excursion",
+    "partial_trend_score",
+    "partial_hh_minus_ll",
+    "partial_twap_lean",
+    "bn_nf_open_5m_spread",
+    "bn_nf_open_30m_spread",
+    "bn_nf_partial_return_spread",
+    "bn_nf_correlation_5m",
+    "bn_nf_range_ratio",
+    "bn_leads_nifty",
+    "gap_pct",
+    "gap_dir",
+    "gap_size_pct60",
+    "prev_day_return",
+    "prev_day_range",
+    "prev_day_clv",
+    "prev_day_slope",
+    "prev_day_vol_pct",
+    "partial_vol_pct20",
+    "partial_range_pct20"
+  ],
+  "cluster_names": {
+    "0": "Choppy",
+    "1": "BullTrend",
+    "2": "BearTrend"
+  },
+  "results": [
+    {
+      "split": "Train",
+      "n": 2915,
+      "accuracy": 0.6813,
+      "per_class": {
+        "Choppy": 0.6413,
+        "BullTrend": 0.6376,
+        "BearTrend": 0.7987
+      },
+      "high_conf_pct": 0.087,
+      "med_conf_pct": 0.264,
+      "low_conf_pct": 0.649,
+      "acc_high_conf": 0.9412,
+      "acc_med_conf": 0.8231
+    },
+    {
+      "split": "Val",
+      "n": 248,
+      "accuracy": 0.5202,
+      "per_class": {
+        "Choppy": 0.5304,
+        "BullTrend": 0.5,
+        "BearTrend": 0.5246
+      },
+      "high_conf_pct": 0.044,
+      "med_conf_pct": 0.302,
+      "low_conf_pct": 0.653,
+      "acc_high_conf": 0.6364,
+      "acc_med_conf": 0.6133
+    },
+    {
+      "split": "Hold",
+      "n": 249,
+      "accuracy": 0.49,
+      "per_class": {
+        "Choppy": 0.4661,
+        "BullTrend": 0.4359,
+        "BearTrend": 0.6226
+      },
+      "high_conf_pct": 0.044,
+      "med_conf_pct": 0.277,
+      "low_conf_pct": 0.679,
+      "acc_high_conf": 0.8182,
+      "acc_med_conf": 0.4348
+    }
+  ],
+  "block_a_excluded": false,
+  "train_thru": 2023,
+  "version": "v2.0-train_thru2023"
+}

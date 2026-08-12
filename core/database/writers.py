@@ -75,8 +75,7 @@ class MarketDataWriter:
         for d, daily_candles in by_date.items():
             try:
                 if d >= today:
-                    with self.db.live_buffer_writer() as conns:
-                        conn = conns['candles']
+                    with self.db.live_candles_writer() as conn:
                         conn.execute(schema.MARKET_CANDLES_SCHEMA)
                         inserted += self._execute_insert(conn, symbol, timeframe, daily_candles)
                 else:

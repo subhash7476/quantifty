@@ -34,6 +34,7 @@ import argparse
 import dataclasses
 import json
 import logging
+import signal
 import sys
 from datetime import date
 from pathlib import Path
@@ -169,6 +170,20 @@ def _bootstrap_trading_schema(dm: DatabaseManager) -> None:
         conn.execute(TRADING_TRADE_CONTEXT_SCHEMA)
 
 
+def _make_stop_handler(driver):
+    """Return a signal handler that requests a clean driver stop (loop drains to
+    STOPPED, the run_session `finally` finalizes the session package). Errors are
+    swallowed so a second signal can never abort finalization."""
+    def _handler(signum, frame):
+        _logger.info("stop signal %s received; requesting clean driver stop",
+                     signum)
+        try:
+            driver.stop()
+        except Exception as exc:  # noqa: BLE001 — shutdown must not raise
+            _logger.warning("driver.stop() during shutdown raised: %s", exc)
+    return _handler
+
+
 def run_session(*, session_date: date, data_root: Path, chain_db_path: str,
                 initial_capital: float, max_bars: Optional[int],
                 record: bool = True) -> int:
@@ -198,6 +213,15 @@ def run_session(*, session_date: date, data_root: Path, chain_db_path: str,
         recorder=recorder,
         span_snapshot=span_snapshot,
     )
+
+    # Cooperative external stop (ops orchestrator): SIGTERM (POSIX) / SIGBREAK
+    # (Windows CTRL_BREAK_EVENT) drain the loop via driver.stop() so the
+    # `finally` below finalizes the session package. Ctrl+C in a foreground
+    # console still works through the KeyboardInterrupt path.
+    handler = _make_stop_handler(driver)
+    signal.signal(signal.SIGTERM, handler)
+    if hasattr(signal, "SIGBREAK"):           # Windows CTRL_BREAK_EVENT
+        signal.signal(signal.SIGBREAK, handler)
 
     interrupted = False
     try:
