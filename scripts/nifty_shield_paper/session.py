@@ -1,4 +1,4 @@
-"""NiftyShield — Stage-2 PAPER per-session ops runner (E007 Phase B).
+"""NiftyShield — Stage-2 PAPER per-session ops runner (E008 Phase B).
 
 The daily Phase B operation. Composes the LIVE composition root (frozen
 identity) with the Phase B recorder + heartbeat watchdog, runs the session,
@@ -265,7 +265,7 @@ def run_session(*, session_date: date, data_root: Path, chain_db_path: str,
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="NiftyShield Stage-2 PAPER session runner (E007 Phase B)")
+        description="NiftyShield Stage-2 PAPER session runner (E008 Phase B)")
     parser.add_argument("--date", default=None,
                         help="session date YYYY-MM-DD (default: today IST)")
     parser.add_argument("--data-root", default="data/nifty_shield",

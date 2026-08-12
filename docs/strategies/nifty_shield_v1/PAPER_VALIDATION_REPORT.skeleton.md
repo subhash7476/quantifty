@@ -1,7 +1,7 @@
-# PAPER Validation Report — `nifty_shield_v1` (Stage 2, E007)
+# PAPER Validation Report — `nifty_shield_v1` (Stage 2, E008)
 
 **Status:** **SKELETON (Phase A complete — harness built and smoke-tested). NOT a validation.** The
-E007 grant waits on Phase B's real forward window (≥20 sessions AND ≥30 round-trips, datasheet §10).
+E008 grant waits on Phase B's real forward window (≥20 sessions AND ≥30 round-trips, datasheet §10).
 **Template:** MM12.5 §9.2 permanent record. **Prompt of record:**
 `docs/reports/NIFTY_SHIELD_STAGE2_PAPER_VALIDATION_IMPLEMENTATION_PROMPT.md`.
 
@@ -12,7 +12,7 @@ E007 grant waits on Phase B's real forward window (≥20 sessions AND ≥30 roun
 | Field | Value |
 |---|---|
 | `strategy_id` | `nifty_shield_v1` |
-| `code_ref` | **`89fcdd6`** (Ledger E006 re-cert) |
+| `code_ref` | **`fe87363`** (Ledger E007 re-cert) |
 | `config_hash` | `c5b722ff204d4e434f5cbffb1674136738a79693a3ced17bf07e46676d5336c6` |
 | Contract version | `1.0` |
 | Datasheet of record | `docs/strategies/nifty_shield_v1/datasheet.md` (§7 risk, §9 gates, §10 RT convention) |
@@ -89,7 +89,7 @@ standing exclusions only (`broker_id` UUIDs, journal wall-clock).]
 
 [FILL — full platform regression suite green at the window's platform commit; confirm the standing
 pre-existing `tests/g1/test_g1_closure_guard.py` failure on `main` is the ONLY red and is not
-strategy-attributable (E007 acceptance #8).]
+strategy-attributable (E008 acceptance #8).]
 
 ## 7. Findings and dispositions (Phase A)
 
@@ -143,7 +143,7 @@ The DayType regime models are the retired `D:\BOT\root` `v2.0-train_thru2025` mo
 
 ## 10. Hand-back / sequencing
 
-- **E007 does not begin Stage 3.** LIVE CANDIDATE (E008) infrastructure (MM14 reconciliation) is
+- **E008 does not begin Stage 3.** LIVE CANDIDATE (E009) infrastructure (MM14 reconciliation) is
   built only when a candidate reaches Stage 3 — never ahead of need.
 - **Phase B operations:** run `scripts/nifty_shield_paper/session.py` each trading session (per
   `docs/strategies/nifty_shield_v1/PAPER_WINDOW_RUNBOOK.md` — the Phase B runbook: daily session op,
@@ -154,4 +154,4 @@ The DayType regime models are the retired `D:\BOT\root` `v2.0-train_thru2025` mo
   (`scripts/nifty_shield_paper/drill.py`); re-drive ≥1 recorded session
   (`scripts/nifty_shield_paper/replay.py`); assemble this report
   (`scripts/nifty_shield_paper/assemble_report.py`) and hand back for Claude's
-  review + the operator's E007 grant.
+  review + the operator's E008 grant.

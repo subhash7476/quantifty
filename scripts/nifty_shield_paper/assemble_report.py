@@ -1,4 +1,4 @@
-"""NiftyShield — Stage-2 PAPER window report assembler (E007 Phase B, deliverable I).
+"""NiftyShield — Stage-2 PAPER window report assembler (E008 Phase B, deliverable I).
 
 Fills the PAPER Validation Report from the window's accumulated evidence at
 `--data-root` (default `data/nifty_shield`):
@@ -383,11 +383,11 @@ def _replacement_map(v: Dict[str, str]) -> List[tuple]:
         ("[FILL — full platform regression suite green at the window's "
          "platform commit; confirm the standing pre-existing "
          "`tests/g1/test_g1_closure_guard.py` failure on `main` is the ONLY "
-         "red and is not strategy-attributable (E007 acceptance #8).]",
+         "red and is not strategy-attributable (E008 acceptance #8).]",
          "[FILLED at window close: run `python -m pytest tests/ -q` at the "
          "platform commit; the standing pre-existing "
          "`tests/g1/test_g1_closure_guard.py` failure on `main` must be the "
-         "ONLY red and is not strategy-attributable (E007 acceptance #8).]"),
+         "ONLY red and is not strategy-attributable (E008 acceptance #8).]"),
     ]
 
 
@@ -434,7 +434,7 @@ def assemble(*, data_root: Path, report_path: Optional[Path] = None,
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="NiftyShield Stage-2 PAPER window report assembler (E007 Phase B)")
+        description="NiftyShield Stage-2 PAPER window report assembler (E008 Phase B)")
     parser.add_argument("--data-root", default="data/nifty_shield",
                         help="window evidence root")
     parser.add_argument("--report", default=str(REPORT_PATH),

@@ -1,4 +1,4 @@
-"""NiftyShield — Stage-2 PAPER replay-evidence harness (E007 Phase B, deliverable G).
+"""NiftyShield — Stage-2 PAPER replay-evidence harness (E008 Phase B, deliverable G).
 
 Re-drives a RECORDED session package through the real composition root in REPLAY
 and diffs determinism:
@@ -327,7 +327,7 @@ def _fmt_result(r: ReplayResult) -> str:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="NiftyShield Stage-2 PAPER replay evidence (E007 Phase B)")
+        description="NiftyShield Stage-2 PAPER replay evidence (E008 Phase B)")
     parser.add_argument("--session", required=True,
                         help="session date YYYY-MM-DD of the recorded package")
     parser.add_argument("--data-root", default="data/nifty_shield",

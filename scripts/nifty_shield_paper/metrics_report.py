@@ -1,4 +1,4 @@
-"""NiftyShield — risk-metrics report generator (E007 D, §7.4.2).
+"""NiftyShield — risk-metrics report generator (E008 D, §7.4.2).
 
 From the journal + the trade ledger, computes the Stage-2 risk-metrics report:
 round-trip count, win rate, avg win/loss in R, profit factor, max drawdown (Rs,

@@ -1,4 +1,4 @@
-"""NiftyShield — journal-audit tool (E007 C, §7.4.4).
+"""NiftyShield — journal-audit tool (E008 C, §7.4.4).
 
 From the journal + the trade ledger, trace every structure's entry intent to
 fill or journaled rejection and quantify shadow-state divergence.

@@ -2,10 +2,10 @@
      docs/strategies/nifty_shield_v1/PAPER_VALIDATION_REPORT.skeleton.md
      — do not edit by hand; edit the skeleton and re-assemble. -->
 
-# PAPER Validation Report — `nifty_shield_v1` (Stage 2, E007)
+# PAPER Validation Report — `nifty_shield_v1` (Stage 2, E008)
 
 **Status:** **SKELETON (Phase A complete — harness built and smoke-tested). NOT a validation.** The
-E007 grant waits on Phase B's real forward window (≥20 sessions AND ≥30 round-trips, datasheet §10).
+E008 grant waits on Phase B's real forward window (≥20 sessions AND ≥30 round-trips, datasheet §10).
 **Template:** MM12.5 §9.2 permanent record. **Prompt of record:**
 `docs/reports/NIFTY_SHIELD_STAGE2_PAPER_VALIDATION_IMPLEMENTATION_PROMPT.md`.
 
@@ -16,7 +16,7 @@ E007 grant waits on Phase B's real forward window (≥20 sessions AND ≥30 roun
 | Field | Value |
 |---|---|
 | `strategy_id` | `nifty_shield_v1` |
-| `code_ref` | **`89fcdd6`** (Ledger E006 re-cert) |
+| `code_ref` | **`fe87363`** (Ledger E007 re-cert) |
 | `config_hash` | `c5b722ff204d4e434f5cbffb1674136738a79693a3ced17bf07e46676d5336c6` |
 | Contract version | `1.0` |
 | Datasheet of record | `docs/strategies/nifty_shield_v1/datasheet.md` (§7 risk, §9 gates, §10 RT convention) |
@@ -25,12 +25,12 @@ E007 grant waits on Phase B's real forward window (≥20 sessions AND ≥30 roun
 
 | Field | Value |
 |---|---|
-| Window dates | **[FILL AT CLOSE]** |
-| Sessions | **[count] / ≥20 required** |
-| Completed round-trips | **[count] / ≥30 required** (or §7.3 60-session escape, ledgered) |
-| Platform commit the window ran on | **[FILL]** |
-| Restarts + causes | **[FILL]** |
-| Anomalies + dispositions | **[FILL]** |
+| Window dates | **N/A** |
+| Sessions | **0 / ≥20 required** (raw 0; excluded 0: none) |
+| Completed round-trips | **0 / ≥30 required** (raw 0; counting sessions only) (or §7.3 60-session escape, ledgered) |
+| Platform commit the window ran on | `3625b9b` |
+| Restarts + causes | none (per-session process per the runbook) |
+| Anomalies + dispositions | none recorded |
 
 ## 3. Phase A status — harness, wiring, smoke (2026-08-08)
 
@@ -63,37 +63,32 @@ Risk metrics: RT=1, conversion 1.00. Telemetry clean.
 
 ## 4. The seven §4.2 evidence items (Phase B fills these)
 
-1. **Session evidence** — [≥20 sessions AND ≥30 RTs, datasheet §10 convention: 1 RT = 1 structure fully closed].
+1. **Session evidence** — [**0 counting sessions AND 0 counting RTs** (raw 0 sessions / 0 RTs; excluded 0: none) — datasheet §10 convention: 1 RT = 1 structure fully closed].
 2. **Guard cleanliness** — `STRATEGY_ERRORS = STRATEGY_QUARANTINE_EVENTS = SIGNAL_CONTRACT_REJECTIONS = 0`
-   across the window. One event fails the stage (§7.6). [FILL from `scripts/nifty_shield_paper/audit.py`].
+   across the window. One event fails the stage (§7.6). [FILLED: STRATEGY_ERRORS=0 STRATEGY_QUARANTINE_EVENTS=0 SIGNAL_CONTRACT_REJECTIONS=0 — from `scripts/nifty_shield_paper/audit.py`].
 3. **Journal audit** — every emitted signal → fill or journaled rejection; divergence one-directional;
-   no reverse divergence. [FILL from `audit_window(...)`].
+   no reverse divergence. [FILLED: 0 structures traced; divergence one-directional YES; reverse 0 — from `audit_window(...)`].
 4. **Risk metrics report** — RT count, win rate, avg win/loss in R, profit factor, max DD (Rs, %),
    peak gross exposure, peak margin utilization, signal→fill conversion with per-gate rejection
-   breakdown, guard counters. PnL facts are owner's judgment, not pass/fail. [FILL from
-   `risk_metrics_report(...)`].
+   breakdown, guard counters. PnL facts are owner's judgment, not pass/fail. [FILLED: RT=0 WR=0.0% avgWin=N/AR avgLoss=N/AR PF=N/A maxDD=0.00% peakGross=Rs 0 peakMarginUtil=0.0% conv=0.0% rejections=[none] — from `risk_metrics_report(...)`].
 5. **Telemetry archive** — per-session `RuntimeMetric` snapshots + heartbeat continuity; a telemetry
-   gap = the session does not count. [FILL from `archive_session(...)`].
+   gap = the session does not count. [FILLED: 0 sessions archived clean; gaps = none — from `archive_session(...)`].
 6. **Margin evidence** — every entry passed the margin gate with `NseMarginEngine` SPAN + ELM
-   journaled on undefined-risk legs against real option marks (E7-4). [FILL from journal `ENTRY_MARGIN`].
+   journaled on undefined-risk legs against real option marks (E7-4). [FILLED: 0 entries; NseMarginEngine(SPAN+ELM) =0, MarginTracker(flat) =0; flat-rate sessions = none — from journal `ENTRY_MARGIN`].
    **Note:** if no SPAN snapshot is present for a session the engine falls back to flat-rate
    `MarginTracker` (journaled `engine=MarginTracker`) — such a session does not satisfy §7.7's
    SPAN+ELM requirement and must be flagged.
 7. **Kill-switch drill** — one operator drill mid-window (E7-5): activate the kill switch, confirm
    entry signals blocked + journaled, confirm kill-switched-but-running posture, restart per the
-   runbook draft. Capture journal + telemetry. [FILL].
+   runbook draft. Capture journal + telemetry. not run.
 
 ## 5. Replay evidence (§4.2 replay row)
 
-[FILL — ≥1 recorded session re-driven through the same composition root in REPLAY; signal stream
-byte-identical, ledger deterministic fields (symbol, side, quantity, fill price, signal_id) match,
-standing exclusions only (`broker_id` UUIDs, journal wall-clock).]
+[FILLED: none — standing exclusions only (`broker_id` UUIDs, journal wall-clock).]
 
 ## 6. Regression suite at the run commit
 
-[FILL — full platform regression suite green at the window's platform commit; confirm the standing
-pre-existing `tests/g1/test_g1_closure_guard.py` failure on `main` is the ONLY red and is not
-strategy-attributable (E007 acceptance #8).]
+[FILLED at window close: run `python -m pytest tests/ -q` at the platform commit; the standing pre-existing `tests/g1/test_g1_closure_guard.py` failure on `main` must be the ONLY red and is not strategy-attributable (E008 acceptance #8).]
 
 ## 7. Findings and dispositions (Phase A)
 
@@ -147,7 +142,7 @@ The DayType regime models are the retired `D:\BOT\root` `v2.0-train_thru2025` mo
 
 ## 10. Hand-back / sequencing
 
-- **E007 does not begin Stage 3.** LIVE CANDIDATE (E008) infrastructure (MM14 reconciliation) is
+- **E008 does not begin Stage 3.** LIVE CANDIDATE (E009) infrastructure (MM14 reconciliation) is
   built only when a candidate reaches Stage 3 — never ahead of need.
 - **Phase B operations:** run `scripts/nifty_shield_paper/session.py` each trading session (per
   `docs/strategies/nifty_shield_v1/PAPER_WINDOW_RUNBOOK.md` — the Phase B runbook: daily session op,
@@ -158,4 +153,4 @@ The DayType regime models are the retired `D:\BOT\root` `v2.0-train_thru2025` mo
   (`scripts/nifty_shield_paper/drill.py`); re-drive ≥1 recorded session
   (`scripts/nifty_shield_paper/replay.py`); assemble this report
   (`scripts/nifty_shield_paper/assemble_report.py`) and hand back for Claude's
-  review + the operator's E007 grant.
+  review + the operator's E008 grant.

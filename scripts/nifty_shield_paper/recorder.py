@@ -1,4 +1,4 @@
-"""NiftyShield — Stage-2 PAPER session recorder + replay seams (E007 Phase B).
+"""NiftyShield — Stage-2 PAPER session recorder + replay seams (E008 Phase B).
 
 The forward-window (Phase B) runner records exactly what the LIVE composition
 root consumed, so the replay-evidence item (deliverable G) can re-drive a

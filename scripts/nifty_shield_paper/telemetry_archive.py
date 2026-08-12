@@ -1,4 +1,4 @@
-"""NiftyShield — telemetry archive (E007 E, §7.2).
+"""NiftyShield — telemetry archive (E008 E, §7.2).
 
 Per-session `RuntimeMetric` snapshot consistency checks, so a session offered as
 PAPER evidence must satisfy §7.2: BARS_PROCESSED/LOOP_ITERATIONS session-

@@ -1,4 +1,4 @@
-"""NiftyShield — Stage-2 PAPER kill-switch drill (E007 Phase B, deliverable H).
+"""NiftyShield — Stage-2 PAPER kill-switch drill (E008 Phase B, deliverable H).
 
 The mid-window operator drill (E7-5): exercise the manual kill switch against the
 real composition root and capture the evidence the PAPER report needs:
@@ -212,7 +212,7 @@ def run_drill(*, session_dir: str, data_root: str,
                 raise ReplayDivergence("drill: driver never reached the STOP gate")
             time.sleep(0.005)
         stop_path.write_text(
-            "NiftyShield E007 Phase B kill-switch drill (E7-5)", encoding="utf-8")
+            "NiftyShield E008 Phase B kill-switch drill (E7-5)", encoding="utf-8")
         gate.set()
         thread.join(timeout=120)
 
@@ -264,7 +264,7 @@ def run_drill(*, session_dir: str, data_root: str,
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="NiftyShield Stage-2 PAPER kill-switch drill (E007 Phase B)")
+        description="NiftyShield Stage-2 PAPER kill-switch drill (E008 Phase B)")
     parser.add_argument("--session", required=True,
                         help="session date YYYY-MM-DD of the recorded package")
     parser.add_argument("--data-root", default="data/nifty_shield",

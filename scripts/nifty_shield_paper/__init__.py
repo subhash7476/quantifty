@@ -1,1 +1,1 @@
-"""NiftyShield Stage-2 PAPER — runner + evidence-tooling package (E007 Phase A)."""
+"""NiftyShield Stage-2 PAPER — runner + evidence-tooling package (E008 Phase A)."""

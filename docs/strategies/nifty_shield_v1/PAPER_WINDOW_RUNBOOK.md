@@ -2,12 +2,10 @@
 
 > **IDENTITY RE-PIN (2026-08-11).** The frozen identity is now **`code_ref fe87363`**
 > (Ledger **E007** retrained-model re-cert, honest DayType `v2.0-train_thru2023`),
-> **not** the `89fcdd6` this runbook was originally written against. `config_hash`
+> **not** the pre-retrain code_ref this runbook was originally written against. `config_hash`
 > `c5b722ff…536c` is UNCHANGED. **Run the window at merged `main` (contains `fe87363`) —
-> do NOT `git checkout 89fcdd6`, which would run the retired D:\BOT model.** The PAPER
+> do NOT `git checkout` the pre-retrain code_ref, which would run the retired D:\BOT model.** The PAPER
 > VALIDATED grant this window earns is **E008** (E007 was consumed by the re-cert).
-> Every "E007 / 89fcdd6" still appearing below is stale pending the report-surface
-> re-pin (skeleton + `assemble_report.py`); read it as "E008 / fe87363".
 
 **Status:** OPERATIONAL (Phase B). The PAPER window accrues ≥20 sessions AND
 ≥30 round-trips (datasheet §10) of live evidence before the PAPER Validation
@@ -182,10 +180,10 @@ marker is missing or duplicated (a frozen-skeleton change must be reviewed).
 (the standing pre-existing `tests/g1/test_g1_closure_guard.py` red on `main` is
 the only allowed red; it is not strategy-attributable).
 
-Then hand back the completed report for Claude's review and the operator's E007
+Then hand back the completed report for Claude's review and the operator's E008
 grant (window dates, run commit, identity triple, all seven evidence items).
 
-## 8. Acceptance gates (all must hold for E007)
+## 8. Acceptance gates (all must hold for E008)
 
 1. ≥20 sessions **AND** ≥30 round-trips (1 RT = 1 structure fully closed;
    delta hedge is not an RT), or the §7.3 60-session escape with the shortfall

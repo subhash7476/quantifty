@@ -1,4 +1,4 @@
-"""NiftyShield — DS2-4 journaled publish hook (E007 E7-2).
+"""NiftyShield — DS2-4 journaled publish hook (E008 E7-2).
 
 Wraps `make_driver_hook` (the live 13:00 fact publisher) so a not-ready /
 skipped-session outcome becomes a DURABLE journal line instead of a silently
