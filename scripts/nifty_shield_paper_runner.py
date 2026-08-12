@@ -137,14 +137,20 @@ def build_nifty_shield_paper_driver(
     strategy_config = dict(DEFAULT_CONFIG)
 
     source = build_signal_source({"facts_db_path": facts_db_path})
+    if provider is None:
+        DatabaseManager.reset_instance()
+        market_db = DatabaseManager(data_root="data")
+        provider = LiveDuckDBMarketDataProvider(list(symbols), db_manager=market_db)
+        # Restore the evidence-scoped singleton for downstream callers
+        DatabaseManager.reset_instance()
+        DatabaseManager(data_root=str(db_manager.data_root))
+
     if recorder is not None:
         # Phase B: wrap every input seam so the session package captures exactly
         # what the composition root consumed. The wrapped objects are still the
         # same interface — no pipeline behaviour change.
         source = recorder.wrap_source(source)
         marks = recorder.wrap_marks(marks)
-        if provider is None:
-            provider = LiveDuckDBMarketDataProvider(list(symbols), db_manager)
         provider = recorder.wrap_provider(provider)
 
     def handler_factory(**kwargs):
