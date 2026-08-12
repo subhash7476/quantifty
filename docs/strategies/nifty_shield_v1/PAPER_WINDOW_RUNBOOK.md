@@ -1,9 +1,18 @@
-# NiftyShield E007 — Phase B Forward-Window Runbook
+# NiftyShield E008 — Phase B Forward-Window Runbook
+
+> **IDENTITY RE-PIN (2026-08-11).** The frozen identity is now **`code_ref fe87363`**
+> (Ledger **E007** retrained-model re-cert, honest DayType `v2.0-train_thru2023`),
+> **not** the `89fcdd6` this runbook was originally written against. `config_hash`
+> `c5b722ff…536c` is UNCHANGED. **Run the window at merged `main` (contains `fe87363`) —
+> do NOT `git checkout 89fcdd6`, which would run the retired D:\BOT model.** The PAPER
+> VALIDATED grant this window earns is **E008** (E007 was consumed by the re-cert).
+> Every "E007 / 89fcdd6" still appearing below is stale pending the report-surface
+> re-pin (skeleton + `assemble_report.py`); read it as "E008 / fe87363".
 
 **Status:** OPERATIONAL (Phase B). The PAPER window accrues ≥20 sessions AND
 ≥30 round-trips (datasheet §10) of live evidence before the PAPER Validation
-Report is assembled and handed back for review + the operator's E007 grant.
-**Identity:** `nifty_shield_v1` @ `89fcdd6` / `c5b722ff…536c` — **FROZEN, never
+Report is assembled and handed back for review + the operator's **E008** grant.
+**Identity:** `nifty_shield_v1` @ **`fe87363`** / `c5b722ff…536c` — **FROZEN, never
 touch the strategy package.** **Prompt of record:**
 `docs/reports/NIFTY_SHIELD_STAGE2_PAPER_VALIDATION_IMPLEMENTATION_PROMPT.md`
 (Phase B = §3 "Operate the forward window"; evidence items §4.2/§4 A–I).
