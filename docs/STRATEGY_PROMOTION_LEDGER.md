@@ -94,16 +94,37 @@ standing reference for the ledger format and auditability.
 · docs/reports/NIFTY_SHIELD_STAGE2_PREREQ_HAND_BACK.md, docs/reports/NIFTY_SHIELD_STAGE2_PREREQ_IMPLEMENTATION_PROMPT.md, docs/strategies/nifty_shield_v1/datasheet.md (§1 code_ref bumped), tests/runtime/test_driver_publish_hook.py, tests/runtime/test_publish_hook_live_dry_run.py, tests/daytype/test_daytype_facts.py, tests/strategies/test_nifty_shield_v1_lazy_facts.py · 89fcdd6 · operator · Re-certification of the SAME identity at a new code_ref — same strategy_id + same config_hash (c5b722ff…536c, UNCHANGED, reproduces from config.py) + new code_ref (89fcdd6). Per MM12.5 §5.2 a re-cert is never a new strategy_id. This takes the E006 slot for the re-cert (superseding the E005 note's projection of E006 as the PAPER VALIDATED grant); PAPER VALIDATED now lands at E007. WHY: the Stage-2 blocker named in E005 — the DayType live 13:00 publisher wired to a live bar feed, coupled to moving RegimeFactsReader off its on_start whole-table snapshot to a per-bar/at-13:00 read — is now built (DS2-1 lazy re-queryable reader + source gate; DS2-2 additive strategy-agnostic LoopDriver publish seam, publish_hook + publish_checkpoint_time, fires once per session at/after the 13:00 tick before on_bar; DS2-3 intraday vix_at_checkpoint column, live rows carry the 13:00 India-VIX 1m close with vix_close NULL; DS2-4 NULL-VIX/thin-feed session skip). DS2-1 ACCEPTANCE GATE HOLDS: over the unchanged frozen corpus, replay-twice byte-identical 16-signal stream, guard-wrapped Layer 1+2 conformance PASS raw AND guarded, on_bar p99 within the 0.05 s budget, 431 strategy/daytype/runtime tests PASS (full suite 1599 PASS, one pre-existing unrelated main failure test_g1_closure_guard). Because config_hash, the 16-signal stream, and conformance all hold, the read-timing change is a PROVABLE OFFLINE NO-OP. DS2-2 driver seam reviewed CLEAN (additive-only; both new params default None → loop byte-for-byte unchanged, 418 runtime+strategy tests green untouched; correctly layered — no strategy knowledge in the driver; broad except logged not swallowed). STANDING SEMANTICS NOTE (config_hash cannot detect, DS2-3): the certified VIX gates (skip 20.0 / reduce 16.0 / iron_fly 14.0) now act on a 13:00 VIX in LIVE rows — a live-only behavior NEVER exercised in conformance, to be observed in E006-successor PAPER, explicitly NOT claimed equivalent to Stage-1 EOD-VIX gating. The E005 STANDING PROVENANCE CAVEAT rides forward unchanged: the DayType regime models are the retired D:\BOT\root v2.0-train_thru2025 models reused as-is (not retrained on F:\Nifty), the caveat carried on each fact row's trained_on column; retrain deferred. Prohibitions honoured: OSC index-options window 2016-02-11→2022-12-31 UNTOUCHED; no P&L presented as validation; frozen corpus NOT regenerated (no vix_at_checkpoint backfilled); no frozen platform component modified. Grant confers NO PAPER VALIDATED and NO LIVE authority — it only re-pins CONFORMANT to 89fcdd6 so PAPER round-trip counting (datasheet §10) accumulates against ONE code_ref. PAPER validation (E007) begins after this entry.
 ```
 
+### E007 — nifty_shield_v1 retrained-model production swap (re-cert — same identity, new code_ref)
+
+> **GRANTED by operator 2026-08-11.** Numbering per the E006 precedent: a re-cert consumes the
+> next numeric slot (E007), so the PAPER VALIDATED grant shifts down to **E008**. Load-bearing
+> checks verified at grant: `config_hash` reproduces exactly from `config.py` (`c5b722ff…536c`,
+> MATCH) and `model_hash` reproduces (`bd0d6826…54be7`, MATCH). **`code_ref` is `fe87363`, NOT
+> the retrain commit `d2410be`:** `d2410be` committed the retrained model but left three trailing
+> files stale — a clean checkout was **test-red** (`test_regime_fact_version_reflects_metadata`
+> asserted the old `dt-v2.0-train_thru2025`) and its `publish_facts.py:TRAINED_ON` still named the
+> `D:\BOT` vintage, contradicting this entry's provenance claim. `fe87363` is the completion commit
+> (`TRAINED_ON` → F:\Nifty string, version pins corrected) that makes the retrain green and
+> self-consistent; the certified `day_type_facts.duckdb` was republished from it (`produced_by =
+> offline@fe87363`). A CONFORMANT `code_ref` must be the commit carrying the certified GREEN
+> artifact, not merely the branch head — the E006 "branch head" only served because it happened to
+> be that commit. Granted on-branch; no merge-commit substitution.
+
+```
+2026-08-11 · nifty_shield_v1 · (fe87363, c5b722ff204d4e434f5cbffb1674136738a79693a3ced17bf07e46676d5336c6) · 1.0 · CONFORMANT → CONFORMANT
+· docs/reports/NIFTY_SHIELD_PHASE6_RECERT_IMPLEMENTATION_PROMPT.md, docs/reports/NIFTY_SHIELD_DAYTYPE_PARITY_REPORT.md, docs/reports/NIFTY_SHIELD_13PM_RETRAIN_FIX_IMPLEMENTATION_PROMPT.md, docs/reports/NIFTY_SHIELD_E007_COMPLETION_COMMIT_PROMPT.md, docs/strategies/nifty_shield_v1/datasheet.md (§1 code_ref bumped), scripts/daytype/parity_check_13pm.py, scripts/daytype/publish_facts.py, tests/daytype/test_daytype_facts.py, tests/strategies/test_nifty_shield_v1_lazy_facts.py · fe87363 · operator · Re-certification of the SAME identity at a new code_ref — same strategy_id + same config_hash (c5b722ff…536c, UNCHANGED, reproduces from config.py — verified at grant) + new code_ref (fe87363, the completion commit; see the DEFECT note in the blockquote — the earlier-drafted d2410be was test-red and provenance-stale, so it is NOT the code_ref). Per MM12.5 §5.2 a re-cert is never a new strategy_id. This takes the E007 slot for the re-cert (superseding the E006 note's projection of E007 as the PAPER VALIDATED grant); PAPER VALIDATED now lands at E008. WHAT CHANGES: the DayType 13pm production model is swapped from the D:\BOT vintage (known 13%-flip train/serve skew) to the honest retrained v2.0-train_thru2023 artifact — 38 features (3 engine-unavailable orphans dropped so trained == served), engine↔CSV feature parity PASS (30/30 sampled 2024–2025 sessions within 1e-6), deployed 2025 holdout accuracy 69.8%, Train 66.2%/Val 70.7%/Holdout 70.6%. STANDING PROVENANCE CAVEAT (E005/E006 "models NOT trained on F:\Nifty data") is now RESOLVED: TRAINED_ON = "F:\Nifty reference 1m 2012-2023 + DuckDB store; retrained v2.0-train_thru2023" rides every fact row. day_type_facts.duckdb republished: 840 rows, model_hash bd0d6826…54be7, regime_fact_version dt-v2.0-train_thru2023. ACCEPTANCE GATE HOLDS: config_hash unchanged, conformance corpus untouched (frozen fixture), conformance + execution + DS2 driver/facts suites PASS (full suite 2055 PASS, two pre-existing unrelated failures: test_live_publisher_not_ready_without_data [live buffer present in tree] and test_g1_closure_guard). NO alpha, NO PAPER VALIDATED, NO LIVE authority conferred — this only swaps the model input and re-pins CONFORMANT. The retrain's 2026 sealed read was INCONCLUSIVE (no promotion implied); promotion to capital is gated by the sealed verdict, not this re-cert.
+```
+
 ---
 
 ## Open entries (reserved for future use)
 
-*E004 consumed 2026-08-07, E005 consumed 2026-08-08, E006 consumed 2026-08-08 (see Entries above). The following slots remain reserved for `nifty_shield_v1`'s onward promotion path (or, if it is abandoned, the next external strategy's — a retired id is never reused, §5.2):*
+*E004 consumed 2026-08-07, E005 consumed 2026-08-08, E006 consumed 2026-08-08, E007 consumed 2026-08-11 (GRANTED — see Entries above). The following slots remain reserved for `nifty_shield_v1`'s onward promotion path (or, if it is abandoned, the next external strategy's — a retired id is never reused, §5.2):*
 
-- E007 — (first external strategy Stage 2 PAPER VALIDATED grant)
-- E008 — (first external strategy Stage 3 LIVE CANDIDATE grant)
-- E009 — (first external strategy Stage 4 LIVE APPROVED grant)
-- E010+ — (suspension, incident, audit, cap-raise entries)
+- E008 — (first external strategy Stage 2 PAPER VALIDATED grant)
+- E009 — (first external strategy Stage 3 LIVE CANDIDATE grant)
+- E010 — (first external strategy Stage 4 LIVE APPROVED grant)
+- E011+ — (suspension, incident, audit, cap-raise entries)
 
 ---
 
