@@ -196,19 +196,30 @@ def stop_child(spec: ChildSpec, proc, *, killer=os.kill, term_wait_s: float = SE
     children get a normal terminate()."""
     if spec.new_group:
         sig = signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM
+        signaled = True
         try:
             killer(proc.pid, sig)
         except Exception as exc:  # noqa: BLE001
+            signaled = False
             _logger.warning("signalling %s failed: %s", spec.name, exc)
-        try:
-            proc.wait(timeout=term_wait_s)
-        except Exception:
-            _logger.error("%s did not exit within %ss — escalating to kill",
-                          spec.name, term_wait_s)
+        if not signaled:
+            # A failed signal (e.g. CTRL_BREAK_EVENT cross-console on Windows —
+            # the stop command runs in a different console than the session) can
+            # never trigger a clean stop, so skip the graceful wait and kill now.
             try:
                 proc.kill()
             except Exception:
                 pass
+        else:
+            try:
+                proc.wait(timeout=term_wait_s)
+            except Exception:
+                _logger.error("%s did not exit within %ss — escalating to kill",
+                              spec.name, term_wait_s)
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
     else:
         try:
             proc.terminate()
