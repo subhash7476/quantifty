@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+
+{% block title %}Options Wall{% endblock %}
+{% block breadcrumb %}Options / Wall Scanner{% endblock %}
+
+{% block head %}
+<style>
+    .gex-positive { color: #10b981; }
+    .gex-negative { color: #ef4444; }
+    .gex-neutral { color: #94a3b8; }
+    .farm-score { font-variant-numeric: tabular-nums; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-white">Options Wall Scanner</h1>
+            <p class="text-sm text-slate-400 mt-1">Dealer-positioning farm list — premium / imperfections / laggards</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <span id="last-update" class="text-xs text-slate-500">Last scan: --</span>
+            <button onclick="triggerRefresh()" id="refresh-btn"
+                    class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors">
+                <i class="fas fa-sync-alt mr-2"></i>Scan now
+            </button>
+        </div>
+    </div>
+
+    <!-- Index Tabs -->
+    <div class="flex gap-2">
+        <button onclick="switchIndex('NIFTY')" id="tab-nifty"
+                class="px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-blue-600 text-white">Nifty 50</button>
+        <button onclick="switchIndex('BANKNIFTY')" id="tab-banknifty"
+                class="px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600">Bank Nifty</button>
+    </div>
+
+    <!-- Regime Summary -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="glass rounded-2xl p-5">
+            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">GEX Regime</p>
+            <p id="kpi-regime" class="text-lg font-bold">--</p>
+        </div>
+        <div class="glass rounded-2xl p-5">
+            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">Pin / Flip</p>
+            <p id="kpi-pin" class="text-sm font-bold text-white">--</p>
+        </div>
+        <div class="glass rounded-2xl p-5">
+            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">Walls (P / C)</p>
+            <p id="kpi-walls" class="text-sm font-bold text-white">--</p>
+        </div>
+        <div class="glass rounded-2xl p-5">
+            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">ATM IV / RV</p>
+            <p id="kpi-ivrv" class="text-sm font-bold text-white">--</p>
+        </div>
+    </div>
+
+    <!-- Farm List -->
+    <div class="glass rounded-2xl p-5">
+        <h3 class="text-sm font-semibold text-white mb-4">Farm List</h3>
+        <div class="grid grid-cols-12 gap-2 py-2 px-4 text-xs font-semibold text-slate-400 uppercase tracking-widest border-b border-slate-700">
+            <div class="col-span-2">Screen</div>
+            <div class="col-span-2">Structure</div>
+            <div class="col-span-2 text-right">Strike</div>
+            <div class="col-span-1 text-right">Score</div>
+            <div class="col-span-1 text-right">Credit</div>
+            <div class="col-span-1 text-right">IV−RV</div>
+            <div class="col-span-3">Reason</div>
+        </div>
+        <div id="farm-rows"></div>
+    </div>
+
+    <!-- Regime River -->
+    <div class="glass rounded-2xl p-5">
+        <h3 class="text-sm font-semibold text-white mb-4">Regime River</h3>
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="text-xs text-slate-400 uppercase tracking-widest border-b border-slate-700">
+                        <th class="text-left py-2 px-3">Date</th>
+                        <th class="text-left py-2 px-3">Regime</th>
+                        <th class="text-right py-2 px-3">Pin</th>
+                        <th class="text-right py-2 px-3">Flip</th>
+                        <th class="text-right py-2 px-3">Put Wall</th>
+                        <th class="text-right py-2 px-3">Call Wall</th>
+                        <th class="text-right py-2 px-3">ATM IV</th>
+                        <th class="text-right py-2 px-3">RV</th>
+                    </tr>
+                </thead>
+                <tbody id="river-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+
+<script>
+let currentIndex = 'NIFTY';
+
+document.addEventListener('DOMContentLoaded', function () {
+    loadFarm();
+    loadRiver();
+    setInterval(loadFarm, 15000);   // poll farm list every 15s
+    setInterval(loadRiver, 60000);  // poll regime river every 60s
+});
+
+function switchIndex(index) {
+    currentIndex = index;
+    document.getElementById('tab-nifty').className =
+        index === 'NIFTY'
+            ? 'px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-blue-600 text-white'
+            : 'px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600';
+    document.getElementById('tab-banknifty').className =
+        index === 'BANKNIFTY'
+            ? 'px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-blue-600 text-white'
+            : 'px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600';
+    loadFarm();
+    loadRiver();
+}
+
+function fmt(v, digits = 0) {
+    return (v === null || v === undefined) ? '--' : Number(v).toFixed(digits);
+}
+
+async function loadFarm() {
+    try {
+        const resp = await fetch(`/options/wall/api/farm?index=${currentIndex}`);
+        const data = await resp.json();
+
+        const regime = data.regime || {};
+        const regimeEl = document.getElementById('kpi-regime');
+        regimeEl.textContent = regime.regime || '--';
+        regimeEl.className = 'text-lg font-bold ' + (
+            (regime.regime || '').includes('Positive') ? 'gex-positive'
+            : (regime.regime || '').includes('Negative') ? 'gex-negative' : 'gex-neutral');
+
+        document.getElementById('kpi-pin').textContent =
+            `${fmt(regime.pin_strike)} / ${fmt(regime.zero_gamma_level)}`;
+        document.getElementById('kpi-walls').textContent =
+            `${fmt(regime.put_wall)} / ${fmt(regime.call_wall)}`;
+        document.getElementById('kpi-ivrv').textContent =
+            `${fmt(regime.atm_iv, 1)} / ${fmt(regime.realized_vol, 1)}`;
+
+        if (data.ts) {
+            document.getElementById('last-update').textContent =
+                'Last scan: ' + new Date(data.ts).toLocaleTimeString('en-IN');
+        }
+
+        const container = document.getElementById('farm-rows');
+        container.innerHTML = '';
+        if (!data.rows || data.rows.length === 0) {
+            container.innerHTML = '<div class="py-4 text-center text-slate-500 text-sm">No farm-list rows for this cycle.</div>';
+            return;
+        }
+        data.rows.forEach(r => {
+            const div = document.createElement('div');
+            div.className = 'grid grid-cols-12 gap-2 py-3 px-4 hover:bg-slate-800/50 transition-colors border-b border-slate-800/50';
+            div.innerHTML = `
+                <div class="col-span-2 text-sm">${r.screen}</div>
+                <div class="col-span-2 text-sm">${r.structure}${r.option_type ? ' ' + r.option_type : ''}</div>
+                <div class="col-span-2 text-right text-sm font-bold text-white">${fmt(r.strike)}</div>
+                <div class="col-span-1 text-right text-sm farm-score">${fmt(r.score, 2)}</div>
+                <div class="col-span-1 text-right text-sm farm-score">${fmt(r.credit, 1)}</div>
+                <div class="col-span-1 text-right text-sm farm-score">${r.iv_minus_rv != null ? (r.iv_minus_rv > 0 ? '+' : '') + fmt(r.iv_minus_rv, 1) : '--'}</div>
+                <div class="col-span-3 text-sm text-slate-400">${r.reason}</div>
+            `;
+            container.appendChild(div);
+        });
+    } catch (err) {
+        console.error('Failed to load farm list:', err);
+    }
+}
+
+async function loadRiver() {
+    try {
+        const resp = await fetch(`/options/wall/api/regime?index=${currentIndex}&days=30`);
+        const data = await resp.json();
+        const body = document.getElementById('river-body');
+        body.innerHTML = '';
+        (data.river || []).forEach(r => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-slate-800/50';
+            tr.innerHTML = `
+                <td class="py-2 px-3 text-slate-300">${r.trade_date}</td>
+                <td class="py-2 px-3 ${(r.regime || '').includes('Positive') ? 'gex-positive' : (r.regime || '').includes('Negative') ? 'gex-negative' : 'gex-neutral'}">${r.regime || '--'}</td>
+                <td class="py-2 px-3 text-right">${fmt(r.pin_strike)}</td>
+                <td class="py-2 px-3 text-right">${fmt(r.zero_gamma_level)}</td>
+                <td class="py-2 px-3 text-right">${fmt(r.put_wall)}</td>
+                <td class="py-2 px-3 text-right">${fmt(r.call_wall)}</td>
+                <td class="py-2 px-3 text-right">${fmt(r.atm_iv, 1)}</td>
+                <td class="py-2 px-3 text-right">${fmt(r.realized_vol, 1)}</td>
+            `;
+            body.appendChild(tr);
+        });
+    } catch (err) {
+        console.error('Failed to load regime river:', err);
+    }
+}
+
+async function triggerRefresh() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Scanning...';
+    try {
+        await fetch('/options/wall/api/refresh', { method: 'POST' });
+        setTimeout(() => { loadFarm(); loadRiver(); }, 4000);
+    } catch (err) {
+        console.error('Refresh failed:', err);
+    }
+    setTimeout(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Scan now';
+    }, 3000);
+}
+</script>
+{% endblock %}

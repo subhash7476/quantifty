@@ -198,3 +198,59 @@ def latest_regime(
             "zero_gamma_level", "pin_strike", "put_wall", "call_wall",
             "atm_iv", "realized_vol"]
     return dict(zip(cols, row))
+
+
+_SCAN_COLS = ["ts", "underlying", "expiry", "strike", "option_type", "screen",
+              "structure", "regime", "score", "credit", "iv_minus_rv",
+              "pin_conviction", "reason"]
+
+
+def latest_scan_results(
+    underlying: str,
+    db_path: Path = WALL_RESULTS_DB,
+) -> Tuple[Optional[datetime], List[Dict]]:
+    """Newest scan cycle for `underlying`: (ts, rows sorted by score desc)."""
+    if not db_path.exists():
+        return None, []
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        ts = conn.execute(
+            "SELECT MAX(ts) FROM scan_results WHERE underlying = ?", [underlying],
+        ).fetchone()[0]
+        if ts is None:
+            return None, []
+        rows = conn.execute(
+            "SELECT * FROM scan_results WHERE underlying = ? AND ts = ? "
+            "ORDER BY score DESC",
+            [underlying, ts],
+        ).fetchall()
+    finally:
+        conn.close()
+    return ts, [dict(zip(_SCAN_COLS, r)) for r in rows]
+
+
+def regime_river(
+    underlying: str,
+    limit: int = 30,
+    db_path: Path = WALL_RESULTS_DB,
+) -> List[Dict]:
+    """Latest regime per trade_date, ascending, capped at `limit`."""
+    if not db_path.exists():
+        return []
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM (
+                SELECT *, row_number() OVER (PARTITION BY trade_date ORDER BY ts DESC) AS rn
+                FROM session_regime WHERE underlying = ?
+            ) WHERE rn = 1 ORDER BY trade_date ASC LIMIT ?
+            """,
+            [underlying, limit],
+        ).fetchall()
+    finally:
+        conn.close()
+    cols = ["trade_date", "underlying", "ts", "regime", "net_gamma_total",
+            "zero_gamma_level", "pin_strike", "put_wall", "call_wall",
+            "atm_iv", "realized_vol"]
+    return [dict(zip(cols, r)) for r in rows]

@@ -105,7 +105,7 @@ options_publisher (exists) ────► /options/wall panel (SSE)
 | OI rotation since open | ✅ 09:15 baseline store (capture + read); screen re-enablement is a follow-up |
 | Laggard detector | flip-cross recency + charm cascade wired; repricing-lag needs a "since open" definition |
 | Pin conviction | argmax of `gamma_by_strike` + mass-concentration ratio |
-| UI | `/options/wall` panel — farm list, regime river, per-strike detail |
+| UI | ✅ `flask_app/blueprints/options_wall.py` + `templates/options_wall/index.html` — farm list, regime river, per-strike detail |
 
 ---
 
@@ -222,9 +222,20 @@ Note: `repricing_lag` / `oi-vs-price divergence` screens remain disabled — the
 baseline store now exists, but a real "since open" signal definition is a
 follow-up, not a wiring task.
 
-### Phase 3 — Surface
-- `/options/wall` blueprint + template: ranked farm list, regime river, per-strike detail.
-- SSE push of new `ScanResult` rows (reuse `options_publisher.py`).
+### Phase 3 — Surface ✅ DONE (2026-08-14)
+- ✅ `flask_app/blueprints/options_wall.py` — `/options/wall/` + `api/farm`
+  (latest scan_results + current regime), `api/regime` (river), `api/refresh`
+  (background `scan_and_persist`), `api/status`.
+- ✅ `flask_app/templates/options_wall/index.html` — Nifty/BankNifty tabs, regime
+  summary cards, ranked farm-list table, regime-river table; polling refresh
+  (15s / 60s) + on-demand "Scan now".
+- ✅ Registered in `flask_app/__init__.py` + sidebar link in `base.html`.
+- ⚠️ Deviation from the plan: the panel uses **fetch polling**, not ZMQ→SSE. The
+  existing options and ts-basis-daily panels are polling-based; standing up a new
+  ZMQ publisher + bridge subscription for a research panel would be over-engineering.
+  `options_publisher.py` remains untouched.
+- Tests: `latest_scan_results` + `regime_river` round-trips (2 added). 60 pass
+  across `tests/analytics` + `tests/data`.
 
 ### Phase 4 — (deferred, not authorized here)
 - Forward paper execution. Only if a screen proves it surfaces actionable setups on the

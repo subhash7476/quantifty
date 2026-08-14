@@ -67,3 +67,38 @@ def test_oi_baseline_idempotent(tmp_path):
     baseline = persistence.get_oi_baseline("NSE_INDEX|Nifty 50", date(2026, 8, 14), db_path=db)
     assert baseline[(100.0, "CE")] == 5000  # first capture wins, not 9999
     assert baseline[(100.0, "PE")] == 4000
+
+
+def test_latest_scan_results_returns_newest_cycle(tmp_path):
+    db = tmp_path / "results.duckdb"
+    t1 = datetime(2026, 8, 14, 10, 0, 0)
+    t2 = datetime(2026, 8, 14, 10, 0, 5)
+    persistence.write_scan_results(
+        [_scan_row(100.0, 8.0), _scan_row(101.0, 5.0)],
+        "NSE_INDEX|Nifty 50", ts=t1, db_path=db)
+    persistence.write_scan_results(
+        [_scan_row(102.0, 9.0)],
+        "NSE_INDEX|Nifty 50", ts=t2, db_path=db)
+
+    ts, rows = persistence.latest_scan_results("NSE_INDEX|Nifty 50", db_path=db)
+    assert ts == t2
+    assert [r["strike"] for r in rows] == [102.0]  # newest cycle only, not t1's rows
+
+
+def test_regime_river_latest_per_day_ascending(tmp_path):
+    db = tmp_path / "results.duckdb"
+    base = {"regime": "Positive GEX (Stable)", "net_gamma_total": 1.0,
+            "zero_gamma_level": 24300.0, "pin_strike": 24350.0, "put_wall": 24000.0,
+            "call_wall": 24500.0, "atm_iv": 11.0, "realized_vol": 9.4}
+    persistence.write_regime("NSE_INDEX|Nifty 50", dict(base, trade_date=date(2026, 8, 13)),
+                             ts=datetime(2026, 8, 13, 15, 0), db_path=db)
+    persistence.write_regime("NSE_INDEX|Nifty 50", dict(base, trade_date=date(2026, 8, 14),
+                             regime="Negative GEX (Volatile)"),
+                             ts=datetime(2026, 8, 14, 10, 0), db_path=db)
+    persistence.write_regime("NSE_INDEX|Nifty 50", dict(base, trade_date=date(2026, 8, 14),
+                             regime="Positive GEX (Stable)"),
+                             ts=datetime(2026, 8, 14, 10, 5), db_path=db)
+
+    river = persistence.regime_river("NSE_INDEX|Nifty 50", db_path=db)
+    assert [r["trade_date"] for r in river] == [date(2026, 8, 13), date(2026, 8, 14)]
+    assert river[1]["regime"] == "Positive GEX (Stable)"  # latest ts within the day wins
