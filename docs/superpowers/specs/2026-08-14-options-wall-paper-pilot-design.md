@@ -114,11 +114,14 @@ documented fallback when bid/ask is unavailable (see §7).
 
 ## 6. Sizing & margin
 
-- **Sizing (pinned): fixed 1 lot** per fly (Nifty 75; BankNifty per instrument
-  master). Rationale: normalizes across indices via return-on-margin. The flat
+- **Sizing (pinned): fixed 1 lot** per fly, where `qty = 1 × the contract's live
+  `lot_size`` (read per-contract from the chain, **not** a hardcoded number — the
+  static 75/15 lot map is stale; the instrument master shows ~65 Nifty / ~30
+  BankNifty as of 2026-08-10 and lot sizes change over time). Rationale: normalizes
+  across indices via return-on-margin. The flat
   ₹20/order brokerage was checked and is **not** fee-dominant at 1 lot: on a
   representative Nifty fly (ATM straddle ~₹135/unit, wings ~₹15–18/unit, net credit
-  ~₹102/unit × 75 ≈ ₹7,650), round-trip fees ≈ ₹230 — ~₹160 flat brokerage (8 orders)
+  ~₹102/unit × lot ≈ ₹7,650 at an illustrative lot), round-trip fees ≈ ₹230 — ~₹160 flat brokerage (8 orders)
   + ~₹30–35 STT (0.15% sell) + ~₹9 exchange + ~₹20 stamp/GST/SEBI — i.e. **≈3% of net
   credit, ≈6% of the +50% TP target, ≈1.1% of defined risk.** The ATM premium scale
   absorbs the flat brokerage. Verify the exact figure against live premia at freeze;
@@ -213,7 +216,7 @@ The imperfection/laggard screens are unchanged.
 | Stop loss | −2× net credit |
 | Regime-flip exit | on flip to Negative GEX |
 | Time stop | 15:15 IST, session before expiry day |
-| Sizing | 1 lot (pinned; ≈3% fee drag est., verify at freeze) |
+| Sizing | 1 lot = 1 × live per-contract `lot_size` (pinned; ≈3% fee drag est.) |
 | Fee model | `core/execution/options/fees.py` |
 
 ---
@@ -248,3 +251,26 @@ go-live and never an effect-size estimate.
 5. Ops — poller on a durable schedule so the trail + paper book accumulate unattended.
 6. Tests — fly construction (wing snapping, ATM centering), exit-rule triggers, fee
    round-trip, store round-trip with bid/ask.
+
+**As-built note (§12.4 deviation, accepted):** the executor is self-contained — it
+computes fly P&L directly (`core/options_wall/fly.py` + `fees.py`) and does **not**
+reuse `group_tracker` / `group_pnl` / `paper_broker`. A 4-leg fly's P&L is arithmetic;
+the group primitives added no value (repo rule: no over-engineering). Clean-room intent
+holds — the executor touches only the wall store + the shared fee model.
+
+---
+
+## 13. Known limitations (as-built, documented — not defects)
+
+- **Time-stop on holiday-shortened weeks.** The exit fires at `DTE ≤ 1` and
+  `≥ 15:15`. On the normal Tue/Wed-weekly calendar this lands the session before
+  expiry. If the session before expiry is a market holiday (last open session at
+  DTE ≥ 2), the intended pre-expiry close does not fire and the fly is instead closed
+  on expiry day (DTE = 0) at 15:15 — a **safety net that still precludes settlement
+  and exercise STT**, but at worse (expiry-day) marks than intended. A
+  trading-calendar-aware "last open session before expiry" rule was judged
+  over-engineering for the pilot; the DTE = 0 close is the accepted fallback.
+- **Quote keying dependency.** Entry requires a live bid/ask per leg. This relies on
+  `UpstoxMarketData.fetch_quotes_batch` keying its response by the full instrument
+  key; verify against a live response before day 1 (runbook pre-flight). If keying
+  differs, the trail's bid/ask is all-NULL and no farm trade can open.
