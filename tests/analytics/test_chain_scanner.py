@@ -42,23 +42,46 @@ def _structural(spot, regime, gamma_by_strike, zero_gamma=None):
 
 # --- farm screen -----------------------------------------------------------
 
-def test_farm_ranks_by_iv_rv_gap():
+def test_farm_emits_single_atm_fly_when_spot_near_pin():
     scanner = ChainScanner(ScanConfig(iv_rv_min_gap=2.0, pin_band_pct=0.01))
     chain = [
-        _row(99.5, "CE", 5.0, 20.0, "K1"), _row(99.5, "PE", 5.0, 20.0, "K2"),
-        _row(100.0, "CE", 5.0, 15.0, "K3"), _row(100.0, "PE", 5.0, 15.0, "K4"),
-        _row(100.5, "CE", 5.0, 18.0, "K5"), _row(100.5, "PE", 5.0, 18.0, "K6"),
+        _row(100.0, "CE", 5.0, 15.0, "K1"), _row(100.0, "PE", 5.0, 15.0, "K2"),
+        _row(101.0, "CE", 5.0, 15.0, "K3"), _row(101.0, "PE", 5.0, 15.0, "K4"),
     ]
-    structural = _structural(100.0, "Positive GEX (Stable)",
-                             {99.5: 5, 100.0: 10, 100.5: 3})
-    results = scanner.scan_chain(chain, structural, realized_vol=10.0)
-    farm = [r for r in results if r.screen == "premium_farm"]
+    # spot 100.4 -> ATM 100; pin argmax gamma at 100 (near spot)
+    structural = _structural(100.4, "Positive GEX (Stable)", {100.0: 10, 101.0: 1})
+    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0)
+            if r.screen == "premium_farm"]
+    assert len(farm) == 1
+    assert farm[0].strike == 100.0            # ATM, not pin-loop
+    assert farm[0].structure == "iron_fly"
+    assert farm[0].score == farm[0].iv_minus_rv
 
-    assert len(farm) == 3
-    scores = [r.score for r in farm]
-    assert len(set(scores)) == 3                     # discriminating, not a constant
-    assert scores == sorted(scores, reverse=True)    # desc
-    assert [r.strike for r in farm] == [99.5, 100.5, 100.0]  # gap 10, 8, 5
+
+def test_farm_gated_off_when_spot_far_from_pin():
+    scanner = ChainScanner(ScanConfig(iv_rv_min_gap=2.0, pin_band_pct=0.005))
+    chain = [
+        _row(100.0, "CE", 5.0, 15.0, "K1"), _row(100.0, "PE", 5.0, 15.0, "K2"),
+        _row(110.0, "CE", 5.0, 15.0, "K3"), _row(110.0, "PE", 5.0, 15.0, "K4"),
+    ]
+    # spot 100 but pin at 110 -> |spot-pin|/spot = 0.10 > 0.005 -> no trade
+    structural = _structural(100.0, "Positive GEX (Stable)", {100.0: 1, 110.0: 10})
+    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0)
+            if r.screen == "premium_farm"]
+    assert farm == []
+
+
+def test_farm_gate_uses_atm_iv_not_pin_iv():
+    scanner = ChainScanner(ScanConfig(iv_rv_min_gap=2.0, pin_band_pct=0.02))
+    # ATM(100) IV 11 vs RV 10 -> gap 1.0 < 2.0 -> no trade, even if a neighbour is rich
+    chain = [
+        _row(100.0, "CE", 5.0, 11.0, "K1"), _row(100.0, "PE", 5.0, 11.0, "K2"),
+        _row(101.0, "CE", 5.0, 20.0, "K3"), _row(101.0, "PE", 5.0, 20.0, "K4"),
+    ]
+    structural = _structural(100.2, "Positive GEX (Stable)", {100.0: 10, 101.0: 9})
+    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0)
+            if r.screen == "premium_farm"]
+    assert farm == []
 
 
 def test_farm_gated_off_in_negative_gex():

@@ -41,6 +41,7 @@ class ScanConfig:
     charm_dte_max: int = 2                # DTE bound for the charm-cascade flag
     max_spread_pct: float = 0.05          # skip farm legs whose bid/ask spread exceeds this
     vol_scan_band_pct: float = 0.05       # vol-outlier scan window (|S - strike|/S)
+    wing_pct: float = 0.015               # iron-fly wing width as fraction of spot
 
 
 @dataclass
@@ -100,38 +101,39 @@ class ChainScanner:
         if "Positive" not in (structural.gex.regime or ""):
             return []
 
+        spot = structural.underlying_ltp
         pin = self._pin_strike(structural)
-        conviction = self._pin_conviction(structural, pin)
+        if pin is None or abs(spot - pin) / spot > cfg.pin_band_pct:
+            return []
 
-        out: List[ScanResult] = []
-        for strike in self._farmable_strikes(chain, structural, pin):
-            if quotes is not None and not self._spread_ok(strike, chain, quotes):
-                continue
-            credit = self._credit_at_strike(chain, strike)
-            if credit is None or credit <= 0:
-                continue
-            strike_iv = self._strike_mid_iv(chain, strike)
-            gap = (strike_iv - realized_vol) if strike_iv is not None else None
-            if gap is None or gap < cfg.iv_rv_min_gap:
-                continue
+        atm = self._atm_strike(chain, spot)
+        atm_iv = self._strike_mid_iv(chain, atm)
+        if atm_iv is None:
+            return []
+        gap = atm_iv - realized_vol
+        if gap < cfg.iv_rv_min_gap:
+            return []
 
-            out.append(
-                ScanResult(
-                    underlying=structural.underlying,
-                    expiry=structural.expiry,
-                    strike=strike,
-                    option_type=None,
-                    screen="premium_farm",
-                    structure="iron_fly",
-                    regime=structural.gex.regime,
-                    score=gap,
-                    credit=credit,
-                    iv_minus_rv=gap,
-                    pin_conviction=conviction,
-                    reason=f"IV-RV {gap:.1f}pt @pin",
-                )
-            )
-        return sorted(out, key=lambda r: r.score, reverse=True)
+        if quotes is not None and not self._spread_ok(atm, chain, quotes):
+            return []
+        credit = self._credit_at_strike(chain, atm)
+        if credit is None or credit <= 0:
+            return []
+
+        return [ScanResult(
+            underlying=structural.underlying,
+            expiry=structural.expiry,
+            strike=atm,
+            option_type=None,
+            screen="premium_farm",
+            structure="iron_fly",
+            regime=structural.gex.regime,
+            score=gap,
+            credit=credit,
+            iv_minus_rv=gap,
+            pin_conviction=self._pin_conviction(structural, pin),
+            reason=f"ATM {atm:.0f} IV-RV {gap:.1f}pt",
+        )]
 
     # -------------------------------------------------------- (b) imperfections
 
@@ -224,12 +226,6 @@ class ChainScanner:
         return sorted(out, key=lambda r: r.score, reverse=True)
 
     # -------------------------------------------------------------- helpers
-
-    def _farmable_strikes(self, chain, structural, pin):
-        if pin is None:
-            return []
-        strikes = sorted({r.strike for r in chain})
-        return [s for s in strikes if abs(s - pin) / structural.underlying_ltp < self.config.pin_band_pct]
 
     def _credit_at_strike(self, chain, strike):
         ce = next((r.ltp for r in chain if r.strike == strike and r.option_type == "CE" and r.ltp), None)
