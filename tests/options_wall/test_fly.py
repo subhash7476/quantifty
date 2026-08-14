@@ -66,6 +66,17 @@ def test_build_fly_returns_none_when_a_leg_spread_too_wide():
                           trade_date=TRADE_DATE, max_spread_pct=0.05) is None
 
 
+def test_build_fly_requires_live_book_on_each_leg():
+    # entry requires a live bid/ask per leg (spec §3); ltp-only must not open
+    chain = _chain()
+    for r in chain:
+        if r.strike == 100.0 and r.option_type == "CE":
+            r.best_bid = None
+            r.best_ask = None
+    assert build_iron_fly(chain, spot=100.0, wing_pct=0.03, qty=75,
+                          trade_date=TRADE_DATE) is None
+
+
 def test_unrealized_pnl_zero_when_marks_equal_entry():
     fly = build_iron_fly(_chain(), spot=100.0, wing_pct=0.03, qty=75, trade_date=TRADE_DATE)
     mids = {(l.strike, l.option_type): l.entry_mid for l in fly.legs}

@@ -40,13 +40,6 @@ def _bid_ask(row) -> Tuple[Optional[float], Optional[float]]:
     return getattr(row, "best_bid", None), getattr(row, "best_ask", None)
 
 
-def _mid(row) -> Optional[float]:
-    bid, ask = _bid_ask(row)
-    if bid and ask and bid > 0 and ask > 0:
-        return (bid + ask) / 2.0
-    return row.ltp if row.ltp and row.ltp > 0 else None
-
-
 def _spread_ok(row, max_spread_pct: float) -> bool:
     bid, ask = _bid_ask(row)
     if not (bid and ask and bid > 0 and ask > 0):
@@ -79,12 +72,14 @@ def build_iron_fly(chain, spot, wing_pct, qty, trade_date: date,
     legs: List[FlyLeg] = []
     for side, ot, k in specs:
         r = _row(chain, k, ot)
-        if r is None or not _spread_ok(r, max_spread_pct):
+        if r is None:
             return None
-        m = _mid(r)
-        if m is None:
+        bid, ask = _bid_ask(r)
+        if not (bid and ask and bid > 0 and ask > 0):
+            return None  # entry requires a live quote per leg (spec §3)
+        if not _spread_ok(r, max_spread_pct):
             return None
-        legs.append(FlyLeg(side=side, option_type=ot, strike=k, entry_mid=m))
+        legs.append(FlyLeg(side=side, option_type=ot, strike=k, entry_mid=(bid + ask) / 2.0))
 
     credit_unit = sum((l.entry_mid if l.side == "SELL" else -l.entry_mid) for l in legs)
     if credit_unit <= 0:

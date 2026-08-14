@@ -148,7 +148,16 @@ class WallPoller:
                     keys = [r.instrument_key for r in rows if r.instrument_key]
                     quotes = {}
                     if keys:
-                        quotes = UpstoxMarketData().fetch_quotes_batch(keys).get("quotes", {})
+                        qresp = UpstoxMarketData().fetch_quotes_batch(keys)
+                        quotes = qresp.get("quotes", {})
+                        if qresp.get("error"):
+                            logger.warning("%s quotes error: %s", name, qresp["error"])
+                    # attach bid/ask to the in-memory rows so the executor's spread
+                    # cap and no-quote-no-trade rule (spec §3.4) apply on the live path
+                    for r in rows:
+                        q = quotes.get(r.instrument_key) if r.instrument_key else None
+                        r.best_bid = q.get("best_bid") if q else None
+                        r.best_ask = q.get("best_ask") if q else None
                     store.append_snapshot(rows, sym, expiry,
                                           db_path=self._snapshot_db_path, quotes=quotes)
                     rows_by_name[name] = len(rows)

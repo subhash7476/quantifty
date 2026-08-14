@@ -9,6 +9,7 @@ group/broker primitives are reused (spec 2026-08-14 pilot §12.4 deviation, by d
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date, datetime, time
 from pathlib import Path
@@ -23,7 +24,7 @@ from core.options_wall.fly import (FlyLeg, IronFly, build_iron_fly, exit_fees,
 @dataclass
 class PaperConfig:
     wing_pct: float = 0.015
-    qty: int = 75
+    lots: int = 1          # qty = lots × the contract's lot_size (per-index, not hardcoded)
     tp_frac: float = 0.5
     sl_mult: float = 2.0
     entry_start: str = "09:30"
@@ -75,8 +76,10 @@ class PaperExecutor:
                 if r.screen == "premium_farm"]
         if not farm:
             return None
+        lot_size = chain[0].lot_size or 1
+        qty = self.cfg.lots * lot_size
         fly = build_iron_fly(chain, structural.underlying_ltp, self.cfg.wing_pct,
-                             self.cfg.qty, now.date())
+                             qty, now.date())
         if fly is None:
             return None
         pers.open_paper_trade(underlying, structural.expiry, fly, now, db_path=self.db_path)
@@ -105,8 +108,14 @@ class PaperExecutor:
             return None
         gross = row["net_credit"] - cost
         net = gross - row["entry_fees"] - efees
+        max_loss = row["max_loss"]
+        rom = net / max_loss if max_loss else None
+        exit_legs = json.dumps([
+            {"side": l.side, "type": l.option_type, "strike": l.strike,
+             "mid": mids.get((l.strike, l.option_type))} for l in fly.legs])
         pers.close_paper_trade(row["trade_id"], now, exit_mark=cost, exit_fees=efees,
                                gross_pnl=gross, net_pnl=net, exit_reason=reason,
+                               return_on_margin=rom, exit_legs=exit_legs,
                                db_path=self.db_path)
         return reason
 

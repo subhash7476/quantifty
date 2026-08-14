@@ -41,14 +41,14 @@ def _structural(regime="Positive GEX (Stable)", pin=100.0, spot=100.0):
 
 
 def test_opens_when_farm_signal_and_no_open_position(tmp_path):
-    ex = PaperExecutor(PaperConfig(wing_pct=0.03, qty=75), db_path=tmp_path / "r.duckdb")
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb")
     action = ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), realized_vol=1.0,
                      now=datetime(2026, 8, 14, 10, 0))
     assert action == "open"
 
 
 def test_does_not_open_outside_entry_window(tmp_path):
-    ex = PaperExecutor(PaperConfig(wing_pct=0.03, qty=75), db_path=tmp_path / "r.duckdb")
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb")
     action = ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), realized_vol=1.0,
                      now=datetime(2026, 8, 14, 15, 20))  # after 15:00
     assert action is None
@@ -56,7 +56,7 @@ def test_does_not_open_outside_entry_window(tmp_path):
 
 def test_regime_flip_closes_open_position(tmp_path):
     db = tmp_path / "r.duckdb"
-    ex = PaperExecutor(PaperConfig(wing_pct=0.03, qty=75), db_path=db)
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
     ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
     action = ex.step("NSE_INDEX|Nifty 50", _chain(),
                      _structural(regime="Negative GEX (Volatile)"), 1.0,
@@ -66,7 +66,7 @@ def test_regime_flip_closes_open_position(tmp_path):
 
 def test_time_stop_squares_off(tmp_path):
     db = tmp_path / "r.duckdb"
-    ex = PaperExecutor(PaperConfig(wing_pct=0.03, qty=75), db_path=db)
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
     ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 17, 10, 0))
     # expiry 2026-08-18 (Tue) -> DTE 1 on Mon; 15:15 is the squareoff
     action = ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
@@ -75,10 +75,25 @@ def test_time_stop_squares_off(tmp_path):
 
 
 def test_only_one_open_position_per_index(tmp_path):
+    from core.options_wall import persistence as pers
     db = tmp_path / "r.duckdb"
-    ex = PaperExecutor(PaperConfig(wing_pct=0.03, qty=75), db_path=db)
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
     ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
-    # second qualifying signal while one is open -> no second open (returns None or a manage action)
+    # second qualifying signal while one is open -> manage (no exit here) -> None, no new row
     action = ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
                      datetime(2026, 8, 14, 10, 30))
-    assert action != "open"
+    assert action is None
+    assert len(pers.open_trades("NSE_INDEX|Nifty 50", db_path=db)) == 1
+
+
+def test_qty_derived_from_chain_lot_size(tmp_path):
+    from core.options_wall import persistence as pers
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)  # lots defaults to 1
+    chain = _chain()
+    for r in chain:
+        r.lot_size = 30  # BankNifty-like lot; must flow through to qty, not hardcoded 75
+    ex.step("NSE_INDEX|Nifty Bank", chain, _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
+    opens = pers.open_trades("NSE_INDEX|Nifty Bank", db_path=db)
+    assert len(opens) == 1
+    assert opens[0]["qty"] == 30

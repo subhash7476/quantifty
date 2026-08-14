@@ -13,6 +13,7 @@ single-writer discipline as the snapshot store.
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -79,6 +80,7 @@ CREATE TABLE IF NOT EXISTS trades (
     exit_ts         TIMESTAMP,
     exit_mark       DOUBLE, exit_fees DOUBLE,
     gross_pnl       DOUBLE, net_pnl DOUBLE, exit_reason VARCHAR,
+    return_on_margin DOUBLE, entry_legs VARCHAR, exit_legs VARCHAR,
     PRIMARY KEY (trade_id)
 );
 CREATE INDEX IF NOT EXISTS idx_trades_underlying ON trades(underlying);
@@ -87,6 +89,9 @@ CREATE INDEX IF NOT EXISTS idx_trades_underlying ON trades(underlying);
 
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute(_SCHEMA)
+    # migrate a trades table created before these columns existed
+    for col in ("return_on_margin DOUBLE", "entry_legs VARCHAR", "exit_legs VARCHAR"):
+        conn.execute(f"ALTER TABLE trades ADD COLUMN IF NOT EXISTS {col}")
 
 
 def write_scan_results(
@@ -248,7 +253,12 @@ def latest_scan_results(
 _TRADE_COLS = ["trade_id", "underlying", "expiry", "entry_ts", "short_strike",
                "call_wing", "put_wing", "qty", "net_credit", "entry_fees",
                "max_loss", "exit_ts", "exit_mark", "exit_fees", "gross_pnl",
-               "net_pnl", "exit_reason"]
+               "net_pnl", "exit_reason", "return_on_margin", "entry_legs", "exit_legs"]
+
+
+def _legs_json(fly) -> str:
+    return json.dumps([{"side": l.side, "type": l.option_type,
+                        "strike": l.strike, "mid": l.entry_mid} for l in fly.legs])
 
 
 def open_paper_trade(underlying, expiry, fly, entry_ts, db_path=WALL_RESULTS_DB) -> int:
@@ -258,10 +268,11 @@ def open_paper_trade(underlying, expiry, fly, entry_ts, db_path=WALL_RESULTS_DB)
         init_schema(conn)
         row = conn.execute(
             "INSERT INTO trades (underlying, expiry, entry_ts, short_strike, "
-            "call_wing, put_wing, qty, net_credit, entry_fees, max_loss) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING trade_id",
+            "call_wing, put_wing, qty, net_credit, entry_fees, max_loss, entry_legs) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?) RETURNING trade_id",
             [underlying, expiry, entry_ts, fly.short_strike, fly.call_wing,
-             fly.put_wing, fly.qty, fly.net_credit, fly.entry_fees, fly.max_loss],
+             fly.put_wing, fly.qty, fly.net_credit, fly.entry_fees, fly.max_loss,
+             _legs_json(fly)],
         ).fetchone()
         conn.commit()
     finally:
@@ -284,14 +295,16 @@ def open_trades(underlying, db_path=WALL_RESULTS_DB) -> List[Dict]:
 
 
 def close_paper_trade(trade_id, exit_ts, exit_mark, exit_fees, gross_pnl,
-                      net_pnl, exit_reason, db_path=WALL_RESULTS_DB) -> None:
+                      net_pnl, exit_reason, return_on_margin=None, exit_legs=None,
+                      db_path=WALL_RESULTS_DB) -> None:
     conn = duckdb.connect(str(db_path))
     try:
         init_schema(conn)
         conn.execute(
             "UPDATE trades SET exit_ts=?, exit_mark=?, exit_fees=?, gross_pnl=?, "
-            "net_pnl=?, exit_reason=? WHERE trade_id=?",
-            [exit_ts, exit_mark, exit_fees, gross_pnl, net_pnl, exit_reason, trade_id],
+            "net_pnl=?, exit_reason=?, return_on_margin=?, exit_legs=? WHERE trade_id=?",
+            [exit_ts, exit_mark, exit_fees, gross_pnl, net_pnl, exit_reason,
+             return_on_margin, exit_legs, trade_id],
         )
         conn.commit()
     finally:

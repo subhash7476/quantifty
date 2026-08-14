@@ -30,6 +30,14 @@ limits at the chosen `--poll-interval`; widen the interval if not.
 **Token:** refresh the Upstox token via the Dashboard login before market open;
 the poller will not fetch without a valid token (loud, not silent).
 
+**Quote-coverage check (do not skip):** entry requires a live bid/ask on every leg
+(spec §3.4) — a fly is not opened on ltp-only legs. After the first few live cycles,
+confirm the trail is actually carrying quotes: `best_bid`/`best_ask` should be
+non-NULL on the near-ATM strikes in `wall_chain_snapshots.duckdb`. If they are all
+NULL (watch the log for `quotes error:` lines, or a `0 quoted` count), no farm trade
+can ever open — check the token scope and that `fetch_quotes_batch` returns full
+instrument keys (see the pre-existing keying caveat in the review).
+
 ---
 
 ## State & data files (`data/options/`)

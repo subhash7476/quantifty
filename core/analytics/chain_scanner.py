@@ -102,6 +102,8 @@ class ChainScanner:
             return []
 
         spot = structural.underlying_ltp
+        if not spot or spot <= 0:
+            return []
         pin = self._pin_strike(structural)
         if pin is None or abs(spot - pin) / spot > cfg.pin_band_pct:
             return []
