@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core.data import options_wall_store as store
 from core.data.options_provider import OptionsProvider
+from core.brokers.upstox_market_data import UpstoxMarketData
 from core.database.utils.market_hours import MarketHours
 from core.logging import setup_logger
 
@@ -131,9 +132,15 @@ class WallPoller:
                 expiry = provider.get_weekly_expiry(sym)
                 rows = provider.fetch_option_chain(sym, expiry)
                 if rows:
-                    store.append_snapshot(rows, sym, expiry, db_path=self._snapshot_db_path)
+                    keys = [r.instrument_key for r in rows if r.instrument_key]
+                    quotes = {}
+                    if keys:
+                        quotes = UpstoxMarketData().fetch_quotes_batch(keys).get("quotes", {})
+                    store.append_snapshot(rows, sym, expiry,
+                                          db_path=self._snapshot_db_path, quotes=quotes)
                     rows_by_name[name] = len(rows)
-                    logger.info("%s: appended %d rows @ %s", name, len(rows), expiry)
+                    logger.info("%s: appended %d rows (%d quoted) @ %s",
+                                name, len(rows), len(quotes), expiry)
                 else:
                     rows_by_name[name] = 0
                     logger.warning("%s: empty chain @ %s", name, expiry)
