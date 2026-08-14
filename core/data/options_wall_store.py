@@ -55,6 +55,8 @@ CREATE TABLE IF NOT EXISTS option_chain_snapshot (
     rho                DOUBLE,
     lot_size           INTEGER DEFAULT 75,
     underlying_ltp     DOUBLE,
+    best_bid           DOUBLE,
+    best_ask           DOUBLE,
     PRIMARY KEY (snapshot_id)
 )
 """
@@ -64,14 +66,17 @@ INSERT INTO option_chain_snapshot (
     snapshot_timestamp, underlying_symbol, expiry_date, strike_price,
     option_type, instrument_key, tradingsymbol, ltp, open, high, low, close,
     oi, oi_change, oi_change_pct, volume, iv, delta, gamma, theta, vega, rho,
-    lot_size, underlying_ltp
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    lot_size, underlying_ltp, best_bid, best_ask
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
 
 
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("CREATE SEQUENCE IF NOT EXISTS snapshot_id_seq START 1")
     conn.execute(_SNAPSHOT_TABLE_SQL)
+    # migrate an existing store created before best_bid/best_ask were added
+    conn.execute("ALTER TABLE option_chain_snapshot ADD COLUMN IF NOT EXISTS best_bid DOUBLE")
+    conn.execute("ALTER TABLE option_chain_snapshot ADD COLUMN IF NOT EXISTS best_ask DOUBLE")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wall_underlying "
                  "ON option_chain_snapshot(underlying_symbol)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_wall_expiry "
@@ -88,14 +93,21 @@ def append_snapshot(
     expiry: str,
     ts: Optional[datetime] = None,
     db_path: Path = WALL_SNAPSHOT_DB,
+    quotes: Optional[dict] = None,
 ) -> datetime:
-    """Append one full chain snapshot for (underlying, expiry) under a single ts."""
+    """Append one full chain snapshot for (underlying, expiry) under a single ts.
+
+    `quotes` (optional, keyed by instrument_key with best_bid/best_ask) is the
+    bid/ask enrichment from `UpstoxMarketData.fetch_quotes_batch`; when absent the
+    two columns are stored NULL.
+    """
     ts = ts or datetime.now()
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = duckdb.connect(str(db_path))
     try:
         init_schema(conn)
         for row in rows:
+            q = (quotes or {}).get(row.instrument_key) or {}
             conn.execute(_INSERT_SQL, [
                 ts, underlying, expiry, row.strike, row.option_type,
                 row.instrument_key, row.tradingsymbol, row.ltp,
@@ -106,6 +118,7 @@ def append_snapshot(
                 row.volume if row.volume else 0,
                 row.iv, row.delta, row.gamma, row.theta, row.vega, row.rho,
                 row.lot_size, row.underlying_ltp,
+                q.get("best_bid"), q.get("best_ask"),
             ])
         conn.commit()
     finally:
@@ -129,7 +142,7 @@ def latest_snapshot(
                    expiry_date, ltp, open, high, low, close,
                    oi, oi_change, oi_change_pct, volume,
                    iv, delta, gamma, theta, vega, rho,
-                   lot_size, underlying_ltp
+                   lot_size, underlying_ltp, best_bid, best_ask
             FROM option_chain_snapshot
             WHERE underlying_symbol = ? AND expiry_date = ?
               AND snapshot_timestamp = (
@@ -145,7 +158,7 @@ def latest_snapshot(
 
     chain = []
     for row in result:
-        chain.append(OptionChainRow(
+        row_obj = OptionChainRow(
             strike=row[0], option_type=row[1], instrument_key=row[2],
             tradingsymbol=row[3], expiry=row[4], ltp=row[5], open=row[6],
             high=row[7], low=row[8], close=row[9], oi=row[10],
@@ -153,7 +166,10 @@ def latest_snapshot(
             iv=row[14], delta=row[15], gamma=row[16], theta=row[17],
             vega=row[18], rho=row[19], lot_size=row[20],
             underlying_ltp=row[21],
-        ))
+        )
+        row_obj.best_bid = row[22]
+        row_obj.best_ask = row[23]
+        chain.append(row_obj)
     return chain
 
 

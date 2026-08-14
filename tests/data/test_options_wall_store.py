@@ -41,3 +41,23 @@ def test_append_accumulates_and_latest_is_newest(tmp_path):
     chain = ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)
     assert len(chain) == 1
     assert chain[0].strike == 101.0
+
+
+def test_append_and_read_bid_ask(tmp_path):
+    db = tmp_path / "wall.duckdb"
+    rows = [_row(100.0, "CE", 5.0, "NSE_FO|1")]
+    quotes = {"NSE_FO|1": {"best_bid": 4.9, "best_ask": 5.1}}
+    ws.append_snapshot(rows, "NSE_INDEX|Nifty 50", "2026-08-18",
+                       db_path=db, quotes=quotes)
+    back = ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)
+    assert back[0].best_bid == 4.9
+    assert back[0].best_ask == 5.1
+
+
+def test_append_without_quotes_leaves_bid_ask_null(tmp_path):
+    db = tmp_path / "wall.duckdb"
+    rows = [_row(100.0, "CE", 5.0, "NSE_FO|1")]
+    ws.append_snapshot(rows, "NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)
+    back = ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)
+    assert back[0].best_bid is None
+    assert back[0].best_ask is None
