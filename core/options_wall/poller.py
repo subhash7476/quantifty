@@ -118,6 +118,19 @@ class WallPoller:
         except OSError as exc:
             logger.error("heartbeat write failed: %s", exc)
 
+    def _executor_step(self, name, sym, rows, expiry):
+        from core.analytics.options_analytics import OptionsAnalytics
+        from core.analytics.realized_vol import session_realized_vol_pct
+        from core.options_wall.paper_executor import PaperExecutor
+        if not hasattr(self, "_executor"):
+            self._executor = PaperExecutor()
+        spot = rows[0].underlying_ltp or 0.0
+        structural = OptionsAnalytics().build_structural_snapshot(rows, sym, spot, expiry)
+        rv = session_realized_vol_pct(sym)
+        action = self._executor.step(sym, rows, structural, rv, datetime.now())
+        if action:
+            logger.info("%s paper action: %s", name, action)
+
     def stop(self) -> None:
         self._stop = True
 
@@ -141,6 +154,10 @@ class WallPoller:
                     rows_by_name[name] = len(rows)
                     logger.info("%s: appended %d rows (%d quoted) @ %s",
                                 name, len(rows), len(quotes), expiry)
+                    try:
+                        self._executor_step(name, sym, rows, expiry)
+                    except Exception as exc:
+                        logger.warning("%s executor step failed: %s", name, exc)
                 else:
                     rows_by_name[name] = 0
                     logger.warning("%s: empty chain @ %s", name, expiry)
