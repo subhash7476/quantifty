@@ -6,7 +6,10 @@ One call site for "produce today's ranked farm list for Nifty and BankNifty":
     live fetch otherwise) -> structural metrics -> realized vol -> bid/ask
     enrichment -> ChainScanner -> ranked ScanResult list.
 
-Read-only with respect to the store unless it has to fetch a stale/missing chain.
+The store is append-only; the engine appends only when it had to fetch a
+stale/missing chain, as a bridge until the Phase-2 wall poller becomes the store's
+sole writer (DuckDB is single-writer — once the poller runs, the engine must stop
+appending).
 """
 
 from __future__ import annotations
@@ -38,7 +41,7 @@ def _load_or_fetch(sym: str, expiry: str, provider: OptionsProvider):
         if age < STALE_AFTER_S:
             return rows
 
-    fetched, _ = provider._fetch_from_upstox(sym, expiry)
+    fetched = provider.fetch_option_chain(sym, expiry)
     if fetched:
         store.append_snapshot(fetched, sym, expiry)
     return fetched if fetched else rows

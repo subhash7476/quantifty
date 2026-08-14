@@ -112,11 +112,15 @@ options_publisher (exists) ────► /options/wall panel (SSE)
 
 ### (a) Premium Farm — "where do we harvest theta"
 Active only when `GEX regime == Positive`.
-- **IV − RV gap**: sell premium only where `IV − realized_vol > threshold`. This is
-  the actual edge; raw premium without the gap is a coin flip with a left tail.
-- **Pin/wall box**: candidate shorts near the pin strike or inside `[Put Wall, Call Wall]`.
-- **Structure**: iron fly at pin (high pin conviction) or short strangle `[PW, CW]`.
-- **Rank**: `credit / margin`, then IV−RV gap desc.
+- **IV − RV gap**: sell premium only where the *strike's* `IV − realized_vol >
+  threshold` (per-strike, not ATM). This is the actual edge; raw premium without
+  the gap is a coin flip with a left tail.
+- **Pin**: candidates near the pin strike (max gamma mass).
+- **Structure**: iron fly at the pin. The short-strangle `[Put Wall, Call Wall]` box
+  was removed — a pin strike exists whenever any gamma is present, so the box path
+  was dead code.
+- **Rank**: per-strike IV−RV gap desc. No SPAN margin yet, so the list is ranked on
+  the vol premium (the edge), not on `credit / margin`.
 
 ### (b) Imperfections — "where is the chain structurally wrong"
 Regime-agnostic, always scored.
@@ -128,11 +132,14 @@ Regime-agnostic, always scored.
 
 ### (c) Laggards — "what hasn't caught up yet"
 Regime-agnostic, always scored.
-- **Repricing lag**: spot moved Δ% but a strike's IV/OI has not rotated in kind.
-- **Gamma-flip lag**: spot just crossed the flip level but OI rotation/IV hasn't
-  confirmed — the dealer-hedging chase is still ahead.
+- **Gamma-flip lag**: spot just crossed the flip level — the dealer-hedging chase is
+  still ahead. (implemented)
 - **Charm cascade**: 1–2 DTE strikes where delta-bleed forces dealer rebalance.
-- **OI-vs-price divergence**: OI building into a move (writers trapped) = fuel.
+  (implemented, top-5 by |theta|)
+- **Repricing lag** (deferred — needs the 09:15 baseline, Phase 2): spot moved Δ% but
+  a strike's IV/OI has not rotated in kind.
+- **OI-vs-price divergence** (deferred, same reason): OI building into a move
+  (writers trapped) = fuel.
 
 ---
 

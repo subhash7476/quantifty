@@ -17,12 +17,11 @@ from core.options_wall.engine import scan_indices
 
 def _fmt(r) -> str:
     credit = f"{r.credit:.1f}" if r.credit is not None else "-"
-    margin = f"{r.margin_proxy:.0f}" if r.margin_proxy is not None else "-"
     gap = f"{r.iv_minus_rv:+.1f}" if r.iv_minus_rv is not None else "-"
     pin = f"{r.pin_conviction:.2f}" if r.pin_conviction is not None else "-"
     strike = f"{r.strike:.0f}" if r.strike is not None else "-"
     return (f"{r.screen:<12} {r.structure:<16} {r.option_type or '--':<4} "
-            f"{strike:>8}  credit={credit:>7}  margin={margin:>7}  "
+            f"{strike:>8}  score={r.score:.2f}  credit={credit:>7}  "
             f"IV-RV={gap:>6}  pin={pin}  {r.reason}")
 
 
