@@ -159,7 +159,8 @@ class LoopDriver:
                  span_readiness: Optional[Callable[[], SpanReadinessVerdict]] = None,
                  rebalance_hook: Optional[Callable[..., bool]] = None,
                  publish_hook: Optional[Callable[[datetime], Optional[dict]]] = None,
-                 publish_checkpoint_time: Optional[_time] = None):
+                 publish_checkpoint_time: Optional[_time] = None,
+                 publish_checkpoint_deadline: Optional[_time] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
@@ -212,6 +213,12 @@ class LoopDriver:
         # no fact and skips the session (DS2-4).
         self._publish_hook = publish_hook
         self._publish_checkpoint_time = publish_checkpoint_time
+        # Optional retry deadline (inclusive). When set, the hook is re-invoked on
+        # every bar from checkpoint_time through deadline until it returns a ready
+        # result — so a fact publisher that needs a few minutes to gather data can
+        # retry instead of latching a skipped session. Default (None) keeps the
+        # single-shot behaviour: the window collapses to the checkpoint bar.
+        self._publish_checkpoint_deadline = publish_checkpoint_deadline
         self._published_sessions: set = set()
         # Last telemetry-publish time, by the deterministic clock (§10.2 throttle).
         self._last_publish_at = None
@@ -685,25 +692,37 @@ class LoopDriver:
             if not rebalance_done and self._rebalance_hook is not None and self._execution is not None:
                 self._rebalance_hook(bar.timestamp, self._execution)
                 rebalance_done = True
-            # Pre-signal publish seam (DS2-2): once per session, at/after the
+            # Pre-signal publish seam (DS2-2): per session, at/after the
             # checkpoint tick, before on_bar. The hook writes a session fact the
             # source reads on this same bar (a fact published after on_bar would
             # be missed — the exact ordering the prerequisite needs). Per-session
             # latch: a new session date re-arms it. Best-effort: a failing hook
             # must not kill the loop — the source then reads no fact and skips
             # the session (DS2-4), and the failure is logged, not swallowed.
+            # When a deadline is set, the hook retries on each bar through the
+            # deadline until it returns {"ready": True}; a not-ready/raised hook
+            # keeps the seam open for the next bar, and only an expired window
+            # (or a ready result) latches the session.
             if (self._publish_hook is not None
                     and self._publish_checkpoint_time is not None
                     and bar.timestamp.date() not in self._published_sessions
                     and bar.timestamp.time() >= self._publish_checkpoint_time):
-                try:
-                    self._publish_hook(bar.timestamp)
-                except Exception as exc:
-                    self._logger.error(
-                        "pre-signal publish hook failed at %s: %s",
-                        bar.timestamp, exc,
-                    )
-                self._published_sessions.add(bar.timestamp.date())
+                deadline = (self._publish_checkpoint_deadline
+                            or self._publish_checkpoint_time)
+                if bar.timestamp.time() > deadline:
+                    # Retry window expired without a ready fact — latch to stop.
+                    self._published_sessions.add(bar.timestamp.date())
+                else:
+                    try:
+                        result = self._publish_hook(bar.timestamp)
+                    except Exception as exc:
+                        self._logger.error(
+                            "pre-signal publish hook failed at %s: %s",
+                            bar.timestamp, exc,
+                        )
+                        result = None
+                    if isinstance(result, dict) and result.get("ready"):
+                        self._published_sessions.add(bar.timestamp.date())
             # MM9.2-S3-S2: warm the handler's price cache on every bar, not
             # only when a signal fires (spec §9). Placed after set_time so the
             # snapshot's timestamp is the bar's deterministic time, and before

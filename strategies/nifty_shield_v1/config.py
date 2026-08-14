@@ -16,6 +16,11 @@ STRATEGY_ID = "nifty_shield_v1"
 DEFAULT_CONFIG: Dict[str, Any] = {
     "underlying": "NSE_INDEX|Nifty 50",
     "entry_checkpoint": "13pm",
+    # Live fact-publication tolerance: the entry may fire on any bar from the
+    # 13:00 checkpoint through 13:00 + this many minutes (the DS2-2 publisher is
+    # given the same window to compute and publish the 13pm fact). Offline the
+    # fact is already present at 13:00, so this is a provable no-op there.
+    "entry_window_minutes": 10,
     "exit_time": {"hour": 15, "minute": 15},
     "profit_target_pct": 0.50,
     "stop_loss_multiplier": 2.0,
@@ -44,7 +49,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
 }
 
 # Keys that are runtime wiring, not strategy parameters — excluded from config_hash.
-_RUNTIME_SEAMS = ("facts_db_path",)
+# `entry_window_minutes` is a live data-readiness tolerance (how long the source
+# waits for the 13pm fact), not a certified trading decision, so it sits here too.
+_RUNTIME_SEAMS = ("facts_db_path", "entry_window_minutes")
 
 
 def _canonical_strategy_dict(config: Dict[str, Any]) -> Dict[str, Any]:

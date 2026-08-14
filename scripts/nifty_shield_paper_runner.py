@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from pathlib import Path
 from typing import Optional, Sequence
 
@@ -51,6 +51,12 @@ ROOT = Path(__file__).resolve().parents[1]
 
 NF_SYMBOL = "NSE_INDEX|Nifty 50"
 CHECKPOINT = time(13, 0)          # 13:00 IST — the DS2-2 pre-signal seam
+# The publisher may retry from 13:00 through this deadline (inclusive) so a live
+# fact that needs a few minutes to gather 13:00 bars still publishes. Matches the
+# strategy's `entry_window_minutes` (the source waits the same window).
+CHECKPOINT_DEADLINE = (datetime.combine(datetime.min, CHECKPOINT)
+                       + timedelta(
+                           minutes=DEFAULT_CONFIG["entry_window_minutes"])).time()
 FACTS_DB = ROOT / "data" / "features" / "day_type" / "day_type_facts.duckdb"
 CHAIN_DB = ROOT / "data" / "options" / "chain_cache.duckdb"
 # Arbitrary replay anchor: the driver's clock is data-driven (advanced from each
@@ -183,6 +189,7 @@ def build_nifty_shield_paper_driver(
         rebalance_hook_factory=exit_hook_factory,
         publish_hook_factory=publish_hook_factory,
         publish_checkpoint_time=CHECKPOINT,
+        publish_checkpoint_deadline=CHECKPOINT_DEADLINE,
         watchdog_factory=watchdog_factory if mode is Mode.LIVE else None,
         mode=mode,
         clock=clock,

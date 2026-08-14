@@ -150,3 +150,54 @@ def test_unwired_hook_leaves_loop_unchanged():
     assert d.bars_processed == 6
     assert d.signals_pulled == 0
     assert d.state is RuntimeState.STOPPED
+
+
+# --------------------------------------------------------------------------- #
+# Retry window (publish_checkpoint_deadline)
+# --------------------------------------------------------------------------- #
+def test_hook_retries_until_ready_within_deadline():
+    calls = []
+
+    def hook(ts):
+        calls.append(ts)
+        return {"ready": len(calls) % 2 == 0}   # not-ready on 1st, ready on 2nd
+
+    d = LoopDriver(
+        _cfg(), clock=FakeClock(),
+        provider=FakeMarketDataProvider({"A": _two_sessions_bars()}),
+        publish_hook=hook,
+        publish_checkpoint_time=dt_time(13, 0),
+        publish_checkpoint_deadline=dt_time(13, 10),
+    )
+    d.run()
+    # Two calls per session: 13:00 (not ready), 13:01 (ready -> latch).
+    assert calls == [
+        datetime(2026, 6, 5, 13, 0, tzinfo=_UTC),
+        datetime(2026, 6, 5, 13, 1, tzinfo=_UTC),
+        datetime(2026, 6, 6, 13, 0, tzinfo=_UTC),
+        datetime(2026, 6, 6, 13, 1, tzinfo=_UTC),
+    ]
+
+
+def test_hook_retries_until_deadline_then_latches():
+    calls = []
+
+    def hook(ts):
+        calls.append(ts)
+        return {"ready": False}                  # never ready
+
+    bars = [make_bar("A", datetime(2026, 6, 5, h, m, tzinfo=_UTC))
+            for h, m in ((12, 59), (13, 0), (13, 1), (13, 2), (13, 3))]
+    d = LoopDriver(
+        _cfg(), clock=FakeClock(),
+        provider=FakeMarketDataProvider({"A": bars}),
+        publish_hook=hook,
+        publish_checkpoint_time=dt_time(13, 0),
+        publish_checkpoint_deadline=dt_time(13, 1),
+    )
+    d.run()
+    # Called at 13:00 and 13:01 (inclusive), then latched when the deadline passes.
+    assert calls == [
+        datetime(2026, 6, 5, 13, 0, tzinfo=_UTC),
+        datetime(2026, 6, 5, 13, 1, tzinfo=_UTC),
+    ]
