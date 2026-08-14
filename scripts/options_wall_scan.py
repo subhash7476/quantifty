@@ -1,7 +1,7 @@
 """Options-Wall scan CLI — print the ranked farm list for Nifty + BankNifty.
 
 Usage:
-    python scripts/options_wall_scan.py [--indices NIFTY BANKNIFTY]
+    python scripts/options_wall_scan.py [--indices NIFTY BANKNIFTY] [--persist]
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from core.options_wall.engine import scan_indices
+from core.options_wall.engine import scan_and_persist, scan_indices
 
 
 def _fmt(r) -> str:
@@ -28,9 +28,18 @@ def _fmt(r) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Options-Wall scan")
     parser.add_argument("--indices", nargs="+", default=["NIFTY", "BANKNIFTY"])
+    parser.add_argument("--persist", action="store_true",
+                        help="also write scan_results + session_regime + OI baseline")
     args = parser.parse_args()
 
-    scanned = scan_indices(tuple(args.indices))
+    names = tuple(args.indices)
+    if args.persist:
+        written = scan_and_persist(names)
+        print("persisted scan_results rows:", written)
+        scanned = scan_indices(names)
+    else:
+        scanned = scan_indices(names)
+
     for name, bundle in scanned.items():
         structural = bundle["structural"]
         rv = bundle["rv"]

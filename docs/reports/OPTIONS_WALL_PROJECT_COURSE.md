@@ -97,13 +97,14 @@ options_publisher (exists) ────► /options/wall panel (SSE)
 | Scanner | ✅ `core/analytics/chain_scanner.py` — `scan_chain()` + `ScanResult` |
 | Snapshot store | ✅ `core/data/options_wall_store.py` — `append_snapshot` / `latest_snapshot` / `snapshot_timestamps` |
 | Realized vol | ✅ `core/analytics/realized_vol.py` — `session_realized_vol_pct` (percent units, 1m bars, intra-session returns only) |
-| Engine | ✅ `core/options_wall/engine.py` — `scan_indices()` (load-or-fetch → structural → RV → quotes → scan) |
-| CLI | ✅ `scripts/options_wall_scan.py` — prints the ranked farm list |
+| Engine | ✅ `core/options_wall/engine.py` — `scan_indices()` (load-or-fetch → structural → RV → quotes → scan) + `scan_and_persist()` |
+| CLI | ✅ `scripts/options_wall_scan.py` — prints the ranked farm list (`--persist`) |
+| Poller | ✅ `core/options_wall/poller.py` + `scripts/options_wall_poller.py` — sole writer, accumulating |
+| Persistence | ✅ `core/options_wall/persistence.py` — `scan_results` + `session_regime` + `oi_baseline` |
 | Skew / term-structure kinks | multi-expiry chain fetch + 25Δ put/call IV |
-| OI rotation since open | 09:15 baseline store (current `oi_change` is vs prev close only) |
-| Laggard detector | flip-cross recency + charm cascade wired; repricing-lag needs the 09:15 baseline (Phase 2) |
+| OI rotation since open | ✅ 09:15 baseline store (capture + read); screen re-enablement is a follow-up |
+| Laggard detector | flip-cross recency + charm cascade wired; repricing-lag needs a "since open" definition |
 | Pin conviction | argmax of `gamma_by_strike` + mass-concentration ratio |
-| Persistence | `scan_results` table + daily regime row + baseline snapshots |
 | UI | `/options/wall` panel — farm list, regime river, per-strike detail |
 
 ---
@@ -203,10 +204,23 @@ wall poller runs — a consolidation question deferred to Phase 2.
   baseline exists (Phase 2); charm capped to top-5 by |theta|. Skew and term-structure
   kinks remain unimplemented (open question #2).
 
-### Phase 2 — Persistence
-- `scan_results` table (append-only, timestamped).
-- Daily regime row (`session_regime`): net GEX, flip, pin, walls, IV, RV.
-- 09:15 OI baseline store for the "since open" rotation.
+### Phase 2 — Persistence ✅ DONE (2026-08-14)
+- ✅ `core/options_wall/persistence.py` — `wall_scan_results.duckdb` with three
+  tables: `scan_results` (append-only scan trail), `session_regime` (regime river,
+  latest-wins read), `oi_baseline` (09:15 OI, `INSERT OR IGNORE`, idempotent).
+- ✅ `core/options_wall/poller.py` + `scripts/options_wall_poller.py` — the wall
+  poller, **sole writer** of `wall_chain_snapshots.duckdb` (PID lock + heartbeat +
+  market-hours + token retry). Accumulates Nifty + BankNifty every 5s.
+- ✅ `engine.scan_and_persist()` + CLI `--persist` — scan newest snapshot and write
+  `scan_results` + `session_regime` + capture the OI baseline.
+- ✅ Engine is now read-only with respect to the store (the poller owns persistence;
+  review LOW-3 closed). Verified live: 8 scan rows, 2 regime rows, 544 baseline rows.
+- Tests: `test_options_wall_persistence.py` + `test_options_wall_poller.py` (cycle
+  fetch+append with a stubbed provider). 58 pass across `tests/analytics` + `tests/data`.
+
+Note: `repricing_lag` / `oi-vs-price divergence` screens remain disabled — the
+baseline store now exists, but a real "since open" signal definition is a
+follow-up, not a wiring task.
 
 ### Phase 3 — Surface
 - `/options/wall` blueprint + template: ranked farm list, regime river, per-strike detail.
