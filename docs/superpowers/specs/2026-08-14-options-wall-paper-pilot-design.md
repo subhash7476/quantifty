@@ -23,6 +23,15 @@ confirmatory window. Month-1 results are disclosed as prior exposure to any succ
 not tuned mid-month.** Adjusting rules while watching results turns the month into
 anecdotes. This is the C2 / TS-Basis-Daily selection-contamination lesson applied.
 
+**The pilot is not a statistical read and must never seed one.** At ≤1 fly/index over
+weekly expiries, month-1 yields n≈4–8 round-trips — anecdote, not a sample. If the
+premium-farm screen is ever promoted to a *confirmatory* read it enters the RFA gate
+as a `per_trade_pnl` construct on ≤2 indices — the RS-MOM wall: √T ≈ 1.9 over the
+~186-week sealed window ⇒ it needs an annualized Sharpe ≥ ~1.3 for power 0.80, and a
+month of paper changes that arithmetic by exactly zero. Month-1 is prior exposure and
+a plumbing check; its numbers must **not** be used to defend a successor's effect-size
+(Sharpe/SD) band. That band must be independently defended (the C2 lesson).
+
 ---
 
 ## 2. Scope
@@ -86,6 +95,17 @@ close the fly vs the net entry credit — **before exit fees**; the round-trip f
 then booked at realization. This keeps the trigger a clean function of premium decay;
 the `trades` table records the fee-inclusive net P&L.
 
+**Hold horizon — multi-session, pinned (operator decision 2026-08-14).** A fly may be
+held across overnight and weekend gaps, up to the §5.4 time stop (e.g. opened
+Thursday, squared off Monday for a Tuesday expiry). This is deliberate: a weekly fly
+does not accrue meaningful theta intraday, and intraday-only exits would pay the
+~₹230 8-order round-trip fee *daily* (~₹4,600/month), eating the edge. Consequence
+accepted explicitly: **the position holds a longer horizon than the IV−RV entry gate
+measures** (`session_realized_vol_pct` is trailing intra-session RV and does not price
+the overnight/weekend gap the fly is exposed to). The defined-risk wings cap that gap
+exposure to a bounded loss; the pilot then observes empirically how often the gap
+moves against the position.
+
 Exit fill = mid of bid/ask per leg (live). During replay/audit, `ltp` is the
 documented fallback when bid/ask is unavailable (see §7).
 
@@ -93,12 +113,15 @@ documented fallback when bid/ask is unavailable (see §7).
 
 ## 6. Sizing & margin
 
-- **Sizing (default — the one parameter to confirm at review):** fixed **1 lot** per
-  fly (Nifty 75; BankNifty per instrument master). Rationale: normalizes across
-  indices via return-on-margin. *Caveat surfaced in fee analysis:* the ₹20/order flat
-  brokerage is a real drag at 1 lot on an 8-order structure (~₹160+ brokerage/round-
-  trip before statutory charges). If that drag proves to dominate, revisit sizing —
-  but only at a phase gate, never mid-month.
+- **Sizing (pinned): fixed 1 lot** per fly (Nifty 75; BankNifty per instrument
+  master). Rationale: normalizes across indices via return-on-margin. The flat
+  ₹20/order brokerage was checked and is **not** fee-dominant at 1 lot: on a
+  representative Nifty fly (ATM straddle ~₹135/unit, wings ~₹15–18/unit, net credit
+  ~₹102/unit × 75 ≈ ₹7,650), round-trip fees ≈ ₹230 — ~₹160 flat brokerage (8 orders)
+  + ~₹30–35 STT (0.15% sell) + ~₹9 exchange + ~₹20 stamp/GST/SEBI — i.e. **≈3% of net
+  credit, ≈6% of the +50% TP target, ≈1.1% of defined risk.** The ATM premium scale
+  absorbs the flat brokerage. Verify the exact figure against live premia at freeze;
+  revisit sizing only at a phase gate, never mid-month.
 - **Margin denominator** = defined-risk max loss =
   `(wing_width_points × lot) − net_credit`. No SPAN snapshot needed (risk is capped
   by the wings), so **return-on-margin is well-defined** and is the primary
@@ -117,6 +140,13 @@ documented fallback when bid/ask is unavailable (see §7).
 - **Exercise STT is out of scope and must stay so**: `fees.py` omits exercise STT on
   the assumption positions exit before settlement. The §5.4 time stop enforces that
   assumption; no fly may be held into expiry day.
+- **`fees.py` docstring divergence (documented, not a defect):** that module's
+  docstring states its consumer's holding model as "DTE ≥ 2, same-day open→close." The
+  pilot is DTE ≥ 1 and multi-session (§5 hold horizon). The **fee numbers are
+  unaffected** — the divergence only concerns exercise STT, which the time stop still
+  precludes. `fees.py` is a shared MSRP module and is **not** edited for this pilot;
+  this note records the mismatch so a future reader does not infer the pilot's holding
+  model from the fee module's docstring.
 
 ---
 
@@ -127,7 +157,10 @@ documented fallback when bid/ask is unavailable (see §7).
    cycle from `UpstoxMarketData.fetch_quotes_batch`. Without this, paper fills are not
    reconstructible or auditable after the fact (the trail currently stores `ltp`
    only). The poller (`core/options_wall/poller.py`) fetches quotes per cycle and
-   passes them to `append_snapshot`.
+   passes them to `append_snapshot`. **Operational note:** this raises the poller from
+   2 to 4 Upstox calls per 5s cycle (chain + quotes × 2 indices). Confirm this stays
+   inside Upstox rate limits before enabling; if not, widen the poll cadence or batch
+   the quote fetch across indices.
 2. **New `trades` table** (in `wall_scan_results.duckdb`, beside `scan_results` /
    `session_regime`): one row per paper round-trip — index, expiry, entry_ts, exit_ts,
    the four legs (strike/type/side/entry_mid/exit_mid), net entry credit, entry fees,
@@ -138,15 +171,23 @@ documented fallback when bid/ask is unavailable (see §7).
 
 ## 9. Scanner reconciliation (implementation note)
 
-The current `_farm_screen` emits candidates **at the pin** and gates IV−RV per near-
-pin strike. This spec demotes the pin to a **gating condition** and centers the
-structure at **ATM**. Required changes to `chain_scanner.py` (farm screen only):
+The current `_farm_screen` emits one candidate per **near-pin strike** and gates
+IV−RV per that strike. Note what the current code does and does *not* do:
+`_farmable_strikes` filters `|strike − pin| / spot < pin_band_pct` — that is a
+**strike-near-pin** filter (the `s` in the comprehension is a strike). A
+**spot-near-pin** precondition (`|spot − pin| / spot`) does **not** exist yet. This
+spec demotes the pin to a gating condition and centers the structure at **ATM**.
+Precise changes to `chain_scanner.py` (farm screen only):
 
-- Add a `spot-near-pin` gate (§3.2) as a precondition for emitting any farm row.
-- Measure the IV−RV gate at the **ATM** strike (§3.3), not per near-pin strike.
-- Emit a single ATM-centered fly candidate per index per cycle (§4), carrying the
-  chosen wing strikes, not a per-strike list.
-- Rank remains on IV−RV gap (HIGH-1 fix preserved); with one candidate per index the
+- **Add (new):** a spot-near-pin precondition `|spot − pin| / spot ≤ pin_band_pct`
+  (§3.2) as a gate on whether to emit any farm row at all. This is not the existing
+  strike-near-pin filter.
+- **Switch:** measure the IV−RV gate at the **ATM** strike (§3.3) — replace the
+  current per-near-pin-strike `_strike_mid_iv` gate.
+- **Replace:** the per-near-pin-strike loop with emission of a **single ATM-centered
+  fly** candidate per index per cycle (§4), carrying the four chosen leg strikes, not
+  a per-strike list.
+- **Keep:** rank on IV−RV gap (HIGH-1 fix preserved); with one candidate per index the
   rank is trivially the gap value.
 
 The imperfection/laggard screens are unchanged.
@@ -171,7 +212,7 @@ The imperfection/laggard screens are unchanged.
 | Stop loss | −2× net credit |
 | Regime-flip exit | on flip to Negative GEX |
 | Time stop | 15:15 IST, session before expiry day |
-| Sizing | 1 lot (to confirm at review) |
+| Sizing | 1 lot (pinned; ≈3% fee drag, verified) |
 | Fee model | `core/execution/options/fees.py` |
 
 ---
@@ -182,11 +223,16 @@ The imperfection/laggard screens are unchanged.
 parameter changes, no NiftyShield strategy integration (execution *primitives* may be
 reused; the strategy logic is clean-room), no confirmatory statistical claim.
 
-**Month-end analysis** (against the collected trail): trade count, win rate, net
-return-on-margin distribution, exit-reason mix, IV−RV-realized attribution (did the
-gap predict the outcome?), regime-flip-exit frequency, fee drag as a fraction of
-gross. Output is a report and a decision on whether a screen earns a formal
-pre-registration — not a go-live.
+**Month-end analysis is strictly plumbing/mechanics** (n≈4–8 cannot support a signal
+claim — see §1): trade count, fee drag as a fraction of gross credit, exit-reason mix,
+mark-vs-fill slippage, regime-flip-exit frequency, and any reconstruction/audit
+failures (missing quotes, un-markable legs, store gaps). These are **descriptive**,
+not evidence. Explicitly **out of scope:** IV−RV-realized attribution ("did the gap
+predict the outcome?") and any win-rate/edge claim — those are statistical reads the
+sample structurally cannot answer, and attempting them is the retired post-hoc
+in-sample read. Output is a report on whether the *loop* works and the *fees* are
+real, plus a decision on whether the screen merits a formal pre-registration — never a
+go-live and never an effect-size estimate.
 
 ---
 
