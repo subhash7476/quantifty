@@ -66,6 +66,22 @@ CREATE TABLE IF NOT EXISTS oi_baseline (
     oi          BIGINT NOT NULL,
     PRIMARY KEY (underlying, trade_date, strike, option_type)
 );
+
+CREATE SEQUENCE IF NOT EXISTS wall_trade_id_seq START 1;
+CREATE TABLE IF NOT EXISTS trades (
+    trade_id        INTEGER DEFAULT nextval('wall_trade_id_seq'),
+    underlying      VARCHAR NOT NULL,
+    expiry          VARCHAR NOT NULL,
+    entry_ts        TIMESTAMP NOT NULL,
+    short_strike    DOUBLE, call_wing DOUBLE, put_wing DOUBLE,
+    qty             INTEGER,
+    net_credit      DOUBLE, entry_fees DOUBLE, max_loss DOUBLE,
+    exit_ts         TIMESTAMP,
+    exit_mark       DOUBLE, exit_fees DOUBLE,
+    gross_pnl       DOUBLE, net_pnl DOUBLE, exit_reason VARCHAR,
+    PRIMARY KEY (trade_id)
+);
+CREATE INDEX IF NOT EXISTS idx_trades_underlying ON trades(underlying);
 """
 
 
@@ -227,6 +243,59 @@ def latest_scan_results(
     finally:
         conn.close()
     return ts, [dict(zip(_SCAN_COLS, r)) for r in rows]
+
+
+_TRADE_COLS = ["trade_id", "underlying", "expiry", "entry_ts", "short_strike",
+               "call_wing", "put_wing", "qty", "net_credit", "entry_fees",
+               "max_loss", "exit_ts", "exit_mark", "exit_fees", "gross_pnl",
+               "net_pnl", "exit_reason"]
+
+
+def open_paper_trade(underlying, expiry, fly, entry_ts, db_path=WALL_RESULTS_DB) -> int:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = duckdb.connect(str(db_path))
+    try:
+        init_schema(conn)
+        row = conn.execute(
+            "INSERT INTO trades (underlying, expiry, entry_ts, short_strike, "
+            "call_wing, put_wing, qty, net_credit, entry_fees, max_loss) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?) RETURNING trade_id",
+            [underlying, expiry, entry_ts, fly.short_strike, fly.call_wing,
+             fly.put_wing, fly.qty, fly.net_credit, fly.entry_fees, fly.max_loss],
+        ).fetchone()
+        conn.commit()
+    finally:
+        conn.close()
+    return row[0]
+
+
+def open_trades(underlying, db_path=WALL_RESULTS_DB) -> List[Dict]:
+    if not db_path.exists():
+        return []
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM trades WHERE underlying = ? AND exit_ts IS NULL "
+            "ORDER BY entry_ts", [underlying],
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(zip(_TRADE_COLS, r)) for r in rows]
+
+
+def close_paper_trade(trade_id, exit_ts, exit_mark, exit_fees, gross_pnl,
+                      net_pnl, exit_reason, db_path=WALL_RESULTS_DB) -> None:
+    conn = duckdb.connect(str(db_path))
+    try:
+        init_schema(conn)
+        conn.execute(
+            "UPDATE trades SET exit_ts=?, exit_mark=?, exit_fees=?, gross_pnl=?, "
+            "net_pnl=?, exit_reason=? WHERE trade_id=?",
+            [exit_ts, exit_mark, exit_fees, gross_pnl, net_pnl, exit_reason, trade_id],
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def regime_river(
