@@ -34,4 +34,7 @@ if __name__ == '__main__':
     logger.info(f"  - http://{host}:{port}/health   (health check)")
     logger.info(f"  - http://{host}:{port}/dashboard/ (requires login)")
     
-    app.run(host=host, port=port, debug=debug)
+    # use_reloader=False: the reloader forks a second process that re-runs
+    # create_app(), whose TelemetryBridge double-binds the telemetry ZMQ port
+    # ("Address already in use"). The ops orchestrator supervises this process.
+    app.run(host=host, port=port, debug=debug, use_reloader=False)
