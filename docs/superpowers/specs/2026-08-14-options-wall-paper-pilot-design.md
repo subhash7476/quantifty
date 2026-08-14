@@ -98,8 +98,9 @@ the `trades` table records the fee-inclusive net P&L.
 **Hold horizon — multi-session, pinned (operator decision 2026-08-14).** A fly may be
 held across overnight and weekend gaps, up to the §5.4 time stop (e.g. opened
 Thursday, squared off Monday for a Tuesday expiry). This is deliberate: a weekly fly
-does not accrue meaningful theta intraday, and intraday-only exits would pay the
-~₹230 8-order round-trip fee *daily* (~₹4,600/month), eating the edge. Consequence
+does not accrue meaningful theta intraday, and an intraday-only design that re-entered
+each day would pay the ~₹230 8-order round-trip fee daily (up to ~₹4,600/month — an
+upper bound assuming daily re-entry, not a cost floor), eating the edge. Consequence
 accepted explicitly: **the position holds a longer horizon than the IV−RV entry gate
 measures** (`session_realized_vol_pct` is trailing intra-session RV and does not price
 the overnight/weekend gap the fly is exposed to). The defined-risk wings cap that gap
@@ -212,7 +213,7 @@ The imperfection/laggard screens are unchanged.
 | Stop loss | −2× net credit |
 | Regime-flip exit | on flip to Negative GEX |
 | Time stop | 15:15 IST, session before expiry day |
-| Sizing | 1 lot (pinned; ≈3% fee drag, verified) |
+| Sizing | 1 lot (pinned; ≈3% fee drag est., verify at freeze) |
 | Fee model | `core/execution/options/fees.py` |
 
 ---
