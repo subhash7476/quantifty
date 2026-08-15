@@ -55,7 +55,9 @@ CREATE TABLE IF NOT EXISTS session_regime (
     put_wall          DOUBLE,
     call_wall         DOUBLE,
     atm_iv            DOUBLE,
-    realized_vol      DOUBLE
+    realized_vol      DOUBLE,
+    underlying_ltp    DOUBLE,
+    gamma_by_strike   VARCHAR
 );
 CREATE INDEX IF NOT EXISTS idx_regime_underlying ON session_regime(underlying, trade_date, ts);
 
@@ -87,11 +89,26 @@ CREATE INDEX IF NOT EXISTS idx_trades_underlying ON trades(underlying);
 """
 
 
+_REGIME_COLS = ["trade_date", "underlying", "ts", "regime", "net_gamma_total",
+                "zero_gamma_level", "pin_strike", "put_wall", "call_wall",
+                "atm_iv", "realized_vol", "underlying_ltp", "gamma_by_strike"]
+
+
+def _regime_dict(row) -> Dict:
+    d = dict(zip(_REGIME_COLS, row))
+    if d.get("gamma_by_strike") is not None:
+        d["gamma_by_strike"] = json.loads(d["gamma_by_strike"])
+    return d
+
+
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute(_SCHEMA)
     # migrate a trades table created before these columns existed
     for col in ("return_on_margin DOUBLE", "entry_legs VARCHAR", "exit_legs VARCHAR"):
         conn.execute(f"ALTER TABLE trades ADD COLUMN IF NOT EXISTS {col}")
+    # migrate a session_regime table created before spot/gamma columns existed
+    for col in ("underlying_ltp DOUBLE", "gamma_by_strike VARCHAR"):
+        conn.execute(f"ALTER TABLE session_regime ADD COLUMN IF NOT EXISTS {col}")
 
 
 def write_scan_results(
@@ -125,14 +142,16 @@ def write_regime(
     db_path: Path = WALL_RESULTS_DB,
 ) -> None:
     """snapshot keys: trade_date, regime, net_gamma_total, zero_gamma_level,
-    pin_strike, put_wall, call_wall, atm_iv, realized_vol."""
+    pin_strike, put_wall, call_wall, atm_iv, realized_vol, underlying_ltp,
+    gamma_by_strike (stored as JSON)."""
     ts = ts or datetime.now()
+    ladder = snapshot.get("gamma_by_strike")
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = duckdb.connect(str(db_path))
     try:
         init_schema(conn)
         conn.execute(
-            "INSERT INTO session_regime VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO session_regime VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [
                 snapshot.get("trade_date", date.today()),
                 underlying, ts,
@@ -144,6 +163,8 @@ def write_regime(
                 snapshot.get("call_wall"),
                 snapshot.get("atm_iv"),
                 snapshot.get("realized_vol"),
+                snapshot.get("underlying_ltp"),
+                json.dumps(ladder) if ladder is not None else None,
             ],
         )
         conn.commit()
@@ -215,10 +236,7 @@ def latest_regime(
         conn.close()
     if not row:
         return None
-    cols = ["trade_date", "underlying", "ts", "regime", "net_gamma_total",
-            "zero_gamma_level", "pin_strike", "put_wall", "call_wall",
-            "atm_iv", "realized_vol"]
-    return dict(zip(cols, row))
+    return _regime_dict(row)
 
 
 _SCAN_COLS = ["ts", "underlying", "expiry", "strike", "option_type", "screen",
@@ -332,7 +350,4 @@ def regime_river(
         ).fetchall()
     finally:
         conn.close()
-    cols = ["trade_date", "underlying", "ts", "regime", "net_gamma_total",
-            "zero_gamma_level", "pin_strike", "put_wall", "call_wall",
-            "atm_iv", "realized_vol"]
-    return [dict(zip(cols, r)) for r in rows]
+    return [_regime_dict(r) for r in rows]

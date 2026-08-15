@@ -85,6 +85,52 @@ def test_latest_scan_results_returns_newest_cycle(tmp_path):
     assert [r["strike"] for r in rows] == [102.0]  # newest cycle only, not t1's rows
 
 
+def test_regime_persists_spot_and_gamma_ladder(tmp_path):
+    db = tmp_path / "results.duckdb"
+    snap = {"trade_date": date(2026, 8, 14), "regime": "Positive GEX (Stable)",
+            "net_gamma_total": 1.0, "zero_gamma_level": 24300.0, "pin_strike": 24350.0,
+            "put_wall": 24000.0, "call_wall": 24500.0, "atm_iv": 11.0, "realized_vol": 9.4,
+            "underlying_ltp": 24312.5, "gamma_by_strike": {24300.0: 5.0, 24350.0: 8.0}}
+    persistence.write_regime("NSE_INDEX|Nifty 50", snap, db_path=db)
+
+    latest = persistence.latest_regime("NSE_INDEX|Nifty 50", date(2026, 8, 14), db_path=db)
+    assert latest["underlying_ltp"] == 24312.5
+    assert latest["gamma_by_strike"] == {"24300.0": 5.0, "24350.0": 8.0}
+
+    river = persistence.regime_river("NSE_INDEX|Nifty 50", db_path=db)
+    assert river[-1]["underlying_ltp"] == 24312.5
+    assert river[-1]["gamma_by_strike"] == {"24300.0": 5.0, "24350.0": 8.0}
+
+
+def test_regime_schema_migrates_pre_existing_db(tmp_path):
+    """A live DB created before the spot/gamma columns must ALTER cleanly and keep
+    SELECT * column order aligned with the read cols list (new cols appended last)."""
+    db = tmp_path / "results.duckdb"
+    conn = duckdb.connect(str(db))
+    conn.execute(
+        """CREATE TABLE session_regime (
+            trade_date DATE NOT NULL, underlying VARCHAR NOT NULL, ts TIMESTAMP NOT NULL,
+            regime VARCHAR, net_gamma_total DOUBLE, zero_gamma_level DOUBLE,
+            pin_strike DOUBLE, put_wall DOUBLE, call_wall DOUBLE, atm_iv DOUBLE,
+            realized_vol DOUBLE)""")
+    conn.execute(
+        "INSERT INTO session_regime VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        [date(2026, 8, 13), "NSE_INDEX|Nifty 50", datetime(2026, 8, 13, 15, 0),
+         "Positive GEX (Stable)", 1.0, 24300.0, 24350.0, 24000.0, 24500.0, 11.0, 9.4])
+    conn.close()
+
+    snap = {"trade_date": date(2026, 8, 14), "regime": "Negative GEX (Volatile)",
+            "underlying_ltp": 24000.0, "gamma_by_strike": {24000.0: 1.0}}
+    persistence.write_regime("NSE_INDEX|Nifty 50", snap, db_path=db)
+
+    river = persistence.regime_river("NSE_INDEX|Nifty 50", db_path=db)
+    assert [r["trade_date"] for r in river] == [date(2026, 8, 13), date(2026, 8, 14)]
+    assert river[0]["underlying_ltp"] is None       # old row, pre-migration
+    assert river[0]["regime"] == "Positive GEX (Stable)"  # order not scrambled
+    assert river[1]["underlying_ltp"] == 24000.0    # new row
+    assert river[1]["gamma_by_strike"] == {"24000.0": 1.0}
+
+
 def test_regime_river_latest_per_day_ascending(tmp_path):
     db = tmp_path / "results.duckdb"
     base = {"regime": "Positive GEX (Stable)", "net_gamma_total": 1.0,

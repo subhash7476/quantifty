@@ -77,6 +77,8 @@ def _regime_snapshot(structural, chain, rv) -> Dict:
         "call_wall": structural.oi_analysis.resistance_strike,
         "atm_iv": _atm_iv(chain, structural.underlying_ltp),
         "realized_vol": rv,
+        "underlying_ltp": structural.underlying_ltp,
+        "gamma_by_strike": dist,
     }
 
 
