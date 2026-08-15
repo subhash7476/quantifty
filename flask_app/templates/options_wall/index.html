@@ -5,170 +5,760 @@
 
 {% block head %}
 <style>
-    .gex-positive { color: #10b981; }
-    .gex-negative { color: #ef4444; }
-    .gex-neutral { color: #94a3b8; }
-    .farm-score { font-variant-numeric: tabular-nums; }
+    .ow-card { background: #FFFFFF; border: 1px solid var(--line); border-radius: 15px; }
+    .ow-cell { padding: 14px 16px 13px; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+    .ow-k { font-size: 10px; letter-spacing: .11em; text-transform: uppercase; color: var(--faint); }
+    .ow-v { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 16.5px; margin-top: 5px; }
+    .ow-note { font-size: 11px; color: #9A958A; margin-top: 3px; }
+    .ow-chip { cursor: pointer; font-size: 12px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: #FFFFFF; color: var(--body); transition: all .25s ease; }
+    .ow-chip:hover { border-color: var(--ink); }
+    .ow-chip.on { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
+    .ow-row-card { cursor: pointer; background: #FFFFFF; border: 1px solid var(--line); border-radius: 15px; padding: 20px 22px 18px;
+                   transition: transform .4s cubic-bezier(.22,.68,0,1), box-shadow .4s ease, border-color .3s ease; animation: owRise .5s cubic-bezier(.22,.68,0,1) both; }
+    .ow-row-card:hover { transform: translateY(-3px); box-shadow: 0 18px 42px -28px rgba(20,24,31,.34); }
+    @keyframes owRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    @keyframes owSpin { to { transform: rotate(360deg); } }
+    #ow-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 96vw); z-index: 60; background: #FFFFFF;
+                border-left: 1px solid var(--line); box-shadow: -30px 0 70px -40px rgba(20,24,31,.4);
+                transform: translateX(100%); transition: transform .55s cubic-bezier(.22,.68,0,1); overflow-y: auto; }
+    #ow-panel.open { transform: translateX(0); }
+    #ow-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(20,24,31,.28); backdrop-filter: blur(2px);
+                opacity: 0; pointer-events: none; transition: opacity .45s ease; }
+    #ow-scrim.on { opacity: 1; pointer-events: auto; }
+    .ow-sec-h { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: 11px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="space-y-6">
+<div style="display: flex; flex-direction: column; gap: 30px;">
 
-    <!-- Header -->
-    <div class="flex items-center justify-between">
+    <!-- Header row -->
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;">
+        <div style="display: flex; gap: 2px; background: #EFECE6; padding: 3px; border-radius: 8px;">
+            <button onclick="switchIndex('NIFTY')" id="tab-NIFTY" class="ow-tab">Nifty 50</button>
+            <button onclick="switchIndex('BANKNIFTY')" id="tab-BANKNIFTY" class="ow-tab">Bank Nifty</button>
+        </div>
+        <div id="spot-readout" style="display: flex; align-items: baseline; gap: 9px;">
+            <span id="spot-value" class="mono" style="font-size: 21px; letter-spacing: -.02em;">--</span>
+            <span id="spot-label" style="font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">Snapshot spot</span>
+        </div>
+        <div style="flex: 1;"></div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="poll-dot" style="width: 6px; height: 6px; border-radius: 999px; background: var(--green); box-shadow: 0 0 0 3px rgba(25,122,90,.16);"></span>
+            <span style="font-size: 11.5px; color: var(--muted);">Farm 15s &middot; river 60s</span>
+        </div>
+        <span id="last-update" class="mono" style="font-size: 11.5px; color: var(--faint);">Last scan --</span>
+        <button onclick="triggerRefresh()" id="refresh-scan-btn"
+                style="cursor: pointer; border: 1px solid var(--ink); background: #FFFFFF; color: var(--ink); font-size: 13px; padding: 8px 18px; border-radius: 9px; display: flex; align-items: center; gap: 8px; transition: all .25s ease;">
+            <span id="scan-spinner" style="display: none; width: 11px; height: 11px; border: 1.6px solid currentColor; border-right-color: transparent; border-radius: 999px; animation: owSpin .7s linear infinite;"></span>
+            <span id="scan-label">Scan now</span>
+        </button>
+    </div>
+
+    <!-- Hero + regime band -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 36px 52px; align-items: end;">
         <div>
-            <h1 class="text-2xl font-bold text-white">Options Wall Scanner</h1>
-            <p class="text-sm text-slate-400 mt-1">Dealer-positioning farm list — premium / imperfections / laggards</p>
+            <div class="mono" id="hero-meta" style="font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px;">--</div>
+            <h1 class="display" id="hero-title" style="font-size: clamp(34px, 3.8vw, 52px); line-height: 1.04; margin: 0 0 14px;">Reading the chain.</h1>
+            <p id="hero-sub" style="max-width: 56ch; margin: 0; font-size: 15px; color: var(--body); text-wrap: pretty;">
+                Waiting for the latest persisted scan.
+            </p>
         </div>
-        <div class="flex items-center gap-3">
-            <span id="last-update" class="text-xs text-slate-500">Last scan: --</span>
-            <button onclick="triggerRefresh()" id="refresh-btn"
-                    class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-xl transition-colors">
-                <i class="fas fa-sync-alt mr-2"></i>Scan now
-            </button>
+
+        <div class="ow-card" style="padding: 4px;">
+            <div id="regime-band" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));"></div>
         </div>
     </div>
 
-    <!-- Index Tabs -->
-    <div class="flex gap-2">
-        <button onclick="switchIndex('NIFTY')" id="tab-nifty"
-                class="px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-blue-600 text-white">Nifty 50</button>
-        <button onclick="switchIndex('BANKNIFTY')" id="tab-banknifty"
-                class="px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600">Bank Nifty</button>
-    </div>
-
-    <!-- Regime Summary -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div class="glass rounded-2xl p-5">
-            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">GEX Regime</p>
-            <p id="kpi-regime" class="text-lg font-bold">--</p>
+    <!-- Gamma ladder -->
+    <div class="ow-card" id="ladder-card" style="padding: 22px 26px 18px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+            <span class="display" style="font-size: 21px;">Gamma by strike</span>
+            <span style="font-size: 12px; color: var(--muted);">Net dealer gamma per strike, with the levels the screens gate on.</span>
         </div>
-        <div class="glass rounded-2xl p-5">
-            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">Pin / Flip</p>
-            <p id="kpi-pin" class="text-sm font-bold text-white">--</p>
-        </div>
-        <div class="glass rounded-2xl p-5">
-            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">Walls (P / C)</p>
-            <p id="kpi-walls" class="text-sm font-bold text-white">--</p>
-        </div>
-        <div class="glass rounded-2xl p-5">
-            <p class="text-xs text-slate-400 uppercase tracking-widest mb-1">ATM IV / RV</p>
-            <p id="kpi-ivrv" class="text-sm font-bold text-white">--</p>
+        <div id="ladder-wrap" style="margin-top: 18px; position: relative;"></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 8px;">
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted);"><span style="width:12px;height:3px;border-radius:2px;background:rgba(14,111,99,.34);"></span>Positive strike gamma</span>
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted);"><span style="width:12px;height:3px;border-radius:2px;background:rgba(180,71,47,.34);"></span>Negative strike gamma</span>
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted);"><span style="width:12px;height:3px;border-radius:2px;background:#0E6F63;"></span>Pin ± 0.5% farm band</span>
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted);"><span style="width:12px;height:3px;border-radius:2px;background:#C9821A;"></span>Zero-gamma flip</span>
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted);"><span style="width:12px;height:3px;border-radius:2px;background:#14181F;"></span>Spot</span>
         </div>
     </div>
 
-    <!-- Farm List -->
-    <div class="glass rounded-2xl p-5">
-        <h3 class="text-sm font-semibold text-white mb-4">Farm List</h3>
-        <div class="grid grid-cols-12 gap-2 py-2 px-4 text-xs font-semibold text-slate-400 uppercase tracking-widest border-b border-slate-700">
-            <div class="col-span-2">Screen</div>
-            <div class="col-span-2">Structure</div>
-            <div class="col-span-2 text-right">Strike</div>
-            <div class="col-span-1 text-right">Score</div>
-            <div class="col-span-1 text-right">Credit</div>
-            <div class="col-span-1 text-right">IV−RV</div>
-            <div class="col-span-3">Reason</div>
+    <!-- Premium farm gate -->
+    <div style="border: 1px solid var(--line); border-radius: 14px; background: #FBFAF8; padding: 20px 26px 22px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px;">
+            <span class="display" style="font-size: 21px;">Premium farm gate</span>
+            <span style="font-size: 12px; color: var(--muted);">Conditions <code style="font-size: 11.5px;">_farm_screen</code> tests, against the configured threshold.</span>
+            <div style="flex: 1;"></div>
+            <span id="gate-verdict" class="mono" style="font-size: 12px; padding: 4px 11px; border-radius: 999px; background: #EFECE6; color: var(--muted);">--</span>
         </div>
-        <div id="farm-rows"></div>
+        <div id="gate-strip" style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); background: #FFFFFF; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;"></div>
     </div>
 
-    <!-- Regime River -->
-    <div class="glass rounded-2xl p-5">
-        <h3 class="text-sm font-semibold text-white mb-4">Regime River</h3>
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-xs text-slate-400 uppercase tracking-widest border-b border-slate-700">
-                        <th class="text-left py-2 px-3">Date</th>
-                        <th class="text-left py-2 px-3">Regime</th>
-                        <th class="text-right py-2 px-3">Pin</th>
-                        <th class="text-right py-2 px-3">Flip</th>
-                        <th class="text-right py-2 px-3">Put Wall</th>
-                        <th class="text-right py-2 px-3">Call Wall</th>
-                        <th class="text-right py-2 px-3">ATM IV</th>
-                        <th class="text-right py-2 px-3">RV</th>
-                    </tr>
-                </thead>
-                <tbody id="river-body"></tbody>
-            </table>
+    <!-- Farm list -->
+    <div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-bottom: 16px;">
+            <span class="display" style="font-size: 21px;">Farm list &middot; <span id="row-count">0</span> rows</span>
+            <div id="screen-filters" style="display: flex; gap: 6px;"></div>
+            <div style="flex: 1;"></div>
+            <div style="display: flex; align-items: center; gap: 10px; flex-shrink: 0;">
+                <span style="font-size: 11px; letter-spacing: .11em; text-transform: uppercase; color: var(--faint);">Rank by</span>
+                <div id="sort-controls" style="display: flex; gap: 6px;"></div>
+            </div>
         </div>
+        <div id="farm-rows" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 18px;"></div>
     </div>
 
+    <!-- Regime river -->
+    <div class="ow-card" style="padding: 22px 26px 20px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+            <span class="display" style="font-size: 21px;">Regime river &middot; <span id="river-days">30</span> sessions</span>
+            <span style="font-size: 12px; color: var(--muted);">Put wall to call wall as a band, pin and gamma flip as lines.</span>
+        </div>
+        <div id="river-chart-wrap" style="margin-top: 18px; position: relative;"></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 6px;">
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted);"><span style="width:12px;height:3px;border-radius:2px;background:rgba(14,111,99,.30);"></span>Put wall to call wall</span>
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted);"><span style="width:12px;height:3px;border-radius:2px;background:#0E6F63;"></span>Pin strike</span>
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted);"><span style="width:12px;height:3px;border-radius:2px;background:#C9821A;"></span>Gamma flip</span>
+            <span style="display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted);"><span style="width:12px;height:3px;border-radius:2px;background:rgba(180,71,47,.20);"></span>Negative-gamma sessions</span>
+        </div>
+
+        <div style="margin-top: 20px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
+            <div style="display: grid; grid-template-columns: 100px 1.2fr repeat(6, minmax(0,1fr)); gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
+                <span>Date</span><span>Regime</span>
+                <span style="text-align:right;">Pin</span><span style="text-align:right;">Flip</span>
+                <span style="text-align:right;">Put wall</span><span style="text-align:right;">Call wall</span>
+                <span style="text-align:right;">ATM IV</span><span style="text-align:right;">RV</span>
+            </div>
+            <div id="river-body"></div>
+        </div>
+        <div style="margin-top: 12px; text-align: center;">
+            <button id="river-toggle" onclick="toggleRiver()" class="ow-chip">Show all 30 sessions</button>
+        </div>
+    </div>
 </div>
 
+<div id="ow-scrim" onclick="closePanel()"></div>
+<aside id="ow-panel"><div id="ow-panel-body" style="padding: 24px 30px 60px;"></div></aside>
+
 <script>
+const CFG = { iv_rv_min_gap: 2.0, pin_band_pct: 0.005, vol_outlier_sigma: 2.0,
+              lag_spot_move_pct: 0.3, charm_dte_max: 2, max_spread_pct: 0.05,
+              vol_scan_band_pct: 0.05, wing_pct: 0.015 };
+
+const C = { green: '#197A5A', red: '#B4472F', amber: '#C9821A', teal: '#0E6F63', ink: '#14181F', muted: '#6E7480', faint: '#8A8578' };
+
+const SCREEN_LABEL = { premium_farm: 'Premium farm', imperfection: 'Imperfection', laggard: 'Laggard' };
+const STRUCT_LABEL = { iron_fly: 'Iron fly', iv_asymmetry: 'CE / PE IV asymmetry', vol_outlier: 'Single-strike vol outlier',
+                       flip_cross: 'Gamma flip cross', charm_cascade: 'Charm cascade' };
+const SCORE_UNIT = { iron_fly: 'IV−RV pts', iv_asymmetry: 'vol pts', vol_outlier: 'vol pts',
+                     flip_cross: 'proximity', charm_cascade: '|theta|' };
+const CAVEATS = {
+    iron_fly: ['Ranking is on the vol premium; no SPAN margin in the score yet.',
+               'Credit is LTP-based — re-quote before sending.',
+               'Positive-gamma pin can break on a regime flip intraday.'],
+    iv_asymmetry: ['Asymmetry alone is not a trade; it flags where the surface is mispriced.',
+                   'ATM-only read — wings can disagree.'],
+    vol_outlier: ['Deviation is against immediate neighbours, not a fitted smile.',
+                  'A single wide quote can manufacture an outlier.'],
+    flip_cross: ['Proximity score decays linearly inside the window.',
+                 'Crossing the flip changes dealer hedging sign, not direction.'],
+    charm_cascade: ['Fires only inside the DTE bound.', 'Ranked on absolute theta, so ATM rows dominate.']
+};
+
 let currentIndex = 'NIFTY';
+let state = { rows: [], regime: null, ts: null, river: [], screen: 'All', sort: 'Score', open: null, riverFull: false, scanning: false };
 
-document.addEventListener('DOMContentLoaded', function () {
-    loadFarm();
-    loadRiver();
-    setInterval(loadFarm, 15000);   // poll farm list every 15s
-    setInterval(loadRiver, 60000);  // poll regime river every 60s
-});
+/* ---------------------------------------------------------------- helpers */
+function n(v, d) {
+    if (v === null || v === undefined || Number.isNaN(Number(v))) return '--';
+    return Number(v).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function pct(v, d) { return (v === null || v === undefined) ? '--' : n(v, d === undefined ? 1 : d) + '%'; }
+function el(tag, style, html) {
+    const e = document.createElement(tag);
+    if (style) e.setAttribute('style', style);
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+}
+function regimeColor(r) {
+    if (!r) return C.muted;
+    return r.includes('Positive') ? C.green : r.includes('Negative') ? C.red : C.muted;
+}
+function dte(expiry) {
+    if (!expiry) return null;
+    const d = new Date(expiry + 'T00:00:00');
+    if (Number.isNaN(d.getTime())) return null;
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return Math.round((d - today) / 86400000);
+}
 
+/* ------------------------------------------------------------- index tabs */
+function paintTabs() {
+    ['NIFTY', 'BANKNIFTY'].forEach(k => {
+        const b = document.getElementById('tab-' + k);
+        const on = currentIndex === k;
+        b.setAttribute('style',
+            'border:0;cursor:pointer;font-size:12.5px;padding:6px 14px;border-radius:6px;transition:background .3s ease,color .3s ease;' +
+            'background:' + (on ? '#FFFFFF' : 'transparent') + ';color:' + (on ? C.ink : C.faint) + ';' +
+            'box-shadow:' + (on ? '0 1px 2px rgba(20,24,31,.12)' : 'none'));
+    });
+}
 function switchIndex(index) {
     currentIndex = index;
-    document.getElementById('tab-nifty').className =
-        index === 'NIFTY'
-            ? 'px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-blue-600 text-white'
-            : 'px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600';
-    document.getElementById('tab-banknifty').className =
-        index === 'BANKNIFTY'
-            ? 'px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-blue-600 text-white'
-            : 'px-4 py-2 rounded-xl text-sm font-medium transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600';
-    loadFarm();
-    loadRiver();
+    state.open = null; closePanel();
+    paintTabs(); loadFarm(); loadRiver();
 }
 
-function fmt(v, digits = 0) {
-    return (v === null || v === undefined) ? '--' : Number(v).toFixed(digits);
+/* ------------------------------------------------------------- regime band */
+function paintRegimeBand() {
+    const r = state.regime || {};
+    const band = document.getElementById('regime-band');
+    band.innerHTML = '';
+    const gap = (r.atm_iv != null && r.realized_vol != null) ? r.atm_iv - r.realized_vol : null;
+    const cells = [
+        ['GEX regime', r.regime || '--', 'from net gamma', regimeColor(r.regime)],
+        ['Net gamma', r.net_gamma_total != null ? (r.net_gamma_total >= 0 ? '+' : '') + n(r.net_gamma_total / 1e6, 1) + 'M' : '--', 'chain total',
+            r.net_gamma_total >= 0 ? C.green : C.red],
+        ['Pin strike', n(r.pin_strike, 0), 'peak gamma strike', C.teal],
+        ['Gamma flip', n(r.zero_gamma_level, 0), 'zero-gamma level', C.amber],
+        ['Put wall', n(r.put_wall, 0), 'OI support', C.ink],
+        ['Call wall', n(r.call_wall, 0), 'OI resistance', C.ink],
+        ['ATM IV', pct(r.atm_iv, 1), 'mid of CE / PE', C.ink],
+        ['Realized vol', pct(r.realized_vol, 1), 'session, annualised',
+            gap != null && gap >= CFG.iv_rv_min_gap ? C.green : C.amber]
+    ];
+    cells.forEach(([k, v, note, color]) => {
+        band.appendChild(el('div', 'padding:14px 16px 13px;border-right:1px solid var(--hairline);border-bottom:1px solid var(--hairline);',
+            '<div class="ow-k">' + k + '</div>' +
+            '<div class="ow-v" style="color:' + color + '">' + v + '</div>' +
+            '<div class="ow-note">' + note + '</div>'));
+    });
+
+    const positive = (r.regime || '').includes('Positive');
+    document.getElementById('hero-meta').textContent =
+        (currentIndex === 'NIFTY' ? 'Nifty 50' : 'Bank Nifty') +
+        (state.rows[0] && state.rows[0].expiry ? '  ·  ' + state.rows[0].expiry + ' expiry' : '') +
+        (state.rows[0] && dte(state.rows[0].expiry) != null ? '  ·  ' + dte(state.rows[0].expiry) + ' DTE' : '');
+    document.getElementById('hero-title').innerHTML = r.regime
+        ? (positive
+            ? 'Dealers are long gamma and the tape is pinned. <span style="font-style:italic;color:' + C.green + '">Premium is farmable at the pin.</span>'
+            : 'Dealers are short gamma; <span style="font-style:italic;color:' + C.red + '">moves get amplified, not damped.</span>')
+        : 'No persisted regime for this index yet.';
+    document.getElementById('hero-sub').textContent = r.regime
+        ? (positive
+            ? 'Every screen below reads one chain snapshot: net dealer gamma, the pin and flip it implies, the option walls, and where implied vol sits against realized. Each row shows the condition it passed and the number it passed on.'
+            : 'The farm screen is closed while gamma is negative, so the wall shows what it can still see: surface imperfections and laggards, with every threshold laid out against the configured bar.')
+        : 'Trigger a scan to populate the wall.';
 }
 
+function paintSpotAndLadder() {
+    const r = state.regime || {};
+    const spot = r.underlying_ltp;
+    document.getElementById('spot-value').textContent = spot != null ? n(spot, 2) : '--';
+
+    const wrap = document.getElementById('ladder-wrap');
+    const raw = r.gamma_by_strike;
+    const gs = raw ? Object.keys(raw).map(k => [parseFloat(k), Number(raw[k])])
+                          .filter(p => !Number.isNaN(p[0])).sort((a, b) => a[0] - b[0]) : [];
+    if (!gs.length) {
+        document.getElementById('ladder-card').style.display = 'none';
+        return;
+    }
+    document.getElementById('ladder-card').style.display = '';
+
+    const W = 1200, base = 150, maxH = 138;
+    const levels = [r.put_wall, r.call_wall, r.pin_strike, r.zero_gamma_level, spot].filter(v => v != null);
+    const step = gs.length > 1 ? (gs[gs.length - 1][0] - gs[0][0]) / (gs.length - 1) : 50;
+    const lo = Math.min(gs[0][0], ...levels) - step;
+    const hi = Math.max(gs[gs.length - 1][0], ...levels) + step;
+    const x = s => (s - lo) / (hi - lo) * W;
+    const peak = Math.max.apply(null, gs.map(g => Math.abs(g[1]))) || 1;
+    const bw = Math.max(5, W / (gs.length * 1.9));
+
+    const bars = gs.map(g => {
+        const h = Math.abs(g[1]) / peak * maxH;
+        return '<rect x="' + (x(g[0]) - bw / 2).toFixed(1) + '" y="' + (base - h).toFixed(1) +
+               '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="1.5" fill="' +
+               (g[1] >= 0 ? 'rgba(14,111,99,.34)' : 'rgba(180,71,47,.34)') + '"></rect>';
+    }).join('');
+
+    let bandRect = '';
+    if (r.pin_strike != null && spot != null) {
+        const bandHalf = spot * CFG.pin_band_pct;
+        bandRect = '<rect x="' + x(r.pin_strike - bandHalf).toFixed(1) + '" y="8" width="' +
+            (x(r.pin_strike + bandHalf) - x(r.pin_strike - bandHalf)).toFixed(1) +
+            '" height="142" fill="rgba(14,111,99,.06)"></rect>';
+    }
+
+    const markSpec = [
+        [r.pin_strike, C.teal, 1.6, '5 3'],
+        [r.zero_gamma_level, C.amber, 1.6, '0'],
+        [r.put_wall, '#8A8578', 1.2, '2 4'],
+        [r.call_wall, '#8A8578', 1.2, '2 4'],
+        [spot, C.ink, 2, '0']
+    ].filter(m => m[0] != null);
+    const marks = markSpec.map(([v, c, w, d]) =>
+        '<line x1="' + x(v).toFixed(1) + '" y1="0" x2="' + x(v).toFixed(1) +
+        '" y2="' + base + '" stroke="' + c + '" stroke-width="' + w + '" stroke-dasharray="' + d + '"></line>').join('');
+
+    wrap.innerHTML = '<svg viewBox="0 0 ' + W + ' 210" preserveAspectRatio="none" style="display:block;width:100%;height:210px;overflow:visible;">' +
+        '<line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '" stroke="#E6E2DC" stroke-width="1"></line>' +
+        bandRect + bars + marks + '</svg>';
+
+    // Level callouts and strike ticks as HTML overlays (SVG <text> avoided).
+    const labels = [
+        [r.put_wall, '3%', '#8A8578', 'put wall '],
+        [r.call_wall, '3%', '#8A8578', 'call wall '],
+        [r.pin_strike, '14%', C.teal, 'pin '],
+        [r.zero_gamma_level, '25%', C.amber, 'flip '],
+        [spot, '36%', C.ink, 'spot ']
+    ].filter(l => l[0] != null);
+    labels.forEach(([v, top, color, prefix]) => {
+        wrap.appendChild(el('div',
+            'position:absolute;left:' + (x(v) / W * 100).toFixed(2) + '%;top:' + top + ';transform:translateX(-50%);' +
+            'white-space:nowrap;font-family:\'IBM Plex Mono\',monospace;font-size:11px;color:' + color + ';' +
+            'background:rgba(255,255,255,.82);padding:0 4px;border-radius:3px;pointer-events:none;',
+            prefix + n(v, 0)));
+    });
+    for (let i = 0; i <= 6; i++) {
+        const s = lo + (hi - lo) * i / 6;
+        wrap.appendChild(el('div',
+            'position:absolute;left:' + (x(s) / W * 100).toFixed(2) + '%;top:76%;transform:translateX(-50%);' +
+            'white-space:nowrap;font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:#A9A49A;pointer-events:none;',
+            n(Math.round(s / step) * step, 0)));
+    }
+}
+
+/* --------------------------------------------------------------- gate strip */
+function widestSpreadPct(legs) {
+    if (!legs || !legs.length) return null;
+    let worst = null;
+    legs.forEach(l => {
+        if (l.best_bid == null || l.best_ask == null) return;
+        const mid = l.mid != null ? l.mid : (l.best_bid + l.best_ask) / 2;
+        if (!mid) return;
+        const s = (l.best_ask - l.best_bid) / mid * 100;
+        if (worst === null || s > worst) worst = s;
+    });
+    return worst;
+}
+
+function paintGate() {
+    const r = state.regime || {};
+    const strip = document.getElementById('gate-strip');
+    strip.innerHTML = '';
+
+    const gap = (r.atm_iv != null && r.realized_vol != null) ? r.atm_iv - r.realized_vol : null;
+    const farmRow = state.rows.find(x => x.screen === 'premium_farm');
+    const spot = r.underlying_ltp;
+    const pinDist = (spot != null && r.pin_strike != null) ? Math.abs(spot - r.pin_strike) / spot : null;
+    const spread = widestSpreadPct(farmRow && farmRow.legs);
+
+    const checks = [
+        { label: 'GEX regime', reading: r.regime || '--', threshold: 'must contain "Positive"',
+          state: r.regime ? ((r.regime.includes('Positive')) ? 'pass' : 'fail') : 'unknown' },
+        { label: 'Spot inside pin band',
+          reading: pinDist != null ? pct(pinDist * 100, 3) + ' from pin' : 'spot not in payload',
+          threshold: 'band ≤ ' + pct(CFG.pin_band_pct * 100, 1),
+          state: pinDist == null ? 'unknown' : (pinDist <= CFG.pin_band_pct ? 'pass' : 'fail') },
+        { label: 'ATM IV − realized vol', reading: gap != null ? n(gap, 1) + ' pt' : '--',
+          threshold: 'floor ' + n(CFG.iv_rv_min_gap, 1) + ' pt',
+          state: gap == null ? 'unknown' : (gap >= CFG.iv_rv_min_gap ? 'pass' : 'fail') },
+        { label: 'Quote spread guard',
+          reading: spread != null ? pct(spread, 1) + ' widest leg' : 'no quoted legs',
+          threshold: 'max ' + pct(CFG.max_spread_pct * 100, 0),
+          state: spread == null ? 'unknown' : (spread <= CFG.max_spread_pct * 100 ? 'pass' : 'fail') },
+        { label: 'ATM credit (CE + PE)',
+          reading: farmRow && farmRow.credit != null ? '₹' + n(farmRow.credit, 1) : 'no farm row',
+          threshold: 'must be > 0',
+          state: farmRow ? (farmRow.credit > 0 ? 'pass' : 'fail') : 'unknown' }
+    ];
+
+    const tone = s => s === 'pass' ? { c: C.green, i: '✓' } : s === 'fail' ? { c: C.red, i: '✕' } : { c: C.faint, i: '–' };
+    checks.forEach(ch => {
+        const t = tone(ch.state);
+        strip.appendChild(el('div', 'background:#FFFFFF;padding:15px 17px;border-right:1px solid var(--hairline);border-bottom:1px solid var(--hairline);',
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<span style="width:15px;height:15px;border-radius:999px;flex-shrink:0;display:grid;place-items:center;font-size:9px;color:#FFFFFF;background:' + t.c + '">' + t.i + '</span>' +
+              '<span style="font-size:12px;">' + ch.label + '</span></div>' +
+            '<div class="mono" style="font-size:15px;margin-top:9px;color:' + t.c + '">' + ch.reading + '</div>' +
+            '<div style="font-size:11.5px;color:var(--faint);margin-top:4px;">' + ch.threshold + '</div>'));
+    });
+
+    const emitted = !!farmRow;
+    const v = document.getElementById('gate-verdict');
+    v.textContent = emitted ? 'Farm row emitted this cycle' : 'No farm row this cycle';
+    v.style.background = emitted ? 'rgba(25,122,90,.12)' : 'rgba(180,71,47,.10)';
+    v.style.color = emitted ? C.green : C.red;
+}
+
+/* --------------------------------------------------------------- farm list */
+function paintFilters() {
+    const counts = { All: state.rows.length };
+    state.rows.forEach(r => { counts[r.screen] = (counts[r.screen] || 0) + 1; });
+
+    const f = document.getElementById('screen-filters');
+    f.innerHTML = '';
+    ['All', 'premium_farm', 'imperfection', 'laggard'].forEach(s => {
+        const b = el('button', null, (s === 'All' ? 'All screens' : SCREEN_LABEL[s]) + '  ' + (counts[s] || 0));
+        b.className = 'ow-chip' + (state.screen === s ? ' on' : '');
+        b.onclick = () => { state.screen = s; paintFilters(); paintRows(); };
+        f.appendChild(b);
+    });
+
+    const sc = document.getElementById('sort-controls');
+    sc.innerHTML = '';
+    ['Score', 'Strike', 'Screen'].forEach(s => {
+        const b = el('button', null, s);
+        b.className = 'ow-chip' + (state.sort === s ? ' on' : '');
+        b.style.borderRadius = '8px';
+        b.style.fontFamily = "'IBM Plex Mono', monospace";
+        b.onclick = () => { state.sort = s; paintFilters(); paintRows(); };
+        sc.appendChild(b);
+    });
+}
+
+function screenTone(s) {
+    return s === 'premium_farm' ? { bg: 'rgba(25,122,90,.10)', fg: C.green }
+         : s === 'imperfection' ? { bg: 'rgba(201,130,26,.12)', fg: '#A8703C' }
+         : { bg: 'rgba(14,111,99,.09)', fg: C.teal };
+}
+
+function legsText(r) {
+    if (r.structure === 'iron_fly') return 'body ' + n(r.strike, 0) + ' · wings ±' + pct(CFG.wing_pct * 100, 1);
+    if (r.structure === 'iv_asymmetry') return 'ATM ' + n(r.strike, 0) + ' CE vs PE';
+    if (r.structure === 'vol_outlier') return 'strike ' + n(r.strike, 0) + ' vs neighbours';
+    if (r.structure === 'flip_cross') return 'zero-gamma ' + n(r.strike, 0);
+    return n(r.strike, 0) + ' ' + (r.option_type || '');
+}
+
+function statsFor(r) {
+    const reg = state.regime || {};
+    if (r.screen === 'premium_farm') return [
+        ['Credit', r.credit != null ? '₹' + n(r.credit, 1) : '--', C.green],
+        ['IV − RV', r.iv_minus_rv != null ? (r.iv_minus_rv > 0 ? '+' : '') + n(r.iv_minus_rv, 1) : '--', C.green],
+        ['Pin conv.', r.pin_conviction != null ? pct(r.pin_conviction * 100, 1) : '--', C.ink],
+        ['Strike', n(r.strike, 0), C.ink]
+    ];
+    if (r.structure === 'charm_cascade') return [
+        ['Theta', '−' + n(r.score, 1), C.red],
+        ['DTE', dte(r.expiry) != null ? String(dte(r.expiry)) : '--', C.amber],
+        ['Type', r.option_type || '--', C.ink],
+        ['Strike', n(r.strike, 0), C.ink]
+    ];
+    if (r.structure === 'flip_cross') return [
+        ['Flip', n(r.strike, 0), C.amber],
+        ['Window', pct(CFG.lag_spot_move_pct, 1), C.muted],
+        ['Proximity', n(r.score, 2), C.ink],
+        ['Regime', (reg.regime || '--').split(' ')[0], regimeColor(reg.regime)]
+    ];
+    return [
+        ['Deviation', n(r.score, 1) + ' pt', r.score > CFG.vol_outlier_sigma ? C.amber : C.ink],
+        ['Sigma bar', n(CFG.vol_outlier_sigma, 1), C.muted],
+        ['Side', r.option_type || 'both', C.ink],
+        ['Strike', n(r.strike, 0), C.ink]
+    ];
+}
+
+function paintRows() {
+    const order = { premium_farm: 0, imperfection: 1, laggard: 2 };
+    let rows = state.rows.filter(r => state.screen === 'All' || r.screen === state.screen);
+    if (state.sort === 'Strike') rows = rows.slice().sort((a, b) => (a.strike || 0) - (b.strike || 0));
+    else if (state.sort === 'Screen') rows = rows.slice().sort((a, b) => order[a.screen] - order[b.screen]);
+    else rows = rows.slice().sort((a, b) => (order[a.screen] - order[b.screen]) || (b.score - a.score));
+
+    document.getElementById('row-count').textContent = rows.length;
+
+    const box = document.getElementById('farm-rows');
+    box.innerHTML = '';
+
+    if (!rows.length) {
+        box.style.display = 'block';
+        box.appendChild(el('div', 'border:1px dashed #DCD7CF;border-radius:14px;padding:46px 32px;text-align:center;',
+            '<div class="display" style="font-size:24px;margin-bottom:8px;">No rows on this screen for this cycle.</div>' +
+            '<div style="font-size:13.5px;color:var(--muted);max-width:62ch;margin:0 auto;">The scanner ran and returned nothing here. Check the gate strip above for the condition that closed first.</div>'));
+        return;
+    }
+    box.style.display = 'grid';
+
+    rows.forEach((r, i) => {
+        const tone = screenTone(r.screen);
+        const card = el('article', null);
+        card.className = 'ow-row-card';
+        card.style.animationDelay = (i * 50) + 'ms';
+        card.onclick = () => openPanel(r);
+
+        const stats = statsFor(r).map(([k, v, c]) =>
+            '<div><div class="ow-k" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + k + '</div>' +
+            '<div class="mono" style="font-size:14px;margin-top:4px;color:' + c + '">' + v + '</div></div>').join('');
+
+        card.innerHTML =
+            '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">' +
+              '<div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                '<span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:' + tone.bg + ';color:' + tone.fg + '">' + (SCREEN_LABEL[r.screen] || r.screen) + '</span>' +
+                '<span class="mono" style="font-size:11.5px;color:var(--faint);">' + (r.expiry || '') + '</span></div>' +
+                '<div class="display" style="font-size:24px;margin-top:8px;">' + (STRUCT_LABEL[r.structure] || r.structure) + '</div>' +
+                '<div class="mono" style="font-size:12.5px;color:var(--muted);margin-top:4px;">' + legsText(r) + '</div></div>' +
+              '<div style="text-align:right;flex-shrink:0;">' +
+                '<div class="mono" style="font-size:22px;">' + n(r.score, r.structure === 'flip_cross' ? 2 : 1) + '</div>' +
+                '<div class="ow-k">' + (SCORE_UNIT[r.structure] || 'score') + '</div></div></div>' +
+            '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:13px 0;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);margin-top:16px;">' + stats + '</div>' +
+            '<div style="display:flex;align-items:center;gap:12px;margin-top:13px;">' +
+              '<span class="mono" style="font-size:12.5px;color:var(--body);flex:1;">' + (r.reason || '') + '</span>' +
+              '<span style="font-size:12px;color:' + C.teal + ';white-space:nowrap;">Full analysis →</span></div>';
+
+        box.appendChild(card);
+    });
+}
+
+/* ------------------------------------------------------------- slide-over */
+function checksFor(r) {
+    const reg = state.regime || {};
+    const d = dte(r.expiry);
+    if (r.structure === 'iron_fly') {
+        const gap = (reg.atm_iv != null && reg.realized_vol != null) ? reg.atm_iv - reg.realized_vol : r.iv_minus_rv;
+        const spot = reg.underlying_ltp;
+        const pinDist = (spot != null && reg.pin_strike != null) ? Math.abs(spot - reg.pin_strike) / spot : null;
+        const spread = widestSpreadPct(r.legs);
+        return [
+            ['GEX regime', reg.regime || '--', 'must contain "Positive"', (reg.regime || '').includes('Positive')],
+            ['Spot inside pin band', pinDist != null ? pct(pinDist * 100, 3) : '--',
+                'band ≤ ' + pct(CFG.pin_band_pct * 100, 1), pinDist != null && pinDist <= CFG.pin_band_pct],
+            ['ATM IV − realized vol', n(r.iv_minus_rv != null ? r.iv_minus_rv : gap, 1) + ' pt', 'floor ' + n(CFG.iv_rv_min_gap, 1) + ' pt',
+                (r.iv_minus_rv != null ? r.iv_minus_rv : gap) >= CFG.iv_rv_min_gap],
+            ['Quote spread guard', spread != null ? pct(spread, 1) + ' widest leg' : 'no quoted legs',
+                'max ' + pct(CFG.max_spread_pct * 100, 0), spread != null && spread <= CFG.max_spread_pct * 100],
+            ['ATM credit', r.credit != null ? '₹' + n(r.credit, 1) : '--', 'must be > 0', r.credit > 0],
+            ['Pin conviction', r.pin_conviction != null ? pct(r.pin_conviction * 100, 1) : '--', 'share of |gamma| at the pin', true]
+        ];
+    }
+    if (r.structure === 'iv_asymmetry') return [
+        ['CE − PE IV gap', (r.reason || '').replace('CE-PE IV ', ''), 'must exceed ±' + n(CFG.vol_outlier_sigma, 1) + ' pt', r.score > CFG.vol_outlier_sigma],
+        ['Both ATM legs quoted', 'CE and PE IV present', 'nulls drop the row', true],
+        ['ATM strike selection', n(r.strike, 0) + ' nearest spot', 'min |strike − spot|', true]
+    ];
+    if (r.structure === 'vol_outlier') return [
+        ['Deviation vs neighbours', n(r.score, 1) + ' pt', 'sigma bar ' + n(CFG.vol_outlier_sigma, 1) + ' pt', r.score > CFG.vol_outlier_sigma],
+        ['Inside scan band', 'strike ' + n(r.strike, 0), 'band ' + pct(CFG.vol_scan_band_pct * 100, 0) + ' of spot', true],
+        ['Mid IV available', 'CE and PE both priced', 'strike needs both legs', true],
+        ['Rank within screen', 'top 10 by deviation', 'list is capped at 10', true]
+    ];
+    if (r.structure === 'flip_cross') return [
+        ['Proximity score', n(r.score, 2), '1 − dist / ' + pct(CFG.lag_spot_move_pct, 1) + ' window', r.score > 0],
+        ['Flip level resolved', n(r.strike, 0), 'null flip drops the row', r.strike != null],
+        ['Inside lag window', 'emitted by the scanner', 'dist < ' + pct(CFG.lag_spot_move_pct, 1) + ' of spot', true]
+    ];
+    return [
+        ['DTE inside charm bound', d != null ? d + ' days' : '--', '0 < DTE ≤ ' + CFG.charm_dte_max, d != null && d > 0 && d <= CFG.charm_dte_max],
+        ['Theta magnitude', '−' + n(r.score, 1), 'top 5 by |theta|', true],
+        ['Leg has theta', 'greeks present', 'null theta drops the row', true]
+    ];
+}
+
+function legTableHtml(legs) {
+    if (!legs || !legs.length) return '';
+    const q = v => v == null ? '<span style="color:#C0BAB0">—</span>' : n(v, 2);
+    const cols = '64px 1fr repeat(4, minmax(0,.85fr))';
+    const rows = legs.map(l => {
+        const buy = (l.side || '').toUpperCase() === 'BUY';
+        const spread = (l.best_bid != null && l.best_ask != null && l.mid)
+            ? pct((l.best_ask - l.best_bid) / l.mid * 100, 1) : '<span style="color:#C0BAB0">—</span>';
+        return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:10px 14px;border-top:1px solid #F5F2ED;' +
+            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;">' +
+            '<span style="color:' + (buy ? C.green : C.red) + '">' + (buy ? 'Buy' : 'Sell') + '</span>' +
+            '<span style="font-family:\'Public Sans\',sans-serif;font-size:12.5px;">' + n(l.strike, 0) + ' ' + (l.option_type || '') + '</span>' +
+            '<span style="text-align:right;">' + q(l.best_bid) + '</span>' +
+            '<span style="text-align:right;">' + q(l.best_ask) + '</span>' +
+            '<span style="text-align:right;">' + q(l.mid) + '</span>' +
+            '<span style="text-align:right;color:var(--muted);">' + spread + '</span></div>';
+    }).join('');
+
+    return '<div style="margin-top:28px;"><div class="ow-sec-h">Structure legs at the snapshot</div>' +
+        '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' +
+          '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 14px;background:#FBFAF8;' +
+            'font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);">' +
+            '<span>Side</span><span>Leg</span><span style="text-align:right;">Bid</span>' +
+            '<span style="text-align:right;">Ask</span><span style="text-align:right;">Mid</span>' +
+            '<span style="text-align:right;">Spread</span></div>' + rows + '</div>' +
+        '<div style="font-size:11.5px;color:var(--faint);margin-top:8px;">Strikes and quotes as sent to the paper executor. A dash means the leg had no book at snapshot time.</div></div>';
+}
+
+function openPanel(r) {
+    state.open = r;
+    const reg = state.regime || {};
+    const isFly = r.structure === 'iron_fly';
+
+    const head = (isFly ? [
+        ['Credit', r.credit != null ? '₹' + n(r.credit, 1) : '--', C.green],
+        ['IV − RV', r.iv_minus_rv != null ? '+' + n(r.iv_minus_rv, 1) + ' pt' : '--', C.green],
+        ['Score', n(r.score, 2), C.ink],
+        ['Body strike', n(r.strike, 0), C.ink],
+        ['Pin conviction', r.pin_conviction != null ? pct(r.pin_conviction * 100, 1) : '--', C.ink],
+        ['Regime', r.regime || reg.regime || '--', regimeColor(r.regime || reg.regime)]
+    ] : [
+        ['Score', n(r.score, 2), C.ink],
+        ['Strike', n(r.strike, 0), C.ink],
+        ['Option type', r.option_type || 'both', C.ink],
+        ['Screen', SCREEN_LABEL[r.screen] || r.screen, C.ink],
+        ['Regime', r.regime || reg.regime || '--', regimeColor(r.regime || reg.regime)],
+        ['DTE', dte(r.expiry) != null ? String(dte(r.expiry)) : '--', C.ink]
+    ]).map(([k, v, c]) =>
+        '<div style="background:#FBFAF8;padding:13px 15px;"><div class="ow-k">' + k + '</div>' +
+        '<div class="mono" style="font-size:14.5px;margin-top:5px;color:' + c + '">' + v + '</div></div>').join('');
+
+    const checks = checksFor(r).map(([label, reading, threshold, pass]) =>
+        '<div style="display:flex;align-items:flex-start;gap:11px;border:1px solid var(--hairline);border-radius:10px;padding:11px 14px;">' +
+          '<span style="width:15px;height:15px;margin-top:2px;border-radius:999px;flex-shrink:0;display:grid;place-items:center;font-size:9px;color:#FFFFFF;background:' + (pass ? C.green : C.amber) + '">' + (pass ? '✓' : '!') + '</span>' +
+          '<div style="flex:1;"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;font-size:12.5px;">' +
+            '<span>' + label + '</span><span class="mono" style="color:' + (pass ? C.green : C.amber) + '">' + reading + '</span></div>' +
+          '<div style="font-size:11.5px;color:var(--faint);margin-top:3px;">' + threshold + '</div></div></div>').join('');
+
+    const context = [
+        ['GEX regime', reg.regime || '--', regimeColor(reg.regime)],
+        ['Net gamma total', reg.net_gamma_total != null ? (reg.net_gamma_total >= 0 ? '+' : '') + n(reg.net_gamma_total / 1e6, 1) + 'M' : '--',
+            reg.net_gamma_total >= 0 ? C.green : C.red],
+        ['Zero-gamma flip', n(reg.zero_gamma_level, 0), C.amber],
+        ['Pin strike', n(reg.pin_strike, 0), C.teal],
+        ['Put wall / call wall', n(reg.put_wall, 0) + '  /  ' + n(reg.call_wall, 0), C.ink],
+        ['ATM IV / realized vol', pct(reg.atm_iv, 1) + '  /  ' + pct(reg.realized_vol, 1), C.ink]
+    ].map(([k, v, c]) =>
+        '<div style="display:flex;justify-content:space-between;gap:14px;padding:10px 15px;border-top:1px solid #F5F2ED;font-size:12.5px;">' +
+        '<span style="color:var(--muted);">' + k + '</span><span class="mono" style="color:' + c + '">' + v + '</span></div>').join('');
+
+    const provenance = [
+        ['Underlying', r.underlying || '--'],
+        ['Expiry', r.expiry || '--'],
+        ['Row timestamp', r.ts ? new Date(r.ts).toLocaleTimeString('en-IN') : '--'],
+        ['Scan timestamp', state.ts ? new Date(state.ts).toLocaleTimeString('en-IN') : '--']
+    ].map(([k, v]) =>
+        '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:12.5px;">' +
+        '<span style="color:var(--muted);">' + k + '</span><span class="mono">' + v + '</span></div>').join('');
+
+    const caveats = (CAVEATS[r.structure] || []).map(t =>
+        '<div style="display:flex;gap:8px;padding:4px 0;font-size:12.5px;color:var(--body);">' +
+        '<span style="color:' + C.amber + '">·</span><span style="text-wrap:pretty;">' + t + '</span></div>').join('');
+
+    document.getElementById('ow-panel-body').innerHTML =
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;position:sticky;top:0;background:#FFFFFF;padding-bottom:15px;border-bottom:1px solid var(--hairline);">' +
+          '<div><div class="mono" style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);">' +
+            (SCREEN_LABEL[r.screen] || r.screen) + ' · ' + (r.underlying || '') + ' · ' + (r.expiry || '') + '</div>' +
+            '<div class="display" style="font-size:32px;margin-top:5px;">' + (STRUCT_LABEL[r.structure] || r.structure) + '</div>' +
+            '<div class="mono" style="font-size:12.5px;color:var(--muted);margin-top:3px;">' + (r.reason || '') + '</div></div>' +
+          '<button onclick="closePanel()" style="cursor:pointer;flex-shrink:0;width:33px;height:33px;border-radius:999px;border:1px solid var(--line);background:#FBFAF8;color:var(--muted);font-size:14px;">✕</button></div>' +
+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:11px;overflow:hidden;margin-top:20px;">' + head + '</div>' +
+
+        legTableHtml(r.legs) +
+
+        '<div style="margin-top:28px;"><div class="ow-sec-h">Conditions this row passed</div>' +
+          '<div style="display:grid;gap:10px;">' + checks + '</div></div>' +
+
+        '<div style="margin-top:28px;"><div class="ow-sec-h">Positioning context</div>' +
+          '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' + context + '</div></div>' +
+
+        '<div style="margin-top:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:13px;">' +
+          '<div style="border:1px solid var(--hairline);border-radius:11px;padding:15px 17px;"><div class="ow-sec-h">Provenance</div>' + provenance + '</div>' +
+          '<div style="border:1px solid #F5E3D8;background:#FEFAF6;border-radius:11px;padding:15px 17px;">' +
+            '<div class="ow-sec-h" style="color:#A8703C;">Caveats</div>' + caveats + '</div></div>' +
+
+        '<div style="margin-top:24px;font-size:11.5px;color:var(--faint);">Discovery only — the scanner does not size or route.</div>';
+
+    document.getElementById('ow-panel').classList.add('open');
+    document.getElementById('ow-scrim').classList.add('on');
+}
+
+function closePanel() {
+    state.open = null;
+    document.getElementById('ow-panel').classList.remove('open');
+    document.getElementById('ow-scrim').classList.remove('on');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+/* ------------------------------------------------------------ regime river */
+function paintRiver() {
+    const wrap = document.getElementById('river-chart-wrap');
+    const river = state.river;
+    document.getElementById('river-days').textContent = river.length;
+
+    if (river.length < 2) {
+        wrap.innerHTML = '<div style="padding:40px;text-align:center;color:var(--muted);font-size:13px;">Not enough persisted sessions to draw the river.</div>';
+        document.getElementById('river-body').innerHTML = '';
+        return;
+    }
+
+    const W = 1200, H = 200;
+    const vals = [];
+    river.forEach(r => ['put_wall', 'call_wall', 'pin_strike', 'zero_gamma_level'].forEach(k => {
+        if (r[k] != null) vals.push(r[k]);
+    }));
+    const vlo = Math.min.apply(null, vals), vhi = Math.max.apply(null, vals);
+    const rx = i => i / (river.length - 1) * W;
+    const ry = v => H - (v - vlo) / ((vhi - vlo) || 1) * (H - 16) - 8;
+    const line = key => river.map((r, i) => (i ? 'L' : 'M') + rx(i).toFixed(1) + ' ' + ry(r[key] != null ? r[key] : vlo).toFixed(1)).join(' ');
+    const bandW = W / river.length;
+
+    const bands = river.map((r, i) =>
+        '<rect x="' + (rx(i) - bandW / 2).toFixed(1) + '" y="0" width="' + bandW.toFixed(1) + '" height="' + H + '" fill="' +
+        ((r.regime || '').includes('Positive') ? 'rgba(25,122,90,.045)' : 'rgba(180,71,47,.05)') + '"></rect>').join('');
+
+    const wallBand = river.map((r, i) => (i ? 'L' : 'M') + rx(i).toFixed(1) + ' ' + ry(r.call_wall != null ? r.call_wall : vhi).toFixed(1)).join(' ') +
+        ' ' + river.slice().reverse().map((r, i) => 'L' + rx(river.length - 1 - i).toFixed(1) + ' ' + ry(r.put_wall != null ? r.put_wall : vlo).toFixed(1)).join(' ') + ' Z';
+
+    wrap.innerHTML =
+        '<svg viewBox="0 0 ' + W + ' 230" preserveAspectRatio="none" style="display:block;width:100%;height:230px;overflow:visible;">' +
+          bands +
+          '<path d="' + wallBand + '" fill="rgba(14,111,99,.10)"></path>' +
+          '<path d="' + line('pin_strike') + '" fill="none" stroke="' + C.teal + '" stroke-width="1.4" stroke-dasharray="4 3"></path>' +
+          '<path d="' + line('zero_gamma_level') + '" fill="none" stroke="' + C.amber + '" stroke-width="1.4"></path>' +
+        '</svg>';
+
+    // Date ticks as HTML overlays (SVG <text> is avoided so labels always paint).
+    river.forEach((r, i) => {
+        if (i % Math.max(1, Math.round(river.length / 6)) !== 0) return;
+        const d = el('div', 'position:absolute;left:' + (rx(i) / W * 100).toFixed(2) + '%;top:91%;transform:translateX(-50%);' +
+            'white-space:nowrap;font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:#A9A49A;pointer-events:none;',
+            new Date(r.trade_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }));
+        wrap.appendChild(d);
+    });
+
+    const shown = state.riverFull ? river.slice().reverse() : river.slice().reverse().slice(0, 8);
+    const body = document.getElementById('river-body');
+    body.innerHTML = '';
+    shown.forEach(r => {
+        body.appendChild(el('div',
+            'display:grid;grid-template-columns:100px 1.2fr repeat(6,minmax(0,1fr));gap:8px;padding:10px 16px;' +
+            'border-top:1px solid #F5F2ED;font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;',
+            '<span style="color:var(--muted);">' + r.trade_date + '</span>' +
+            '<span style="font-family:\'Public Sans\',sans-serif;font-size:12.5px;color:' + regimeColor(r.regime) + '">' + (r.regime || '--') + '</span>' +
+            '<span style="text-align:right;">' + n(r.pin_strike, 0) + '</span>' +
+            '<span style="text-align:right;">' + n(r.zero_gamma_level, 0) + '</span>' +
+            '<span style="text-align:right;">' + n(r.put_wall, 0) + '</span>' +
+            '<span style="text-align:right;">' + n(r.call_wall, 0) + '</span>' +
+            '<span style="text-align:right;">' + n(r.atm_iv, 1) + '</span>' +
+            '<span style="text-align:right;color:var(--muted);">' + n(r.realized_vol, 1) + '</span>'));
+    });
+    document.getElementById('river-toggle').textContent =
+        state.riverFull ? 'Show latest 8 sessions' : 'Show all ' + river.length + ' sessions';
+}
+
+function toggleRiver() { state.riverFull = !state.riverFull; paintRiver(); }
+
+/* ------------------------------------------------------------------ loaders */
 async function loadFarm() {
     try {
-        const resp = await fetch(`/options/wall/api/farm?index=${currentIndex}`);
+        const resp = await fetch('/options/wall/api/farm?index=' + currentIndex);
         const data = await resp.json();
-
-        const regime = data.regime || {};
-        const regimeEl = document.getElementById('kpi-regime');
-        regimeEl.textContent = regime.regime || '--';
-        regimeEl.className = 'text-lg font-bold ' + (
-            (regime.regime || '').includes('Positive') ? 'gex-positive'
-            : (regime.regime || '').includes('Negative') ? 'gex-negative' : 'gex-neutral');
-
-        document.getElementById('kpi-pin').textContent =
-            `${fmt(regime.pin_strike)} / ${fmt(regime.zero_gamma_level)}`;
-        document.getElementById('kpi-walls').textContent =
-            `${fmt(regime.put_wall)} / ${fmt(regime.call_wall)}`;
-        document.getElementById('kpi-ivrv').textContent =
-            `${fmt(regime.atm_iv, 1)} / ${fmt(regime.realized_vol, 1)}`;
-
+        state.rows = data.rows || [];
+        state.regime = data.regime || null;
+        state.ts = data.ts || null;
         if (data.ts) {
             document.getElementById('last-update').textContent =
-                'Last scan: ' + new Date(data.ts).toLocaleTimeString('en-IN');
+                'Last scan ' + new Date(data.ts).toLocaleTimeString('en-IN');
         }
-
-        const container = document.getElementById('farm-rows');
-        container.innerHTML = '';
-        if (!data.rows || data.rows.length === 0) {
-            container.innerHTML = '<div class="py-4 text-center text-slate-500 text-sm">No farm-list rows for this cycle.</div>';
-            return;
-        }
-        data.rows.forEach(r => {
-            const div = document.createElement('div');
-            div.className = 'grid grid-cols-12 gap-2 py-3 px-4 hover:bg-slate-800/50 transition-colors border-b border-slate-800/50';
-            div.innerHTML = `
-                <div class="col-span-2 text-sm">${r.screen}</div>
-                <div class="col-span-2 text-sm">${r.structure}${r.option_type ? ' ' + r.option_type : ''}</div>
-                <div class="col-span-2 text-right text-sm font-bold text-white">${fmt(r.strike)}</div>
-                <div class="col-span-1 text-right text-sm farm-score">${fmt(r.score, 2)}</div>
-                <div class="col-span-1 text-right text-sm farm-score">${fmt(r.credit, 1)}</div>
-                <div class="col-span-1 text-right text-sm farm-score">${r.iv_minus_rv != null ? (r.iv_minus_rv > 0 ? '+' : '') + fmt(r.iv_minus_rv, 1) : '--'}</div>
-                <div class="col-span-3 text-sm text-slate-400">${r.reason}</div>
-            `;
-            container.appendChild(div);
-        });
+        paintRegimeBand(); paintSpotAndLadder(); paintGate(); paintFilters(); paintRows();
     } catch (err) {
         console.error('Failed to load farm list:', err);
     }
@@ -176,34 +766,25 @@ async function loadFarm() {
 
 async function loadRiver() {
     try {
-        const resp = await fetch(`/options/wall/api/regime?index=${currentIndex}&days=30`);
+        const resp = await fetch('/options/wall/api/regime?index=' + currentIndex + '&days=30');
         const data = await resp.json();
-        const body = document.getElementById('river-body');
-        body.innerHTML = '';
-        (data.river || []).forEach(r => {
-            const tr = document.createElement('tr');
-            tr.className = 'border-b border-slate-800/50';
-            tr.innerHTML = `
-                <td class="py-2 px-3 text-slate-300">${r.trade_date}</td>
-                <td class="py-2 px-3 ${(r.regime || '').includes('Positive') ? 'gex-positive' : (r.regime || '').includes('Negative') ? 'gex-negative' : 'gex-neutral'}">${r.regime || '--'}</td>
-                <td class="py-2 px-3 text-right">${fmt(r.pin_strike)}</td>
-                <td class="py-2 px-3 text-right">${fmt(r.zero_gamma_level)}</td>
-                <td class="py-2 px-3 text-right">${fmt(r.put_wall)}</td>
-                <td class="py-2 px-3 text-right">${fmt(r.call_wall)}</td>
-                <td class="py-2 px-3 text-right">${fmt(r.atm_iv, 1)}</td>
-                <td class="py-2 px-3 text-right">${fmt(r.realized_vol, 1)}</td>
-            `;
-            body.appendChild(tr);
-        });
+        state.river = data.river || [];
+        paintRiver();
     } catch (err) {
         console.error('Failed to load regime river:', err);
     }
 }
 
 async function triggerRefresh() {
-    const btn = document.getElementById('refresh-btn');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Scanning...';
+    if (state.scanning) return;
+    state.scanning = true;
+    const btn = document.getElementById('refresh-scan-btn');
+    document.getElementById('scan-spinner').style.display = 'inline-block';
+    document.getElementById('scan-label').textContent = 'Scanning';
+    document.getElementById('poll-dot').style.background = C.amber;
+    btn.style.background = '#EFECE6';
+    btn.style.color = C.muted;
+
     try {
         await fetch('/options/wall/api/refresh', { method: 'POST' });
         setTimeout(() => { loadFarm(); loadRiver(); }, 4000);
@@ -211,9 +792,21 @@ async function triggerRefresh() {
         console.error('Refresh failed:', err);
     }
     setTimeout(() => {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="fas fa-sync-alt mr-2"></i>Scan now';
-    }, 3000);
+        state.scanning = false;
+        document.getElementById('scan-spinner').style.display = 'none';
+        document.getElementById('scan-label').textContent = 'Scan now';
+        document.getElementById('poll-dot').style.background = C.green;
+        btn.style.background = '#FFFFFF';
+        btn.style.color = C.ink;
+    }, 4200);
 }
+
+document.addEventListener('DOMContentLoaded', function () {
+    paintTabs();
+    loadFarm();
+    loadRiver();
+    setInterval(loadFarm, 15000);
+    setInterval(loadRiver, 60000);
+});
 </script>
 {% endblock %}
