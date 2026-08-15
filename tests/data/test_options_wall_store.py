@@ -61,3 +61,54 @@ def test_append_without_quotes_leaves_bid_ask_null(tmp_path):
     back = ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)
     assert back[0].best_bid is None
     assert back[0].best_ask is None
+
+
+def test_latest_snapshot_migrates_pre_bid_ask_store(tmp_path):
+    """A store created before best_bid/best_ask existed must read (and migrate),
+    not die with a Binder Error on the new SELECT columns."""
+    import duckdb
+
+    db = tmp_path / "wall.duckdb"
+    con = duckdb.connect(str(db))
+    con.execute("CREATE SEQUENCE snapshot_id_seq START 1")
+    con.execute("""
+        CREATE TABLE option_chain_snapshot (
+            snapshot_id INTEGER DEFAULT nextval('snapshot_id_seq'),
+            snapshot_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            underlying_symbol VARCHAR NOT NULL,
+            expiry_date VARCHAR NOT NULL,
+            strike_price DOUBLE NOT NULL,
+            option_type VARCHAR NOT NULL,
+            instrument_key VARCHAR NOT NULL,
+            tradingsymbol VARCHAR NOT NULL,
+            ltp DOUBLE,
+            open DOUBLE, high DOUBLE, low DOUBLE, close DOUBLE,
+            oi BIGINT DEFAULT 0, oi_change BIGINT DEFAULT 0,
+            oi_change_pct DOUBLE DEFAULT 0.0, volume BIGINT DEFAULT 0,
+            iv DOUBLE, delta DOUBLE, gamma DOUBLE, theta DOUBLE,
+            vega DOUBLE, rho DOUBLE,
+            lot_size INTEGER DEFAULT 75,
+            underlying_ltp DOUBLE,
+            PRIMARY KEY (snapshot_id)
+        )
+    """)
+    con.execute("""
+        INSERT INTO option_chain_snapshot (underlying_symbol, expiry_date,
+            strike_price, option_type, instrument_key, tradingsymbol,
+            ltp, underlying_ltp)
+        VALUES ('NSE_INDEX|Nifty 50', '2026-08-18', 100.0, 'CE',
+                'NSE_FO|1', 'T1', 5.0, 100.0)
+    """)
+    con.commit()
+    con.close()
+
+    back = ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)
+    assert back[0].strike == 100.0
+    assert back[0].best_bid is None
+
+    rows = [_row(100.0, "CE", 5.0, "NSE_FO|1")]
+    ws.append_snapshot(rows, "NSE_INDEX|Nifty 50", "2026-08-18", db_path=db,
+                       quotes={"NSE_FO|1": {"best_bid": 4.9, "best_ask": 5.1}})
+    back = ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)
+    assert back[0].best_bid == 4.9
+    assert back[0].best_ask == 5.1

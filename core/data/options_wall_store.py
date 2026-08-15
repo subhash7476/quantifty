@@ -126,6 +126,15 @@ def append_snapshot(
     return ts
 
 
+def _migrate_columns(db_path: Path) -> None:
+    """Add best_bid/best_ask to a store created before they existed (idempotent)."""
+    conn = duckdb.connect(str(db_path))
+    try:
+        init_schema(conn)
+    finally:
+        conn.close()
+
+
 def latest_snapshot(
     underlying: str,
     expiry: str,
@@ -134,6 +143,14 @@ def latest_snapshot(
     """Newest cycle for (underlying, expiry), or [] if none recorded."""
     if not db_path.exists():
         return []
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        cols = [r[0] for r in conn.execute(
+            "PRAGMA table_info('option_chain_snapshot')").fetchall()]
+    finally:
+        conn.close()
+    if "best_bid" not in cols:
+        _migrate_columns(db_path)
     conn = duckdb.connect(str(db_path), read_only=True)
     try:
         result = conn.execute(
