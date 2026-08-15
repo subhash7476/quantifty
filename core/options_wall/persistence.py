@@ -309,9 +309,32 @@ def open_paper_trade(underlying, expiry, fly, entry_ts, db_path=WALL_RESULTS_DB)
     return row[0]
 
 
+def _ensure_trades_table(db_path: Path) -> None:
+    """Create the trades table in a results DB that predates it (idempotent).
+
+    open_trades runs before open_paper_trade in the executor's step, so the
+    read path must not depend on a writer having initialized the schema first.
+    """
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        row = conn.execute(
+            "SELECT count(*) FROM information_schema.tables "
+            "WHERE table_schema = 'main' AND table_name = 'trades'").fetchone()
+        exists = bool(row and row[0])
+    finally:
+        conn.close()
+    if not exists:
+        conn = duckdb.connect(str(db_path))
+        try:
+            init_schema(conn)
+        finally:
+            conn.close()
+
+
 def open_trades(underlying, db_path=WALL_RESULTS_DB) -> List[Dict]:
     if not db_path.exists():
         return []
+    _ensure_trades_table(db_path)
     conn = duckdb.connect(str(db_path), read_only=True)
     try:
         rows = conn.execute(

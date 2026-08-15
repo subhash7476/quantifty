@@ -198,3 +198,26 @@ def test_regime_river_latest_per_day_ascending(tmp_path):
     river = persistence.regime_river("NSE_INDEX|Nifty 50", db_path=db)
     assert [r["trade_date"] for r in river] == [date(2026, 8, 13), date(2026, 8, 14)]
     assert river[1]["regime"] == "Positive GEX (Stable)"  # latest ts within the day wins
+
+
+def test_open_trades_self_heals_missing_trades_table(tmp_path):
+    """A results DB that predates the trades table (only scan tables exist) must
+    read as empty without a Catalog Error — the executor's first step runs
+    open_trades before open_paper_trade, so the read path cannot depend on a
+    writer having initialized the schema first."""
+    db = tmp_path / "results.duckdb"
+    conn = duckdb.connect(str(db))
+    conn.execute("CREATE TABLE scan_results (ts TIMESTAMP NOT NULL, underlying VARCHAR)")
+    conn.execute("INSERT INTO scan_results VALUES (?,?)",
+                 [datetime(2026, 8, 14, 10, 0), "NSE_INDEX|Nifty 50"])
+    conn.commit()
+    conn.close()
+
+    assert persistence.open_trades("NSE_INDEX|Nifty 50", db_path=db) == []
+
+    conn = duckdb.connect(str(db), read_only=True)
+    tables = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
+    conn.close()
+    assert "trades" in tables  # healed, not just papered over
+
+    assert persistence.open_trades("NSE_INDEX|Nifty 50", db_path=db) == []  # idempotent
