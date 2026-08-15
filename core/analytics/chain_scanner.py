@@ -60,6 +60,7 @@ class ScanResult:
     iv_minus_rv: Optional[float] = None
     pin_conviction: Optional[float] = None
     reason: str = ""
+    legs: Optional[List[dict]] = None
     ts: datetime = field(default_factory=datetime.now)
 
 
@@ -135,7 +136,31 @@ class ChainScanner:
             iv_minus_rv=gap,
             pin_conviction=self._pin_conviction(structural, pin),
             reason=f"ATM {atm:.0f} IV-RV {gap:.1f}pt",
+            legs=self._fly_legs(chain, atm, spot),
         )]
+
+    def _fly_legs(self, chain, atm, spot):
+        """The 4 iron-fly legs with per-leg bid/ask, for the dashboard leg table.
+
+        Wing selection mirrors build_iron_fly exactly (nearest listed strike to
+        spot·(1±wing_pct)); quotes come from the same row book the executor marks
+        from. Display only — this does not gate farm-list membership.
+        """
+        strikes = sorted({r.strike for r in chain})
+        cfg = self.config
+        call_wing = min(strikes, key=lambda s: abs(s - spot * (1 + cfg.wing_pct)))
+        put_wing = min(strikes, key=lambda s: abs(s - spot * (1 - cfg.wing_pct)))
+        specs = [("SELL", "CE", atm), ("SELL", "PE", atm),
+                 ("BUY", "CE", call_wing), ("BUY", "PE", put_wing)]
+        legs = []
+        for side, ot, k in specs:
+            r = next((x for x in chain if x.strike == k and x.option_type == ot), None)
+            bid = getattr(r, "best_bid", None) if r else None
+            ask = getattr(r, "best_ask", None) if r else None
+            mid = (bid + ask) / 2.0 if bid and ask and bid > 0 and ask > 0 else None
+            legs.append({"side": side, "option_type": ot, "strike": k,
+                         "best_bid": bid, "best_ask": ask, "mid": mid})
+        return legs
 
     # -------------------------------------------------------- (b) imperfections
 

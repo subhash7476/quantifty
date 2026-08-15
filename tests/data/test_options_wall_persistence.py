@@ -41,6 +41,56 @@ def test_write_scan_results(tmp_path):
     assert rows == [(100.0, 8.0), (101.0, 5.0)]
 
 
+def test_scan_results_persist_iron_fly_legs(tmp_path):
+    db = tmp_path / "results.duckdb"
+    legs = [{"side": "SELL", "option_type": "CE", "strike": 100.0,
+             "best_bid": 4.9, "best_ask": 5.1, "mid": 5.0},
+            {"side": "BUY", "option_type": "CE", "strike": 102.0,
+             "best_bid": 0.9, "best_ask": 1.1, "mid": 1.0}]
+    r = ScanResult(
+        underlying="NSE_INDEX|Nifty 50", expiry="2026-08-18", strike=100.0,
+        option_type=None, screen="premium_farm", structure="iron_fly",
+        regime="Positive GEX (Stable)", score=5.0, credit=10.0, iv_minus_rv=5.0,
+        pin_conviction=0.9, reason="x", legs=legs)
+    persistence.write_scan_results([r], "NSE_INDEX|Nifty 50", db_path=db)
+
+    _, rows = persistence.latest_scan_results("NSE_INDEX|Nifty 50", db_path=db)
+    assert rows[0]["legs"] == legs
+
+
+def test_scan_results_schema_migrates_pre_existing_db(tmp_path):
+    """A live scan_results table predating the legs column must ALTER cleanly and
+    keep SELECT * column order aligned (legs appended last)."""
+    db = tmp_path / "results.duckdb"
+    conn = duckdb.connect(str(db))
+    conn.execute(
+        """CREATE TABLE scan_results (
+            ts TIMESTAMP NOT NULL, underlying VARCHAR NOT NULL, expiry VARCHAR NOT NULL,
+            strike DOUBLE, option_type VARCHAR, screen VARCHAR NOT NULL,
+            structure VARCHAR NOT NULL, regime VARCHAR, score DOUBLE, credit DOUBLE,
+            iv_minus_rv DOUBLE, pin_conviction DOUBLE, reason VARCHAR)""")
+    conn.execute(
+        "INSERT INTO scan_results VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [datetime(2026, 8, 14, 10, 0), "NSE_INDEX|Nifty 50", "2026-08-18", 100.0, None,
+         "premium_farm", "iron_fly", "Positive GEX (Stable)", 5.0, 10.0, 5.0, 0.9, "old"])
+    conn.close()
+
+    legs = [{"side": "SELL", "option_type": "CE", "strike": 100.0,
+             "best_bid": 4.9, "best_ask": 5.1, "mid": 5.0}]
+    r = ScanResult(
+        underlying="NSE_INDEX|Nifty 50", expiry="2026-08-18", strike=100.0,
+        option_type=None, screen="premium_farm", structure="iron_fly",
+        regime="Positive GEX (Stable)", score=6.0, credit=10.0, iv_minus_rv=6.0,
+        pin_conviction=0.9, reason="new", legs=legs)
+    persistence.write_scan_results([r], "NSE_INDEX|Nifty 50",
+                                   ts=datetime(2026, 8, 14, 10, 0, 5), db_path=db)
+
+    ts, rows = persistence.latest_scan_results("NSE_INDEX|Nifty 50", db_path=db)
+    assert ts == datetime(2026, 8, 14, 10, 0, 5)   # newest cycle
+    assert rows[0]["reason"] == "new"              # order not scrambled
+    assert rows[0]["legs"] == legs
+
+
 def test_regime_latest_wins(tmp_path):
     db = tmp_path / "results.duckdb"
     base = {"trade_date": date(2026, 8, 14), "regime": "Positive GEX (Stable)",

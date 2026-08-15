@@ -39,7 +39,8 @@ CREATE TABLE IF NOT EXISTS scan_results (
     credit          DOUBLE,
     iv_minus_rv      DOUBLE,
     pin_conviction  DOUBLE,
-    reason          VARCHAR
+    reason          VARCHAR,
+    legs            VARCHAR
 );
 CREATE INDEX IF NOT EXISTS idx_scan_underlying ON scan_results(underlying);
 CREATE INDEX IF NOT EXISTS idx_scan_ts ON scan_results(ts);
@@ -109,6 +110,8 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     # migrate a session_regime table created before spot/gamma columns existed
     for col in ("underlying_ltp DOUBLE", "gamma_by_strike VARCHAR"):
         conn.execute(f"ALTER TABLE session_regime ADD COLUMN IF NOT EXISTS {col}")
+    # migrate a scan_results table created before the iron-fly legs column existed
+    conn.execute("ALTER TABLE scan_results ADD COLUMN IF NOT EXISTS legs VARCHAR")
 
 
 def write_scan_results(
@@ -124,10 +127,11 @@ def write_scan_results(
         init_schema(conn)
         for r in results:
             conn.execute(
-                "INSERT INTO scan_results VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO scan_results VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [ts, underlying, r.expiry, r.strike, r.option_type, r.screen,
                  r.structure, r.regime, r.score, r.credit, r.iv_minus_rv,
-                 r.pin_conviction, r.reason],
+                 r.pin_conviction, r.reason,
+                 json.dumps(r.legs) if r.legs is not None else None],
             )
         conn.commit()
     finally:
@@ -241,7 +245,14 @@ def latest_regime(
 
 _SCAN_COLS = ["ts", "underlying", "expiry", "strike", "option_type", "screen",
               "structure", "regime", "score", "credit", "iv_minus_rv",
-              "pin_conviction", "reason"]
+              "pin_conviction", "reason", "legs"]
+
+
+def _scan_dict(row) -> Dict:
+    d = dict(zip(_SCAN_COLS, row))
+    if d.get("legs") is not None:
+        d["legs"] = json.loads(d["legs"])
+    return d
 
 
 def latest_scan_results(
@@ -265,7 +276,7 @@ def latest_scan_results(
         ).fetchall()
     finally:
         conn.close()
-    return ts, [dict(zip(_SCAN_COLS, r)) for r in rows]
+    return ts, [_scan_dict(r) for r in rows]
 
 
 _TRADE_COLS = ["trade_id", "underlying", "expiry", "entry_ts", "short_strike",

@@ -58,6 +58,37 @@ def test_farm_emits_single_atm_fly_when_spot_near_pin():
     assert farm[0].score == farm[0].iv_minus_rv
 
 
+def test_farm_result_carries_iron_fly_leg_quotes():
+    scanner = ChainScanner(ScanConfig(iv_rv_min_gap=2.0, pin_band_pct=0.01, wing_pct=0.02))
+
+    def q(strike, ot, bid, ask, key):
+        r = _row(strike, ot, (bid + ask) / 2.0, 15.0, key)
+        r.best_bid, r.best_ask = bid, ask
+        return r
+
+    # spot 100 -> ATM 100; wings at ±2% snap to 98 / 102 (same rule as build_iron_fly)
+    chain = [
+        q(98.0, "CE", 3.9, 4.1, "C98"), q(98.0, "PE", 0.9, 1.1, "P98"),
+        q(100.0, "CE", 4.9, 5.1, "C100"), q(100.0, "PE", 4.9, 5.1, "P100"),
+        q(102.0, "CE", 0.9, 1.1, "C102"), q(102.0, "PE", 3.9, 4.1, "P102"),
+    ]
+    structural = _structural(100.0, "Positive GEX (Stable)", {100.0: 10, 102.0: 1})
+    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0)
+            if r.screen == "premium_farm"]
+    assert len(farm) == 1
+
+    legs = farm[0].legs
+    assert legs is not None
+    by = {(l["side"], l["option_type"]): l for l in legs}
+    assert by[("SELL", "CE")]["strike"] == 100.0
+    assert by[("SELL", "PE")]["strike"] == 100.0
+    assert by[("BUY", "CE")]["strike"] == 102.0   # call wing
+    assert by[("BUY", "PE")]["strike"] == 98.0    # put wing
+    assert by[("SELL", "CE")]["best_bid"] == 4.9
+    assert by[("SELL", "CE")]["best_ask"] == 5.1
+    assert by[("SELL", "CE")]["mid"] == 5.0
+
+
 def test_farm_gated_off_when_spot_far_from_pin():
     scanner = ChainScanner(ScanConfig(iv_rv_min_gap=2.0, pin_band_pct=0.005))
     chain = [
