@@ -1,0 +1,819 @@
+{% extends "base.html" %}
+
+{% block title %}NiftyShield{% endblock %}
+{% block breadcrumb %}Strategies / NiftyShield PAPER{% endblock %}
+
+{% block head %}
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+    /* Design tokens carried by the page itself — this branch's shell is the
+       dark pre-light-theme base, so the Options Wall palette lives here. */
+    :root {
+        --paper: #F7F5F2; --card: #FFFFFF; --line: #E6E2DC; --hairline: #F0EDE7;
+        --ink: #14181F; --body: #4C525C; --muted: #6E7480; --faint: #8A8578;
+        --teal: #0E6F63; --green: #197A5A; --red: #B4472F; --amber: #C9821A;
+    }
+    .display { font-family: 'Instrument Serif', serif; font-weight: 400; letter-spacing: -0.02em; }
+    .mono, .tabular { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+    .ns-page { background: var(--paper); color: var(--ink); margin: -2rem; padding: 2rem; min-height: calc(100vh - 5rem); }
+
+    .ns-card { background: #FFFFFF; border: 1px solid var(--line); border-radius: 15px; }
+    .ns-cell { padding: 14px 16px 13px; border-right: 1px solid var(--hairline); border-bottom: 1px solid var(--hairline); }
+    .ns-k { font-size: 10px; letter-spacing: .11em; text-transform: uppercase; color: var(--faint); }
+    .ns-v { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 16.5px; margin-top: 5px; }
+    .ns-note { font-size: 11px; color: #9A958A; margin-top: 3px; }
+    .ns-chip { cursor: pointer; font-size: 12px; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line); background: #FFFFFF; color: var(--body); transition: all .25s ease; }
+    .ns-chip:hover { border-color: var(--ink); }
+    .ns-chip.on { background: var(--ink); border-color: var(--ink); color: #FFFFFF; }
+    .ns-row-card { cursor: pointer; background: #FFFFFF; border: 1px solid var(--line); border-radius: 15px; padding: 20px 22px 18px;
+                   transition: transform .4s cubic-bezier(.22,.68,0,1), box-shadow .4s ease, border-color .3s ease; animation: nsRise .5s cubic-bezier(.22,.68,0,1) both; }
+    .ns-row-card:hover { transform: translateY(-3px); box-shadow: 0 18px 42px -28px rgba(20,24,31,.34); }
+    @keyframes nsRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+    #ns-panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(640px, 96vw); z-index: 60; background: #FFFFFF;
+                border-left: 1px solid var(--line); box-shadow: -30px 0 70px -40px rgba(20,24,31,.4);
+                transform: translateX(100%); transition: transform .55s cubic-bezier(.22,.68,0,1); overflow-y: auto; }
+    #ns-panel.open { transform: translateX(0); }
+    #ns-scrim { position: fixed; inset: 0; z-index: 50; background: rgba(20,24,31,.28); backdrop-filter: blur(2px);
+                opacity: 0; pointer-events: none; transition: opacity .45s ease; }
+    #ns-scrim.on { opacity: 1; pointer-events: auto; }
+    .ns-sec-h { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: 11px; }
+    .ns-live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; margin-right: 7px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="ns-page" style="display: flex; flex-direction: column; gap: 30px;">
+
+    <!-- Header row -->
+    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;">
+        <div id="session-tabs" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
+        <div style="flex: 1;"></div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="live-dot" class="ns-live-dot" style="background: var(--faint);"></span>
+            <span id="live-label" class="mono" style="font-size: 11.5px; color: var(--muted); letter-spacing: .04em;">--</span>
+        </div>
+        <span id="marks-age" class="mono" style="font-size: 11.5px; color: var(--faint);">Chain --</span>
+        <span id="hb-time" class="mono" style="font-size: 11.5px; color: var(--faint);">Heartbeat --</span>
+    </div>
+
+    <!-- Hero + fact band -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 36px 52px; align-items: end;">
+        <div>
+            <div class="mono" id="hero-meta" style="font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px;">--</div>
+            <h1 class="display" id="hero-title" style="font-size: clamp(34px, 3.8vw, 52px); line-height: 1.04; margin: 0 0 14px;">Waiting for the window.</h1>
+            <p id="hero-sub" style="max-width: 56ch; margin: 0; font-size: 15px; color: var(--body); text-wrap: pretty;">
+                The PAPER validation window persists its session evidence as it runs. Nothing here is computed by this page — every cell is a fact the runner wrote.
+            </p>
+        </div>
+
+        <div class="ns-card" style="padding: 4px;">
+            <div id="fact-band" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));"></div>
+        </div>
+    </div>
+
+    <!-- Window metrics band -->
+    <div class="ns-card" style="padding: 4px;">
+        <div style="padding: 13px 16px 10px;"><span class="ns-k">Window evidence · counting sessions = telemetry-clean ∧ recorded ∧ ≥1 closed structure</span></div>
+        <div id="window-band" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));"></div>
+    </div>
+
+    <!-- Gate strip -->
+    <div style="border: 1px solid var(--line); border-radius: 14px; background: #FBFAF8; padding: 20px 26px 22px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px;">
+            <span class="display" style="font-size: 21px;">Entry gates</span>
+            <span style="font-size: 12px; color: var(--muted);">Datasheet §9 conditions, read from persisted state — never computed here.</span>
+            <div style="flex: 1;"></div>
+            <span id="gate-verdict" class="mono" style="font-size: 12px; padding: 4px 11px; border-radius: 999px; background: #EFECE6; color: var(--muted);">--</span>
+        </div>
+        <div id="gate-strip" style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); background: #FFFFFF; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;"></div>
+    </div>
+
+    <!-- Structure cards -->
+    <div>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-bottom: 16px;">
+            <span class="display" style="font-size: 21px;">Structures &middot; <span id="struct-count">0</span> attempted</span>
+            <div id="struct-filters" style="display: flex; gap: 6px;"></div>
+        </div>
+        <div id="struct-rows" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 18px;"></div>
+    </div>
+
+    <!-- PnL band -->
+    <div class="ns-card" style="padding: 22px 26px 18px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+            <span class="display" style="font-size: 21px;">Realized PnL &middot; <span id="pnl-rt">0</span> round trips</span>
+            <span style="font-size: 12px; color: var(--muted);">Cumulative realized structure PnL (Rs), closed structures in session order. PnL is a fact for judgment — not a pass/fail.</span>
+        </div>
+        <div id="pnl-wrap" style="margin-top: 18px; position: relative;"></div>
+    </div>
+
+    <!-- Journal river -->
+    <div class="ns-card" style="padding: 22px 26px 20px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+            <span class="display" style="font-size: 21px;">Journal river &middot; <span id="jr-count">0</span> events</span>
+            <span style="font-size: 12px; color: var(--muted);">Window-runtime events, newest first. Guards and skipped entries are the window doing its job — not noise.</span>
+        </div>
+        <div style="margin-top: 18px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
+            <div style="display: grid; grid-template-columns: 150px 180px 1fr 1.4fr; gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
+                <span>Timestamp</span><span>Event</span><span>Source</span><span>Detail</span>
+            </div>
+            <div id="jr-body"></div>
+        </div>
+        <div style="margin-top: 12px; text-align: center;">
+            <button id="jr-toggle" onclick="toggleJournal()" class="ns-chip">Show all events</button>
+        </div>
+    </div>
+
+    <!-- Marks band -->
+    <div class="ns-card" style="padding: 22px 26px 18px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+            <span class="display" style="font-size: 21px;">Chain marks</span>
+            <span style="font-size: 12px; color: var(--muted);">The option-chain cache the PAPER executor prices legs against — real Upstox V3 marks, never synthetic.</span>
+        </div>
+        <div id="marks-band" style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); background: #FFFFFF; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;"></div>
+        <div style="margin-top: 16px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
+            <div style="display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
+                <span>Strike</span><span style="text-align:right;">CE LTP</span><span style="text-align:right;">CE IV</span><span style="text-align:right;">PE LTP</span><span style="text-align:right;">PE IV</span>
+            </div>
+            <div id="marks-body"></div>
+        </div>
+    </div>
+</div>
+
+<div id="ns-scrim" onclick="closePanel()"></div>
+<aside id="ns-panel"><div id="ns-panel-body" style="padding: 24px 30px 60px;"></div></aside>
+
+<script>
+const C = { green: '#197A5A', red: '#B4472F', amber: '#C9821A', teal: '#0E6F63', ink: '#14181F', muted: '#6E7480', faint: '#8A8578' };
+
+const STRUCT_LABEL = {
+    bull_put_spread: 'Bull put spread', bear_call_spread: 'Bear call spread',
+    short_strangle: 'Short strangle', iron_fly: 'Iron fly', short_straddle: 'Short straddle'
+};
+const EVENT_LABEL = {
+    STARTUP: 'Startup', RUNNING: 'Running', STOPPED: 'Stopped',
+    FACT_PUBLISH_SKIPPED: 'Fact skipped', ENTRY_MARGIN: 'Entry margin',
+    ENTRY_SKIPPED: 'Entry skipped', STRUCTURE_CLOSE: 'Structure close',
+    KILL_SWITCH_ACTIVATED: 'Kill switch', WATCHDOG_STALE_DATA: 'Stale data',
+    STRATEGY_ERROR: 'Strategy error', STRATEGY_QUARANTINED: 'Quarantined',
+    SIGNAL_CONTRACT_REJECTED: 'Contract rejected', BROKER_ERROR: 'Broker error'
+};
+const EVENT_TONE = {
+    ENTRY_MARGIN: C.teal, STRUCTURE_CLOSE: C.teal, FACT_PUBLISH_SKIPPED: C.amber,
+    ENTRY_SKIPPED: C.amber, KILL_SWITCH_ACTIVATED: C.red, WATCHDOG_STALE_DATA: C.red,
+    STRATEGY_ERROR: C.red, STRATEGY_QUARANTINED: C.red,
+    SIGNAL_CONTRACT_REJECTED: C.red, BROKER_ERROR: C.red, STOPPED: C.muted
+};
+
+let state = {
+    window: { exists: false, sessions: [], structures: [], journal: [], fact: null,
+              metrics: null, audit: null, window: null, pnl_series: [] },
+    live: null, marks: null,
+    session: 'latest', sessionJournal: null, structFilter: 'All',
+    journalFull: false, open: null
+};
+
+function effectiveJournal() {
+    return state.session === 'latest' ? state.window.journal
+         : (state.sessionJournal || []);
+}
+
+/* ---------------------------------------------------------------- helpers */
+function n(v, d) {
+    if (v === null || v === undefined || Number.isNaN(Number(v))) return '--';
+    return Number(v).toLocaleString('en-IN', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+function rs(v, d) { return (v === null || v === undefined) ? '--' : (v < 0 ? '−₹' : '₹') + n(Math.abs(v), d === undefined ? 0 : d); }
+function pct(v, d) { return (v === null || v === undefined) ? '--' : n(v, d === undefined ? 1 : d) + '%'; }
+function rn(v) { return (v === null || v === undefined) ? '--' : (v > 0 ? '+' : '') + n(v, 2) + 'R'; }
+function el(tag, style, html) {
+    const e = document.createElement(tag);
+    if (style) e.setAttribute('style', style);
+    if (html !== undefined) e.innerHTML = html;
+    return e;
+}
+function tShort(ts) {
+    if (!ts) return '--';
+    const d = new Date(ts);
+    if (Number.isNaN(d.getTime())) return ts;
+    return d.toLocaleTimeString('en-IN', { hour12: false });
+}
+function dateShort(ts) {
+    if (!ts) return '--';
+    return String(ts).slice(0, 10);
+}
+function ageText(s) {
+    if (s === null || s === undefined) return '--';
+    if (s < 60) return Math.round(s) + 's ago';
+    if (s < 3600) return Math.round(s / 60) + 'm ago';
+    return Math.round(s / 3600) + 'h ago';
+}
+function regimeColor(r) {
+    if (!r) return C.muted;
+    if (r === 'BullTrend') return C.green;
+    if (r === 'BearTrend') return C.red;
+    return C.amber;
+}
+
+/* ------------------------------------------------------------ session tabs */
+function paintTabs() {
+    const tabs = document.getElementById('session-tabs');
+    tabs.innerHTML = '';
+    const sessions = state.window.sessions || [];
+    const options = ['latest'].concat(sessions.map(s => s.session));
+    options.forEach(key => {
+        const b = el('button', null, key === 'latest' ? 'Latest' : key.slice(5));
+        b.className = 'ns-chip' + (state.session === key ? ' on' : '');
+        b.onclick = () => { state.session = key; state.journalFull = false; paintTabs(); refreshSessionView(); };
+        tabs.appendChild(b);
+    });
+}
+
+function selectedSessionDate() {
+    if (state.session !== 'latest') return state.session;
+    const f = state.window.fact;
+    if (f && f.session_date) return f.session_date;
+    const sessions = state.window.sessions || [];
+    return sessions.length ? sessions[0].session : null;
+}
+
+function sessionStructures() {
+    const d = selectedSessionDate();
+    const structs = state.window.structures || [];
+    if (!d) return structs;
+    return structs.filter(s => s.session === d);
+}
+
+/* ------------------------------------------------------------- live header */
+function paintLive() {
+    const live = state.live;
+    const dot = document.getElementById('live-dot');
+    const label = document.getElementById('live-label');
+    if (!live) { label.textContent = '--'; return; }
+    if (live.stop_present) {
+        dot.style.background = C.red; label.textContent = 'KILL SWITCH DOWN';
+        label.style.color = C.red;
+    } else if (live.heartbeat && live.heartbeat.fresh) {
+        dot.style.background = C.green; label.textContent = 'WINDOW RUNNING';
+        label.style.color = C.green;
+    } else if (live.heartbeat && live.heartbeat.present) {
+        dot.style.background = C.amber; label.textContent = live.market_open
+            ? 'RUNNER NOT BEATING' : 'IDLE — LAST BEAT ' + tShort(live.heartbeat.timestamp);
+        label.style.color = C.amber;
+    } else if (live.processes && live.processes.orchestrator) {
+        dot.style.background = C.amber; label.textContent = live.market_open ? 'SUPERVISING' : 'IDLE — MARKET CLOSED';
+        label.style.color = C.amber;
+    } else {
+        dot.style.background = C.faint; label.textContent = 'NO WINDOW';
+        label.style.color = C.muted;
+    }
+    const hb = live.heartbeat;
+    document.getElementById('hb-time').textContent =
+        'Heartbeat ' + (hb && hb.timestamp ? tShort(hb.timestamp) : '--');
+}
+
+function paintMarksHeader() {
+    const m = state.marks;
+    if (!m) { document.getElementById('marks-age').textContent = 'Chain --'; return; }
+    const label = m.available
+        ? (state.live && state.live.market_open ? 'Chain ' + ageText(m.poller.age_s)
+           : 'Chain frozen at close ' + tShort(m.snapshot_ts))
+        : 'Chain ' + (m.error || 'unavailable');
+    document.getElementById('marks-age').textContent = label;
+    document.getElementById('marks-age').style.color = m.available ? C.faint : C.red;
+}
+
+/* ---------------------------------------------------------------- hero */
+function paintHero() {
+    const f = state.window.fact;
+    const live = state.live;
+    const band = document.getElementById('fact-band');
+    band.innerHTML = '';
+
+    if (state.live && state.live.stop_present) {
+        document.getElementById('hero-meta').textContent = 'STOP file present';
+        document.getElementById('hero-title').innerHTML =
+            'Kill switch down. <span style="font-style:italic;color:' + C.red + '">The window cannot enter.</span>';
+        document.getElementById('hero-sub').textContent =
+            'The STOP file at the repo root blocks entry and blocks the orchestrator. Remove it to let the window run.';
+    } else if (f) {
+        document.getElementById('hero-meta').textContent =
+            '13:00 fact · session ' + f.session_date + ' · ' + f.produced_by + ' · model ' + (f.model_hash || '--');
+        const choppy = f.regime === 'Choppy';
+        let title, sub;
+        if (f.regime === 'BullTrend') {
+            title = 'Trend up. <span style="font-style:italic;color:' + C.green + '">Bull put spread is the 13:00 play.</span>';
+        } else if (f.regime === 'BearTrend') {
+            title = 'Trend down. <span style="font-style:italic;color:' + C.red + '">Bear call spread is the 13:00 play.</span>';
+        } else if (f.vix != null && f.vix > 16) {
+            title = 'Choppy and rich. <span style="font-style:italic;color:' + C.amber + '">Short strangle is the 13:00 play.</span>';
+        } else if (f.vix != null && f.vix > 14) {
+            title = 'Choppy. <span style="font-style:italic;color:' + C.amber + '">Iron fly is the 13:00 play.</span>';
+        } else {
+            title = 'Choppy and cheap. <span style="font-style:italic;color:' + C.amber + '">Short straddle is the 13:00 play.</span>';
+        }
+        sub = 'The structure cell below is the frozen selection rule (datasheet §5a) applied to the published fact — display only. What the runner actually attempted is in the journal below.';
+        document.getElementById('hero-title').innerHTML = title;
+        document.getElementById('hero-sub').textContent = sub;
+
+        const vixBad = f.vix != null && f.vix > 20.0;
+        const cells = [
+            ['Regime', f.regime || '--', '13:00 fact', regimeColor(f.regime)],
+            ['VIX @ ' + (f.vix_source === '13:00 checkpoint' ? '13:00' : 'EOD'), f.vix != null ? n(f.vix, 2) : '--',
+                vixBad ? 'above 20.0 — session skipped' : 'skip gate is 20.0', vixBad ? C.red : C.ink],
+            ['Structure (rule)', STRUCT_LABEL[f.structure] || f.structure, 'datasheet §5a, display only', C.teal],
+            ['Confidence', pct(f.regime_confidence * 100, 1), 'model confidence', C.ink],
+            ['Fact version', f.regime_fact_version || '--', 'regime fact version', C.muted],
+            ['Trained on', f.trained_on || '--', 'model training window', C.muted]
+        ];
+        cells.forEach(([k, v, note, color]) => {
+            band.appendChild(el('div', 'padding:14px 16px 13px;border-right:1px solid var(--hairline);border-bottom:1px solid var(--hairline);',
+                '<div class="ns-k">' + k + '</div>' +
+                '<div class="ns-v" style="color:' + color + '">' + v + '</div>' +
+                '<div class="ns-note">' + note + '</div>'));
+        });
+    } else if (state.window.sessions.length) {
+        document.getElementById('hero-meta').textContent = state.window.sessions.length + ' session(s) persisted';
+        document.getElementById('hero-title').innerHTML = 'The window ran, but no 13:00 fact this session.';
+        document.getElementById('hero-sub').textContent =
+            'A session with no 13:00 fact cannot select a structure — the journal records why (FACT_PUBLISH_SKIPPED).';
+    } else {
+        document.getElementById('hero-meta').textContent = 'data/nifty_shield empty';
+        document.getElementById('hero-title').innerHTML = 'The validation window has not run yet.';
+        document.getElementById('hero-sub').textContent =
+            'Start the orchestrator (python scripts/ops/orchestrator.py) and this wall will show every persisted session, gate, structure, and mark.';
+    }
+}
+
+/* ---------------------------------------------------------- window band */
+function paintWindowBand() {
+    const w = state.window.window;
+    const m = state.window.metrics;
+    const band = document.getElementById('window-band');
+    band.innerHTML = '';
+    if (!w || !m) {
+        band.appendChild(el('div', 'padding:18px;color:var(--faint);font-size:13px;', 'No window evidence persisted yet.'));
+        return;
+    }
+    const pf = m.profit_factor;
+    const pfText = pf === null ? '--' : pf === Infinity ? '∞' : n(pf, 2);
+    const cells = [
+        ['Counting sessions', (w.sessions_counting || 0) + ' / ' + (w.sessions_total || 0), 'target ≥ 20', C.teal],
+        ['Round trips', n(w.round_trips_counting, 0), 'counting sessions only', C.ink],
+        ['Attempted / entered', n(m.structures_attempted, 0) + ' / ' + n(m.structures_entered, 0), 'fill conversion ' + pct(m.signal_fill_conversion * 100, 1), C.ink],
+        ['Total realized PnL', rs(m.total_realized_pnl, 0), 'judgment fact, not pass/fail', m.total_realized_pnl >= 0 ? C.green : C.red],
+        ['Win rate', pct(m.win_rate * 100, 1), n(m.wins, 0) + 'W / ' + n(m.losses, 0) + 'L', C.ink],
+        ['Profit factor', pfText, 'gross win / gross loss', pf !== null && pf >= 1 ? C.green : C.red],
+        ['Avg win R', rn(m.avg_win_r), n(m.wins_with_r, 0) + ' with R', m.avg_win_r != null && m.avg_win_r > 0 ? C.green : C.ink],
+        ['Avg loss R', rn(m.avg_loss_r), n(m.losses_with_r, 0) + ' with R', m.avg_loss_r != null && m.avg_loss_r < 0 ? C.red : C.ink],
+        ['Max drawdown', pct(m.max_drawdown_pct * 100, 2), 'from execution metrics', C.ink],
+        ['Peak margin use', pct(m.peak_margin_utilisation * 100, 1), 'of initial capital', C.ink]
+    ];
+    cells.forEach(([k, v, note, color]) => {
+        band.appendChild(el('div', 'padding:14px 16px 13px;border-right:1px solid var(--hairline);border-bottom:1px solid var(--hairline);',
+            '<div class="ns-k">' + k + '</div>' +
+            '<div class="ns-v" style="color:' + color + '">' + v + '</div>' +
+            '<div class="ns-note">' + note + '</div>'));
+    });
+}
+
+/* ------------------------------------------------------------- gate strip */
+function paintGates() {
+    const live = state.live;
+    const f = state.window.fact;
+    const d = selectedSessionDate();
+    const structs = sessionStructures();
+    const lastEntry = effectiveJournal().find(e => e.event_type === 'ENTRY_MARGIN');
+
+    const stopPass = live ? !live.stop_present : null;
+    const marksState = (!live || !live.marks || (live.marks.rows || 0) === 0) ? null
+        : live.marks.warm ? 'pass'
+        : (!live.market_open ? 'frozen' : 'fail');
+    const spanPass = live ? live.span.present : null;
+    const vixState = !f || f.vix == null ? null : (f.vix <= 20.0 ? 'pass' : 'fail');
+    const onePer = structs.length <= 1;
+    const marginState = !lastEntry ? null
+        : (lastEntry.metadata && lastEntry.metadata.margin_total != null
+           ? (lastEntry.metadata.margin_total <= 1000000.0 ? 'pass' : 'fail') : null);
+
+    const checks = [
+        { label: 'Kill switch (STOP)', reading: live ? (live.stop_present ? 'STOP file present' : 'STOP absent') : '--',
+          threshold: 'must be absent', state: stopPass == null ? 'unknown' : (stopPass ? 'pass' : 'fail') },
+        { label: 'Marks warm', reading: live && live.marks ? (live.marks.rows || 0) + ' rows · ' + ageText(live.marks.age_s) : '--',
+          threshold: 'poller snapshot ≤ 60s old', state: marksState },
+        { label: 'SPAN snapshot', reading: live && live.span ? (live.span.present ? 'present for today' : 'missing today') : '--',
+          threshold: 'nse_fo_span_{date}.parquet', state: spanPass == null ? 'unknown' : (spanPass ? 'pass' : 'fail') },
+        { label: 'VIX skip gate', reading: f && f.vix != null ? n(f.vix, 2) + ' (' + f.vix_source + ')' : 'no 13:00 fact',
+          threshold: 'vix ≤ 20.0 else session skipped', state: vixState },
+        { label: '1 structure / session', reading: structs.length + ' attempted this session',
+          threshold: 'must be ≤ 1 (max 4 legs)', state: structs.length ? (onePer ? 'pass' : 'fail') : 'unknown' },
+        { label: 'Margin fit', reading: lastEntry && lastEntry.metadata && lastEntry.metadata.margin_total != null
+              ? '₹' + n(lastEntry.metadata.margin_total, 0) + ' vs ₹10,00,000' : 'no entry yet',
+          threshold: 'structure margin ≤ capital', state: marginState }
+    ];
+
+    const strip = document.getElementById('gate-strip');
+    strip.innerHTML = '';
+    const tone = s => s === 'pass' ? { c: C.green, i: '✓' }
+        : s === 'fail' ? { c: C.red, i: '✕' }
+        : s === 'frozen' ? { c: C.amber, i: '◔' }
+        : { c: C.faint, i: '–' };
+    checks.forEach(ch => {
+        const t = tone(ch.state);
+        strip.appendChild(el('div', 'background:#FFFFFF;padding:15px 17px;border-right:1px solid var(--hairline);border-bottom:1px solid var(--hairline);',
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<span style="width:15px;height:15px;border-radius:999px;flex-shrink:0;display:grid;place-items:center;font-size:9px;color:#FFFFFF;background:' + t.c + '">' + t.i + '</span>' +
+              '<span style="font-size:12px;">' + ch.label + '</span></div>' +
+            '<div class="mono" style="font-size:15px;margin-top:9px;color:' + t.c + '">' + ch.reading + '</div>' +
+            '<div style="font-size:11.5px;color:var(--faint);margin-top:4px;">' + ch.threshold + '</div>'));
+    });
+
+    const entered = structs.filter(s => s.status !== 'skipped').length;
+    const skipped = structs.filter(s => s.status === 'skipped').length;
+    const v = document.getElementById('gate-verdict');
+    v.textContent = structs.length
+        ? (entered + ' entered · ' + skipped + ' skipped this session')
+        : 'No structure attempted this session';
+    v.style.background = entered ? 'rgba(25,122,90,.12)' : 'rgba(201,130,26,.12)';
+    v.style.color = entered ? C.green : '#A8703C';
+}
+
+/* -------------------------------------------------------- structure cards */
+function structTone(s) {
+    if (s.status === 'skipped') return { bg: 'rgba(201,130,26,.12)', fg: '#A8703C' };
+    if (s.status === 'partial') return { bg: 'rgba(180,71,47,.10)', fg: C.red };
+    if (!s.closed) return { bg: 'rgba(14,111,99,.09)', fg: C.teal };
+    return s.pnl_rs >= 0 ? { bg: 'rgba(25,122,90,.10)', fg: C.green } : { bg: 'rgba(180,71,47,.10)', fg: C.red };
+}
+
+function paintFilters() {
+    const structs = sessionStructures();
+    const counts = { All: structs.length };
+    structs.forEach(s => { counts[s.status] = (counts[s.status] || 0) + 1; });
+    const f = document.getElementById('struct-filters');
+    f.innerHTML = '';
+    ['All', 'entered', 'skipped', 'partial'].forEach(key => {
+        const b = el('button', null, (key === 'All' ? 'All' : key) + '  ' + (counts[key] || 0));
+        b.className = 'ns-chip' + (state.structFilter === key ? ' on' : '');
+        b.onclick = () => { state.structFilter = key; paintFilters(); paintStructs(); };
+        f.appendChild(b);
+    });
+}
+
+function paintStructs() {
+    const structs = sessionStructures()
+        .filter(s => state.structFilter === 'All' || s.status === state.structFilter);
+    document.getElementById('struct-count').textContent = sessionStructures().length;
+
+    const box = document.getElementById('struct-rows');
+    box.innerHTML = '';
+
+    if (!structs.length) {
+        box.style.display = 'block';
+        box.appendChild(el('div', 'border:1px dashed #DCD7CF;border-radius:14px;padding:46px 32px;text-align:center;',
+            '<div class="display" style="font-size:24px;margin-bottom:8px;">No structures on this filter.</div>' +
+            '<div style="font-size:13.5px;color:var(--muted);max-width:62ch;margin:0 auto;">' +
+            (sessionStructures().length
+                ? 'The window attempted nothing under this status. Check the journal river for why.'
+                : 'No 13:00 fact, no entry — the window skips sessions it cannot price. The journal records every skip reason.') +
+            '</div>'));
+        return;
+    }
+    box.style.display = 'grid';
+
+    structs.forEach((s, i) => {
+        const tone = structTone(s);
+        const card = el('article', null);
+        card.className = 'ns-row-card';
+        card.style.animationDelay = (i * 50) + 'ms';
+        card.onclick = () => openPanel(s);
+
+        const statusLabel = s.status === 'entered' && !s.closed ? 'entered · open'
+            : s.status === 'entered' ? 'entered · closed' : s.status;
+        const stats = s.status === 'skipped'
+            ? '<div><div class="ns-k">Skip reason</div><div class="mono" style="font-size:12.5px;margin-top:4px;color:#A8703C;line-height:1.45;">' + (s.reason || '--') + '</div></div>'
+            : [
+                ['PnL', rs(s.pnl_rs, 0), s.pnl_rs >= 0 ? C.green : C.red],
+                ['R', rn(s.r), C.ink],
+                ['Margin', s.margin_rs != null ? rs(s.margin_rs, 0) : '--', C.ink],
+                ['Legs', (s.leg_symbols || []).length + ' / ' + (s.filled_legs || []).length + ' filled', C.ink]
+            ].map(([k, v, c]) =>
+                '<div><div class="ns-k">' + k + '</div>' +
+                '<div class="mono" style="font-size:14px;margin-top:4px;color:' + c + '">' + v + '</div></div>').join('');
+
+        card.innerHTML =
+            '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">' +
+              '<div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+                '<span style="font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:' + tone.bg + ';color:' + tone.fg + '">' + statusLabel + '</span>' +
+                '<span class="mono" style="font-size:11.5px;color:var(--faint);">' + (s.session || '') + '</span></div>' +
+                '<div class="display" style="font-size:24px;margin-top:8px;">' + (STRUCT_LABEL[s.structure] || s.structure) + '</div>' +
+                '<div class="mono" style="font-size:12.5px;color:var(--muted);margin-top:4px;">' +
+                  (s.status === 'skipped' ? (s.reason || '') : (s.exit_reason ? 'closed — ' + s.exit_reason : 'group ' + (s.group_id || '').slice(0, 8))) + '</div></div>' +
+              '<div style="text-align:right;flex-shrink:0;">' +
+                '<div class="mono" style="font-size:22px;color:' + (s.status === 'skipped' ? C.amber : (s.pnl_rs >= 0 ? C.green : C.red)) + '">' +
+                  (s.status === 'skipped' ? '—' : rs(s.pnl_rs, 0)) + '</div>' +
+                '<div class="ns-k">' + (s.status === 'skipped' ? 'no entry' : 'realized') + '</div></div></div>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;padding:13px 0;border-top:1px solid var(--hairline);border-bottom:1px solid var(--hairline);margin-top:16px;">' + stats + '</div>' +
+            '<div style="display:flex;align-items:center;gap:12px;margin-top:13px;">' +
+              '<span class="mono" style="font-size:12.5px;color:var(--body);flex:1;">' + (s.leg_symbols || []).join('  ·  ') + '</span>' +
+              '<span style="font-size:12px;color:' + C.teal + ';white-space:nowrap;">Full evidence →</span></div>';
+
+        box.appendChild(card);
+    });
+}
+
+/* ------------------------------------------------------------- slide-over */
+function legTableHtml(s) {
+    const legs = s.leg_symbols || [];
+    if (!legs.length) return '';
+    const cols = '64px 1.4fr repeat(5, minmax(0,.8fr))';
+    const rows = legs.map((sym, i) => {
+        const fills = (s.fills && s.fills[i]) || [];
+        const rowsHtml = fills.length ? fills.map(t =>
+            '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 14px;border-top:1px solid #F5F2ED;' +
+            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;background:#FBFAF8;">' +
+            '<span style="color:' + ((t.side || '').toUpperCase() === 'BUY' ? C.green : C.red) + '">' + (t.side || '') + '</span>' +
+            '<span style="color:var(--muted);">' + (t.timestamp ? tShort(t.timestamp) : '') + '</span>' +
+            '<span style="text-align:right;">' + n(t.quantity, 0) + '</span>' +
+            '<span style="text-align:right;">' + n(t.price, 2) + '</span>' +
+            '<span style="text-align:right;color:' + (t.pnl >= 0 ? C.green : C.red) + '">' + rs(t.pnl, 0) + '</span>' +
+            '<span style="text-align:right;color:var(--muted);">' + n(t.fees, 2) + '</span></div>').join('')
+            : '<div style="grid-column:1/-1;padding:9px 14px;border-top:1px solid #F5F2ED;font-size:12px;color:var(--faint);">no ledger fill</div>';
+        return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:10px 14px;border-top:1px solid #F5F2ED;' +
+            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:center;">' +
+            '<span style="color:var(--ink);">' + sym + '</span>' +
+            '<span style="color:var(--faint);font-size:11px;">' + (s.filled_legs.includes(sym) ? 'filled' : 'no fill') + '</span>' +
+            '<span></span><span></span><span></span><span></span></div>' + rowsHtml;
+    }).join('');
+    return '<div style="margin-top:28px;"><div class="ns-sec-h">Legs at the snapshot</div>' +
+        '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' +
+          '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 14px;background:#FBFAF8;' +
+            'font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);">' +
+            '<span>Symbol</span><span>Ledger</span><span style="text-align:right;">Qty</span>' +
+            '<span style="text-align:right;">Price</span><span style="text-align:right;">PnL</span>' +
+            '<span style="text-align:right;">Fees</span></div>' + rows + '</div></div>';
+}
+
+function entryMarginHtml(s) {
+    const ev = effectiveJournal().find(e =>
+        e.event_type === 'ENTRY_MARGIN' && e.metadata && e.metadata.group_id === s.group_id);
+    if (!ev) return '';
+    const md = ev.metadata;
+    const rows = [
+        ['Engine', md.engine || '--'],
+        ['Lots × lot size', (md.lots != null ? md.lots + ' × ' + md.lot_size : '--')],
+        ['SPAN', md.span != null ? '₹' + n(md.span, 0) : '--'],
+        ['ELM', md.elm != null ? '₹' + n(md.elm, 0) : '--'],
+        ['Margin total', md.margin_total != null ? '₹' + n(md.margin_total, 0) : '--'],
+        ['Declared risk R', md.risk_r != null ? '₹' + n(md.risk_r, 0) : '--'],
+    ].map(([k, v]) =>
+        '<div style="display:flex;justify-content:space-between;gap:14px;padding:10px 15px;border-top:1px solid #F5F2ED;font-size:12.5px;">' +
+        '<span style="color:var(--muted);">' + k + '</span><span class="mono">' + v + '</span></div>').join('');
+    return '<div style="margin-top:28px;"><div class="ns-sec-h">Entry margin evidence (journal)</div>' +
+        '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' + rows + '</div></div>';
+}
+
+function openPanel(s) {
+    state.open = s;
+    const tone = structTone(s);
+    const head = s.status === 'skipped'
+        ? [
+            ['Status', 'skipped', C.amber], ['Structure', STRUCT_LABEL[s.structure] || s.structure, C.ink],
+            ['Session', s.session || '--', C.ink], ['Reason', s.reason || '--', C.amber]
+        ].map(([k, v, c]) =>
+            '<div style="background:#FBFAF8;padding:13px 15px;"><div class="ns-k">' + k + '</div>' +
+            '<div class="mono" style="font-size:13.5px;margin-top:5px;color:' + c + ';line-height:1.4;">' + v + '</div></div>').join('')
+        : [
+            ['Status', s.closed ? 'closed' : 'open', s.closed ? C.teal : C.amber],
+            ['PnL', rs(s.pnl_rs, 0), s.pnl_rs >= 0 ? C.green : C.red],
+            ['R', rn(s.r), C.ink],
+            ['Margin', s.margin_rs != null ? rs(s.margin_rs, 0) : '--', C.ink],
+            ['Gross exposure', s.gross_exposure_rs != null ? rs(s.gross_exposure_rs, 0) : '--', C.ink],
+            ['Exit', s.closed ? (s.exit_reason || 'closed') : 'still open', s.closed ? C.muted : C.amber]
+        ].map(([k, v, c]) =>
+            '<div style="background:#FBFAF8;padding:13px 15px;"><div class="ns-k">' + k + '</div>' +
+            '<div class="mono" style="font-size:13.5px;margin-top:5px;color:' + c + '">' + v + '</div></div>').join('');
+
+    const closeEvents = effectiveJournal().filter(e =>
+        e.event_type === 'STRUCTURE_CLOSE' && e.metadata && e.metadata.group_id === s.group_id);
+    const closeHtml = closeEvents.length
+        ? '<div style="margin-top:28px;"><div class="ns-sec-h">Close events</div><div style="display:grid;gap:10px;">' +
+          closeEvents.map(e =>
+            '<div style="display:flex;align-items:flex-start;gap:11px;border:1px solid var(--hairline);border-radius:10px;padding:11px 14px;">' +
+            '<span style="width:15px;height:15px;margin-top:2px;border-radius:999px;flex-shrink:0;display:grid;place-items:center;font-size:9px;color:#FFFFFF;background:' + C.teal + '">✓</span>' +
+            '<div style="flex:1;"><div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 12px;font-size:12.5px;">' +
+            '<span>Structure close</span><span class="mono">' + tShort(e.timestamp) + '</span></div>' +
+            '<div style="font-size:11.5px;color:var(--faint);margin-top:3px;">' + (e.metadata.reason || e.metadata.exit_reason || e.message || '') + '</div></div></div>').join('') +
+          '</div></div>' : '';
+
+    document.getElementById('ns-panel-body').innerHTML =
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;position:sticky;top:0;background:#FFFFFF;padding-bottom:15px;border-bottom:1px solid var(--hairline);">' +
+          '<div><div class="mono" style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);">' +
+            (s.status || '') + ' · ' + (s.session || '') + '</div>' +
+            '<div class="display" style="font-size:32px;margin-top:5px;">' + (STRUCT_LABEL[s.structure] || s.structure) + '</div>' +
+            '<div class="mono" style="font-size:12.5px;color:var(--muted);margin-top:3px;">' + (s.group_id || '') + '</div></div>' +
+          '<button onclick="closePanel()" style="cursor:pointer;flex-shrink:0;width:33px;height:33px;border-radius:999px;border:1px solid var(--line);background:#FBFAF8;color:var(--muted);font-size:14px;">✕</button></div>' +
+
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--hairline);border:1px solid var(--hairline);border-radius:11px;overflow:hidden;margin-top:20px;">' + head + '</div>' +
+
+        entryMarginHtml(s) + legTableHtml(s) + closeHtml +
+
+        '<div style="margin-top:24px;font-size:11.5px;color:var(--faint);">Evidence only — this page sizes and routes nothing.</div>';
+
+    document.getElementById('ns-panel').classList.add('open');
+    document.getElementById('ns-scrim').classList.add('on');
+}
+
+function closePanel() {
+    state.open = null;
+    document.getElementById('ns-panel').classList.remove('open');
+    document.getElementById('ns-scrim').classList.remove('on');
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePanel(); });
+
+/* --------------------------------------------------------------- PnL band */
+function paintPnl() {
+    const wrap = document.getElementById('pnl-wrap');
+    const series = state.window.pnl_series || [];
+    document.getElementById('pnl-rt').textContent = series.length;
+
+    if (series.length < 2) {
+        wrap.innerHTML = '<div style="padding:30px;text-align:center;color:var(--muted);font-size:13px;">' +
+            (series.length ? 'One closed structure — the line needs a second point.' : 'No closed structures yet; the band draws once the window closes two.') + '</div>';
+        return;
+    }
+    const W = 1200, H = 170;
+    const lo = Math.min(0, ...series.map(p => p.cum));
+    const hi = Math.max(0, ...series.map(p => p.cum));
+    const range = (hi - lo) || 1;
+    const rx = i => i / (series.length - 1) * W;
+    const ry = v => H - 8 - (v - lo) / range * (H - 16);
+    const line = series.map((p, i) => (i ? 'L' : 'M') + rx(i).toFixed(1) + ' ' + ry(p.cum).toFixed(1)).join(' ');
+    const bars = series.map((p, i) => {
+        const h = Math.max(3, Math.abs(p.pnl_rs) / range * (H - 16));
+        const y = p.pnl_rs >= 0 ? ry(Math.max(0, p.cum - p.pnl_rs)) - h : ry(Math.max(0, p.cum - p.pnl_rs));
+        return '<rect x="' + (rx(i) - 2.5).toFixed(1) + '" y="' + y.toFixed(1) + '" width="5" height="' + h.toFixed(1) + '" rx="1.5" fill="' +
+            (p.pnl_rs >= 0 ? 'rgba(25,122,90,.28)' : 'rgba(180,71,47,.28)') + '"></rect>';
+    }).join('');
+    const zeroY = ry(0);
+    wrap.innerHTML = '<svg viewBox="0 0 ' + W + ' 200" preserveAspectRatio="none" style="display:block;width:100%;height:200px;overflow:visible;">' +
+        '<line x1="0" y1="' + zeroY.toFixed(1) + '" x2="' + W + '" y2="' + zeroY.toFixed(1) + '" stroke="#E6E2DC" stroke-width="1" stroke-dasharray="4 4"></line>' +
+        '<path d="' + line + '" fill="none" stroke="' + C.teal + '" stroke-width="1.8"></path>' + bars + '</svg>';
+    series.forEach((p, i) => {
+        if (i % Math.max(1, Math.round(series.length / 6)) !== 0) return;
+        wrap.appendChild(el('div', 'position:absolute;left:' + (rx(i) / W * 100).toFixed(2) + '%;top:90%;transform:translateX(-50%);' +
+            'white-space:nowrap;font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:#A9A49A;pointer-events:none;', dateShort(p.session)));
+    });
+}
+
+/* ----------------------------------------------------------- journal river */
+function paintJournal() {
+    const events = effectiveJournal() || [];
+    const shown = state.journalFull ? events : events.slice(0, 12);
+    document.getElementById('jr-count').textContent = events.length;
+
+    const body = document.getElementById('jr-body');
+    body.innerHTML = '';
+    if (!shown.length) {
+        body.appendChild(el('div', 'padding:28px;text-align:center;color:var(--muted);font-size:13px;', 'No window-runtime events persisted yet.'));
+        return;
+    }
+    shown.forEach(e => {
+        const c = EVENT_TONE[e.event_type] || C.muted;
+        const md = e.metadata || {};
+        const detail = md.session ? (md.session + ' · ') : '';
+        body.appendChild(el('div',
+            'display:grid;grid-template-columns:150px 180px 1fr 1.4fr;gap:8px;padding:10px 16px;' +
+            'border-top:1px solid #F5F2ED;font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:baseline;',
+            '<span style="color:var(--muted);">' + tShort(e.timestamp) + '</span>' +
+            '<span style="font-family:\'Public Sans\',sans-serif;font-size:12.5px;color:' + c + '">' + (EVENT_LABEL[e.event_type] || e.event_type) + '</span>' +
+            '<span style="color:var(--faint);">' + (e.source_component || '') + '</span>' +
+            '<span style="color:var(--body);text-wrap:pretty;">' + detail + (e.message || '') + '</span>'));
+    });
+    document.getElementById('jr-toggle').textContent =
+        state.journalFull ? 'Show latest 12' : 'Show all ' + events.length + ' events';
+}
+
+function toggleJournal() { state.journalFull = !state.journalFull; paintJournal(); }
+
+/* ------------------------------------------------------------ marks band */
+function paintMarks() {
+    const m = state.marks;
+    const band = document.getElementById('marks-band');
+    const body = document.getElementById('marks-body');
+    band.innerHTML = '';
+    body.innerHTML = '';
+
+    if (!m || !m.available) {
+        band.appendChild(el('div', 'padding:18px;color:var(--faint);font-size:13px;',
+            m && m.error ? 'Chain cache: ' + m.error : 'Chain cache not readable.'));
+        return;
+    }
+    const marketOpen = state.live ? state.live.market_open : null;
+    const frozen = marketOpen === false;
+    const cells = [
+        ['Underlying LTP', m.underlying_ltp != null ? n(m.underlying_ltp, 2) : '--', 'Nifty 50 spot, latest snapshot', C.ink],
+        ['Expiry', m.expiry || '--', 'weekly, poller-selected', C.ink],
+        ['Snapshot', tShort(m.snapshot_ts), frozen ? 'frozen at close' : 'poller cycle', frozen ? C.amber : C.green],
+        ['Rows', n(m.rows, 0), 'strikes × CE/PE', C.ink],
+        ['Poller age', ageText(m.poller.age_s), 'chain_poller_heartbeat', m.poller.warm ? C.green : C.amber],
+        ['Market', marketOpen === null ? '--' : (marketOpen ? 'open' : 'closed'), 'stale marks stay labeled', marketOpen === null ? C.muted : (marketOpen ? C.green : C.muted)]
+    ];
+    cells.forEach(([k, v, note, color]) => {
+        band.appendChild(el('div', 'padding:14px 16px 13px;border-right:1px solid var(--hairline);border-bottom:1px solid var(--hairline);',
+            '<div class="ns-k">' + k + '</div>' +
+            '<div class="ns-v" style="color:' + color + '">' + v + '</div>' +
+            '<div class="ns-note">' + note + '</div>'));
+    });
+
+    if (!m.strikes.length) return;
+    const byStrike = {};
+    m.strikes.forEach(r => { byStrike[r.strike] = byStrike[r.strike] || {}; byStrike[r.strike][r.option_type] = r; });
+    const atm = m.underlying_ltp != null ? Math.round(m.underlying_ltp / 50) * 50 : null;
+    Object.keys(byStrike).sort((a, b) => a - b).forEach(strike => {
+        const ce = byStrike[strike].CE || {};
+        const pe = byStrike[strike].PE || {};
+        const isAtm = atm != null && Number(strike) === atm;
+        const q = v => v == null ? '<span style="color:#C0BAB0">—</span>' : n(v, 2);
+        body.appendChild(el('div',
+            'display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:10px 16px;border-top:1px solid #F5F2ED;' +
+            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:baseline;' +
+            (isAtm ? 'background:rgba(14,111,99,.05);' : ''),
+            '<span style="color:' + (isAtm ? C.teal : C.ink) + ';' + (isAtm ? 'font-weight:500;' : '') + '">' + n(strike, 0) + (isAtm ? ' · ATM' : '') + '</span>' +
+            '<span style="text-align:right;">' + q(ce.ltp) + '</span>' +
+            '<span style="text-align:right;color:var(--muted);">' + (ce.iv != null ? n(ce.iv * 100, 1) + '%' : '—') + '</span>' +
+            '<span style="text-align:right;">' + q(pe.ltp) + '</span>' +
+            '<span style="text-align:right;color:var(--muted);">' + (pe.iv != null ? n(pe.iv * 100, 1) + '%' : '—') + '</span>'));
+    });
+}
+
+/* --------------------------------------------------------------- loaders */
+async function loadWindow() {
+    try {
+        const resp = await fetch('/nifty-shield/api/window');
+        const data = await resp.json();
+        state.window = data;
+        paintTabs();
+        paintHero();
+        paintWindowBand();
+        paintGates();
+        paintFilters();
+        paintStructs();
+        paintPnl();
+        paintJournal();
+    } catch (err) {
+        console.error('Failed to load window evidence:', err);
+    }
+}
+
+async function loadLive() {
+    try {
+        const resp = await fetch('/nifty-shield/api/live');
+        state.live = await resp.json();
+        paintLive();
+        paintMarksHeader();
+        paintHero();
+        paintGates();
+    } catch (err) {
+        console.error('Failed to load live status:', err);
+    }
+}
+
+async function loadMarks() {
+    try {
+        const resp = await fetch('/nifty-shield/api/marks');
+        state.marks = await resp.json();
+        paintMarksHeader();
+        paintMarks();
+    } catch (err) {
+        console.error('Failed to load chain marks:', err);
+    }
+}
+
+async function refreshSessionView() {
+    state.journalFull = false;
+    if (state.session === 'latest') {
+        state.sessionJournal = null;
+        paintGates(); paintFilters(); paintStructs(); paintJournal();
+        return;
+    }
+    try {
+        const resp = await fetch('/nifty-shield/api/session?date=' + state.session);
+        const data = await resp.json();
+        state.sessionJournal = data.journal || [];
+        paintGates(); paintFilters(); paintStructs(); paintJournal();
+    } catch (err) {
+        console.error('Failed to load session:', err);
+    }
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    loadWindow().then(() => {
+        loadLive();
+        loadMarks();
+    });
+    setInterval(loadWindow, 15000);
+    setInterval(loadLive, 10000);
+    setInterval(loadMarks, 30000);
+});
+</script>
+{% endblock %}
