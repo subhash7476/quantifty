@@ -6,84 +6,196 @@
     <title>{% block title %}Trading Platform{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .sidebar-link { transition: all 0.2s; border-left: 3px solid transparent; }
-        .sidebar-link.active { background: rgba(59, 130, 246, 0.1); border-left-color: #3b82f6; color: #60a5fa; }
-        .sidebar-link:hover:not(.active) { background: rgba(255, 255, 255, 0.05); color: #f8fafc; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        :root {
+            --paper: #F7F5F2;
+            --card: #FFFFFF;
+            --line: #E6E2DC;
+            --hairline: #F0EDE7;
+            --ink: #14181F;
+            --body: #4C525C;
+            --muted: #6E7480;
+            --faint: #8A8578;
+            --teal: #0E6F63;
+            --green: #197A5A;
+            --red: #B4472F;
+            --amber: #C9821A;
+        }
+
+        body {
+            font-family: 'Public Sans', system-ui, sans-serif;
+            background: var(--paper);
+            color: var(--ink);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        a { color: var(--teal); text-decoration: none; }
+        a:hover { color: #0A544B; }
+
+        .display { font-family: 'Instrument Serif', serif; font-weight: 400; letter-spacing: -0.02em; }
+        .mono, .tabular { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+
+        /* Surface used across every page */
+        .glass {
+            background: var(--card);
+            backdrop-filter: none;
+            border: 1px solid var(--line);
+        }
+
+        .sidebar-link {
+            transition: all 0.22s ease;
+            border-left: 3px solid transparent;
+            color: var(--muted);
+        }
+        .sidebar-link.active {
+            background: rgba(14, 111, 99, 0.07);
+            border-left-color: var(--teal);
+            color: var(--teal);
+        }
+        .sidebar-link:hover:not(.active) { background: #EFECE6; color: var(--ink); }
+
+        ::-webkit-scrollbar { width: 10px; height: 10px; }
         ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        ::-webkit-scrollbar-thumb { background: #DCD7CF; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #CFC9BF; }
+
+        /* ------------------------------------------------------------------
+           Light-theme compatibility layer.
+           Child templates were written against the dark shell and still carry
+           slate/white utility classes. These rules remap them to the light
+           palette so existing pages read correctly without being rewritten.
+           ------------------------------------------------------------------ */
+        body .text-white { color: var(--ink); }
+        body .text-slate-100,
+        body .text-slate-200,
+        body .text-slate-300 { color: var(--body); }
+        body .text-slate-400 { color: var(--muted); }
+        body .text-slate-500,
+        body .text-slate-600 { color: var(--faint); }
+
+        body .bg-slate-700 { background-color: #EFECE6; }
+        body .bg-slate-800,
+        body .bg-slate-800\/50,
+        body .bg-slate-900 { background-color: #FBFAF8; }
+        body .hover\:bg-slate-600:hover,
+        body .hover\:bg-slate-700:hover { background-color: #EBE7E0; }
+        body .hover\:bg-slate-800\/50:hover { background-color: #FBFAF8; }
+
+        body .border-slate-700,
+        body .border-slate-800,
+        body .border-slate-800\/50 { border-color: var(--hairline); }
+
+        body .bg-blue-600 { background-color: var(--ink); color: #FFFFFF; }
+        body .hover\:bg-blue-500:hover,
+        body .hover\:bg-blue-700:hover { background-color: var(--teal); }
+        body .text-blue-400,
+        body .text-blue-300 { color: var(--teal); }
+        body .border-blue-500 { border-color: var(--teal); }
+        body .bg-blue-500\/10 { background-color: rgba(14, 111, 99, 0.08); }
+
+        body .text-emerald-500,
+        body .text-emerald-400 { color: var(--green); }
+        body .bg-emerald-500 { background-color: var(--green); }
+        body .bg-emerald-500\/10 { background-color: rgba(25, 122, 90, 0.09); }
+        body .border-emerald-500\/20 { border-color: rgba(25, 122, 90, 0.2); }
+
+        body .text-red-400,
+        body .text-red-300,
+        body .text-red-200,
+        body .text-rose-500 { color: var(--red); }
+        body .bg-red-500 { background-color: var(--red); }
+        body .bg-rose-500 { background-color: var(--red); }
+        body .bg-red-900\/50 { background-color: rgba(180, 71, 47, 0.10); }
+        body .bg-red-500\/10 { background-color: rgba(180, 71, 47, 0.08); }
+        body .border-red-500 { border-color: var(--red); }
+        body .text-cyan-400 { color: var(--teal); }
+        body .text-amber-400 { color: var(--amber); }
+
+        /* Form controls inside the shell */
+        body select,
+        body input[type="text"],
+        body input[type="number"],
+        body input[type="date"] {
+            background-color: #FFFFFF;
+            color: var(--ink);
+            border-color: var(--line);
+        }
+
+        .log-ERROR { color: var(--red); }
+        .log-WARNING { color: var(--amber); }
+        .log-INFO { color: var(--muted); }
+        .log-DEBUG { color: var(--faint); }
+        .pb-24 { padding-bottom: 6rem; }
     </style>
     {% block head %}{% endblock %}
 </head>
-<body class="bg-[#0f172a] text-slate-200 min-h-screen flex">
+<body class="min-h-screen flex" style="background: var(--paper); color: var(--ink);">
     <!-- Sidebar -->
-    <aside class="w-64 bg-[#1e293b] border-r border-slate-800 flex flex-col fixed h-full z-20">
+    <aside class="w-64 flex flex-col fixed h-full z-20" style="background: #FBFAF8; border-right: 1px solid var(--line);">
         <div class="p-6">
-            <a href="/" class="flex items-center space-x-3 group">
-                <div class="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:scale-105 transition-transform">
-                    <i class="fas fa-chart-line text-white text-xl"></i>
+            <a href="/" class="flex items-center gap-3 group">
+                <div class="w-10 h-10 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105" style="background: var(--ink);">
+                    <i class="fas fa-chart-line text-white text-lg"></i>
                 </div>
                 <div>
-                    <span class="text-xl font-bold block text-white">opencode</span>
-                    <span class="text-[10px] uppercase tracking-widest text-blue-400 font-semibold">Trading Engine</span>
+                    <span class="display block" style="font-size: 22px; color: var(--ink);">opencode</span>
+                    <span class="mono" style="font-size: 9.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint);">Trading Engine</span>
                 </div>
             </a>
         </div>
 
-        <nav class="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
-            <p class="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Navigation</p>
-            <a href="{{ url_for('dashboard.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg text-slate-400 {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
+        <nav class="flex-1 px-4 py-2 space-y-1 overflow-y-auto">
+            <p class="px-4 mb-3" style="font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--faint);">Navigation</p>
+            <a href="{{ url_for('dashboard.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg {% if request.endpoint == 'dashboard.index' %}active{% endif %}">
                 <i class="fas fa-th-large w-6"></i>
-                <span class="font-medium">Dashboard</span>
+                <span style="font-size: 14px;">Dashboard</span>
             </a>
-            <a href="{{ url_for('data.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg text-slate-400 {% if request.endpoint and request.endpoint.startswith('data') %}active{% endif %}">
+            <a href="{{ url_for('data.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg {% if request.endpoint and request.endpoint.startswith('data') %}active{% endif %}">
                 <i class="fas fa-database w-6"></i>
-                <span class="font-medium">Data</span>
+                <span style="font-size: 14px;">Data</span>
             </a>
-            <a href="{{ url_for('backtest.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg text-slate-400 {% if request.endpoint and request.endpoint.startswith('backtest') %}active{% endif %}">
+            <a href="{{ url_for('backtest.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg {% if request.endpoint and request.endpoint.startswith('backtest') %}active{% endif %}">
                 <i class="fas fa-flask w-6"></i>
-                <span class="font-medium">Backtest</span>
+                <span style="font-size: 14px;">Backtest</span>
             </a>
-            <a href="{{ url_for('options.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg text-slate-400 {% if request.endpoint and request.endpoint.startswith('options') and not request.endpoint.startswith('options_wall') %}active{% endif %}">
+            <a href="{{ url_for('options.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg {% if request.endpoint and request.endpoint.startswith('options') and not request.endpoint.startswith('options_wall') %}active{% endif %}">
                 <i class="fas fa-chart-bar w-6"></i>
-                <span class="font-medium">Options</span>
+                <span style="font-size: 14px;">Options</span>
             </a>
-            <a href="{{ url_for('options_wall.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg text-slate-400 {% if request.endpoint and request.endpoint.startswith('options_wall') %}active{% endif %}">
+            <a href="{{ url_for('options_wall.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg {% if request.endpoint and request.endpoint.startswith('options_wall') %}active{% endif %}">
                 <i class="fas fa-layer-group w-6"></i>
-                <span class="font-medium">Options Wall</span>
+                <span style="font-size: 14px;">Options Wall</span>
             </a>
-            <a href="{{ url_for('ts_basis_daily.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg text-slate-400 {% if request.endpoint and request.endpoint.startswith('ts_basis_daily') %}active{% endif %}">
+            <a href="{{ url_for('ts_basis_daily.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg {% if request.endpoint and request.endpoint.startswith('ts_basis_daily') %}active{% endif %}">
                 <i class="fas fa-bolt w-6"></i>
-                <span class="font-medium">TS Basis Daily</span>
+                <span style="font-size: 14px;">TS Basis Daily</span>
             </a>
-            <a href="{{ url_for('ops.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg text-slate-400 {% if request.endpoint == 'ops.index' %}active{% endif %}">
+            <a href="{{ url_for('ops.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg {% if request.endpoint == 'ops.index' %}active{% endif %}">
                 <i class="fas fa-microchip w-6"></i>
-                <span class="font-medium">Operations</span>
+                <span style="font-size: 14px;">Operations</span>
             </a>
         </nav>
 
-        <div class="p-4 border-t border-slate-800">
+        <div class="p-4" style="border-top: 1px solid var(--line);">
             {% if session.username %}
-            <div class="flex items-center space-x-3 p-3 bg-slate-800/50 rounded-xl mb-3">
-                <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-indigo-600 flex items-center justify-center text-xs font-bold text-white uppercase">
+            <div class="flex items-center gap-3 p-3 rounded-xl mb-3" style="background: #EFECE6;">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center uppercase" style="background: var(--ink); color: #FFFFFF; font-size: 11px; font-weight: 600;">
                     {{ session.username[:2] }}
                 </div>
                 <div class="flex-1 overflow-hidden">
-                    <p class="text-sm font-semibold text-white truncate">{{ session.username }}</p>
-                    <p class="text-[10px] text-slate-400 uppercase">Trader</p>
+                    <p class="truncate" style="font-size: 13.5px; color: var(--ink);">{{ session.username }}</p>
+                    <p style="font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint);">Trader</p>
                 </div>
             </div>
-            <a href="{{ url_for('auth.logout') }}" class="flex items-center px-4 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors">
+            <a href="{{ url_for('auth.logout') }}" class="flex items-center px-4 py-2 rounded-lg transition-colors" style="font-size: 13px; color: var(--red);">
                 <i class="fas fa-sign-out-alt w-6"></i>
                 <span>Sign Out</span>
             </a>
             {% else %}
-            <a href="{{ url_for('auth.login') }}" class="flex items-center px-4 py-2 text-sm text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-colors">
+            <a href="{{ url_for('auth.login') }}" class="flex items-center px-4 py-2 rounded-lg transition-colors" style="font-size: 13px; color: var(--teal);">
                 <i class="fas fa-sign-in-alt w-6"></i>
                 <span>Login</span>
             </a>
@@ -93,14 +205,14 @@
 
     <!-- Main Content -->
     <div class="flex-1 ml-64 flex flex-col min-h-screen">
-        <header class="h-16 bg-[#0f172a]/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-10 flex items-center justify-between px-8">
-            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest">
+        <header class="h-16 sticky top-0 z-10 flex items-center justify-between px-8" style="background: rgba(247,245,242,0.88); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line);">
+            <h2 class="mono" style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint);">
                 {% block breadcrumb %}{% endblock %}
             </h2>
-            <div class="flex items-center space-x-4">
-                <div id="live-indicator" class="flex items-center space-x-2 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-                    <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                    <span class="text-[10px] font-bold text-emerald-500 uppercase">System Live</span>
+            <div class="flex items-center gap-4">
+                <div id="live-indicator" class="flex items-center gap-2 px-3 py-1 rounded-full" style="background: rgba(25,122,90,0.09); border: 1px solid rgba(25,122,90,0.20);">
+                    <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background: var(--green);"></span>
+                    <span style="font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--green);">System Live</span>
                 </div>
             </div>
         </header>
@@ -109,8 +221,8 @@
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                     {% for category, message in messages %}
-                        <div class="mb-6 p-4 rounded-xl glass border-l-4 {% if category == 'error' %}border-red-500 text-red-200{% else %}border-blue-500 text-blue-200{% endif %} flex items-center">
-                            <i class="fas {% if category == 'error' %}fa-exclamation-circle{% else %}fa-info-circle{% endif %} mr-3"></i>
+                        <div class="mb-6 p-4 rounded-xl flex items-center" style="background: {% if category == 'error' %}#FEF7F4{% else %}#FBFAF8{% endif %}; border: 1px solid {% if category == 'error' %}#F5DDD4{% else %}var(--line){% endif %}; border-left: 3px solid {% if category == 'error' %}var(--red){% else %}var(--teal){% endif %}; color: var(--body); font-size: 13.5px;">
+                            <i class="fas {% if category == 'error' %}fa-exclamation-circle{% else %}fa-info-circle{% endif %} mr-3" style="color: {% if category == 'error' %}var(--red){% else %}var(--teal){% endif %};"></i>
                             {{ message }}
                         </div>
                     {% endfor %}
@@ -121,73 +233,64 @@
         </main>
 
         <!-- Status Bar -->
-        <div id="status-bar" class="fixed bottom-0 left-64 right-0 h-16 bg-[#1e293b] border-t border-slate-700 flex items-center px-6 z-50">
-            <!-- Market Status Indicator -->
+        <div id="status-bar" class="fixed bottom-0 left-64 right-0 h-14 flex items-center px-6 z-50" style="background: #FBFAF8; border-top: 1px solid var(--line);">
             <div class="flex items-center mr-6">
-                <div id="market-status-dot" class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></div>
-                <span id="market-status-label" class="text-xs text-slate-300">Market Open</span>
+                <div id="market-status-dot" class="w-2 h-2 rounded-full mr-2" style="background: var(--green);"></div>
+                <span id="market-status-label" style="font-size: 12px; color: var(--body);">Market Open</span>
             </div>
-            
-            <!-- Broker/WS Status Indicator -->
+
             <div class="flex items-center mr-6">
-                <div id="broker-status-dot" class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></div>
-                <span id="broker-status-label" class="text-xs text-slate-300">Connected</span>
+                <div id="broker-status-dot" class="w-2 h-2 rounded-full mr-2" style="background: var(--green);"></div>
+                <span id="broker-status-label" style="font-size: 12px; color: var(--body);">Connected</span>
             </div>
-            
-            <!-- DB Status Indicator -->
+
             <div class="flex items-center mr-6">
-                <div id="db-status-dot" class="w-2 h-2 rounded-full bg-emerald-500 mr-2"></div>
-                <span id="db-status-label" class="text-xs text-slate-300">Connected</span>
+                <div id="db-status-dot" class="w-2 h-2 rounded-full mr-2" style="background: var(--green);"></div>
+                <span id="db-status-label" style="font-size: 12px; color: var(--body);">Connected</span>
             </div>
-            
-            <!-- Error Count Badge -->
+
             <div class="flex items-center mr-6">
-                <span class="text-xs text-slate-400 mr-1">Errors:</span>
-                <span id="error-count-badge" class="text-xs font-bold text-red-400 bg-red-900/50 px-2 py-1 rounded">0</span>
+                <span class="mr-2" style="font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint);">Errors</span>
+                <span id="error-count-badge" class="mono px-2 py-0.5 rounded" style="font-size: 12px; color: var(--red); background: rgba(180,71,47,0.10);">0</span>
             </div>
-            
-            <!-- Spacer -->
+
             <div class="flex-1"></div>
-            
-            <!-- Logs Toggle Button -->
-            <button id="logs-toggle" class="flex items-center text-xs text-slate-300 hover:text-slate-100 transition-colors">
+
+            <button id="logs-toggle" class="flex items-center transition-colors" style="font-size: 12.5px; color: var(--body);">
                 <span class="mr-2">Logs</span>
                 <i id="logs-chevron" class="fas fa-chevron-up"></i>
             </button>
         </div>
-        
+
         <!-- Log Viewer Drawer -->
-        <div id="log-drawer" class="fixed bottom-16 left-64 right-0 bg-[#0f172a] border-t border-slate-700 z-40 transform translate-y-full transition-transform duration-300 ease-in-out max-h-96" style="height: 380px;">
-            <!-- Toolbar -->
-            <div class="p-3 bg-[#1e293b] border-b border-slate-700 flex items-center space-x-3">
-                <select id="level-filter" class="bg-slate-800 text-slate-200 text-xs px-2 py-1 rounded border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+        <div id="log-drawer" class="fixed bottom-14 left-64 right-0 z-40 transform translate-y-full transition-transform duration-300 ease-in-out max-h-96" style="height: 380px; background: #FFFFFF; border-top: 1px solid var(--line);">
+            <div class="p-3 flex items-center gap-3" style="background: #FBFAF8; border-bottom: 1px solid var(--line);">
+                <select id="level-filter" class="px-2 py-1 rounded focus:outline-none" style="font-size: 12px; border: 1px solid var(--line);">
                     <option value="">All Levels</option>
                     <option value="DEBUG">Debug</option>
                     <option value="INFO">Info</option>
                     <option value="WARNING">Warning</option>
                     <option value="ERROR">Error</option>
                 </select>
-                
-                <select id="source-filter" class="bg-slate-800 text-slate-200 text-xs px-2 py-1 rounded border border-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-500">
+
+                <select id="source-filter" class="px-2 py-1 rounded focus:outline-none" style="font-size: 12px; border: 1px solid var(--line);">
                     <option value="">All Sources</option>
                 </select>
-                
-                <button id="pause-btn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-700">
+
+                <button id="pause-btn" class="px-3 py-1 rounded" style="font-size: 12px; background: #FFFFFF; border: 1px solid var(--line); color: var(--body);">
                     Pause
                 </button>
-                
-                <button id="auto-scroll-btn" class="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded">
+
+                <button id="auto-scroll-btn" class="px-3 py-1 rounded" style="font-size: 12px; background: var(--ink); color: #FFFFFF;">
                     Auto Scroll ON
                 </button>
-                
-                <button id="refresh-btn" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded border border-slate-700">
+
+                <button id="refresh-btn" class="px-3 py-1 rounded" style="font-size: 12px; background: #FFFFFF; border: 1px solid var(--line); color: var(--body);">
                     <i class="fas fa-sync-alt"></i>
                 </button>
             </div>
-            
-            <!-- Log Content Area -->
-            <div id="log-content" class="p-3 font-mono text-xs overflow-y-auto max-h-80" style="max-height: 320px;">
-                <!-- Log entries will be appended here -->
+
+            <div id="log-content" class="p-3 mono overflow-y-auto" style="font-size: 12px; max-height: 320px;">
             </div>
         </div>
     </div>
@@ -199,7 +302,7 @@
         let isAutoScroll = true;
         let logEntriesCount = 0;
         let eventSource = null;
-        
+
         // DOM Elements
         const statusBar = document.getElementById('status-bar');
         const logDrawer = document.getElementById('log-drawer');
@@ -212,46 +315,31 @@
         const autoScrollBtn = document.getElementById('auto-scroll-btn');
         const refreshBtn = document.getElementById('refresh-btn');
         const errorCountBadge = document.getElementById('error-count-badge');
-        
-        // Initialize the log viewer
+
         document.addEventListener('DOMContentLoaded', function() {
-            // Load available log files into source filter
             loadAvailableLogFiles();
-            
-            // Start polling for status updates
             pollStatusBar();
-            
-            // Connect to SSE for live logs
             connectLogSSE();
-            
-            // Set up event listeners
             setupEventListeners();
         });
-        
+
         function setupEventListeners() {
-            // Toggle log drawer
             logsToggle.addEventListener('click', toggleLogDrawer);
-            
-            // Filter changes
             levelFilter.addEventListener('change', refreshLogs);
             sourceFilter.addEventListener('change', refreshLogs);
-            
-            // Control buttons
             pauseBtn.addEventListener('click', togglePause);
             autoScrollBtn.addEventListener('click', toggleAutoScroll);
             refreshBtn.addEventListener('click', refreshLogs);
         }
-        
+
         function toggleLogDrawer() {
             isLogDrawerOpen = !isLogDrawerOpen;
-            
+
             if (isLogDrawerOpen) {
                 logDrawer.classList.remove('translate-y-full');
                 logDrawer.classList.add('translate-y-0');
                 logsChevron.classList.remove('fa-chevron-up');
                 logsChevron.classList.add('fa-chevron-down');
-                
-                // Refresh logs when opening drawer
                 refreshLogs();
             } else {
                 logDrawer.classList.remove('translate-y-0');
@@ -260,63 +348,60 @@
                 logsChevron.classList.add('fa-chevron-up');
             }
         }
-        
+
         function togglePause() {
             isPaused = !isPaused;
             pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
-            pauseBtn.classList.toggle('bg-blue-600', isPaused);
-            pauseBtn.classList.toggle('bg-slate-800', !isPaused);
+            pauseBtn.style.background = isPaused ? '#14181F' : '#FFFFFF';
+            pauseBtn.style.color = isPaused ? '#FFFFFF' : '#4C525C';
         }
-        
+
         function toggleAutoScroll() {
             isAutoScroll = !isAutoScroll;
             autoScrollBtn.textContent = isAutoScroll ? 'Auto Scroll ON' : 'Auto Scroll OFF';
-            autoScrollBtn.classList.toggle('bg-blue-600', isAutoScroll);
-            autoScrollBtn.classList.toggle('bg-slate-800', !isAutoScroll);
+            autoScrollBtn.style.background = isAutoScroll ? '#14181F' : '#FFFFFF';
+            autoScrollBtn.style.color = isAutoScroll ? '#FFFFFF' : '#4C525C';
+            autoScrollBtn.style.border = isAutoScroll ? '0' : '1px solid #E6E2DC';
         }
-        
+
         function pollStatusBar() {
-            // Fetch status info and update indicators
             fetch('/ops/api/status')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Update market status
-                        const marketStatus = data.metrics?.market_status || 'open'; // default assumption
+                        const marketStatus = data.metrics?.market_status || 'open';
                         const marketDot = document.getElementById('market-status-dot');
                         const marketLabel = document.getElementById('market-status-label');
-                        
+
                         if (marketStatus.toLowerCase().includes('open')) {
-                            marketDot.className = 'w-2 h-2 rounded-full bg-emerald-500 mr-2';
+                            marketDot.style.background = '#197A5A';
                             marketLabel.textContent = 'Market Open';
                         } else {
-                            marketDot.className = 'w-2 h-2 rounded-full bg-rose-500 mr-2';
+                            marketDot.style.background = '#B4472F';
                             marketLabel.textContent = 'Market Closed';
                         }
-                        
-                        // Update broker status
+
                         const brokerConnected = data.health?.broker_connected || false;
                         const brokerDot = document.getElementById('broker-status-dot');
                         const brokerLabel = document.getElementById('broker-status-label');
-                        
+
                         if (brokerConnected) {
-                            brokerDot.className = 'w-2 h-2 rounded-full bg-emerald-500 mr-2';
+                            brokerDot.style.background = '#197A5A';
                             brokerLabel.textContent = 'Connected';
                         } else {
-                            brokerDot.className = 'w-2 h-2 rounded-full bg-rose-500 mr-2';
+                            brokerDot.style.background = '#B4472F';
                             brokerLabel.textContent = 'Disconnected';
                         }
-                        
-                        // Update DB status
+
                         const dbConnected = data.health?.db_connected || false;
                         const dbDot = document.getElementById('db-status-dot');
                         const dbLabel = document.getElementById('db-status-label');
-                        
+
                         if (dbConnected) {
-                            dbDot.className = 'w-2 h-2 rounded-full bg-emerald-500 mr-2';
+                            dbDot.style.background = '#197A5A';
                             dbLabel.textContent = 'Connected';
                         } else {
-                            dbDot.className = 'w-2 h-2 rounded-full bg-rose-500 mr-2';
+                            dbDot.style.background = '#B4472F';
                             dbLabel.textContent = 'Disconnected';
                         }
                     }
@@ -324,45 +409,36 @@
                 .catch(error => {
                     console.error('Error fetching status:', error);
                 });
-            
-            // Fetch error count
+
             fetch('/ops/api/error-count')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
                         errorCountBadge.textContent = data.error_count;
-                        // Update badge color based on error count
-                        errorCountBadge.className = 'text-xs font-bold text-red-400 bg-red-900/50 px-2 py-1 rounded';
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching error count:', error);
                 });
-            
-            // Poll again in 15 seconds
+
             setTimeout(pollStatusBar, 15000);
         }
-        
+
         function refreshLogs() {
             if (isPaused) return;
-            
-            const selectedFile = sourceFilter.value || 'flask_app.log'; // default log file
+
+            const selectedFile = sourceFilter.value || 'flask_app.log';
             const selectedLevel = levelFilter.value;
-            
+
             fetch(`/ops/api/logs?file=${selectedFile}&level=${selectedLevel}&lines=300`)
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Clear current logs
                         logContent.innerHTML = '';
                         logEntriesCount = 0;
-                        
-                        // Add new log entries
                         data.entries.forEach(entry => {
                             appendLogEntry(entry);
                         });
-                        
-                        // Scroll to bottom if auto-scroll is enabled
                         if (isAutoScroll) {
                             logContent.scrollTop = logContent.scrollHeight;
                         }
@@ -372,32 +448,26 @@
                     console.error('Error refreshing logs:', error);
                 });
         }
-        
+
         function connectLogSSE() {
-            // Close existing connection if any
             if (eventSource) {
                 eventSource.close();
             }
-            
-            // Connect to SSE endpoint
+
             eventSource = new EventSource('/api/telemetry/stream');
-            
+
             eventSource.onmessage = function(event) {
                 try {
                     const data = JSON.parse(event.data);
-                    
-                    // Check if this is a log message
+
                     if (data.type && data.type.startsWith('telemetry.logs.')) {
-                        // Apply filters before adding to display
                         const selectedLevel = levelFilter.value;
                         const selectedSource = sourceFilter.value;
-                        
-                        // Filter by level if specified
+
                         if (selectedLevel && data.level !== selectedLevel) {
                             return;
                         }
-                        
-                        // Add to log display if not paused
+
                         if (!isPaused) {
                             appendLogEntry({
                                 timestamp: new Date().toISOString(),
@@ -411,62 +481,52 @@
                     console.error('Error processing SSE message:', e);
                 }
             };
-            
+
             eventSource.onerror = function(event) {
                 console.error('SSE connection error:', event);
             };
         }
-        
+
         function appendLogEntry(entry) {
-            // Cap the number of displayed entries to 500
             if (logEntriesCount >= 500) {
-                // Remove the first child element
                 if (logContent.firstChild) {
                     logContent.removeChild(logContent.firstChild);
                 } else {
-                    // If somehow there are no children but count is high, reset counter
                     logEntriesCount = 0;
                 }
             } else {
                 logEntriesCount++;
             }
-            
-            // Create log entry element
+
             const logElement = document.createElement('div');
-            logElement.className = `py-1 border-b border-slate-800 log-${entry.level}`;
-            
-            // Format timestamp
+            logElement.className = `py-1 log-${entry.level}`;
+            logElement.style.borderBottom = '1px solid #F5F2ED';
+
             const timestamp = new Date(entry.timestamp).toLocaleTimeString();
-            
-            // Add content with appropriate styling based on log level
+
             logElement.innerHTML = `
-                <span class="text-slate-500">${timestamp}</span>
-                <span class="mx-2 text-slate-600">|</span>
-                <span class="text-cyan-400">${entry.source}</span>
-                <span class="mx-2 text-slate-600">|</span>
+                <span style="color:#A9A49A">${timestamp}</span>
+                <span class="mx-2" style="color:#DCD7CF">|</span>
+                <span style="color:#0E6F63">${entry.source}</span>
+                <span class="mx-2" style="color:#DCD7CF">|</span>
                 <span class="log-${entry.level}">${entry.level}</span>
-                <span class="mx-2 text-slate-600">|</span>
-                <span>${entry.message}</span>
+                <span class="mx-2" style="color:#DCD7CF">|</span>
+                <span style="color:#14181F">${entry.message}</span>
             `;
-            
-            // Add to log content
+
             logContent.appendChild(logElement);
-            
-            // Scroll to bottom if auto-scroll is enabled
+
             if (isAutoScroll) {
                 logContent.scrollTop = logContent.scrollHeight;
             }
         }
-        
+
         function loadAvailableLogFiles() {
             fetch('/ops/api/log-files')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Clear existing options except the first one (placeholder)
                         sourceFilter.innerHTML = '<option value="">All Sources</option>';
-                        
-                        // Add log files as options
                         data.log_files.forEach(file => {
                             const option = document.createElement('option');
                             option.value = file;
@@ -480,14 +540,6 @@
                 });
         }
     </script>
-    
-    <style>
-        .log-ERROR { color: #ef4444; } /* red-500 */
-        .log-WARNING { color: #f59e0b; } /* amber-500 */
-        .log-INFO { color: #94a3b8; } /* slate-400 */
-        .log-DEBUG { color: #64748b; } /* slate-500 */
-        .pb-24 { padding-bottom: 6rem; } /* Add padding to prevent content from hiding behind status bar */
-    </style>
 
     {% block scripts %}{% endblock %}
 </body>
