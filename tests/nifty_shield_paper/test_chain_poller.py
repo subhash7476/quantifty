@@ -137,6 +137,30 @@ def test_bootstrap_empty_cache_check_available(tmp_path):
     assert src.marks(LEG_SYMBOLS) == {}      # valid empty -> {}, not a raise
 
 
+def test_write_synthesizes_tradingsymbol_when_absent(tmp_path):
+    """The Upstox V2 chain payload omits `tradingsymbol` on option rows; the
+    poller must synthesize it (NIFTY{DD}{MON}{YY}{STRIKE}{CE|PE}) so the marks
+    source can key struck legs — the 2026-08-14 entry-skip root cause."""
+    poller = _make_poller(tmp_path)
+    poller.bootstrap()
+    rows = []
+    for strike in _STRIKES:
+        for ot in ("CE", "PE"):
+            rows.append(OptionChainRow(
+                strike=float(strike), option_type=ot,
+                instrument_key=f"NSE_INDEX|{ot}{strike}",
+                tradingsymbol="",             # empty — the exact bug
+                expiry=EXPIRY, ltp=100.0, oi=100, volume=10,
+                iv=0.14, delta=0.5, lot_size=75, underlying_ltp=24100.0,
+            ))
+    poller.write_cycle(rows, EXPIRY, underlying=UNDERLYING)
+
+    src = ChainSnapshotMarksSource(str(poller.cache_path))
+    expected = [f"NIFTY11AUG26{s}{ot}" for s in _STRIKES for ot in ("CE", "PE")]
+    marks = src.marks(expected)
+    assert len(marks) == len(expected)        # every synthesized leg priceable
+
+
 def test_bootstrap_rebuilds_corrupt_cache(tmp_path):
     poller = _make_poller(tmp_path)
     poller.cache_path.parent.mkdir(parents=True, exist_ok=True)

@@ -48,7 +48,7 @@ import signal
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
@@ -121,6 +121,24 @@ INSERT INTO option_chain_snapshot (
 """
 
 
+def _synthesize_tradingsymbol(underlying: str, expiry: str,
+                              strike: float, option_type: str) -> str:
+    """Build the NSE descriptive tradingsymbol (e.g. NIFTY18AUG2624350CE).
+
+    The Upstox V2 option-chain payload does not carry a `tradingsymbol` on each
+    option row, so the poller synthesizes it from expiry + strike + type. The
+    format MUST byte-match the strategy's `_build_symbol`
+    (NIFTY{DD}{MON}{YY}{STRIKE}{CE|PE}) so the marks source can key struck legs.
+    """
+    short = "NIFTY" if "Nifty 50" in underlying else "NIFTY"
+    try:
+        d = date.fromisoformat(str(expiry).split(" ")[0])
+    except ValueError:
+        d = date.today()
+    return f"{short}{d.strftime('%d')}{d.strftime('%b').upper()}{d.strftime('%y')}" \
+           f"{int(float(strike))}{option_type}"
+
+
 def _init_snapshot_table(conn) -> None:
     """Mirror OptionsProvider._init_db: sequence + table + indexes."""
     conn.execute("CREATE SEQUENCE IF NOT EXISTS snapshot_id_seq START 1")
@@ -145,13 +163,23 @@ def _pid_alive(pid: int) -> bool:
     (CPython maps it to TerminateProcess, which would kill the other process)."""
     if os.name == "nt":
         import ctypes
+        from ctypes import wintypes
         if hasattr(ctypes, "windll"):
-            SYNCHRONIZE = 0x00100000
-            handle = ctypes.windll.kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+            # OpenProcess(SYNCHRONIZE) returns a non-null handle for a *zombie*
+            # process, so a bare "did OpenProcess succeed" check wrongly reports a
+            # dead PID as alive and the poller refuses to restart. GetExitCodeProcess
+            # == STILL_ACTIVE is the reliable liveness test.
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
+            handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
             if not handle:
                 return False
+            exit_code = wintypes.DWORD()
+            ok = ctypes.windll.kernel32.GetExitCodeProcess(
+                handle, ctypes.byref(exit_code))
             ctypes.windll.kernel32.CloseHandle(handle)
-            return True
+            return bool(ok) and exit_code.value == STILL_ACTIVE
     try:
         os.kill(pid, 0)
         return True
@@ -295,10 +323,12 @@ class ChainPoller:
         try:
             _init_snapshot_table(con)
             for row in rows:
+                tradingsymbol = row.tradingsymbol or _synthesize_tradingsymbol(
+                    underlying, row.expiry, row.strike, row.option_type)
                 con.execute(_INSERT_SQL, [
                     now, underlying,
                     row.expiry, row.strike, row.option_type,
-                    row.instrument_key, row.tradingsymbol, row.ltp,
+                    row.instrument_key, tradingsymbol, row.ltp,
                     row.open, row.high, row.low, row.close,
                     row.oi if row.oi else 0,
                     row.oi_change if row.oi_change else 0,

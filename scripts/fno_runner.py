@@ -122,6 +122,7 @@ def build_runner(
     rebalance_hook_factory: Optional[Callable[[Any], Any]] = None,
     publish_hook_factory: Optional[Callable[[Any], Optional[Callable]]] = None,
     publish_checkpoint_time: Optional[time] = None,
+    publish_checkpoint_deadline: Optional[time] = None,
     handler_factory: Optional[Callable[..., Any]] = None,
     watchdog_factory: Optional[Callable[[Any], Any]] = None,
     mode: Optional[Mode] = None,
@@ -315,4 +316,5 @@ def build_runner(
         rebalance_hook=rebalance_hook,
         publish_hook=publish_hook,
         publish_checkpoint_time=publish_checkpoint_time,
+        publish_checkpoint_deadline=publish_checkpoint_deadline,
     )

@@ -14,7 +14,7 @@ the regime fact is the model boundary (D2) — the DayType model never runs here
 from __future__ import annotations
 
 import uuid
-from datetime import date, time
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -26,6 +26,11 @@ from strategies.nifty_shield_v1.config import STRATEGY_ID
 from strategies.nifty_shield_v1.facts import RegimeFactsReader
 
 _ENTRY_HOUR, _ENTRY_MINUTE = 13, 0
+# Live fact-publication tolerance: the entry may fire on any bar from the 13:00
+# checkpoint through 13:00 + this many minutes, so a publisher that needs a few
+# minutes to compute the 13pm fact can still deliver it before the session is
+# skipped. Offline, the fact is already present at 13:00, so this is a no-op.
+_ENTRY_WINDOW_MINUTES = 10
 _GROUP_NS = uuid.NAMESPACE_URL
 
 
@@ -45,6 +50,12 @@ class NiftyShieldSignalSource(SignalSource):
         # already present, so the per-session query is a provable no-op.
         self._reader = RegimeFactsReader(self._cfg["facts_db_path"])
 
+    def _entry_window_end(self) -> time:
+        """Last bar time (inclusive) on which an entry may fire."""
+        window_minutes = int(self._cfg.get("entry_window_minutes", _ENTRY_WINDOW_MINUTES))
+        return (datetime.combine(date.min, time(_ENTRY_HOUR, _ENTRY_MINUTE))
+                + timedelta(minutes=window_minutes)).time()
+
     def on_bar(self, bar: OHLCVBar) -> List[SignalEvent]:
         bar_dt = bar.timestamp
         bar_date = bar_dt.date() if hasattr(bar_dt, "date") else None
@@ -56,15 +67,20 @@ class NiftyShieldSignalSource(SignalSource):
             self._session_date = bar_date
             self._entered_today = False
 
-        # Only the 13:00 checkpoint bar of a session can trigger.
+        # Only within the entry window (13:00 -> 13:00 + window) of a session can
+        # a structure be emitted. Before the window: nothing. After it expires:
+        # latch so the session is skipped (no fact ever arrived in time).
         if self._entered_today or bar_dt.time() < time(_ENTRY_HOUR, _ENTRY_MINUTE):
             return []
-        if bar_dt.time() != time(_ENTRY_HOUR, _ENTRY_MINUTE):
+        if bar_dt.time() > self._entry_window_end():
+            self._entered_today = True
             return []
 
         fact = self._reader.fact(bar_date)
         if fact is None:
-            self._entered_today = True
+            # Fact not published yet — keep waiting within the window (do NOT
+            # latch): the reader re-queries the store on a miss, so a fact that
+            # arrives a few bars later is seen on a subsequent bar.
             return []
 
         # DS2-3: gate on the intraday 13:00 VIX when the row carries it (live),

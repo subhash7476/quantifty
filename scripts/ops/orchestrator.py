@@ -90,6 +90,10 @@ class Deps:
     market_open: Callable[[], bool]
     sleep: Callable[[float], None]
     now: Callable[[], datetime]
+    # Diagnostic only: human string naming the currently-failing BLOCK checks
+    # (e.g. "marks_warm: ...; live_vix: ..."). Logged in the warm-up loops so a
+    # timeout:warmup names the cold feed instead of failing silently.
+    gate_status: Callable[[], str] = lambda: ""
 
 
 def _ensure(deps: Deps, name: str) -> None:
@@ -140,9 +144,17 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     #     but-empty marks cache prices nothing, and a cold VIX feed skips the
     #     13:00 fact). A single cold feed holds the whole sequence.
     waited = 0.0
-    while not (deps.marks_warm() and deps.vix_warm()):
+    while True:
+        marks_ok, vix_ok = deps.marks_warm(), deps.vix_warm()
+        if marks_ok and vix_ok:
+            break
         if waited >= warmup_timeout_s:
+            _logger.warning("warm-up timeout (feed cold) after ~%ss counted — "
+                            "marks_warm=%s vix_warm=%s | %s",
+                            waited, marks_ok, vix_ok, deps.gate_status())
             return "timeout:warmup"
+        _logger.info("warm-up waiting — marks_warm=%s vix_warm=%s | %s",
+                     marks_ok, vix_ok, deps.gate_status())
         deps.sleep(poll_s)
         waited += poll_s
 
@@ -155,9 +167,13 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     waited = 0.0
     while deps.preflight() != "GO":
         if deps.marks_warm() and deps.vix_warm():
+            _logger.warning("preflight blocked while feeds warm — %s", deps.gate_status())
             return "blocked:preflight"
         if waited >= warmup_timeout_s:
+            _logger.warning("warm-up timeout (final gate) after ~%ss counted — %s",
+                            waited, deps.gate_status())
             return "timeout:warmup"
+        _logger.info("final gate waiting (feeds re-cooling) — %s", deps.gate_status())
         deps.sleep(poll_s)
         waited += poll_s
 
@@ -180,19 +196,30 @@ def stop_child(spec: ChildSpec, proc, *, killer=os.kill, term_wait_s: float = SE
     children get a normal terminate()."""
     if spec.new_group:
         sig = signal.CTRL_BREAK_EVENT if os.name == "nt" else signal.SIGTERM
+        signaled = True
         try:
             killer(proc.pid, sig)
         except Exception as exc:  # noqa: BLE001
+            signaled = False
             _logger.warning("signalling %s failed: %s", spec.name, exc)
-        try:
-            proc.wait(timeout=term_wait_s)
-        except Exception:
-            _logger.error("%s did not exit within %ss — escalating to kill",
-                          spec.name, term_wait_s)
+        if not signaled:
+            # A failed signal (e.g. CTRL_BREAK_EVENT cross-console on Windows —
+            # the stop command runs in a different console than the session) can
+            # never trigger a clean stop, so skip the graceful wait and kill now.
             try:
                 proc.kill()
             except Exception:
                 pass
+        else:
+            try:
+                proc.wait(timeout=term_wait_s)
+            except Exception:
+                _logger.error("%s did not exit within %ss — escalating to kill",
+                              spec.name, term_wait_s)
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
     else:
         try:
             proc.terminate()
@@ -274,6 +301,17 @@ def _live_deps(started: dict) -> Deps:
         ctx = preflight.build_context()
         return preflight.check_vix(ctx).ok
 
+    def _gate_status() -> str:
+        """Failing BLOCK-check details for the warm-up log (diagnostic only)."""
+        try:
+            ctx = preflight.build_context()
+            cold = [f"{r.name}: {r.detail}"
+                    for r in preflight.run_preflight(ctx)
+                    if r.tier == "block" and not r.ok]
+            return "; ".join(cold) if cold else "all BLOCK checks GO"
+        except Exception as exc:  # noqa: BLE001 — never let logging break the gate
+            return f"gate_status unavailable: {exc}"
+
     return Deps(
         spawn=_spawn, child_alive=child_alive, token_fresh=_token_fresh,
         open_login=_open_login,
@@ -283,6 +321,7 @@ def _live_deps(started: dict) -> Deps:
         stop_present=lambda: (ROOT / "STOP").exists(),
         market_open=lambda: MarketHours.is_market_open(),
         sleep=time.sleep, now=datetime.now,
+        gate_status=_gate_status,
     )
 
 

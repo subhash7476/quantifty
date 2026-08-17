@@ -197,6 +197,9 @@ def create_app(test_config=None):
     from flask_app.blueprints.ts_basis_daily import ts_basis_daily_bp
     app.register_blueprint(ts_basis_daily_bp)
 
+    from flask_app.blueprints.nifty_shield import nifty_shield_bp
+    app.register_blueprint(nifty_shield_bp)
+
     # Global context processor for templates
     @app.context_processor
     def inject_user_context():

@@ -173,6 +173,10 @@
                 <i class="fas fa-bolt w-6"></i>
                 <span style="font-size: 14px;">TS Basis Daily</span>
             </a>
+            <a href="{{ url_for('nifty_shield.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg {% if request.endpoint and request.endpoint.startswith('nifty_shield') %}active{% endif %}">
+                <i class="fas fa-shield-halved w-6"></i>
+                <span style="font-size: 14px;">NiftyShield</span>
+            </a>
             <a href="{{ url_for('ops.index') }}" class="sidebar-link flex items-center px-4 py-3 rounded-lg {% if request.endpoint == 'ops.index' %}active{% endif %}">
                 <i class="fas fa-microchip w-6"></i>
                 <span style="font-size: 14px;">Operations</span>

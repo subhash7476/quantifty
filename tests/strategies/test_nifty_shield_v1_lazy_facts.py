@@ -102,6 +102,40 @@ def test_reader_requeries_on_miss(tmp_path):
 
 
 # --------------------------------------------------------------------------- #
+# Flexible entry window: wait for a late fact within the window, then latch
+# --------------------------------------------------------------------------- #
+def test_entry_waits_within_window_for_late_fact(tmp_path):
+    # No fact at 13:00; it is published at 13:05. The source must NOT latch a
+    # skip at 13:00 — it waits, and fires on the first bar whose fact is ready.
+    db = tmp_path / "facts.duckdb"
+    _make_facts_db(db, [])
+    source = build_signal_source({"facts_db_path": str(db)})
+    source.on_start()
+    assert source.on_bar(_bar(13, 0)) == []        # no fact — keep waiting
+    assert source.on_bar(_bar(13, 3)) == []        # still no fact
+    _make_facts_db(db, [_fact_row()])              # fact arrives
+    out = source.on_bar(_bar(13, 5))
+    assert out                                     # fired within the window
+    assert all(s.timestamp.time() == time(13, 5) for s in out)
+    source.on_stop()
+
+
+def test_entry_latches_after_window_expiry(tmp_path):
+    # Fact never arrives in time: after the 10-min window the session is latched
+    # and a fact arriving later cannot fire.
+    db = tmp_path / "facts.duckdb"
+    _make_facts_db(db, [])
+    source = build_signal_source({"facts_db_path": str(db)})
+    source.on_start()
+    assert source.on_bar(_bar(13, 0)) == []
+    assert source.on_bar(_bar(13, 10)) == []       # window end is inclusive
+    _make_facts_db(db, [_fact_row()])              # fact arrives too late
+    assert source.on_bar(_bar(13, 11)) == []       # window expired — latched skip
+    assert source.on_bar(_bar(13, 15)) == []       # still latched
+    source.on_stop()
+
+
+# --------------------------------------------------------------------------- #
 # DS2-3: the VIX gate reads vix_at_checkpoint when present, else vix_close
 # --------------------------------------------------------------------------- #
 def test_vix_at_checkpoint_gates_skip(tmp_path):
