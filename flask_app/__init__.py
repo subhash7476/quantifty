@@ -191,6 +191,9 @@ def create_app(test_config=None):
     from flask_app.blueprints.options import options_bp
     app.register_blueprint(options_bp)
 
+    from flask_app.blueprints.options_wall import options_wall_bp
+    app.register_blueprint(options_wall_bp)
+
     from flask_app.blueprints.ts_basis_daily import ts_basis_daily_bp
     app.register_blueprint(ts_basis_daily_bp)
 
