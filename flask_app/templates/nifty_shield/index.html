@@ -631,6 +631,10 @@ function paintLegMarks() {
 async function loadLegMarks(gid) {
     try {
         const resp = await fetch('/nifty-shield/api/marks/legs?g=' + encodeURIComponent(gid));
+        if (!resp.ok) {
+            console.error('Leg marks endpoint returned', resp.status);
+            return;
+        }
         const data = await resp.json();
         state.legMarks = data.marks || {};
         state.legMarksTs = data.snapshot_ts || null;
@@ -713,7 +717,7 @@ function openPanel(s) {
     document.getElementById('ns-scrim').classList.add('on');
 
     paintLegMarks();
-    if (state.live && state.live.market_open) {
+    if (s.group_id) {
         loadLegMarks(s.group_id);
         state.legTimer = setInterval(() => loadLegMarks(s.group_id), 5000);
     }

@@ -212,3 +212,54 @@ def test_marks_and_live_endpoints_respond(monkeypatch, tmp_path):
     live = client.get("/nifty-shield/api/live")
     assert live.status_code == 200
     assert "stop_present" in live.get_json()
+
+
+def test_marks_legs_endpoint_returns_latest_snapshot_marks(monkeypatch, tmp_path):
+    _patch_root(monkeypatch, tmp_path)
+    _make_window(tmp_path)  # ENTRY_MARGIN g1 leg_symbols NIFTY18AUG2624350CE/PE
+
+    chain = tmp_path / "chain_cache.duckdb"
+    con = duckdb.connect(str(chain))
+    con.execute("CREATE SEQUENCE IF NOT EXISTS snapshot_id_seq START 1")
+    con.execute(
+        "CREATE TABLE option_chain_snapshot ("
+        "snapshot_id INTEGER DEFAULT nextval('snapshot_id_seq'), "
+        "snapshot_timestamp TIMESTAMP NOT NULL, underlying_symbol VARCHAR, "
+        "expiry_date VARCHAR, strike_price DOUBLE, option_type VARCHAR, "
+        "instrument_key VARCHAR, tradingsymbol VARCHAR, ltp DOUBLE, iv DOUBLE, "
+        "lot_size INTEGER, underlying_ltp DOUBLE)")
+    ts = "2026-08-13 13:30:00"
+    con.execute(
+        "INSERT INTO option_chain_snapshot "
+        "(snapshot_timestamp, underlying_symbol, expiry_date, strike_price, "
+        "option_type, instrument_key, tradingsymbol, ltp, iv, lot_size, underlying_ltp) "
+        "VALUES (?, 'NSE_INDEX|Nifty 50', '2026-08-18', 24350, 'CE', 'k1', "
+        "'NIFTY18AUG2624350CE', 210.5, 12.3, 75, 24300.0),"
+        "(?, 'NSE_INDEX|Nifty 50', '2026-08-18', 24350, 'PE', 'k2', "
+        "'NIFTY18AUG2624350PE', 188.0, 11.9, 75, 24300.0)",
+        [ts, ts])
+    con.close()
+    monkeypatch.setattr(ns, "CHAIN_DB", chain)
+
+    client = _client()
+    resp = client.get("/nifty-shield/api/marks/legs?g=g1")
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["group_id"] == "g1"
+    assert set(payload["marks"]) == {"NIFTY18AUG2624350CE", "NIFTY18AUG2624350PE"}
+    assert payload["marks"]["NIFTY18AUG2624350CE"]["ltp"] == 210.5
+    assert payload["snapshot_ts"] is not None
+
+    # unknown group -> 400
+    assert client.get("/nifty-shield/api/marks/legs").status_code == 400
+
+
+def test_marks_legs_endpoint_empty_cache_is_graceful(monkeypatch, tmp_path):
+    _patch_root(monkeypatch, tmp_path)
+    _make_window(tmp_path)
+    client = _client()
+    resp = client.get("/nifty-shield/api/marks/legs?g=g1")
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert payload["marks"] == {}
+    assert payload["snapshot_ts"] is None
