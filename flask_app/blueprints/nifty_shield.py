@@ -460,6 +460,80 @@ def api_marks():
     return jsonify(_chain_summary())
 
 
+def _leg_symbols_for(group_id: str) -> List[str]:
+    """Leg tradingsymbols for one structure group, read from the journal's
+    ENTRY_MARGIN / ENTRY_SKIPPED metadata (the same source _merged_structures
+    uses). Returns [] if the group is unknown or has no legs."""
+    events = _read_jsonl(DATA_ROOT / "journal.jsonl")
+    for e in reversed(events):
+        md = e.get("metadata") or {}
+        if md.get("group_id") == group_id and e.get("event_type") in (
+                "ENTRY_MARGIN", "ENTRY_SKIPPED"):
+            return list(md.get("leg_symbols", []) or [])
+    return []
+
+
+def _leg_marks(symbols: List[str]) -> "tuple[Dict[str, dict], Optional[str]]":
+    """Latest-snapshot LTP/IV/lot for the given tradingsymbols, keyed by the
+    chain cache's `tradingsymbol` (which equals the strategy's leg symbols).
+    Returns (marks_dict, snapshot_ts). A fresh read_only connection per call
+    keeps this safe under the poller's DuckDB cross-process lock."""
+    out: Dict[str, dict] = {}
+    ts: Optional[str] = None
+    if not symbols or not CHAIN_DB.exists():
+        return out, ts
+    placeholders = ",".join("?" for _ in symbols)
+    for _ in range(3):
+        con = None
+        try:
+            con = duckdb.connect(str(CHAIN_DB), read_only=True)
+            ts = con.execute(
+                "SELECT MAX(snapshot_timestamp) FROM option_chain_snapshot"
+            ).fetchone()[0]
+            if ts is None:
+                con.close()
+                return out, ts
+            rows = con.execute(
+                "SELECT tradingsymbol, ltp, iv, lot_size, underlying_ltp "
+                "FROM option_chain_snapshot WHERE snapshot_timestamp = ? "
+                f"AND tradingsymbol IN ({placeholders})", [ts, *symbols]).fetchall()
+            con.close()
+            ts = str(ts)
+            for sym, ltp, iv, lot, und in rows:
+                out[sym] = {
+                    "ltp": float(ltp) if ltp is not None else None,
+                    "iv": float(iv) if iv is not None else None,
+                    "lot_size": int(lot) if lot is not None else None,
+                    "underlying_ltp": float(und) if und is not None else None,
+                    "snapshot_ts": ts,
+                }
+            return out, ts
+        except Exception:
+            if con is not None:
+                try:
+                    con.close()
+                except Exception:
+                    pass
+            time.sleep(0.05)
+    return out, ts
+
+
+@nifty_shield_bp.route("/api/marks/legs")
+@login_required
+def api_marks_legs():
+    gid = request.args.get("g", "")
+    if not gid:
+        return jsonify({"error": "g required"}), 400
+    symbols = _leg_symbols_for(gid)
+    marks, ts = _leg_marks(symbols)
+    return jsonify(_sanitize({
+        "group_id": gid,
+        "symbols": symbols,
+        "marks": marks,
+        "snapshot_ts": ts,
+    }))
+
+
 @nifty_shield_bp.route("/api/live")
 @login_required
 def api_live():

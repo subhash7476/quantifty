@@ -169,7 +169,8 @@ let state = {
               metrics: null, audit: null, window: null, pnl_series: [] },
     live: null, marks: null,
     session: 'latest', sessionJournal: null, structFilter: 'All',
-    journalFull: false, open: null
+    journalFull: false, open: null,
+    legMarks: {}, legMarksTs: null, legTimer: null
 };
 
 function effectiveJournal() {
@@ -522,35 +523,121 @@ function paintStructs() {
 }
 
 /* ------------------------------------------------------------- slide-over */
+function legMtm(s, i) {
+    const sym = (s.leg_symbols || [])[i];
+    const m = state.legMarks && state.legMarks[sym];
+    if (!m || m.ltp == null) return null;
+    const fills = (s.fills && s.fills[i]) || [];
+    let signedQty = 0, cost = 0;
+    fills.forEach(t => {
+        const q = Number(t.quantity) || 0;
+        const p = Number(t.price) || 0;
+        const sign = ((t.side || '').toUpperCase() === 'BUY') ? 1 : -1;
+        signedQty += q * sign;
+        cost += p * q * sign;
+    });
+    if (signedQty === 0) return null;
+    const avg = cost / Math.abs(signedQty);
+    const lot = m.lot_size || 75;
+    return (m.ltp - avg) * signedQty * lot;
+}
+
 function legTableHtml(s) {
     const legs = s.leg_symbols || [];
     if (!legs.length) return '';
-    const cols = '64px 1.4fr repeat(5, minmax(0,.8fr))';
+    const cols = '70px 1.3fr repeat(6, minmax(0,.7fr))';
     const rows = legs.map((sym, i) => {
         const fills = (s.fills && s.fills[i]) || [];
-        const rowsHtml = fills.length ? fills.map(t =>
-            '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 14px;border-top:1px solid #F5F2ED;' +
+        const m = (state.legMarks && state.legMarks[sym]) || null;
+        const legHeader = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:10px 14px;border-top:1px solid #F5F2ED;' +
+            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:center;">' +
+            '<span style="color:var(--ink);">' + sym + '</span>' +
+            '<span style="color:var(--faint);font-size:11px;">' + (s.filled_legs.includes(sym) ? 'filled' : 'no fill') + '</span>' +
+            '<span></span><span></span>' +
+            '<span id="mark-' + i + '" style="text-align:right;' + (m && m.ltp != null ? 'color:var(--ink);' : 'color:var(--faint);') + '">' +
+                (m && m.ltp != null ? n(m.ltp, 2) : '—') + '</span>' +
+            '<span id="delta-' + i + '" style="text-align:right;color:var(--faint);">—</span>' +
+            '<span></span><span></span></div>';
+        const fillsCols = '70px 1.3fr 1fr 1fr 1fr 1fr';
+        const rowsHtml = fills.length ? (
+            '<div style="display:grid;grid-template-columns:' + fillsCols + ';gap:6px;padding:6px 14px 9px 26px;' +
+            'font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);">' +
+            '<span></span><span>Ledger</span><span style="text-align:right;">Qty</span>' +
+            '<span style="text-align:right;">Entry</span><span style="text-align:right;">Realized PnL</span>' +
+            '<span style="text-align:right;">Fees</span></div>' +
+            fills.map(t =>
+            '<div style="display:grid;grid-template-columns:' + fillsCols + ';gap:6px;padding:7px 14px 7px 26px;border-top:1px solid #F5F2ED;' +
             'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;background:#FBFAF8;">' +
-            '<span style="color:' + ((t.side || '').toUpperCase() === 'BUY' ? C.green : C.red) + '">' + (t.side || '') + '</span>' +
-            '<span style="color:var(--muted);">' + (t.timestamp ? tShort(t.timestamp) : '') + '</span>' +
+            '<span></span>' +
+            '<span style="color:' + ((t.side || '').toUpperCase() === 'BUY' ? C.green : C.red) + '">' + (t.side || '') + ' · ' + (t.timestamp ? tShort(t.timestamp) : '') + '</span>' +
             '<span style="text-align:right;">' + n(t.quantity, 0) + '</span>' +
             '<span style="text-align:right;">' + n(t.price, 2) + '</span>' +
             '<span style="text-align:right;color:' + (t.pnl >= 0 ? C.green : C.red) + '">' + rs(t.pnl, 0) + '</span>' +
             '<span style="text-align:right;color:var(--muted);">' + n(t.fees, 2) + '</span></div>').join('')
-            : '<div style="grid-column:1/-1;padding:9px 14px;border-top:1px solid #F5F2ED;font-size:12px;color:var(--faint);">no ledger fill</div>';
-        return '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:10px 14px;border-top:1px solid #F5F2ED;' +
-            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:center;">' +
-            '<span style="color:var(--ink);">' + sym + '</span>' +
-            '<span style="color:var(--faint);font-size:11px;">' + (s.filled_legs.includes(sym) ? 'filled' : 'no fill') + '</span>' +
-            '<span></span><span></span><span></span><span></span></div>' + rowsHtml;
+        ) : '<div style="padding:9px 14px 9px 26px;border-top:1px solid #F5F2ED;font-size:12px;color:var(--faint);">no ledger fill</div>';
+        return legHeader + rowsHtml;
     }).join('');
-    return '<div style="margin-top:28px;"><div class="ns-sec-h">Legs at the snapshot</div>' +
+    return '<div style="margin-top:28px;"><div class="ns-sec-h">Legs at the snapshot ' +
+        '<span id="leg-mark-age" style="margin-left:8px;font-size:10px;letter-spacing:.04em;text-transform:none;"></span></div>' +
         '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' +
           '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 14px;background:#FBFAF8;' +
             'font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);">' +
-            '<span>Symbol</span><span>Ledger</span><span style="text-align:right;">Qty</span>' +
-            '<span style="text-align:right;">Price</span><span style="text-align:right;">PnL</span>' +
-            '<span style="text-align:right;">Fees</span></div>' + rows + '</div></div>';
+            '<span>Symbol</span><span>Ledger</span><span></span><span></span>' +
+            '<span style="text-align:right;">Mark</span><span style="text-align:right;">MTM Δ</span>' +
+            '<span></span><span></span></div>' + rows + '</div></div>';
+}
+
+function paintLegMarks() {
+    const s = state.open;
+    if (!s) return;
+    const marketOpen = state.live ? state.live.market_open : false;
+    for (let i = 0; i < (s.leg_symbols || []).length; i++) {
+        const sym = s.leg_symbols[i];
+        const m = state.legMarks && state.legMarks[sym];
+        const mk = document.getElementById('mark-' + i);
+        const dl = document.getElementById('delta-' + i);
+        if (!mk) continue;
+        if (m && m.ltp != null) {
+            mk.textContent = n(m.ltp, 2);
+            mk.style.color = 'var(--ink)';
+            const mtm = legMtm(s, i);
+            if (dl) {
+                if (mtm != null) {
+                    dl.textContent = (mtm >= 0 ? '+' : '−') + '₹' + n(Math.abs(mtm), 0);
+                    dl.style.color = mtm >= 0 ? C.green : C.red;
+                } else { dl.textContent = '—'; dl.style.color = 'var(--faint)'; }
+            }
+        } else {
+            mk.textContent = '—'; mk.style.color = 'var(--faint)';
+            if (dl) { dl.textContent = '—'; dl.style.color = 'var(--faint)'; }
+        }
+    }
+    const age = document.getElementById('leg-mark-age');
+    if (age) {
+        if (!marketOpen) {
+            age.textContent = '· frozen at close';
+            age.style.color = C.amber;
+        } else if (state.legMarksTs) {
+            const secs = (Date.now() - new Date(state.legMarksTs).getTime()) / 1000;
+            age.textContent = '· live ' + ageText(secs);
+            age.style.color = C.green;
+        } else {
+            age.textContent = '· waiting for marks';
+            age.style.color = C.faint;
+        }
+    }
+}
+
+async function loadLegMarks(gid) {
+    try {
+        const resp = await fetch('/nifty-shield/api/marks/legs?g=' + encodeURIComponent(gid));
+        const data = await resp.json();
+        state.legMarks = data.marks || {};
+        state.legMarksTs = data.snapshot_ts || null;
+        paintLegMarks();
+    } catch (err) {
+        console.error('Failed to load leg marks:', err);
+    }
 }
 
 function entryMarginHtml(s) {
@@ -573,7 +660,10 @@ function entryMarginHtml(s) {
 }
 
 function openPanel(s) {
+    if (state.legTimer) { clearInterval(state.legTimer); state.legTimer = null; }
     state.open = s;
+    state.legMarks = {};
+    state.legMarksTs = null;
     const tone = structTone(s);
     const head = s.status === 'skipped'
         ? [
@@ -621,9 +711,16 @@ function openPanel(s) {
 
     document.getElementById('ns-panel').classList.add('open');
     document.getElementById('ns-scrim').classList.add('on');
+
+    paintLegMarks();
+    if (state.live && state.live.market_open) {
+        loadLegMarks(s.group_id);
+        state.legTimer = setInterval(() => loadLegMarks(s.group_id), 5000);
+    }
 }
 
 function closePanel() {
+    if (state.legTimer) { clearInterval(state.legTimer); state.legTimer = null; }
     state.open = null;
     document.getElementById('ns-panel').classList.remove('open');
     document.getElementById('ns-scrim').classList.remove('on');
