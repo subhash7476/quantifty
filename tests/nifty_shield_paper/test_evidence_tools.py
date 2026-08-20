@@ -254,6 +254,43 @@ def test_metrics_report_guard_counters(tmp_path):
     assert m.guard_events[EventType.SIGNAL_CONTRACT_REJECTED.value] == 1
 
 
+def test_metrics_report_serializes_cleanly(tmp_path):
+    """2026-08-19 incident: dataclasses.asdict() on a Counter (Python 3.13
+    rebuilds dict subclasses via `type(obj)((k, v) for k, v in obj.items())`,
+    so the Counter constructor counts each (key, value) TUPLE as an element and
+    the report gains tuple keys) made json.dumps raise "keys must be str ...
+    not tuple" and abort finalize_session_evidence. The counters must be plain
+    dicts with str keys so the report always serializes."""
+    import dataclasses
+    journal = tmp_path / "j.jsonl"
+    _write_journal(journal, [
+        _margin_event(),
+        {
+            "timestamp": "2026-06-06 13:00:00+05:30",
+            "event_type": EventType.ENTRY_SKIPPED.value,
+            "severity": "WARNING", "source_component": "NiftyShieldExecutionHandler",
+            "message": "skipped", "metadata": {
+                "group_id": "aaaaaaaa-0000-0000-0000-000000000000",
+                "session": "2026-06-06", "structure": "STRADDLE",
+                "reason": "missing option marks",
+                "leg_symbols": ["NIFTY09JUN2623950CE"],
+            },
+        },
+        {"timestamp": "t", "event_type": EventType.SIGNAL_CONTRACT_REJECTED.value,
+         "severity": "WARNING", "source_component": "guard", "message": "x",
+         "metadata": {}},
+    ])
+    db = tmp_path / "trades.db"
+    _trades_db(db, [])
+    m = risk_metrics_report(str(journal), str(db), initial_capital=1_000_000.0)
+    d = dataclasses.asdict(m)
+    assert isinstance(d["rejections_by_reason"], dict)
+    assert d["rejections_by_reason"] == {"missing option marks": 1}
+    assert isinstance(d["guard_events"], dict)
+    assert d["guard_events"] == {EventType.SIGNAL_CONTRACT_REJECTED.value: 1}
+    json.dumps(d, indent=2, default=str)       # must never raise
+
+
 # --------------------------------------------------------------------------- #
 # E — telemetry archive
 # --------------------------------------------------------------------------- #

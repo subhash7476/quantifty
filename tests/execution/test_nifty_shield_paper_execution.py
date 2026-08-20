@@ -320,6 +320,44 @@ def test_exit_driver_time_exit_at_1515(tmp_path, monkeypatch):
     assert handler._closed_groups.get(GROUP_ID) == "time_exit"
 
 
+def test_exit_updates_entry_keyed_trade_ledger(tmp_path, monkeypatch):
+    """2026-08-19 incident: the exit fill id was passed to update_trade_exit
+    while the trades table is keyed by the ENTRY fill id, so the exit UPDATE
+    matched 0 rows and the ledger kept exit_price=0.0 / pnl=0.0. A closing
+    fill must resolve and update its open (entry-keyed) trade row."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
+
+    dm = handler.db_manager
+    with dm.trading_reader() as conn:
+        before = conn.execute(
+            "SELECT trade_id, exit_price, pnl FROM trades ORDER BY symbol"
+        ).fetchall()
+    assert len(before) == 4
+    assert all(r[1] == 0.0 and r[2] == 0.0 for r in before)
+
+    profit_marks = {
+        "NIFTY10JAN2318150CE": 40.0,
+        "NIFTY10JAN2318150PE": 40.0,
+        "NIFTY10JAN2318250CE": 20.0,
+        "NIFTY10JAN2318050PE": 20.0,
+    }
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(profit_marks))
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+
+    with dm.trading_reader() as conn:
+        after = conn.execute(
+            "SELECT trade_id, symbol, exit_price, pnl, fees "
+            "FROM trades ORDER BY symbol"
+        ).fetchall()
+    assert len(after) == 4
+    # Every leg's exit landed on the SAME (entry-keyed) row it was opened with.
+    assert {r[0] for r in before} == {r[0] for r in after}
+    for trade_id, symbol, exit_price, pnl, fees in after:
+        assert exit_price == pytest.approx(40.0 if "18150" in symbol else 20.0)
+        assert fees > 0.0                      # entry + exit fees accumulated
+        expected = (100.0 - 40.0) * 150.0 if "18150" in symbol else 0.0
+        assert pnl == pytest.approx(expected)
 def test_exit_driver_holds_before_any_trigger(tmp_path, monkeypatch):
     handler = _enter_iron_fly(tmp_path, monkeypatch)
     driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))

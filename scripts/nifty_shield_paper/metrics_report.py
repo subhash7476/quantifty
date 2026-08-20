@@ -92,8 +92,13 @@ def risk_metrics_report(
     events = _read_journal(journal_path)
     report = RiskMetricsReport()
 
-    report.guard_events = Counter(
-        e["event_type"] for e in events if e["event_type"] in GUARD_TYPES)
+    # Plain dicts, not Counters: on Python 3.13 dataclasses.asdict() rebuilds a
+    # dict subclass via `type(obj)((k, v) for k, v in obj.items())`, and the
+    # Counter constructor then counts each (key, value) TUPLE as an element —
+    # producing {(reason, 2): 1} and making json.dumps raise "keys must be
+    # str ... not tuple" inside finalize_session_evidence (2026-08-19 incident).
+    report.guard_events = dict(Counter(
+        e["event_type"] for e in events if e["event_type"] in GUARD_TYPES))
 
     entries = [e for e in events
                if e["event_type"] == EventType.ENTRY_MARGIN.value]
@@ -112,8 +117,11 @@ def risk_metrics_report(
         report.structures_entered / report.structures_attempted
         if report.structures_attempted else 0.0)
 
-    report.rejections_by_reason = Counter(
-        e["metadata"].get("reason") for e in skips)
+    # JSON-safe str keys only: a non-str reason (tuple, None, ...) would make
+    # dataclasses.asdict -> json.dumps raise "keys must be str ... not tuple"
+    # inside finalize_session_evidence and abort the whole session package.
+    report.rejections_by_reason = dict(Counter(
+        str(e["metadata"].get("reason")) for e in skips))
 
     traded = _read_trades(trades_db_path)
     total_pnl = 0.0

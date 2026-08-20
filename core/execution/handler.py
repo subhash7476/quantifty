@@ -456,23 +456,48 @@ class ExecutionHandler:
                 # If this is an exit, handle MAE/MFE
                 pos = self.position_tracker.get_position(order.symbol)
                 if order.side.value in ("SELL", "BUY") and pos.side == PositionSide.FLAT:
-                    # Closing trade
-                    # Retrieve original entry context from DB to get entry price and timestamp
-                    mae_mfe = self._compute_exit_diagnostics(order.symbol, order.signal_id, fill.price, fill.timestamp)
-                    self.trading_writer.update_trade_exit(
-                        trade_id=fill.fill_id, 
-                        exit_price=fill.price, 
-                        exit_ts=fill.timestamp, 
-                        pnl=realized_pnl, 
-                        fees=fill.fee,
-                        mae_mfe=mae_mfe
-                    )
+                    # Closing trade. The trades row was keyed by the ENTRY fill's
+                    # id (save_trade above on the opening fill) — the exit fill's
+                    # own id matches nothing, so resolve the open row first.
+                    entry_trade_id = self._open_trade_id(order.symbol)
+                    if entry_trade_id is None:
+                        self.logger.warning(
+                            f"Closing fill {fill.fill_id} on {order.symbol} has "
+                            f"no open trades row; exit update skipped")
+                    else:
+                        mae_mfe = self._compute_exit_diagnostics(order.symbol, order.signal_id, fill.price, fill.timestamp)
+                        self.trading_writer.update_trade_exit(
+                            trade_id=entry_trade_id, 
+                            exit_price=fill.price, 
+                            exit_ts=fill.timestamp, 
+                            pnl=realized_pnl, 
+                            fees=fill.fee,
+                            mae_mfe=mae_mfe
+                        )
                 else:
                     # Opening trade
                     self.trading_writer.save_trade(trade, context)
 
         except Exception as e:
             self.logger.error(f"Failed to process broker fill: {e}")
+
+    def _open_trade_id(self, symbol: str) -> Optional[str]:
+        """trade_id of the most recent open (unexited) ledger row for a symbol.
+
+        The trades table is keyed by the entry fill id; a closing fill must
+        resolve that row (its own fill id matches nothing). Mirrors the open-row
+        lookup `_compute_exit_diagnostics` already performs."""
+        try:
+            with self.db_manager.trading_reader() as conn:
+                row = conn.execute(
+                    "SELECT trade_id FROM trades WHERE symbol = ? "
+                    "AND exit_price = 0.0 ORDER BY timestamp DESC LIMIT 1",
+                    [symbol]).fetchone()
+                return row[0] if row else None
+        except Exception as e:
+            self.logger.warning(
+                f"Failed to resolve open trades row for {symbol}: {e}")
+            return None
 
     def _compute_exit_diagnostics(self, symbol: str, signal_id: str, exit_price: float, exit_ts: datetime) -> Optional[Dict]:
         """Loads 1m bars and computes MAE/MFE for a closed trade."""

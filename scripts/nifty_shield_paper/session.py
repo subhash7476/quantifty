@@ -73,6 +73,17 @@ def _as_dict(obj: Any) -> Dict[str, Any]:
     return dict(obj)
 
 
+def _jsonable(value: Any) -> Any:
+    """Recursively normalize non-str dict keys so serialization can never abort
+    finalization (e.g. a Counter keyed by a tuple: asdict -> json.dumps raises
+    ``TypeError: keys must be str ... not tuple``)."""
+    if isinstance(value, dict):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    return value
+
+
 def finalize_session_evidence(
     *,
     session_date: date,
@@ -125,8 +136,23 @@ def finalize_session_evidence(
         str(journal_path), str(trades_path),
         initial_capital=initial_capital,
         metrics_json=str(metrics_path) if metrics_path.exists() else None)
+
+    if recorder is not None:
+        # Finalize the replay-evidence package BEFORE the metrics write: the
+        # recorder package is the deliverable-G input, and a serialization
+        # failure on the metrics side must never lose it again (2026-08-19).
+        recorder_meta = recorder.finalize(
+            facts_db_path=str(facts_db_path),
+            per_day_store=str(PER_DAY_STORE / f"{session_date.isoformat()}.duckdb"),
+            live_buffer=str(LIVE_BUFFER),
+            platform_commit=_commit_ref(),
+            span_snapshot=span_snapshot,
+        )
+    else:
+        recorder_meta = None
+
     (pkg / "metrics.json").write_text(
-        json.dumps(dataclasses.asdict(metrics), indent=2, default=str),
+        json.dumps(_jsonable(dataclasses.asdict(metrics)), indent=2, default=str),
         encoding="utf-8")
 
     summary = {
@@ -143,14 +169,7 @@ def finalize_session_evidence(
         "metrics_entered": metrics.structures_entered,
         "metrics_skipped": metrics.structures_skipped,
     }
-    if recorder is not None:
-        recorder_meta = recorder.finalize(
-            facts_db_path=str(facts_db_path),
-            per_day_store=str(PER_DAY_STORE / f"{session_date.isoformat()}.duckdb"),
-            live_buffer=str(LIVE_BUFFER),
-            platform_commit=_commit_ref(),
-            span_snapshot=span_snapshot,
-        )
+    if recorder_meta is not None:
         summary["recorder"] = recorder_meta
         summary["replay_inputs"] = True
     else:
