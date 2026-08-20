@@ -250,6 +250,11 @@ class SessionRecorder:
         buffer (fallback) — the same sources the live fact hook read. A non-None
         `span_snapshot` (the margin engine's SPAN input the live session priced
         against) is captured so replay reproduces the exact margin figures.
+
+        Merge semantics (2026-08-20): a restarted day's second finalize must
+        not destroy the first run's capture — bars/marks/signals are merged
+        (deduped) with whatever an earlier run already wrote, and meta counts
+        the merged totals.
         """
         if self._session_date is None:
             raise ReplayDivergence(
@@ -258,16 +263,27 @@ class SessionRecorder:
         pkg.mkdir(parents=True, exist_ok=True)
         session = self._session_date
 
-        _write_driver_bars(pkg / "bars.duckdb", self._driver_bars)
+        prior_exists = any((pkg / name).exists() for name in
+                           ("bars.duckdb", "marks.jsonl", "signals.jsonl"))
+
+        driver_rows = [
+            (b.symbol, b.timestamp, float(b.open), float(b.high),
+             float(b.low), float(b.close), int(b.volume))
+            for b in self._driver_bars]
+        n_driver = _write_merged_table(pkg / "bars.duckdb", "driver_bars",
+                                       driver_rows)
         session_rows = _extract_session_bars(
             session, per_day_store=per_day_store, live_buffer=live_buffer)
+        n_session = 0
         if session_rows:
-            _write_session_bars(pkg / "bars.duckdb", session_rows)
-            _write_candles_table(pkg / "facts_bars" / f"{session.isoformat()}.duckdb",
-                                 session_rows)
+            n_session = _write_merged_table(pkg / "bars.duckdb",
+                                            "session_bars", session_rows)
+            _write_merged_table(
+                pkg / "facts_bars" / f"{session.isoformat()}.duckdb",
+                "candles", session_rows)
 
-        _write_jsonl(pkg / "marks.jsonl", self._marks_log)
-        _write_jsonl(pkg / "signals.jsonl", self._signals)
+        n_marks = _append_jsonl(pkg / "marks.jsonl", self._marks_log)
+        n_signals = _append_jsonl(pkg / "signals.jsonl", self._signals)
 
         src = Path(facts_db_path)
         if src.exists():
@@ -285,11 +301,12 @@ class SessionRecorder:
             "recorder_version": RECORDER_VERSION,
             "started_at": self._started_at,
             "ended_at": _now_iso(),
-            "driver_bars": len(self._driver_bars),
-            "marks_calls": len(self._marks_log),
-            "signals_emitted": len(self._signals),
-            "session_bars_present": bool(session_rows),
+            "driver_bars": n_driver,
+            "marks_calls": n_marks,
+            "signals_emitted": n_signals,
+            "session_bars_present": bool(n_session),
             "span_snapshot_hash": span_hash,
+            "prior_capture_merged": prior_exists,
         }
         (pkg / "meta.json").write_text(
             json.dumps(meta, indent=2, default=str), encoding="utf-8")
@@ -309,41 +326,59 @@ def _commit_ref(root: Optional[Path] = None) -> str:
         return "no-commit"
 
 
-def _write_driver_bars(db_path: Path, bars: List[OHLCVBar]) -> None:
-    con = duckdb.connect(str(db_path))
-    con.execute("CREATE TABLE IF NOT EXISTS driver_bars ("
-                "symbol VARCHAR, timestamp TIMESTAMP, open DOUBLE, high DOUBLE, "
-                "low DOUBLE, close DOUBLE, volume BIGINT)")
-    con.executemany(
-        "INSERT INTO driver_bars VALUES (?,?,?,?,?,?,?)",
-        [(b.symbol, b.timestamp, float(b.open), float(b.high), float(b.low),
-          float(b.close), int(b.volume)) for b in bars])
-    con.close()
+def _read_table_rows(db_path: Path, table: str) -> List[tuple]:
+    """Existing rows of a 7-column candle-shape table, or [] when absent."""
+    if not db_path.exists():
+        return []
+    try:
+        con = duckdb.connect(str(db_path), read_only=True)
+        try:
+            cols = {r[1] for r in con.execute(
+                f"PRAGMA table_info('{table}')").fetchall()}
+            if not cols:
+                return []
+            return con.execute(
+                f"SELECT symbol, timestamp, open, high, low, close, volume "
+                f"FROM {table}").fetchall()
+        finally:
+            con.close()
+    except Exception:
+        return []
 
 
-def _write_session_bars(db_path: Path, rows: List[tuple]) -> None:
-    con = duckdb.connect(str(db_path))
-    con.execute("CREATE TABLE IF NOT EXISTS session_bars ("
-                "symbol VARCHAR, timestamp TIMESTAMP, open DOUBLE, high DOUBLE, "
-                "low DOUBLE, close DOUBLE, volume BIGINT)")
-    con.executemany("INSERT INTO session_bars VALUES (?,?,?,?,?,?,?)", rows)
-    con.close()
-
-
-def _write_candles_table(db_path: Path, rows: List[tuple]) -> None:
+def _write_merged_table(db_path: Path, table: str, rows: List[tuple]) -> int:
+    """Write `rows` into `table`, MERGED with any existing capture (deduped on
+    symbol+timestamp) — a restarted day's second finalize must never destroy
+    the first run's bars (2026-08-20 incident). Returns the merged row count."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
+    seen = set()
+    merged: List[tuple] = []
+    for row in list(_read_table_rows(db_path, table)) + list(rows):
+        key = (row[0], row[1])
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(tuple(row))
     con = duckdb.connect(str(db_path))
-    con.execute("CREATE TABLE IF NOT EXISTS candles ("
-                "symbol VARCHAR, timestamp TIMESTAMP, open DOUBLE, high DOUBLE, "
-                "low DOUBLE, close DOUBLE, volume BIGINT)")
-    con.executemany("INSERT INTO candles VALUES (?,?,?,?,?,?,?)", rows)
-    con.close()
+    try:
+        con.execute(f"CREATE TABLE IF NOT EXISTS {table} ("
+                    "symbol VARCHAR, timestamp TIMESTAMP, open DOUBLE, "
+                    "high DOUBLE, low DOUBLE, close DOUBLE, volume BIGINT)")
+        con.execute(f"DELETE FROM {table}")
+        con.executemany(f"INSERT INTO {table} VALUES (?,?,?,?,?,?,?)", merged)
+    finally:
+        con.close()
+    return len(merged)
 
 
-def _write_jsonl(path: Path, records: List[dict]) -> None:
-    with open(path, "w", encoding="utf-8") as f:
+def _append_jsonl(path: Path, records: List[dict]) -> int:
+    """Append records to a JSONL capture, preserving any earlier run's lines
+    (a restart must not destroy the previous run's evidence). Returns the
+    total record count in the file after the append."""
+    with open(path, "a", encoding="utf-8") as f:
         for rec in records:
             f.write(json.dumps(rec, default=str) + "\n")
+    return len(read_jsonl(path))
 
 
 def _extract_session_bars(session: date, *, per_day_store: Optional[str],

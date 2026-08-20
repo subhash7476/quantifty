@@ -281,7 +281,7 @@ def test_ledger_schema_persists_only_symbol_identity(tmp_path, monkeypatch):
 
     assert cols["orders"] == {
         "correlation_id", "symbol", "side", "quantity", "order_type",
-        "strategy_id", "signal_id", "timestamp", "metadata",
+        "strategy_id", "signal_id", "timestamp", "metadata", "group_id",
     }
     assert cols["fills"] == {
         "fill_id", "order_id", "symbol", "quantity", "price", "side",

@@ -45,7 +45,8 @@ from core.runtime.metrics import InMemoryTelemetrySink
 
 from scripts.daytype.publish_facts import compute_13pm_state
 from scripts.nifty_shield_paper.recorder import (
-    ReplayDivergence, ReplayMarksSource, SessionRecorder, read_jsonl,
+    ReplayDivergence, ReplayMarksSource, SessionRecorder, load_driver_bars,
+    read_jsonl,
 )
 from scripts.nifty_shield_paper.session import finalize_session_evidence
 from scripts.nifty_shield_paper.replay import run_session_replay
@@ -243,6 +244,35 @@ def test_session_package_contents(synthetic_session):
     assert {s["signal_type"] for s in signals} == {"SELL", "BUY"}
     marks_log = read_jsonl(pkg / "marks.jsonl")
     assert marks_log and all("n" in m for m in marks_log)
+
+
+def test_finalize_merges_prior_capture_on_restart(tmp_path):
+    """2026-08-20 incident: a restarted day's second finalize must not destroy
+    the first run's capture. A later (nearly empty) capture merges with the
+    earlier marks/signals/bars instead of overwriting them."""
+    pkg = tmp_path / "sessions" / SESSION.isoformat()
+    facts = tmp_path / "facts.duckdb"
+
+    r1 = SessionRecorder(str(pkg))
+    b1 = OHLCVBar(symbol=NF_SYMBOL, timestamp=START, open=1.0, high=1.0,
+                  low=1.0, close=1.0, volume=0)
+    r1.record_bar(b1)
+    r1.record_marks(["A"], {"A": 10.0}, None)
+    m1 = r1.finalize(facts_db_path=str(facts), platform_commit="c1")
+    assert m1["prior_capture_merged"] is False
+
+    r2 = SessionRecorder(str(pkg))           # the restart: a fresh capture
+    b2 = OHLCVBar(symbol=NF_SYMBOL, timestamp=START.replace(hour=10),
+                  open=2.0, high=2.0, low=2.0, close=2.0, volume=0)
+    r2.record_bar(b2)                        # no marks, no signals
+    m2 = r2.finalize(facts_db_path=str(facts), platform_commit="c2")
+
+    assert read_jsonl(pkg / "marks.jsonl") == [
+        {"n": 1, "symbols": ["A"], "marks": {"A": 10.0}}]
+    bars = load_driver_bars(str(pkg))
+    assert {b.timestamp for b in bars} == {START, START.replace(hour=10)}
+    assert m2["driver_bars"] == 2            # merged count, not the run's own
+    assert m2["prior_capture_merged"] is True
 
 
 def test_replay_marks_divergence_on_symbol_mismatch(tmp_path):

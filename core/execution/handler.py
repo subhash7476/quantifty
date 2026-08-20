@@ -631,8 +631,12 @@ class ExecutionHandler:
             if self._kill_switched:
                 return None
 
-            # 3. Daily Trade Limit Check
-            if not getattr(self, '_kill_switch_disabled', False) and self._trades_today >= self.config.max_trades_per_day:
+            # 3. Daily Trade Limit Check (EXIT bypasses — closing a position is
+            # never blocked, §D8; the count restores today's entry fills on a
+            # restart, so a fresh process must still be able to close).
+            if (not getattr(self, '_kill_switch_disabled', False)
+                    and signal.signal_type != SignalType.EXIT
+                    and self._trades_today >= self.config.max_trades_per_day):
                 if is_mock_broker:
                     raise ExecutionRuleError(
                         f"Daily trade limit ({self.config.max_trades_per_day}) reached")
@@ -738,6 +742,18 @@ class ExecutionHandler:
                 strategy_metadata=strategy_meta
             )
 
+            # Stamp the source's group_id (when the signal carries one) so a
+            # restart can rebuild the OrderGroup registry from restored orders
+            # (_replay_state Phase 9B). Without it the registry is lost on
+            # restart and group-owning exit managers go blind to open
+            # structures (2026-08-20 incident).
+            group_id = None
+            if strategy_meta.get("group_id"):
+                try:
+                    group_id = UUID(str(strategy_meta["group_id"]))
+                except (ValueError, TypeError, AttributeError):
+                    group_id = None
+
             order = NormalizedOrder(
                 instrument=instrument,
                 canonical_instrument=canonical_instrument,  # 4C.7
@@ -747,13 +763,17 @@ class ExecutionHandler:
                 strategy_id=signal.strategy_id,
                 signal_id=str(signal_id),
                 timestamp=self.clock.now(),
-                metadata=order_meta
+                metadata=order_meta,
+                group_id=group_id
             )
 
-            # PHASE 2: Pre-trade Risk Integration
+            # PHASE 2: Pre-trade Risk Integration (EXIT bypasses the daily-trade
+            # count — the count restores today's entry fills on a restart and
+            # closing a position must never be blocked, §D8).
             risk_decision = self.risk_manager.evaluate(
                 order,
-                trades_today=self._trades_today,
+                trades_today=0 if signal.signal_type == SignalType.EXIT
+                else self._trades_today,
                 max_trades_per_day=self.config.max_trades_per_day
             )
             if not risk_decision.approved:

@@ -363,3 +363,32 @@ def test_exit_driver_holds_before_any_trigger(tmp_path, monkeypatch):
     driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))
     driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
     assert not handler._closed_groups          # flat marks, before 15:15
+
+
+def test_restart_restores_groups_and_exit_driver_closes(tmp_path, monkeypatch):
+    """2026-08-20 incident: a restart orphaned the open structure — the
+    in-memory OrderGroup registry was lost (orders carried no group_id), so
+    the exit driver saw zero open structures and the 15:15 time-exit never
+    fired. The group must be rebuilt from restored orders so a fresh handler
+    still closes the structure at the hard exit."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
+    assert handler.open_nifty_shield_groups()
+
+    restored = _build_handler(tmp_path, monkeypatch, marks=_entry_marks())
+    groups = restored.open_nifty_shield_groups()
+    assert len(groups) == 1                    # rebuilt from restored orders
+
+    driver = NiftyShieldExitDriver(restored, StaticMarksSource(_entry_marks()))
+    driver(datetime(2023, 1, 4, 15, 16, 0, tzinfo=pytz.UTC))
+    assert restored._closed_groups.get(GROUP_ID) == "time_exit"
+    for sym in _entry_marks():
+        pos = restored.position_tracker.get_position(sym)
+        assert pos.side.value == "FLAT"
+
+    # The closing fills updated the ENTRY-keyed ledger rows (defect-1 fix).
+    with restored.db_manager.trading_reader() as conn:
+        rows = conn.execute(
+            "SELECT trade_id, exit_price FROM trades").fetchall()
+    assert len(rows) == 4
+    assert all(r[1] != 0.0 for r in rows)

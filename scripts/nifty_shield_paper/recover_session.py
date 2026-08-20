@@ -81,6 +81,56 @@ def _open_trade_rows(db_path: Path, session: str) -> List[tuple]:
         con.close()
 
 
+def _backfill_group_ids(data_root: Path, session: str) -> List[dict]:
+    """Stamp group_id on execution.db orders whose entries predate the
+    group_id order-stamping fix (2026-08-20 incident, part 2): the restore
+    path rebuilds the OrderGroup registry from orders carrying group_id, and
+    the journal's ENTRY_MARGIN events map leg symbols -> group_id. Idempotent:
+    only NULL group_id rows are touched."""
+    journal_path = data_root / "journal.jsonl"
+    db_path = data_root / "execution.db"
+    if not journal_path.exists():
+        return [{"error": f"no journal at {journal_path}"}]
+    entries = []
+    for line in open(journal_path, encoding="utf-8"):
+        if not line.strip():
+            continue
+        e = json.loads(line)
+        if (e.get("event_type") == "ENTRY_MARGIN"
+                and str(e.get("metadata", {}).get("session")) == session):
+            md = e["metadata"]
+            entries.append((str(md["group_id"]), list(md.get("leg_symbols", []))))
+    if not entries:
+        return [{"info": "no ENTRY_MARGIN events for the session"}]
+    sym_to_gid: Dict[str, str] = {}
+    for gid, legs in entries:
+        for sym in legs:
+            if sym in sym_to_gid and sym_to_gid[sym] != gid:
+                return [{"error": f"ambiguous group_id for {sym}"}]
+            sym_to_gid[sym] = gid
+    if not db_path.exists():
+        return [{"error": f"no execution.db at {db_path}"}]
+    con = sqlite3.connect(str(db_path))
+    try:
+        cols = {r[1] for r in con.execute("PRAGMA table_info(orders)")}
+        if "group_id" not in cols:
+            con.execute("ALTER TABLE orders ADD COLUMN group_id TEXT")
+        rows = con.execute(
+            "SELECT correlation_id, symbol, group_id FROM orders").fetchall()
+        updated = []
+        for cid, sym, gid in rows:
+            if sym in sym_to_gid and not gid:
+                con.execute(
+                    "UPDATE orders SET group_id = ? WHERE correlation_id = ?",
+                    [sym_to_gid[sym], cid])
+                updated.append({"order": cid, "symbol": sym,
+                                "group_id": sym_to_gid[sym]})
+        con.commit()
+    finally:
+        con.close()
+    return updated or [{"info": "no orders needed a group_id backfill"}]
+
+
 def _exit_fill(fills: List[tuple], symbol: str, side: str, entry_ts: str) -> Optional[tuple]:
     """The exit fill for a leg: opposite side, later than the entry fill."""
     opposite = "BUY" if side == "SELL" else "SELL"
@@ -244,6 +294,10 @@ def main() -> int:
                         help="heartbeat freshness (min) that counts as live")
     parser.add_argument("--force", action="store_true",
                         help="run even if a session looks live")
+    parser.add_argument("--backfill-groups", action="store_true",
+                        help="only stamp group_id on orders from the session's "
+                             "ENTRY_MARGIN journal (for entries made before the "
+                             "order group_id fix); no ledger or package writes")
     args = parser.parse_args()
 
     session = date.fromisoformat(args.date)
@@ -254,6 +308,15 @@ def main() -> int:
         _check_live(data_root, args.live_age)
 
     print(f"=== recovering session {session} at {data_root} ===")
+    if args.backfill_groups:
+        backfilled = _backfill_group_ids(data_root, session.isoformat())
+        print("group_id backfill:")
+        for r in backfilled:
+            print(f"  {r.get('status', '?')}: {r}")
+        if any("error" in r for r in backfilled):
+            return 1
+        return 0
+
     repaired = _repair_trades(data_root, session.isoformat())
     print("ledger repair:")
     for r in repaired:

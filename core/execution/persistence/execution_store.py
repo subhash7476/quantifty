@@ -35,6 +35,13 @@ class ExecutionStore:
                         metadata TEXT
                     )
                 """)
+                # group_id migration (2026-08-20): the exit manager's group
+                # registry is rebuilt from restored orders on restart, and that
+                # requires the order to carry its group — pre-fix DBs lack the
+                # column (CREATE IF NOT EXISTS never alters).
+                cols = {r[1] for r in conn.execute("PRAGMA table_info(orders)")}
+                if "group_id" not in cols:
+                    conn.execute("ALTER TABLE orders ADD COLUMN group_id TEXT")
 
                 # Fills table
                 conn.execute("""

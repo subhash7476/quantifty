@@ -2,6 +2,7 @@ import json
 import logging
 from typing import List
 from datetime import datetime
+from uuid import UUID
 
 from core.execution.persistence.execution_store import ExecutionStore
 from core.execution.order_models import NormalizedOrder, OrderSide, OrderType, InstrumentType, OrderMetadata
@@ -19,8 +20,8 @@ class OrderRepository:
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO orders 
-                    (correlation_id, symbol, side, quantity, order_type, strategy_id, signal_id, timestamp, metadata)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    (correlation_id, symbol, side, quantity, order_type, strategy_id, signal_id, timestamp, metadata, group_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         str(order.correlation_id),
@@ -32,7 +33,8 @@ class OrderRepository:
                         order.signal_id,
                         order.timestamp.isoformat(),
                         json.dumps(
-                            order.metadata.__dict__) if order.metadata else "{}"
+                            order.metadata.__dict__) if order.metadata else "{}",
+                        str(order.group_id) if order.group_id else None
                     )
                 )
                 conn.commit()
@@ -49,7 +51,9 @@ class OrderRepository:
             conn = self.store.get_connection()
             try:
                 rows = conn.execute(
-                    "SELECT * FROM orders ORDER BY timestamp ASC").fetchall()
+                    "SELECT correlation_id, symbol, side, quantity, order_type, "
+                    "strategy_id, signal_id, timestamp, metadata, group_id "
+                    "FROM orders ORDER BY timestamp ASC").fetchall()
                 for row in rows:
                     meta_dict = json.loads(row[8])
                     metadata = OrderMetadata(
@@ -68,7 +72,8 @@ class OrderRepository:
                         strategy_id=row[5],
                         signal_id=row[6],
                         timestamp=datetime.fromisoformat(row[7]),
-                        metadata=metadata
+                        metadata=metadata,
+                        group_id=UUID(row[9]) if row[9] else None
                     )
                     orders.append(order)
             finally:
