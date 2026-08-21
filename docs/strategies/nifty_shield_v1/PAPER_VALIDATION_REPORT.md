@@ -25,10 +25,10 @@ E008 grant waits on Phase B's real forward window (≥20 sessions AND ≥30 roun
 
 | Field | Value |
 |---|---|
-| Window dates | **N/A** |
-| Sessions | **0 / ≥20 required** (raw 0; excluded 0: none) |
-| Completed round-trips | **0 / ≥30 required** (raw 0; counting sessions only) (or §7.3 60-session escape, ledgered) |
-| Platform commit the window ran on | `3625b9b` |
+| Window dates | **2026-08-13 → 2026-08-21** |
+| Sessions | **1 / ≥20 required** (raw 5; excluded 4: 2026-08-13:no-closed-structure; 2026-08-17:not-recorded (--no-record),no-closed-structure; 2026-08-19:not-recorded (--no-record); 2026-08-21:not-recorded (--no-record),telemetry-gap) |
+| Completed round-trips | **1 / ≥30 required** (raw 3; counting sessions only) (or §7.3 60-session escape, ledgered) |
+| Platform commit the window ran on | `c4d5be9` |
 | Restarts + causes | none (per-session process per the runbook) |
 | Anomalies + dispositions | none recorded |
 
@@ -63,18 +63,18 @@ Risk metrics: RT=1, conversion 1.00. Telemetry clean.
 
 ## 4. The seven §4.2 evidence items (Phase B fills these)
 
-1. **Session evidence** — [**0 counting sessions AND 0 counting RTs** (raw 0 sessions / 0 RTs; excluded 0: none) — datasheet §10 convention: 1 RT = 1 structure fully closed].
+1. **Session evidence** — [**1 counting sessions AND 1 counting RTs** (raw 5 sessions / 3 RTs; excluded 4: 2026-08-13:no-closed-structure; 2026-08-17:not-recorded (--no-record),no-closed-structure; 2026-08-19:not-recorded (--no-record); 2026-08-21:not-recorded (--no-record),telemetry-gap) — datasheet §10 convention: 1 RT = 1 structure fully closed].
 2. **Guard cleanliness** — `STRATEGY_ERRORS = STRATEGY_QUARANTINE_EVENTS = SIGNAL_CONTRACT_REJECTIONS = 0`
    across the window. One event fails the stage (§7.6). [FILLED: STRATEGY_ERRORS=0 STRATEGY_QUARANTINE_EVENTS=0 SIGNAL_CONTRACT_REJECTIONS=0 — from `scripts/nifty_shield_paper/audit.py`].
 3. **Journal audit** — every emitted signal → fill or journaled rejection; divergence one-directional;
-   no reverse divergence. [FILLED: 0 structures traced; divergence one-directional YES; reverse 0 — from `audit_window(...)`].
+   no reverse divergence. [FILLED: 5 structures traced; divergence one-directional YES; reverse 0 — from `audit_window(...)`].
 4. **Risk metrics report** — RT count, win rate, avg win/loss in R, profit factor, max DD (Rs, %),
    peak gross exposure, peak margin utilization, signal→fill conversion with per-gate rejection
-   breakdown, guard counters. PnL facts are owner's judgment, not pass/fail. [FILLED: RT=0 WR=0.0% avgWin=N/AR avgLoss=N/AR PF=N/A maxDD=0.00% peakGross=Rs 0 peakMarginUtil=0.0% conv=0.0% rejections=[none] — from `risk_metrics_report(...)`].
+   breakdown, guard counters. PnL facts are owner's judgment, not pass/fail. [FILLED: RT=3 WR=66.7% avgWin=0.01R avgLoss=-0.02R PF=1.07 maxDD=0.00% peakGross=Rs 24,885 peakMarginUtil=0.5% conv=60.0% rejections=[missing option marks (E7-4, no synthetic fallback)=2] — from `risk_metrics_report(...)`].
 5. **Telemetry archive** — per-session `RuntimeMetric` snapshots + heartbeat continuity; a telemetry
-   gap = the session does not count. [FILLED: 0 sessions archived clean; gaps = none — from `archive_session(...)`].
+   gap = the session does not count. [FILLED: 4 sessions archived clean; gaps = 2026-08-21 — from `archive_session(...)`].
 6. **Margin evidence** — every entry passed the margin gate with `NseMarginEngine` SPAN + ELM
-   journaled on undefined-risk legs against real option marks (E7-4). [FILLED: 0 entries; NseMarginEngine(SPAN+ELM) =0, MarginTracker(flat) =0; flat-rate sessions = none — from journal `ENTRY_MARGIN`].
+   journaled on undefined-risk legs against real option marks (E7-4). [FILLED: 3 entries; NseMarginEngine(SPAN+ELM) =0, MarginTracker(flat) =3; flat-rate sessions = 2026-08-19, 2026-08-20, 2026-08-21 — from journal `ENTRY_MARGIN`].
    **Note:** if no SPAN snapshot is present for a session the engine falls back to flat-rate
    `MarginTracker` (journaled `engine=MarginTracker`) — such a session does not satisfy §7.7's
    SPAN+ELM requirement and must be flagged.

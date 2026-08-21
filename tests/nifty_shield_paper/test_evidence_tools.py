@@ -254,6 +254,33 @@ def test_metrics_report_guard_counters(tmp_path):
     assert m.guard_events[EventType.SIGNAL_CONTRACT_REJECTED.value] == 1
 
 
+def test_metrics_session_scopes_leg_pnl(tmp_path):
+    """2026-08-21: a symbol traded by two structures (24250PE in both the
+    08-20 orphan and the 08-21 straddle) must not leak its rows into both
+    structures' PnL — per-structure sums are scoped to the structure's
+    session."""
+    journal = tmp_path / "j.jsonl"
+    _write_journal(journal, [
+        _margin_event(session="2026-06-05", legs=("A", "B")),
+        _close_event(),
+        _margin_event(gid="bbbbbbbb-0000-0000-0000-000000000000",
+                      session="2026-06-06", legs=("A", "C")),   # re-uses A
+        _close_event(gid="bbbbbbbb-0000-0000-0000-000000000000"),
+    ])
+    db = tmp_path / "trades.db"
+    _trades_db(db, [
+        ("t1", "s1", "2026-06-05", "A", "SELL", 75, 100.0, 0, 1000, 0, "{}"),
+        ("t2", "s2", "2026-06-05", "B", "BUY", 75, 20.0, 0, -500, 0, "{}"),
+        ("t3", "s3", "2026-06-06", "A", "SELL", 75, 90.0, 0, -200, 0, "{}"),
+        ("t4", "s4", "2026-06-06", "C", "BUY", 75, 15.0, 0, 400, 0, "{}"),
+    ])
+    m = risk_metrics_report(str(journal), str(db), initial_capital=1_000_000.0)
+    by_gid = {p["group_id"]: p for p in m.per_structure}
+    assert by_gid["11111111-2222-3333-4444-555555555555"]["pnl_rs"] == 500.0
+    assert by_gid["bbbbbbbb-0000-0000-0000-000000000000"]["pnl_rs"] == 200.0
+    assert m.total_realized_pnl == pytest.approx(700.0)
+
+
 def test_metrics_report_serializes_cleanly(tmp_path):
     """2026-08-19 incident: dataclasses.asdict() on a Counter (Python 3.13
     rebuilds dict subclasses via `type(obj)((k, v) for k, v in obj.items())`,

@@ -131,11 +131,18 @@ def risk_metrics_report(
         risk_r = (float(md["risk_r"]) if md.get("risk_r") is not None
                   else None)
         legs = md.get("leg_symbols", [])
-        # structure realized pnl + gross = sum over its legs' closed trades.
+        session = str(md.get("session") or "")
+        # structure realized pnl + gross = sum over its legs' closed trades,
+        # scoped to the structure's own session: the ledger keys by symbol,
+        # and a symbol re-entered by a LATER structure must not leak its rows
+        # into an earlier structure's PnL (2026-08-21: 24250PE was traded by
+        # both the 08-20 orphan and the 08-21 straddle).
         pnl = 0.0
         gross = 0.0
         for sym in legs:
             for t in traded.get(sym, []):
+                if session and not str(t["timestamp"]).startswith(session):
+                    continue
                 pnl += float(t["pnl"] or 0.0)
                 gross += abs(float(t["price"] or 0.0)) * float(t["quantity"] or 0.0)
         total_pnl += pnl
