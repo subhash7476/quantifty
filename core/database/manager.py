@@ -99,6 +99,18 @@ class DatabaseManager:
                     continue
                     
                 raise e
+            except duckdb.IOException as e:
+                # Windows sharing violation: another process holds the file.
+                # The ops orchestrator's preflight polls read the live buffer
+                # read-only while the ingestor bootstraps it read-write
+                # (2026-08-21: the ingestor died at startup and VIX never
+                # flowed). Transient — retry with backoff, never kill the
+                # writer on a lock collision.
+                last_exception = e
+                if read_only:
+                    raise
+                time.sleep(0.05 * (i + 1))
+                continue
             except Exception as e:
                 raise e
         

@@ -35,14 +35,21 @@ class Decision:
 def _max_trade_date(db_path: Path, table: str) -> date | None:
     if not db_path.exists():
         return None
-    con = duckdb.connect(str(db_path), read_only=True)
     try:
-        names = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
-        if table not in names:
-            return None
-        return con.execute(f"SELECT MAX(trade_date) FROM {table}").fetchone()[0]
-    finally:
-        con.close()
+        con = duckdb.connect(str(db_path), read_only=True)
+        try:
+            names = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
+            if table not in names:
+                return None
+            return con.execute(f"SELECT MAX(trade_date) FROM {table}").fetchone()[0]
+        finally:
+            con.close()
+    except duckdb.IOException:
+        # Windows sharing violation: the EOD catch-up ingestor is writing the
+        # store right now. A freshness probe must never raise — the feed reads
+        # as unknown and the check surfaces as WARN (2026-08-21: preflight and
+        # the orchestrator's warm-up crashed on this).
+        return None
 
 
 def _max_index_date() -> date | None:

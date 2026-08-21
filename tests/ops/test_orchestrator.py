@@ -111,6 +111,25 @@ def test_token_gate_opens_login_then_waits():
 def test_warmup_timeout_when_marks_never_warm():
     deps, calls = _deps(marks_warm=lambda: False)
     assert orch.start_sequence(deps, warmup_timeout_s=0.0) == "timeout:warmup"
+
+
+def test_warmup_supervises_crashed_children():
+    """2026-08-21: a child that dies during warm-up (the ingestor at startup)
+    must be revived by the supervise hook, or the feed it owns can never warm
+    and the sequence always times out."""
+    supervised = []
+    deps, calls = _deps(vix_warm=lambda: False,
+                        supervise=lambda: supervised.append(1))
+    assert orch.start_sequence(deps, warmup_timeout_s=0.0) == "timeout:warmup"
+    assert supervised, "supervise must run inside the warm-up wait"
+
+
+def test_final_gate_supervises_crashed_children():
+    supervised = []
+    deps, calls = _deps(preflight=lambda: "NO-GO", vix_warm=lambda: False,
+                        supervise=lambda: supervised.append(1))
+    assert orch.start_sequence(deps, warmup_timeout_s=0.0) == "timeout:warmup"
+    assert supervised, "supervise must run inside the final-gate wait"
     assert "session" not in calls["spawned"]
 
 

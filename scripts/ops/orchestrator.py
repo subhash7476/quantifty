@@ -94,6 +94,11 @@ class Deps:
     # (e.g. "marks_warm: ...; live_vix: ..."). Logged in the warm-up loops so a
     # timeout:warmup names the cold feed instead of failing silently.
     gate_status: Callable[[], str] = lambda: ""
+    # Restart-crashed-children hook, run inside the warm-up/final-gate waits:
+    # start_sequence blocks up to warmup_timeout_s, and a child that dies
+    # during that window (e.g. the ingestor at startup, 2026-08-21) must be
+    # revived or the feed it owns can never warm up.
+    supervise: Callable[[], None] = lambda: None
 
 
 def _ensure(deps: Deps, name: str) -> None:
@@ -148,6 +153,7 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
         marks_ok, vix_ok = deps.marks_warm(), deps.vix_warm()
         if marks_ok and vix_ok:
             break
+        deps.supervise()                        # revive a crashed ingestor now
         if waited >= warmup_timeout_s:
             _logger.warning("warm-up timeout (feed cold) after ~%ss counted — "
                             "marks_warm=%s vix_warm=%s | %s",
@@ -166,6 +172,7 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     #     while the stack IS warm is a genuine block (token/STOP) that halts.
     waited = 0.0
     while deps.preflight() != "GO":
+        deps.supervise()                        # revive a crashed child now
         if deps.marks_warm() and deps.vix_warm():
             _logger.warning("preflight blocked while feeds warm — %s", deps.gate_status())
             return "blocked:preflight"
@@ -338,8 +345,10 @@ def _cmd_start(dry_run: bool) -> int:
         return 1
     started: dict = {}
     sup = Supervisor(started=started)
+    deps = _live_deps(started)
+    deps.supervise = sup.tick
     try:
-        outcome = start_sequence(_live_deps(started))
+        outcome = start_sequence(deps)
         print(f"start sequence: {outcome}")
         if outcome != "started":
             sup.shutdown()
