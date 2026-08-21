@@ -161,6 +161,18 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         group = self.group_tracker.get_group(group_id)
         if group is None:
             return True
+        # A restored CLOSED group carries its EXIT orders as legs, so every
+        # leg symbol has both a BUY and a SELL order (a full round trip) —
+        # that is authoritative. Position-only checking misclassifies such a
+        # group as open when a NEW structure re-enters one of its symbols
+        # (2026-08-21: the orphan group looked open off the straddle's 24250PE
+        # position, and the exit driver stop-lossed the straddle's leg under
+        # the orphan's group id).
+        by_symbol: Dict[str, set] = {}
+        for leg in group.legs:
+            by_symbol.setdefault(leg.symbol, set()).add(leg.side.value)
+        if all({"SELL", "BUY"} <= sides for sides in by_symbol.values()):
+            return True
         for leg in group.legs:
             pos = self.position_tracker.get_position(leg.symbol)
             if pos is not None and pos.side.value != "FLAT":

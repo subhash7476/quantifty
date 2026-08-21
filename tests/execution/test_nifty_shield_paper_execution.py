@@ -13,7 +13,7 @@ presumes but which was never wired into the runtime:
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytest
 import pytz
@@ -42,7 +42,8 @@ UNDERLYING = "NSE_INDEX|Nifty 50"
 
 
 def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
-                structure: str = "iron_fly", **md_over):
+                structure: str = "iron_fly", ts: datetime = FIXED_DT,
+                **md_over):
     md = {
         "group_id": GROUP_ID,
         "structure": structure,
@@ -61,7 +62,7 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
     md.update(md_over)
     return SignalEvent(strategy_id="nifty_shield_v1",
                        symbol="NIFTY10JAN23" + str(strike) + ot,
-                       timestamp=FIXED_DT, signal_type=signal_type,
+                       timestamp=ts, signal_type=signal_type,
                        confidence=0.9, metadata=md)
 
 
@@ -84,13 +85,13 @@ def _entry_marks():
 
 
 def _build_handler(tmp_path, monkeypatch, *, marks=None, journal=None,
-                   initial_capital=1_000_000.0):
+                   initial_capital=1_000_000.0, clock_start: datetime = FIXED_DT):
     monkeypatch.setattr(
         handler_mod, "ExecutionStore",
         lambda *a, **k: ExecutionStore(str(tmp_path / "execution.db")),
     )
     DatabaseManager.reset_instance()
-    clock = ReplayClock(FIXED_DT)
+    clock = ReplayClock(clock_start)
     config = nifty_shield_execution_config(initial_capital=initial_capital)
     dm = DatabaseManager(data_root=tmp_path)
     # Bootstrap the SQLite trade ledger so save_trade persists fills (the
@@ -392,3 +393,40 @@ def test_restart_restores_groups_and_exit_driver_closes(tmp_path, monkeypatch):
             "SELECT trade_id, exit_price FROM trades").fetchall()
     assert len(rows) == 4
     assert all(r[1] != 0.0 for r in rows)
+
+
+def test_restored_closed_group_not_reopened_by_new_structure(tmp_path, monkeypatch):
+    """2026-08-21: the restore adds a closed group's EXIT orders to its leg
+    set; _group_flat checked positions by symbol, so a NEW structure
+    re-entering a shared symbol made the closed group look open and the exit
+    driver stop-lossed the new structure's leg (journaled under the old
+    group's id). A group whose own legs net to zero is closed regardless of
+    the shared position."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    h1 = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
+    driver1 = NiftyShieldExitDriver(h1, StaticMarksSource(_entry_marks()))
+    driver1(datetime(2023, 1, 4, 15, 16, 0, tzinfo=pytz.UTC))   # time_exit
+    assert h1._closed_groups.get(GROUP_ID) == "time_exit"
+
+    restored = _build_handler(tmp_path, monkeypatch, marks=_entry_marks(),
+                              clock_start=FIXED_DT + timedelta(days=1))
+    assert restored.open_nifty_shield_groups() == []   # rebuilt, closed
+
+    # A NEW structure (next session) re-enters symbols the old group had.
+    new_gid = "99999999-0000-0000-0000-000000000000"
+    later = FIXED_DT + timedelta(days=1)
+    for s in (_leg_signal("short_pe", "PE", 18150, SignalType.SELL,
+                          structure="short_straddle", group_id=new_gid, ts=later),
+              _leg_signal("short_ce", "CE", 18150, SignalType.SELL,
+                          structure="short_straddle", group_id=new_gid, ts=later)):
+        restored.process_signal(s, 24000.0)
+
+    open_gids = [str(g) for g in restored.open_nifty_shield_groups()]
+    assert open_gids == [new_gid]                # old group stays closed
+    driver2 = NiftyShieldExitDriver(restored, StaticMarksSource(_entry_marks()))
+    driver2(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    # The old group must not have been closed (again) off the new position.
+    assert str(GROUP_ID) not in restored._closed_groups
+    for sym in ("NIFTY10JAN2318150PE", "NIFTY10JAN2318150CE"):
+        pos = restored.position_tracker.get_position(sym)
+        assert pos.side.value == "SHORT"         # the new structure's legs
