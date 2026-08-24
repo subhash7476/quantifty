@@ -33,9 +33,15 @@ poller never creates or removes a `STOP` file (the runner's kill switch is
 CWD-scoped). PID file + clean SIGINT/SIGTERM shutdown.
 
 Freshness hook (§3.5): `data/options/chain_poller_heartbeat.json`
-(`{"last_snapshot", "rows", "expiry"}`) is written after each successful swap,
+(`{"last_snapshot", "rows", "expiries"}`) is written after each successful swap,
 so a future preflight can distinguish "poller alive but market closed / empty
 chain" from "poller dead".
+
+Expiry coverage (2026-08-24 entry-skip root cause): each cycle fetches the TWO
+nearest weekly expiries, not just the near one. The strategy strikes
+`nearest_expiry(>= expiry_days_min)` — on a Monday the near Tuesday expiry is
+1 DTE and is rejected, so the struck legs land on the NEXT weekly; a near-only
+cache makes every entry skip as "missing option marks".
 
 New ops/composition-root tooling only — the frozen strategy package is untouched.
 """
@@ -48,7 +54,7 @@ import signal
 import sys
 import threading
 import time
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Callable, List, Optional, Tuple
 
@@ -309,7 +315,7 @@ class ChainPoller:
                 f"bootstrap: could not place an initial chain cache at "
                 f"{self._cache_path} after {self._replace_retries} attempts")
 
-    def write_cycle(self, rows: List[object], expiry: Optional[str],
+    def write_cycle(self, rows: List[object], expiries: List[str],
                     underlying: str = NF_SYMBOL) -> datetime:
         """Write ONE fresh single-snapshot cache and atomically swap it in.
 
@@ -352,10 +358,10 @@ class ChainPoller:
                   self._consecutive_failures)
             return now
         self._consecutive_failures = 0
-        self._write_heartbeat(now, len(rows), expiry)
+        self._write_heartbeat(now, len(rows), expiries)
         return now
 
-    def run(self, fetch: Callable[[], Tuple[List[object], str]],
+    def run(self, fetch: Callable[[], Tuple[List[object], List[str]]],
             *, symbol: str = NF_SYMBOL,
             max_cycles: Optional[int] = None) -> None:
         """Long-running loop: fetch the near-weekly chain and write it.
@@ -383,8 +389,9 @@ class ChainPoller:
             else:
                 if rows:
                     self._consecutive_failures = 0
-                    self.write_cycle(rows, expiry, underlying=symbol)
-                    logger.info("chain polled: %d rows @ %s", len(rows), expiry)
+                    self.write_cycle(rows, expiries, underlying=symbol)
+                    logger.info("chain polled: %d rows @ %s", len(rows),
+                                ",".join(expiries))
                 else:
                     self._consecutive_failures += 1
                     self._log_empty()
@@ -423,11 +430,11 @@ class ChainPoller:
         return False
 
     def _write_heartbeat(self, last_snapshot: datetime, rows: int,
-                         expiry: Optional[str]) -> None:
+                         expiries: List[str]) -> None:
         payload = {
             "last_snapshot": last_snapshot.isoformat(),
             "rows": rows,
-            "expiry": expiry,
+            "expiries": list(expiries),
         }
         tmp = self._heartbeat_path.with_name(self._heartbeat_path.name + ".tmp")
         tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -492,10 +499,18 @@ def main() -> int:
 
         provider = OptionsProvider(read_only=True)   # fetch-only; we own persistence
 
-        def _fetch() -> Tuple[List[object], str]:
-            expiry = provider.get_weekly_expiry(args.index)
-            rows, _underlying = provider._fetch_from_upstox(args.index, expiry)
-            return rows, expiry
+        def _fetch() -> Tuple[List[object], List[str]]:
+            near = provider.get_weekly_expiry(args.index)
+            nxt = provider.get_weekly_expiry(
+                args.index, date.fromisoformat(near) + timedelta(days=7))
+            rows: List[object] = []
+            expiries: List[str] = []
+            for expiry in (near, nxt):
+                got, _underlying = provider._fetch_from_upstox(args.index, expiry)
+                if got:
+                    rows.extend(got)
+                    expiries.append(expiry)
+            return rows, expiries
 
         logger.info("chain poller starting: %s -> %s (poll %ss, idle %ss)",
                     args.index, poller.cache_path,

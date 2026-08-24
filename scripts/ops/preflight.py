@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import sys
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
@@ -21,6 +21,9 @@ from scripts.ops import pidfile
 MARKS_HEARTBEAT_MAX_S = 60.0
 VIX_BAR_MAX_S = 300.0
 MASTER_MAX_AGE_DAYS = 1.0
+# Mirrors strategies/nifty_shield_v1/config.py `expiry_days_min`: the selector
+# strikes the nearest weekly >= this many days out, so marks must cover one.
+MARKS_MIN_DTE = 2
 
 
 @dataclass(frozen=True)
@@ -41,6 +44,7 @@ class PreflightContext:
     marks_rows: int
     marks_priceable: int
     marks_heartbeat_age_s: Optional[float]
+    marks_expiries: list
     poller_alive: bool
     ingestor_alive: bool
     vix_last_bar_age_s: Optional[float]
@@ -64,6 +68,23 @@ def check_stop_file(ctx: PreflightContext) -> CheckResult:
                        "no STOP file" if ok else "STOP kill-switch file present")
 
 
+def _strikeable_expiry_covered(ctx: PreflightContext) -> bool:
+    """True when the latest snapshot covers an expiry >= MARKS_MIN_DTE days out.
+
+    The 2026-08-24 entry-skip root cause: the cache held only the near weekly
+    (1 DTE on a Monday), the strategy struck next-weekly, and every leg priced
+    as missing. A warm-but-narrow cache must be a loud NO-GO, not silent skips.
+    """
+    today = ctx.now.date()
+    for e in ctx.marks_expiries:
+        try:
+            if (date.fromisoformat(str(e)) - today).days >= MARKS_MIN_DTE:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
 def check_marks(ctx: PreflightContext) -> CheckResult:
     if not ctx.market_open:
         return CheckResult("marks_warm", "block", ctx.poller_alive,
@@ -71,12 +92,19 @@ def check_marks(ctx: PreflightContext) -> CheckResult:
                            else "pre-open: chain poller not running")
     fresh = (ctx.marks_heartbeat_age_s is not None
              and ctx.marks_heartbeat_age_s <= MARKS_HEARTBEAT_MAX_S)
-    ok = ctx.marks_rows > 0 and ctx.marks_priceable > 0 and fresh
+    covered = _strikeable_expiry_covered(ctx)
+    ok = (ctx.marks_rows > 0 and ctx.marks_priceable > 0 and fresh and covered)
+    coverage = (f"expiry >= {MARKS_MIN_DTE}d out covered"
+                if covered else
+                "no expiry >= {}d out (covered: {})".format(
+                    MARKS_MIN_DTE,
+                    ", ".join(sorted(map(str, ctx.marks_expiries))) or "none"))
     detail = (f"{ctx.marks_priceable} priceable rows, "
-              f"heartbeat {ctx.marks_heartbeat_age_s}s"
+              f"heartbeat {ctx.marks_heartbeat_age_s}s, {coverage}"
               if ok else
               f"marks not warm (rows={ctx.marks_rows} priceable="
-              f"{ctx.marks_priceable} hb_age={ctx.marks_heartbeat_age_s}s)")
+              f"{ctx.marks_priceable} hb_age={ctx.marks_heartbeat_age_s}s); "
+              f"{coverage}")
     return CheckResult("marks_warm", "block", ok, detail)
 
 
@@ -151,32 +179,35 @@ VIX_SYMBOL = "NSE_INDEX|India VIX"
 
 
 def _read_marks(path: Path, retries: int = 5, delay_s: float = 0.1):
-    """Bounded-retry read of the latest snapshot's row + priceable-row counts.
-    Read-only; retries transient sharing violations from the poller's os.replace."""
+    """Bounded-retry read of the latest snapshot's row/priceable counts plus the
+    expiries it covers. Read-only; retries transient sharing violations from the
+    poller's os.replace."""
     import time
     import duckdb
     if not path.exists():
-        return 0, 0
+        return 0, 0, []
     for attempt in range(retries):
         try:
             con = duckdb.connect(str(path), read_only=True)
             try:
                 names = {r[0] for r in con.execute("SHOW TABLES").fetchall()}
                 if "option_chain_snapshot" not in names:
-                    return 0, 0
+                    return 0, 0, []
                 row = con.execute(
-                    "SELECT COUNT(*), COUNT(*) FILTER (WHERE ltp > 0) "
+                    "SELECT COUNT(*), COUNT(*) FILTER (WHERE ltp > 0), "
+                    "LIST(DISTINCT expiry_date) "
                     "FROM option_chain_snapshot WHERE snapshot_timestamp = "
                     "(SELECT MAX(snapshot_timestamp) FROM option_chain_snapshot)"
                 ).fetchone()
-                return int(row[0] or 0), int(row[1] or 0)
+                return (int(row[0] or 0), int(row[1] or 0),
+                        [str(x) for x in (row[2] or [])])
             finally:
                 con.close()
         except Exception:
             if attempt == retries - 1:
-                return 0, 0
+                return 0, 0, []
             time.sleep(delay_s)
-    return 0, 0
+    return 0, 0, []
 
 
 def _heartbeat_age_s(now: datetime) -> Optional[float]:
@@ -266,7 +297,7 @@ def build_context(now: Optional[datetime] = None, root: Optional[Path] = None) -
     market_open = MarketHours.is_market_open()
     from core.auth.credentials import credentials
     credentials._load()
-    rows, priceable = _read_marks(CHAIN_CACHE)
+    rows, priceable, expiries = _read_marks(CHAIN_CACHE)
     expected_eod = _prev_trading_session(now.date())
     return PreflightContext(
         now=now,
@@ -277,6 +308,7 @@ def build_context(now: Optional[datetime] = None, root: Optional[Path] = None) -
         marks_rows=rows,
         marks_priceable=priceable,
         marks_heartbeat_age_s=_heartbeat_age_s(now),
+        marks_expiries=expiries,
         poller_alive=pidfile.lock_alive(POLLER_PID),
         ingestor_alive=_ingestor_alive(now),
         vix_last_bar_age_s=_vix_bar_age_s(now),

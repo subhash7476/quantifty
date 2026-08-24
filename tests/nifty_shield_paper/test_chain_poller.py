@@ -12,9 +12,11 @@ prompt §4). New files only; synthetic/stub chain — no network.
 """
 from __future__ import annotations
 
+import json
 import os
 import threading
 import time
+from datetime import date
 
 import duckdb
 import pytest
@@ -87,7 +89,7 @@ def test_concurrent_read_never_raises(tmp_path):
     reader.start()
     try:
         for _ in range(30):
-            poller.write_cycle(rows, EXPIRY, underlying=UNDERLYING)
+            poller.write_cycle(rows, [EXPIRY], underlying=UNDERLYING)
             time.sleep(0.005)                # ≤5 ms spacing between cycles
     finally:
         stop.set()
@@ -105,7 +107,7 @@ def test_one_snapshot_timestamp_per_cycle(tmp_path):
     poller = _make_poller(tmp_path)
     poller.bootstrap()
     rows = _synthetic_rows()
-    poller.write_cycle(rows, EXPIRY, underlying=UNDERLYING)
+    poller.write_cycle(rows, [EXPIRY], underlying=UNDERLYING)
 
     con = duckdb.connect(str(poller.cache_path), read_only=True)
     try:
@@ -153,12 +155,52 @@ def test_write_synthesizes_tradingsymbol_when_absent(tmp_path):
                 expiry=EXPIRY, ltp=100.0, oi=100, volume=10,
                 iv=0.14, delta=0.5, lot_size=75, underlying_ltp=24100.0,
             ))
-    poller.write_cycle(rows, EXPIRY, underlying=UNDERLYING)
+    poller.write_cycle(rows, [EXPIRY], underlying=UNDERLYING)
 
     src = ChainSnapshotMarksSource(str(poller.cache_path))
     expected = [f"NIFTY11AUG26{s}{ot}" for s in _STRIKES for ot in ("CE", "PE")]
     marks = src.marks(expected)
     assert len(marks) == len(expected)        # every synthesized leg priceable
+
+
+# --------------------------------------------------------------------------- #
+# Expiry coverage — a cycle carries BOTH weeklies (2026-08-24 root cause)
+# --------------------------------------------------------------------------- #
+def test_two_expiry_cycle_prices_far_weekly_legs(tmp_path):
+    """The strategy strikes `nearest_expiry(>= expiry_days_min)` — on a Monday
+    the near Tuesday expiry is 1 DTE and is rejected, so the struck legs land on
+    the NEXT weekly. A near-only cache made every 2026-08-24 entry skip as
+    "missing option marks". A cycle must carry both weeklies and price them."""
+    poller = _make_poller(tmp_path)
+    poller.bootstrap()
+    near, far = "2026-08-25", "2026-09-01"
+
+    def rows_for(expiry: str) -> list:
+        d = date.fromisoformat(expiry)
+        stem = f"{d.strftime('%d')}{d.strftime('%b').upper()}{d.strftime('%y')}"
+        out = []
+        for strike in (24000, 24050):
+            for ot in ("CE", "PE"):
+                out.append(OptionChainRow(
+                    strike=float(strike), option_type=ot,
+                    instrument_key=f"k-{expiry}-{strike}-{ot}",
+                    tradingsymbol=f"NIFTY{stem}{strike}{ot}",
+                    expiry=expiry, ltp=100.0, oi=100, volume=10,
+                    iv=0.14, delta=0.5, lot_size=75, underlying_ltp=24100.0,
+                ))
+        return out
+
+    rows = rows_for(near) + rows_for(far)
+    poller.write_cycle(rows, [near, far], underlying=UNDERLYING)
+
+    src = ChainSnapshotMarksSource(str(poller.cache_path))
+    legs = [r.tradingsymbol for r in rows]
+    marks = src.marks(legs)
+    assert len(marks) == len(legs), \
+        "both weeklies' legs must be priceable from one snapshot"
+
+    hb = json.loads((tmp_path / "chain_poller_heartbeat.json").read_text())
+    assert hb["expiries"] == [near, far]
 
 
 def test_bootstrap_rebuilds_corrupt_cache(tmp_path):
@@ -189,7 +231,7 @@ def test_atomic_swap_retry_leaves_valid_db(tmp_path, monkeypatch):
         return real_replace(src, dst)
 
     monkeypatch.setattr(os, "replace", flaky)
-    poller.write_cycle(rows, EXPIRY, underlying=UNDERLYING)
+    poller.write_cycle(rows, [EXPIRY], underlying=UNDERLYING)
     assert calls["n"] >= 3, "replace should have been retried"
 
     src = ChainSnapshotMarksSource(str(poller.cache_path))
@@ -203,7 +245,7 @@ def test_interrupted_tmp_recovered(tmp_path):
     poller = _make_poller(tmp_path)
     poller.bootstrap()
     poller._tmp_path.write_bytes(b"garbage from an interrupted cycle")
-    poller.write_cycle(_synthetic_rows(), EXPIRY, underlying=UNDERLYING)
+    poller.write_cycle(_synthetic_rows(), [EXPIRY], underlying=UNDERLYING)
 
     src = ChainSnapshotMarksSource(str(poller.cache_path))
     assert len(src.marks(LEG_SYMBOLS)) == len(LEG_SYMBOLS)

@@ -8,6 +8,7 @@ def _ctx(**over):
         now=datetime(2026, 8, 11, 9, 30), market_open=True, stop_file_present=False,
         has_token=True, token_expired=False,
         marks_rows=120, marks_priceable=118, marks_heartbeat_age_s=5.0,
+        marks_expiries=["2026-08-18"],
         poller_alive=True, ingestor_alive=True, vix_last_bar_age_s=30.0,
         span_present=True, master_age_days=0.2,
         feed_fresh={"equity": True, "futures": True, "stock_options": True, "index": True},
@@ -36,6 +37,25 @@ def test_marks_block_when_no_priceable_rows_during_market_hours():
 
 def test_marks_block_when_heartbeat_stale_during_market_hours():
     assert pf.check_marks(_ctx(marks_heartbeat_age_s=600.0)).ok is False
+
+
+def test_marks_block_when_only_near_expiry_covered():
+    # 2026-08-24 root cause: near weekly is 1 DTE (< MARKS_MIN_DTE), the
+    # strategy strikes next-weekly, so a warm-but-narrow cache must BLOCK.
+    result = pf.check_marks(_ctx(marks_expiries=["2026-08-12"]))
+    assert result.ok is False
+    assert "no expiry >= 2d out" in result.detail
+
+
+def test_marks_block_when_no_expiries_in_snapshot():
+    assert pf.check_marks(_ctx(marks_expiries=[])).ok is False
+
+
+def test_marks_pass_when_both_weeklies_covered():
+    ctx = _ctx(marks_expiries=["2026-08-12", "2026-08-18"])
+    result = pf.check_marks(ctx)
+    assert result.ok is True
+    assert "covered" in result.detail
 
 
 def test_marks_preopen_only_requires_poller_alive():
