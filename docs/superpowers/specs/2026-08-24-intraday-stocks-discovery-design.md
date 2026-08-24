@@ -80,21 +80,27 @@ arithmetic rather than signal quality.
 
 | Store | Range (measured) | Grain | Notes |
 |---|---|---|---|
-| Equity 1m per-day files | **2023-01-02 → 2026-08-07**, 869 sessions | ~188→200 `NSE_EQ\|ISIN` symbols/day, union ≈229 (sampled) | median 375 bars/symbol/session (full 09:15–15:29), 0% synthetic flags |
+| Equity 1m per-day files | **2023-01-02 → 2026-08-21**, ~880 sessions | ~188→200 `NSE_EQ\|ISIN` symbols/day, union ≈229 | median 375 bars/symbol/session (full 09:15–15:29), 0% synthetic flags |
+| **Vendor archive.zip** (`~/Downloads`, probed 2026-08-24) | **2015-02-02 → 2025-08-06** | 100 tickers (`NIFTY50/*.csv`), `date,open,high,low,close,volume`, ~970k rows/file | UNVERIFIED: naive IST stamps, ticker keys (not ISIN), volume=0 tail bars at post-close times (17:57/20:28), prices appear **back-adjusted** (RELIANCE ≈216 on 2015-02-02 ⇒ retroactive CA adjustment), provenance unknown |
 | Index/VIX 1m | 2023-01-02 → present (live via buffer) | Nifty 50, Bank Nifty, India VIX | same era as equities |
-| Equity daily candles | 2012-02 → present, certified (G3 closed) | adjusted view available | overnight-gap features |
+| Equity daily candles | 2012-02 → present, certified (G3 closed) | adjusted view available | overnight-gap features; CA ground truth for G7 |
 | Delivery % | 2020-01-01 → present (EOD bhavcopy store) | per symbol/day | prior-day conditioning |
 | Stock futures/options bhavcopy | 2016-02-11 → 2026-07-20/17 (EOD) | FUTSTK/OPTSTK | expiry calendar, EOD OI only |
 
-### 5.2 Known defects (measured today — Phase-1 inputs)
+The two intraday stores **overlap 2023-01 → 2025-08 on ~100 large caps** — an
+independent-source cross-validation opportunity (the Gate-B1 pattern): agreement
+there certifies both; disagreement localizes defects.
+
+### 5.2 Known defects (measured 2026-08-24, updated after operator repairs)
 
 | # | Defect | Evidence | Severity |
 |---|---|---|---|
-| D1 | **Dec-2024 ingestion hole**: ≥8 consecutive weekday sessions missing (2024-12-02…12-11, plus 11-20, 11-29) | calendar gap scan vs NSE holidays | BLOCKING for window fences |
-| D2 | **Current pipeline gap**: no per-day files after 2026-08-07 while ops continued via live buffer (10 sessions missing incl. today) | directory scan; 2026-08-24 session read live_buffer only | BLOCKING for SEALED definition |
+| ~~D1~~ | ~~Dec-2024 hole~~ **RESOLVED** — operator refilled 2024-12-02…12-11 (+ 2024-02-29, 2024-11-29). Residual era gaps = 53, all genuine NSE holidays **except 2024-11-20** (a normal Wednesday) | gap scan re-run 2026-08-24 | single-session fence-or-fill decision (Q2) |
+| ~~D2~~ | ~~Post-Aug-7 gap~~ **RESOLVED** — per-day store verified current through 2026-08-21 (200 syms, full sessions) | re-scan | closed |
 | D3 | **Schema drift**: `instrument_key` column added from 2026-03-05 (105 files differ) | column-signature scan | normalization required |
 | D4 | Store uncertified: no contiguity check ever run on 1m grain; no OHLC validity audit; no duplicate-key audit | CLAUDE.md P2 certification unrun | BLOCKING (DTIL-class fabrication risk) |
-| D5 | Vol=0 minutes present (2895 on 2026-08-07 vs ~100 typical) | sampled counts | monitor; likely illiquid minutes/halts |
+| D5 | Vol=0 minutes present (tail-heavy on some sessions) | sampled counts | monitor; illiquid minutes/halts/vendor tails |
+| **D6** | Vendor archive unverified: unknown provenance, unknown CA-adjustment basis, post-close junk bars, ticker→ISIN mapping needed | probe 2026-08-24 | BLOCKING for any use before G7 passes |
 
 ## 6. Phase 1 — Substrate certification (blocking, precedes everything)
 
@@ -119,6 +125,27 @@ of any mutated store taken first**:
   size**; exchange/SEBI/GST/stamp per current NSE schedule) plus *measured* slippage
   bands from the data itself (next-bar-open vs signal-close; minute high–low
   distributions by liquidity decile) — the FTMO "row 11 measurement" lesson.
+- **G7 Vendor-archive certification (new, blocking for the deep window):** ingest the
+  100-ticker archive only after (a) ticker→ISIN resolution via instrument master with
+  PIT awareness (tickers recycle — the DTIL lesson), (b) session fingerprinting
+  (open=09:15/close=15:29 mass, holiday alignment, FTMO timezone-resolution lesson),
+  (c) OHLC/duplicate audits at vendor grain, (d) junk-bar policy (post-close volume-0
+  tails dropped by rule), (e) **cross-validation against the Upstox store on the
+  2023-01→2025-08 overlap** (per-bar close agreement bands; disagreement census before
+  any reconciliation), and (f) CA-adjustment verification against the certified daily
+  adjusted view (split/bonus seams must show zero fabricated overnight returns — the
+  four-arm contract pattern). The archive earns the TRAIN window only if G7 passes;
+  otherwise it is a measurement artifact and the program runs on the native store.
+
+## 6b. What G7 changes if it passes
+
+Native-store windows (§7) assume ~3 years of equity intraday history. A G7-PASSed
+vendor archive extends the cross-section to **2015 → present (~11.5y)** for ~100 large
+caps, transforming the power arithmetic: e.g. a daily cross-sectional rank-IC family
+moves from ~1.7×10⁵ name-sessions to ~8×10⁵. Phase 0 then chooses between two
+declared substrates — **deep-narrow (100 names × 11.5y)** vs **wide-short (~200 names
+× 3.5y)** — or pre-registers a pooled design with explicit entity handling; the choice
+is frozen in the pre-registration, never revisited after first results.
 
 Certification verdict: PASS per gate or the program stops at the failing gate.
 
@@ -154,10 +181,12 @@ Family selection and grids freeze in Phase 0. Each family carries its own RFA.
 
 ## 10. Open questions for reviewer
 
-- **Q1** Window fences as proposed in §7 acceptable (esp. SEALED starting 2026-01
-  given ~148 sessions to date, growing with calendar)?
-- **Q2** Repair source for D1/D2: authorize Upstox historical 1m re-ingest attempts
-  (equities), else fence those dates out permanently with cause recorded?
+- **Q1** Window fences: native-store split (TRAIN 2023–2024 / HOLDOUT 2025 / SEALED
+  2026→) vs the G7 deep-history alternative (e.g. TRAIN 2015–2022 / HOLDOUT
+  2023–2024 / SEALED 2025→) — decided in Phase 0 after G7, per §6b?
+- **Q2** ~~Repair source for D1/D2~~ **RESOLVED** (operator filled; store verified
+  current). Residual: single missing session **2024-11-20** — attempt ingest, or
+  fence with cause recorded?
 - **Q3** Universe: PIT F&O-universe membership (recommended, machinery exists) vs
   static ISIN set?
 - **Q4** Ticket-size / capital assumption for the fee model (₹20/order floor implies
