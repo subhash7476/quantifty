@@ -281,6 +281,46 @@ def test_vix_at_checkpoint_reads_last_1m_close_before_13_00(tmp_path, monkeypatc
     assert live.vix_at_checkpoint(d) == pytest.approx(last_close)
 
 
+@pytest.mark.skipif(not _model_present(), reason="models/daytype not present")
+def test_live_buffer_transient_lock_is_retried_not_dropped(tmp_path, monkeypatch):
+    """2026-08-25 13:00 root cause: the ingestor holds candles_today.duckdb in
+    write bursts (cross-process DuckDB rule), and the publisher's bare-except
+    read turned each burst into "no India VIX"/"insufficient bars" — ten
+    straight skipped publishes while every bar sat in the buffer, until the
+    entry window latched. A transient lock must be retried through; only a
+    bounded exhaustion may report not-ready."""
+    import scripts.daytype.publish_live_fact as live
+
+    d = date(2023, 1, 2)
+    candle_dir = tmp_path / "candles_1m"
+    candle_dir.mkdir()                       # no per-day store — live-buffer shape
+    buf = tmp_path / "candles_today.duckdb"
+    _write_candle_db(buf, {
+        pf.NF_SYMBOL: _craft_session_bars(seed=1, base=24000.0),
+        pf.BN_SYMBOL: _craft_session_bars(seed=2, base=52000.0),
+        pf.VIX_SYMBOL: _craft_session_bars(seed=3, base=14.0),
+    })
+    monkeypatch.setattr(live, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(pf, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(live, "LIVE_BUFFER", buf)
+
+    real_connect = live.duckdb.connect
+    state = {"n": 0}
+
+    def flaky(*a, **k):
+        state["n"] += 1
+        if state["n"] <= 4:                  # a locked burst spanning openers
+            raise IOError('IO Error: Cannot open file "...candles_today.duckdb": '
+                          "The process cannot access the file because it is "
+                          "being used by another process.")
+        return real_connect(*a, **k)
+
+    monkeypatch.setattr(live.duckdb, "connect", flaky)
+    res = _live_publish(tmp_path, d)
+    assert state["n"] > 4, "transient locks must have been retried"
+    assert res["ready"] is True, res
+
+
 @pytest.mark.skipif(not _corpus_present(), reason="real 1m index store not present in this tree")
 @pytest.mark.skipif(not _model_present(), reason="models/daytype not present")
 def test_live_publisher_matches_offline_regime_on_real_session(tmp_path, monkeypatch):
@@ -340,8 +380,14 @@ def test_live_publisher_not_ready_without_intraday_vix(tmp_path, monkeypatch):
         "SELECT COUNT(*) FROM day_type_facts").fetchone()[0] == 0
 
 
-def test_live_publisher_not_ready_without_data(tmp_path):
+def test_live_publisher_not_ready_without_data(tmp_path, monkeypatch):
     import scripts.daytype.publish_live_fact as live
+    # Isolate from the machine's real live buffer: on an operator box running
+    # the trading stack, candles_today.duckdb exists and holds a full session,
+    # which made this "no data" case pass only while the ingestor's write-lock
+    # happened to block the (pre-retry) read.
+    monkeypatch.setattr(live, "LIVE_BUFFER",
+                        tmp_path / "no_live_buffer.duckdb")
     future = date(2099, 1, 2)                # no store file -> not ready
     res = live.publish_live(tmp_path / "live.duckdb", today=future)
     assert res["ready"] is False

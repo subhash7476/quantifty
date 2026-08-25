@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
@@ -39,16 +40,51 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+from core.logging import setup_logger  # noqa: E402
 from scripts.daytype.publish_facts import (  # noqa: E402
     CANDLE_DIR_1M, CHECKPOINT, MIN_BARS, TRAINED_ON,
     commit_ref, model_hash, regime_fact_version,
 )
+
+logger = setup_logger("publish_live_fact")
 
 LIVE_BUFFER = ROOT / "data" / "live_buffer" / "candles_today.duckdb"
 
 NF_SYMBOL = "NSE_INDEX|Nifty 50"
 BN_SYMBOL = "NSE_INDEX|Nifty Bank"
 VIX_SYMBOL = "NSE_INDEX|India VIX"
+
+# The ingestor holds candles_today.duckdb in write bursts (cross-process DuckDB
+# rule: one RW connection excludes every other opener, even read-only). Readers
+# must ride out a burst, and a final failure must be LOUD — a bare except turns
+# "we failed" into "the source doesn't have it", which is how the 2026-08-25
+# 13:00 fact skipped ten straight publishes while every bar sat in the buffer.
+READ_RETRIES = 8
+READ_RETRY_DELAY_S = 0.25
+
+
+def _read_candles(path: Path, symbol: str,
+                  retries: int = READ_RETRIES,
+                  delay_s: float = READ_RETRY_DELAY_S) -> Optional[pd.DataFrame]:
+    """Read one symbol's candles read-only, retrying the transient cross-process
+    write-lock. Returns None only after the bound, logging the final error."""
+    for attempt in range(retries):
+        try:
+            con = duckdb.connect(str(path), read_only=True)
+            try:
+                return con.execute(
+                    "SELECT timestamp, open, high, low, close, volume FROM "
+                    "candles WHERE symbol = ? ORDER BY timestamp", [symbol],
+                ).df()
+            finally:
+                con.close()
+        except Exception as exc:
+            if attempt == retries - 1:
+                logger.error("bar read from %s (%s) failed after %d attempts: %s",
+                             path, symbol, retries, exc)
+                return None
+            time.sleep(delay_s)
+    return None
 
 
 def _session_bars_from_df(df: pd.DataFrame, upto_min: int = 780) -> Optional[pd.DataFrame]:
@@ -67,30 +103,14 @@ def _today_bars(symbol: str, today: date) -> Optional[pd.DataFrame]:
     """Today's session bars: per-day store first, then the live buffer."""
     db_path = CANDLE_DIR_1M / f"{today.isoformat()}.duckdb"
     if db_path.exists():
-        try:
-            con = duckdb.connect(str(db_path), read_only=True)
-            df = con.execute(
-                "SELECT timestamp, open, high, low, close, volume FROM candles "
-                "WHERE symbol = ? ORDER BY timestamp",
-                [symbol],
-            ).df()
-            con.close()
+        df = _read_candles(db_path, symbol)
+        if df is not None:
             return _session_bars_from_df(df)
-        except Exception:
-            pass
 
     if LIVE_BUFFER.exists():
-        try:
-            con = duckdb.connect(str(LIVE_BUFFER), read_only=True)
-            df = con.execute(
-                "SELECT timestamp, open, high, low, close, volume FROM candles "
-                "WHERE symbol = ? ORDER BY timestamp",
-                [symbol],
-            ).df()
-            con.close()
+        df = _read_candles(LIVE_BUFFER, symbol)
+        if df is not None:
             return _session_bars_from_df(df)
-        except Exception:
-            pass
 
     return None
 
