@@ -1,8 +1,8 @@
 # Intraday-Stocks Discovery Program — Design Spec (ISD)
 
 **Date:** 2026-08-24
-**Status:** DRAFT — awaiting operator review. No plan document, no code, and no
-construct selection happens before this spec is approved.
+**Status:** APPROVED — operator decisions frozen 2026-08-24 (§10). Plan document:
+`docs/superpowers/plans/2026-08-24-isd-phase-1-substrate-certification.md`.
 **Branch:** `research/intraday-stocks-program`
 **Origin:** operator directive 2026-08-24 — "I want something in stocks to work
 intraday", following the TS Basis de-authorization (protocol break) and a review
@@ -95,7 +95,7 @@ there certifies both; disagreement localizes defects.
 
 | # | Defect | Evidence | Severity |
 |---|---|---|---|
-| ~~D1~~ | ~~Dec-2024 hole~~ **RESOLVED** — operator refilled 2024-12-02…12-11 (+ 2024-02-29, 2024-11-29). Residual era gaps = 53, all genuine NSE holidays **except 2024-11-20** (a normal Wednesday) | gap scan re-run 2026-08-24 | single-session fence-or-fill decision (Q2) |
+| ~~D1~~ | ~~Dec-2024 hole~~ **RESOLVED** — operator refilled 2024-12-02…12-11 (+ 2024-02-29, 2024-11-29). All 53 residual weekday gaps are genuine NSE holidays, **including 2024-11-20** (special NSE closure, Maharashtra Assembly Elections) — zero data-holes remain | gap scan re-run + operator identification 2026-08-24 | closed |
 | ~~D2~~ | ~~Post-Aug-7 gap~~ **RESOLVED** — per-day store verified current through 2026-08-21 (200 syms, full sessions) | re-scan | closed |
 | D3 | **Schema drift**: `instrument_key` column added from 2026-03-05 (105 files differ) | column-signature scan | normalization required |
 | D4 | Store uncertified: no contiguity check ever run on 1m grain; no OHLC validity audit; no duplicate-key audit | CLAUDE.md P2 certification unrun | BLOCKING (DTIL-class fabrication risk) |
@@ -109,8 +109,9 @@ of any mutated store taken first**:
 
 - **G1 Contiguity:** for every eq session, exactly one row per (symbol, minute) over
   the full 09:15–15:29 grid, or an explicit missing-bar ledger with counts; trading
-  calendar reconciled against the NSE holiday list (76 weekday gaps audited — most
-  genuine holidays; D1/D2 are the exceptions).
+  calendar reconciled against the NSE holiday list **including special closures**
+  (2024-11-20 Maharashtra Assembly Elections). Zero unexplained weekday gaps is the
+  PASS bar.
 - **G2 Currency:** D2 repaired — per-day ingest extended to present (source decision:
   open question Q2) — so the SEALED window is well-defined.
 - **G3 Normalization:** single reader abstracting the schema drift (D3); `is_synthetic`
@@ -121,8 +122,10 @@ of any mutated store taken first**:
   membership via CSMP `symbol_entity_intervals`; corporate-action cross-check so
   intraday returns spanning ex-dates are flagged, never silently compounded.
 - **G6 Cost + slippage model:** era-accurate intraday fee function as code (STT
-  0.025% sell; brokerage min(₹20, 0.03%)/order — which imposes a **minimum ticket
-  size**; exchange/SEBI/GST/stamp per current NSE schedule) plus *measured* slippage
+  0.025% sell; brokerage min(₹20, 0.03%)/order; exchange/SEBI/GST/stamp per current
+  NSE schedule), evaluated against the **canonical paper capital of ₹2,00,00,000**
+  (operator decision Q4 — ticket sizes, and therefore the fee hurdle every construct
+  must clear, derive from this basis) plus *measured* slippage
   bands from the data itself (next-bar-open vs signal-close; minute high–low
   distributions by liquidity decile) — the FTMO "row 11 measurement" lesson.
 - **G7 Vendor-archive certification (new, blocking for the deep window):** ingest the
@@ -179,24 +182,14 @@ Family selection and grids freeze in Phase 0. Each family carries its own RFA.
 - Program-level: two consecutive family closures on substrate grounds (not signal
   grounds) triggers a written reassessment before any new family is declared.
 
-## 10. Open questions for reviewer
+## 10. Operator decisions — frozen 2026-08-24
 
-- **Q1** Window fences: native-store split (TRAIN 2023–2024 / HOLDOUT 2025 / SEALED
-  2026→) vs the G7 deep-history alternative (e.g. TRAIN 2015–2022 / HOLDOUT
-  2023–2024 / SEALED 2025→) — decided in Phase 0 after G7, per §6b?
-- **Q2** ~~Repair source for D1/D2~~ **RESOLVED** (operator filled; store verified
-  current). Residual: single missing session **2024-11-20** — attempt ingest, or
-  fence with cause recorded?
-- **Q3** Universe: PIT F&O-universe membership (recommended, machinery exists) vs
-  static ISIN set?
-- **Q4** Ticket-size / capital assumption for the fee model (₹20/order floor implies
-  a minimum position notional; what paper-capital basis is canonical?)
-- **Q5** Is a forward PAPER interval mandatory between HOLDOUT PASS and SEALED spend,
-  mirroring the TS Basis resolution path?
+| # | Question | Decision |
+|---|---|---|
+| Q1 | Window fences | **Deferred to Phase 0** as proposed; once pinned, fences never move. Deep-narrow vs wide-short substrate choice per §6b happens there. |
+| Q2 | Missing session 2024-11-20 | **Fenced by calendar, not by data loss** — it was the special NSE closure for the Maharashtra Assembly Elections; no data is missing. Era has zero unexplained gaps. |
+| Q3 | Universe | **(a) PIT membership** via CSMP machinery (`symbol_entity_intervals`, ISIN issuer-prefix linkage); a static symbol list is rejected as survivorship-biased. |
+| Q4 | Canonical paper capital | **₹2,00,00,000 (₹2 Cr)** — all fee/ticket-size arithmetic in G6 and every Phase-0 cost model derives from this basis. |
+| Q5 | Path to SEALED | **(b) A mandatory forward PAPER interval between HOLDOUT PASS and SEALED spend**, length pinned in the Phase-0 pre-registration before any gate runs. |
 
----
-
-## Approval
-
-Operator review of this spec precedes the plan document (`docs/superpowers/plans/…`),
-which precedes implementation. Nothing in §8 authorizes construct code.
+No open questions remain. The plan document operationalizes Phase 1 only.
