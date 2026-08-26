@@ -152,3 +152,40 @@ the vendor deep-window option (~85 names from 2015, 100 from ~2018, certified on
 aligned basis) is available for the Phase-0 substrate choice alongside the native
 2023-01-02 → 2026-08-24 store.
 
+---
+
+## 2026-08-26 · Phase 0 — pre-registration investigation, review cycle, freeze
+
+**Investigation** (`ISD_PHASE0_CANDIDATE_RANKING.md` v1→v3): five candidate families
+assessed on the certified substrate + calendar arithmetic + in-house priors; two
+rounds of operator/lead review (R1–R11) applied. Key findings: the SEALED window's
+power problem resolved via a mechanical spend floor n ≥ 317 (central 0.8002 at the
+floor); **#3 (market-relative drive) collapsed into #1** — rank(x_i − x̄) ≡ rank(x_i),
+translation invariance; battery = {1 opening-drive continuation, 4 overnight-gap};
+#2 (mirror of 1), #5 (expiry; contrast power + Nov-2024 SEBI regime break) and OI
+dropped.
+
+**RFA (both PROCEED, max power 0.9938 at n=317, one-sided):**
+- `governance/rfa/declarations/isd_opening_drive.py` — whole-file SHA
+  `934c069a395a…` (report `ISD-OPEN-DRIVE_RFA.md`)
+- `governance/rfa/declarations/isd_overnight_gap.py` — whole-file SHA
+  `e476a03b0d13…` (report `ISD-OVERNIGHT-GAP_RFA.md`)
+
+**Pre-registration freeze** (`ISD_PHASE0_PRE_REGISTRATION.md`, FROZEN 2026-08-26).
+Operator review cycle fixed five pre-freeze defects: (1) power block regenerated
+verbatim from power.py (0.4116 / 0.8002 / 0.9938); (2) F1 feature corrected to
+window-end CLOSE with next-bar-open entry (09:46/10:01 — no look-ahead, no label
+overlap); (3) banded-exit dimension dropped — EOD-flat book has no exit-band role;
+grids 4 cells/family, BH per-cell α 0.0125, ≥2-of-4 qualifying cells; (4) ADV cap
+pinned to trailing 20-session ADV as of T−1 (no intraday look-ahead); (5)
+declaration headers corrected, gate reports + §11 SHAs regenerated.
+
+**Frozen contract (the battery):** F1 = rank on (window-end close − 09:15 open)/
+09:15 open, entry next-bar-open, label entry→15:29 close, sign continuation
+(mechanism-pinned); F4 = rank on overnight gap (auction open vs prev_close, CA
+ex-dates excluded), entry 09:16 open/close cells, sign TRAIN-burned once (m=2
+disclosed). Both: ~200-name PIT universe, EOD-flat dollar-neutral, ADV-capped,
+measured-τ net-spread gates, matched nulls, family-wise BH, sealed spend at
+n ≥ 317 + paper ≥ 3 months (contamination rule) after HOLDOUT PASS.
+
+
