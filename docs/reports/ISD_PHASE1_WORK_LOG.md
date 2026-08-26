@@ -188,4 +188,54 @@ disclosed). Both: ~200-name PIT universe, EOD-flat dollar-neutral, ADV-capped,
 measured-τ net-spread gates, matched nulls, family-wise BH, sealed spend at
 n ≥ 317 + paper ≥ 3 months (contamination rule) after HOLDOUT PASS.
 
+---
+
+## 2026-08-26 · Battery — TRAIN pass executed, both families FAIL (closed per §9)
+
+**Harness built** (`scripts/isd/battery_features.py`, `battery_stats.py`,
+`run_battery.py`, `tests/isd/test_battery.py` — 22 tests green). Frozen-contract
+exact: hold-leg-only labels, next-bar-open entry, PIT universe, ADV cap (trailing
+20-session as of T−1), G6 decile slippage, era-accurate fees, per-cell random-entry
+nulls (1,000), family circular-shift nulls (1,000), BH per-cell α 0.0125, ≥2-of-4
+qualifying, family α 0.05, net-spread gate at measured τ (EOD-flat ⇒ τ = 2).
+SEALED guard: any fence leak into 2026-01-01+ refuses to run.
+
+**Bugs found during bring-up (all fixed, tests re-run green):** aliased numpy array
+(`gross = slip = fee = np.full(...)` — all three shared one buffer; the 
+net-spread gate was reading fee values as gross/slip); missing liquidity-decile
+step in the slippage lookup; module-global symbol axis (refactored to explicit
+params); month-block rotation with unequal block lengths (vstack of rotated
+contents, not fixed-slice copy).
+
+**TRAIN verdict (run 2026-08-26T20:28, seed 42, prereg SHA-16 `f77b163c…`):**
+
+| Family | Cells | Family IC | NW t | p (shift null) | Net bp | Verdict |
+|---|---|---|---|---|---|---|
+| F1 opening-drive continuation | 0/4 qualify (p=1.000) | −0.0155 (mean of cells) | −2.7 (cells) | — | −20.6 bp/session | **FAIL** |
+| F4 overnight-gap | 4/4 qualify (p=0.000), sign **−1 fade** | **−0.0289** | **−6.09** | 0.0000 | **−3,196** (≈ −6.8/session) | **FAIL** |
+
+**What happened:**
+- **F1: the pinned sign reads negative.** All four cells have IC ≈ −0.015
+  (NW t ≈ −2.6 to −2.8) — intraday opening-drive *reverses*, consistent with
+  CB-N50's "daily momentum IS reversal" prior and the index-pair trending
+  (reversal of the stock-level component). The frozen rule applies: **sign is
+  pinned, no flip-fishing — family closed.**
+- **F4: a genuinely strong effect, eaten by costs.** Gap-fade (sign registered
+  −1) shows family IC −0.0289 (NW t −6.09, shift-null p 0.000, AC1 0.02) with
+  all four cells qualifying — the strongest signal this repo has measured on a
+  fresh window. But the fade spread is +3.2 to +6.0 bp/session gross vs
+  **10.5 bp/session measured costs** (2×2.7 slippage + ~5.1 fees) → net
+  −4.6 to −8.9 bp/session → **the R4 measured-τ net-spread gate kills it.**
+  This is the PSB-1/2 fee-dominance result reproduced at intraday scale, for
+  the first time with a statistically significant effect behind it.
+
+**Program status (spec §9):** TRAIN fail → both families closed. HOLDOUT was
+NOT read (chain stop — the pre-reg's gate structure held). SEALED 2026-01-01 →
+spend date remains **untouched and unread** (n ≥ 317 floor preserved). The
+battery's safeguards did exactly their job: a real, significant effect was
+refused on costs — no tuning, no rescue, no sign-flip, no cell added after the
+first run. Any successor family starts its own pre-registration; the trial
+ledger, snapshot, and this log are the record.
+
+
 
