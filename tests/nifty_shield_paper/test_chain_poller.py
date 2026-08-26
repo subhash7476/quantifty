@@ -203,6 +203,34 @@ def test_two_expiry_cycle_prices_far_weekly_legs(tmp_path):
     assert hb["expiries"] == [near, far]
 
 
+def test_run_consumes_two_expiry_fetch_tuple(tmp_path, monkeypatch):
+    """2026-08-25 13:00 checkpoint failure: commit 9420742 changed the fetch
+    seam to return (rows, expiries-LIST) but run() still unpacked a singular
+    `expiry` -> NameError on every cycle that got rows, killing the poller.
+    Gates run() end-to-end against the real tuple shape."""
+    import scripts.nifty_shield_paper.chain_poller as cp
+    from core.database.utils.market_hours import MarketHours
+
+    poller = _make_poller(tmp_path)
+    poller.bootstrap()
+    far = "2026-09-01"
+    fetch_calls = {"n": 0}
+
+    def _fetch():
+        fetch_calls["n"] += 1
+        return _synthetic_rows(), [EXPIRY, far]
+
+    monkeypatch.setattr(MarketHours, "is_market_open", lambda *a, **k: True)
+    monkeypatch.setattr(cp, "_token_ok", lambda: True)
+    poller.run(_fetch, symbol=UNDERLYING, max_cycles=1)
+
+    assert fetch_calls["n"] == 1
+    src = ChainSnapshotMarksSource(str(poller.cache_path))
+    assert len(src.marks(LEG_SYMBOLS)) == len(LEG_SYMBOLS)
+    hb = json.loads((tmp_path / "chain_poller_heartbeat.json").read_text())
+    assert hb["expiries"] == [EXPIRY, far]
+
+
 def test_bootstrap_rebuilds_corrupt_cache(tmp_path):
     poller = _make_poller(tmp_path)
     poller.cache_path.parent.mkdir(parents=True, exist_ok=True)

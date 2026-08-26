@@ -1,0 +1,83 @@
+formation_date,side,underlying,sector,z_carry_neut
+2026-07-31,LONG,CROMPTON,Consumer Durables,1.254
+2026-07-31,LONG,POWERINDIA,Capital Goods,1.252
+2026-07-31,LONG,DALBHARAT,Construction Materials,1.246
+2026-07-31,LONG,AMBUJACEM,Construction Materials,1.245
+2026-07-31,LONG,CUMMINSIND,Capital Goods,1.239
+2026-07-31,LONG,CGPOWER,Capital Goods,1.147
+2026-07-31,LONG,BEL,Capital Goods,1.124
+2026-07-31,LONG,POLYCAB,Capital Goods,1.12
+2026-07-31,LONG,ICICIGI,Financial Services,1.103
+2026-07-31,LONG,BHEL,Capital Goods,1.09
+2026-07-31,LONG,PATANJALI,Fast Moving Consumer Goods,1.089
+2026-07-31,LONG,MUTHOOTFIN,Financial Services,1.088
+2026-07-31,LONG,AMBER,Consumer Durables,1.048
+2026-07-31,LONG,UNOMINDA,Automobile and Auto Components,1.038
+2026-07-31,LONG,BHARATFORG,Automobile and Auto Components,1.014
+2026-07-31,LONG,MFSL,Financial Services,1.013
+2026-07-31,LONG,MOTHERSON,Automobile and Auto Components,1.005
+2026-07-31,LONG,SUPREMEIND,Capital Goods,0.997
+2026-07-31,LONG,HDFCLIFE,Financial Services,0.995
+2026-07-31,LONG,BAJAJHLDNG,Financial Services,0.993
+2026-07-31,LONG,VMM,Consumer Services,0.988
+2026-07-31,LONG,TCS,Information Technology,0.981
+2026-07-31,LONG,TIINDIA,Automobile and Auto Components,0.963
+2026-07-31,LONG,MARICO,Fast Moving Consumer Goods,0.959
+2026-07-31,LONG,AUBANK,Financial Services,0.941
+2026-07-31,LONG,PHOENIXLTD,Realty,0.915
+2026-07-31,LONG,BANKBARODA,Financial Services,0.907
+2026-07-31,LONG,TATACONSUM,Fast Moving Consumer Goods,0.903
+2026-07-31,LONG,ETERNAL,Consumer Services,0.887
+2026-07-31,LONG,SBIN,Financial Services,0.886
+2026-07-31,LONG,IEX,Financial Services,0.871
+2026-07-31,LONG,COCHINSHIP,Capital Goods,0.867
+2026-07-31,LONG,MOTILALOFS,Financial Services,0.819
+2026-07-31,LONG,KAYNES,Capital Goods,0.812
+2026-07-31,LONG,INOXWIND,Capital Goods,0.803
+2026-07-31,LONG,HDFCBANK,Financial Services,0.801
+2026-07-31,LONG,VBL,Fast Moving Consumer Goods,0.798
+2026-07-31,LONG,LUPIN,Healthcare,0.785
+2026-07-31,LONG,FORCEMOT,Automobile and Auto Components,0.776
+2026-07-31,LONG,GAIL,Oil Gas & Consumable Fuels,0.757
+2026-07-31,LONG,PNB,Financial Services,0.75
+2026-07-31,SHORT,FEDERALBNK,Financial Services,-0.389
+2026-07-31,SHORT,BHARTIARTL,Telecommunication,-0.424
+2026-07-31,SHORT,MPHASIS,Information Technology,-0.452
+2026-07-31,SHORT,DELHIVERY,Services,-0.461
+2026-07-31,SHORT,BLUESTARCO,Consumer Durables,-0.597
+2026-07-31,SHORT,SAIL,Metals & Mining,-0.605
+2026-07-31,SHORT,DRREDDY,Healthcare,-0.628
+2026-07-31,SHORT,POWERGRID,Power,-0.643
+2026-07-31,SHORT,ONGC,Oil Gas & Consumable Fuels,-0.66
+2026-07-31,SHORT,SONACOMS,Automobile and Auto Components,-0.681
+2026-07-31,SHORT,RBLBANK,Financial Services,-0.707
+2026-07-31,SHORT,BOSCHLTD,Automobile and Auto Components,-0.724
+2026-07-31,SHORT,CONCOR,Services,-0.784
+2026-07-31,SHORT,GODREJCP,Fast Moving Consumer Goods,-0.794
+2026-07-31,SHORT,IRFC,Financial Services,-0.806
+2026-07-31,SHORT,PIIND,Chemicals,-1.002
+2026-07-31,SHORT,RECLTD,Financial Services,-1.015
+2026-07-31,SHORT,JUBLFOOD,Consumer Services,-1.063
+2026-07-31,SHORT,INDUSINDBK,Financial Services,-1.133
+2026-07-31,SHORT,NAM-INDIA,Financial Services,-1.18
+2026-07-31,SHORT,MANKIND,Healthcare,-1.191
+2026-07-31,SHORT,LAURUSLABS,Healthcare,-1.296
+2026-07-31,SHORT,ICICIBANK,Financial Services,-1.375
+2026-07-31,SHORT,BANDHANBNK,Financial Services,-1.506
+2026-07-31,SHORT,LICI,Financial Services,-1.571
+2026-07-31,SHORT,IOC,Oil Gas & Consumable Fuels,-1.783
+2026-07-31,SHORT,SWIGGY,Consumer Services,-1.92
+2026-07-31,SHORT,KFINTECH,Financial Services,-2.23
+2026-07-31,SHORT,LODHA,Realty,-2.245
+2026-07-31,SHORT,HYUNDAI,Automobile and Auto Components,-2.297
+2026-07-31,SHORT,KPITTECH,Information Technology,-2.371
+2026-07-31,SHORT,MARUTI,Automobile and Auto Components,-2.378
+2026-07-31,SHORT,SIEMENS,Capital Goods,-2.546
+2026-07-31,SHORT,WAAREEENER,Capital Goods,-2.798
+2026-07-31,SHORT,SHREECEM,Construction Materials,-3.109
+2026-07-31,SHORT,ASTRAL,Capital Goods,-3.238
+2026-07-31,SHORT,DIXON,Consumer Durables,-3.312
+2026-07-31,SHORT,BDL,Capital Goods,-3.388
+2026-07-31,SHORT,LICHSGFIN,Financial Services,-3.502
+2026-07-31,SHORT,IREDA,Financial Services,-3.566
+2026-07-31,SHORT,GODFRYPHLP,Fast Moving Consumer Goods,-3.596

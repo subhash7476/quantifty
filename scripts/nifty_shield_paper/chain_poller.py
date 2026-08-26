@@ -382,7 +382,7 @@ class ChainPoller:
                 time.sleep(self._token_retry_interval_s)
                 continue
             try:
-                rows, expiry = fetch()
+                rows, expiries = fetch()
             except Exception as exc:
                 self._consecutive_failures += 1
                 self._log_failure(exc)
