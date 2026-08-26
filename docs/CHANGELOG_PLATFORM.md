@@ -6,6 +6,55 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-08-26 — Trade Intelligence v2: universal fill-seam trade recorder
+
+Generic `TradeRecorder` (`core/execution/portfolio/trade_recorder.py`) hooked at `ExecutionHandler._handle_broker_fill` — records **every executed trade from every strategy** (PAPER + LIVE) to `trade_intelligence.duckdb.executed_trades`, no per-strategy integration. Round-trip grain keyed by entry fill_id; partial fills VWAP/accrue; flips close-and-reopen; signal snapshot + regime context immutable at entry; real fill-price MTM and realized PnL. Write-only, self-disabling on failure, toggle via `ExecutionConfig.trade_recorder_enabled` (disable for bulk historical replays). Resolves all four M0 report §11 limitations (exit reasons, regime NULLs, live MTM, runner integration). Operator cleared the old TS-Basis-specific `trades` table same day. 14/14 recorder tests green; execution suite 320 passed. *(docs/implementation/trade_intelligence/reports/GENERIC_RECORDER_REPORT.md)*
+
+## 2026-08-25/26 — DayType publisher retry fix; Carry first forward recommendation report; chain-poller hardening
+
+- **DayType 13:00 fact publisher retries transient live-buffer locks** — root cause of the 2026-08-25 entry skip; `scripts/daytype/publish_live_fact.py` backs off and retries instead of failing the publish. *(commit `2afaad8`)*
+- **Carry last-recommendation report published** — script-generated `docs/reports/CARRY_LAST_RECOMMENDATION_REPORT.md` via `scripts/carry_last_recommendation_report.py`: the production strategy's standing recommendation (formation 2026-07-31, marked through latest bhavcopy) from `facts.duckdb` + near-month futures closes. *(commit `3bf9d92`)*
+- **NiftyShield chain_poller fixes** — fetch both weeklies + preflight expiry-coverage gate (2026-08-24 entry-skip root cause). *(commit `9420742`)*
+
+## 2026-08-24→26 — ISD: intraday-stocks discovery program — spec approved, phase-1 substrate CERTIFIED
+
+New research program (ISD) targeting intraday stock-level discovery. Spec drafted 2026-08-24, operator repairs verified, then **APPROVED with decisions Q1–Q5 frozen**: 2024-11-20 treated as NSE election closure, point-in-time universe, Rs 2 Cr capital assumption, paper-before-sealed gating. *(commits `368710a`, `fcfcf3b`, `55e9f79`; `docs/superpowers/specs/2026-08-24-intraday-stocks-discovery-design.md`)*
+
+Phase-1 substrate certification **ALL GATES PASS (G1–G7)**: vendor archive ingestion + cross-validation certified, zero-row repair, contiguity/validity gates, PIT universe builder (`scripts/isd/build_pit_universe.py`), slippage bands, adjustment verification, and an era-aware intraday equity fee model (`core/execution/equity/intraday_fees.py`). ~2,300 lines across `scripts/isd/` + `tests/isd/test_gates.py`. *(commit `ba3e77e`; `docs/reports/ISD_PHASE1_SUBSTRATE_CERTIFICATION.md`)*
+
+## 2026-08-19→21 — NiftyShield PAPER hardening: three incident fixes + tick-rate structure updates
+
+- **2026-08-19 incident — exit updates never landed in the trade ledger:** closing fills resolve the open (entry-keyed) `trades` row before `update_trade_exit` (the exit fill id previously matched 0 rows, leaving `exit_price=0/pnl=0`); plus a `Counter`+`asdict` serialization crash in finalize and a one-command `recover_session.py`. *(commit `3200bc8`)*
+- **2026-08-20 incident — restart blinded the exit driver:** orders now persist `group_id` (schema migration) so `_replay_state` rebuilds the OrderGroup registry after restart; daily-trade-limit gate bypasses EXIT orders ("closing is never blocked"); `recorder.finalize` merges prior-run capture instead of destroying evidence; `recover_session.py --backfill-groups`. *(commit `6cc6b5e`)*
+- **2026-08-21 — closed restored groups stay closed:** `_group_flat` uses full BUY+SELL leg round-trips as authoritative (position check fallback only) — a re-entered symbol no longer revives an orphan group's id and stop-losses the wrong leg; new `close_open_structures.py` ops tool through the real exit path. *(commit `c4d5be9`)*
+- **Live tick-rate updates for structure legs + hardened leg-marks fetch** (poll regardless of market-open). *(commits `443a851`, `ffad1e1`)*
+- **Ops: ingestor survives DuckDB lock collisions** (`_duckdb_connect` retries IOException on RW opens — VIX preflight poll vs ingestor bootstrap) and **supervisor revives dead children during warm-up** (~2 s instead of window timeout). *(commit `f9446a6`)*
+
+## 2026-08-13→17 — Options-Wall (DW-1) paper pilot built and merged; app shell re-themed light
+
+Hedgewall feasibility report + **DW-1 dealer-wall pre-registration v2** (2026-08-13), then the full pilot in Phases 0–4 (2026-08-14): wiring reconciliation + scanner core, snapshot persistence (best_bid/best_ask trail) + wall poller, `/options/wall` panel, iron-fly builder (ATM center, %-snapped wings, fees/margin/spread cap), trades-table paper-trade writers, and a paper executor run open/mark/exit each poll cycle with a pilot runbook. Review findings addressed twice (HIGH/MEDIUM/LOW rounds). Farm API enriched with spot, gamma-by-strike ladder, and iron-fly leg quotes. Companion fixes: Flask debug reloader disabled (ZMQ telemetry double-bind), flexible 13:00 entry window with publish retry, chain_poller tradingsymbol synthesis so marks key struck legs. Merged to main 2026-08-17 together with the NiftyShield PAPER page; dashboard rebuilt on a **light paper palette** re-theme of `base.html` with self-healing read paths (legacy result DBs get missing columns/tables on the fly); 42 tests green. *(commits `356677e`…`8f2d046`, `5a18f3c`; `docs/reports/OPTIONS_WALL_FEASIBILITY_REPORT.md`, `docs/reports/DW1_DEALER_WALL_PRE_REGISTRATION.md`)*
+
+## 2026-08-07→12 — NiftyShield adoption: Stage 1 CONFORMANT, honest model retrain (E007), sealed 2026 verdict INCONCLUSIVE, E008 PAPER window opened
+
+- **Stage 0→2 progression:** `nifty_shield_v1` adoption package; Stage 1 CONFORMANT build (SignalSource + execution services, PR #2); Stage 2 prerequisite — live 13:00 fact publisher wiring (DS2-1..4, PR #3).
+- **Model retrain (E007):** full training pipeline ported and re-run on F:\Nifty data — 1m reference ingest, k=3 clustering verified, `logistic_10am`/`logistic_11am`/`logistic_13pm_prod` trained (train thru 2023 / val 2024 / holdout 2025; 69.6/72.0/72.2). A first retrain attempt was left test-red with stale provenance; superseded by the honest retrain at `fe87363` (parity PASS, TRAINED_ON corrected) — E007 grant re-cert pins code_ref `fe87363`.
+- **Sealed 2026 verdict: INCONCLUSIVE** — read against the pre-registered acceptance bar (frozen at `09ee7ca` before the read): gross-positive (+8,764 Rs, all regimes traded, MaxDD −14,006 within bound) but Sharpe **0.746 < 0.80**, short by 0.054. Bar held, not moved; no promotion — next step is forward-PAPER with real fees.
+- **E008 PAPER window opened** (runbook re-pinned to `fe87363`); morning-replay gap documented; DatabaseManager singleton that left a PAPER session stuck at bars_processed=0 fixed.
+
+*(commits `89ddf04`…`393dbac`; `docs/reports/NIFTY_SHIELD_SEALED_ACCEPTANCE_BAR.md`, `docs/reports/NIFTY_SHIELD_MORNING_REPLAY_GAP.md`)*
+
+## 2026-08-09→11 — Ops trading-window orchestrator + preflight; ingestor writer-worker redesign; VIX feed root cause
+
+- **Orchestrator:** one-command foreground supervisor for the NiftyShield PAPER window — child registry (spawn/adopt/liveness), start machine (STOP guard, token gate, market-open park), supervise loop with cooperative stop + start/status/stop CLI, Windows-safe PID/lock helpers; BLOCK/WARN preflight checks (token, STOP file, marks freshness, VIX) with verdict reporting; cooperative clean stop for the session runner. Runbook + CLAUDE.md ops section added.
+- **Ingestor writer-worker redesign (F1–F6 shakedown):** single `LiveBufferWriter` owns the live candles buffer — queue + parse + coalesced tick-append + drain + backpressure; chunked aggregation, recovery, and WS raw frames all routed through the worker (no more direct RW writes); bounded retry on reader collisions; redundant Aggregate coalescing to stop candle-write pile-up starving readers; cross-process reader proof test (F4). Config-schema bootstrap and warm-up park fixes (F2/F5/F6).
+- **VIX feed root cause found:** Upstox full-mode subscription cap starves India VIX — live WS universe trimmed to the 3 indices; LIVE driver live-buffer re-rooted so bars actually flow; warm-up gate logs failing BLOCK checks (was silent).
+
+*(commits `9059a9c`…`7a0b61d`; `docs/reports/OPS_ORCHESTRATOR_RUNBOOK.md`, spec under `docs/superpowers/specs/`)*
+
+## 2026-08-04 — Carry forward-PAPER pipeline repaired — July 2026 monthly formation unblocked
+
+Three defects were blocking the production strategy's first forward monthly formation (2026-07-31): `publish_facts.py --forward` dropped `--incremental` (full-rebuild PK collision on the signals DB); carry facts lacked `raw_z`/`basis_reverting` which `CarryRebalancerHook` hard-selects since `dcfad45` (added with ALTER migration, also in `refresh_all_strategies.py` inline publish); `carry_forward_runner.py` passed `signals_db_path`, activating replay-only `_load_fwd_names` which silently dropped every live name. Formation now executes: **41L/41S, determinism hash `358161d05cf2f059`, stable across runs; 51 tests green.** *(commit `1593cc7`)*
+
 ## 2026-08-01 — Index pair research: Nifty-BankNifty mean reversion — NO OPPORTUNITY; RS-MOM — RFA ABANDON; CB-N50 constituent breadth — RFA PROCEED
 
 Three constructs evaluated on Nifty/BankNifty pair trading across EOD (2016-2026, 2,620 obs) + 1m intraday (2023-2026, 315K obs) data.

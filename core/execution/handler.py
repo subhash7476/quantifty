@@ -61,6 +61,7 @@ from core.risk.greeks.portfolio_greeks import PortfolioGreeks
 from core.risk.greeks.greeks_model import Greeks
 from core.analytics.diagnostic_engine import DiagnosticsEngine
 from core.database.writers import TradingWriter, _to_str
+from core.execution.portfolio.trade_recorder import TradeRecorder
 from core.runtime.event_journal import RuntimeEventJournal, EventType, Severity
 
 
@@ -117,6 +118,9 @@ class ExecutionConfig:
     # universe would otherwise block every entry permanently). Age comparison is
     # strictly greater-than: age == max_price_age_s is FRESH (spec §2.7).
     max_price_age_s: float = float('inf')
+    # TI v2: universal fill-seam trade recorder. Write-only research capture;
+    # disable for bulk historical replays that would pollute the learning DB.
+    trade_recorder_enabled: bool = True
 
 
 @dataclass
@@ -215,6 +219,16 @@ class ExecutionHandler:
 
         # Phase 9C: Portfolio Greeks
         self.portfolio_greeks = PortfolioGreeks(self.position_tracker)
+
+        # TI v2: universal fill-seam trade recorder — write-only research
+        # capture of every executed trade, strategy-agnostic. Failure to
+        # construct disables it; execution continues untouched.
+        self.trade_recorder: Optional[TradeRecorder] = None
+        if self.config.trade_recorder_enabled:
+            try:
+                self.trade_recorder = TradeRecorder()
+            except Exception as e:
+                self.logger.error("TradeRecorder disabled — init failed: %s", e)
 
         # MM9.3-S3: handler-local PortfolioView for the drawdown gate (I.M.2
         # full fix). Second of the two intentional instances (parent spec §2.4):
@@ -404,7 +418,8 @@ class ExecutionHandler:
             order_id_str = str(fill.order_id)
             
             order_state = self.order_tracker.get_order(order_id_str)
-            
+
+            signed_qty_before = self.position_tracker.net_quantity(fill.symbol)
             self.order_tracker.process_fill(fill)
             realized_pnl = self.position_tracker.update_from_fill(fill)
             # G1 Wave 4B (#7) — canonicalize the live forward position's identity
@@ -423,6 +438,15 @@ class ExecutionHandler:
             if derived is not None:
                 self.position_tracker.replace_instrument(fill.symbol, derived)
             self.pnl_tracker.update(fill, realized_pnl)
+
+            # TI v2: universal trade recorder (write-only, never raises)
+            if self.trade_recorder is not None:
+                self.trade_recorder.on_fill(
+                    fill,
+                    order_state.order if order_state else None,
+                    signed_qty_before,
+                    realized_pnl,
+                )
             
             # Use raw correlation ID for group tracker
             if isinstance(fill.order_id, (UUID, str)):

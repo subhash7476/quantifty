@@ -17,6 +17,13 @@ def con():
     if not TI_DB.exists():
         pytest.skip("Trade intelligence DB not built")
     c = duckdb.connect(str(TI_DB), read_only=True)
+    n = c.execute(
+        "SELECT COUNT(*) FROM information_schema.tables "
+        "WHERE table_name='trades'").fetchone()[0] and \
+        c.execute("SELECT COUNT(*) FROM trades").fetchone()[0]
+    if not n:
+        c.close()
+        pytest.skip("Trade intelligence DB built but cleared (operator reset)")
     yield c
     c.close()
 
