@@ -3,16 +3,20 @@ Market Hours Utility
 --------------------
 Utilities for checking market hours and trading sessions.
 
-Indian market hours (IST):
-- Pre-market: 9:00 AM - 9:15 AM
-- Market open: 9:15 AM - 3:30 PM
-- Post-market: 3:30 PM - 4:00 PM
+Indian market hours (IST). Segment-dependent since SEBI's Closing Auction
+Session (2026-08-03) — see core/market/session_schedule.py, which is the
+authority. The constants below are the pre-CAS cash session, retained because
+callers still reference them for display.
 """
 
 from datetime import datetime, time, date, timedelta
 from typing import Tuple, Optional, Set
 import pytz
 import logging
+
+from core.market.session_schedule import any_open as _any_open
+from core.market.session_schedule import is_open as _is_open
+from core.market.session_schedule import session_window
 
 _logger = logging.getLogger(__name__)
 
@@ -129,15 +133,19 @@ class MarketHours:
         return True
 
     @classmethod
-    def is_market_open(cls, dt: Optional[datetime] = None) -> bool:
+    def is_market_open(cls, dt: Optional[datetime] = None, segment: str = "cash_cat1") -> bool:
         """
-        Check if the market is currently open.
+        Check whether `segment` is currently open.
+
+        Default segment is cash Category I (F&O-eligible stocks) — the historical
+        meaning of this method. Post-CAS that session ends at 15:15, not 15:30.
 
         Args:
             dt: Datetime to check. Defaults to current IST time.
+            segment: One of core.market.session_schedule.SEGMENTS.
 
         Returns:
-            True if market is open (9:15 AM - 3:30 PM IST on weekdays).
+            True if the segment is open at `dt` on a trading day.
         """
         if dt is None:
             dt = cls.get_ist_now()
@@ -148,9 +156,25 @@ class MarketHours:
         if not cls.is_trading_day(dt):
             return False
 
-        # Check time
-        current_time = dt.time()
-        return cls.MARKET_OPEN <= current_time < cls.MARKET_CLOSE
+        return _is_open(segment, dt.replace(tzinfo=None))
+
+    @classmethod
+    def is_derivatives_open(cls, dt: Optional[datetime] = None) -> bool:
+        """Check whether the F&O segment is open — 15:40 close since CAS."""
+        return cls.is_market_open(dt, segment="derivatives")
+
+    @classmethod
+    def is_any_open(cls, dt: Optional[datetime] = None) -> bool:
+        """Check whether any segment (cash, auction, or derivatives) is open."""
+        if dt is None:
+            dt = cls.get_ist_now()
+        else:
+            dt = cls.to_ist(dt)
+
+        if not cls.is_trading_day(dt):
+            return False
+
+        return _any_open(dt.replace(tzinfo=None))
 
     @classmethod
     def is_pre_market(cls, dt: Optional[datetime] = None) -> bool:
@@ -183,7 +207,7 @@ class MarketHours:
             dt: Datetime to check. Defaults to current IST time.
 
         Returns:
-            True if in post-market (3:30 PM - 4:00 PM IST).
+            True if after the derivatives close and before 4:00 PM IST.
         """
         if dt is None:
             dt = cls.get_ist_now()
@@ -194,7 +218,8 @@ class MarketHours:
             return False
 
         current_time = dt.time()
-        return cls.MARKET_CLOSE <= current_time < cls.POST_MARKET_CLOSE
+        window = session_window("derivatives", dt.date())
+        return bool(window) and window[1] <= current_time < cls.POST_MARKET_CLOSE
 
     @classmethod
     def get_session_times(
