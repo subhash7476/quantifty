@@ -381,7 +381,7 @@ On every non-`None` bar arrival (§7.2), the driver calls `watchdog.record_bar()
 ### 9.3 Stale-feed detection
 
 Once per tick (after the symbol sweep), the driver calls `watchdog.check_data_staleness()` (`watchdog.py:63`):
-- No-op until the first bar (warmup) and outside market hours (`MarketHours.is_market_open()`).
+- No-op until the first bar (warmup) and outside market hours (`MarketHours.is_market_open()` — cash Category I, which ends 15:15 since CAS).
 - If `now - last_bar > DATA_STALE_THRESHOLD` (5 min) during market hours → sets `_data_healthy = False`, emits `alerter.critical(...)`, and calls `execution.activate_kill_switch("Data feed stale (…m)")` (`watchdog.py:82`).
 
 ### 9.4 Heartbeat generation
@@ -435,7 +435,7 @@ The enriched path accesses `self._execution._price_cache` and `self._execution.m
 
 ### 10.5 Health publishing — `publish_health(data)`
 
-Node-level liveness: `node_name`, loop state (§3), `data_healthy`, `market_open`, uptime, last-tick timestamp. This is the "observable without broker login" requirement (Constitution §6) over the wire, complementary to the on-disk `heartbeat.json` (§9.4).
+Node-level liveness: `node_name`, loop state (§3), `data_healthy`, `market_open`, `derivatives_open`, uptime, last-tick timestamp. Since CAS (2026-08-03) the segments diverge: `market_open` is cash Category I (ends 15:15) while `derivatives_open` runs to 15:40 — both resolved per-date via `core/market/session_schedule.py`. The exact key set is pinned by `tests/runtime/test_driver_telemetry_publish.py`. This is the "observable without broker login" requirement (Constitution §6) over the wire, complementary to the on-disk `heartbeat.json` (§9.4).
 
 ### 10.6 Fire-and-forget contract (and its honest cost)
 
