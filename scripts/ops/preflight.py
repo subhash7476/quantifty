@@ -242,24 +242,32 @@ def _ingestor_alive(now: datetime) -> bool:
         return False
 
 
-def _vix_bar_age_s(now: datetime) -> Optional[float]:
+def _vix_bar_age_s(now: datetime, retries: int = 5, delay_s: float = 0.1) -> Optional[float]:
+    """Read-only open of the live buffer races the ingestor's commits — on
+    Windows a second process cannot open the DB while the writer holds a
+    transaction, so retry transient sharing violations like _read_marks."""
     if not LIVE_BUFFER.exists():
         return None
-    try:
-        import duckdb
-        con = duckdb.connect(str(LIVE_BUFFER), read_only=True)
+    import time
+    import duckdb
+    for attempt in range(retries):
         try:
-            row = con.execute(
-                "SELECT MAX(timestamp) FROM candles WHERE symbol = ?", [VIX_SYMBOL]
-            ).fetchone()
-        finally:
-            con.close()
-        if not row or row[0] is None:
-            return None
-        ts = row[0] if isinstance(row[0], datetime) else datetime.fromisoformat(str(row[0]))
-        return (now - ts).total_seconds()
-    except Exception:
-        return None
+            con = duckdb.connect(str(LIVE_BUFFER), read_only=True)
+            try:
+                row = con.execute(
+                    "SELECT MAX(timestamp) FROM candles WHERE symbol = ?", [VIX_SYMBOL]
+                ).fetchone()
+            finally:
+                con.close()
+            if not row or row[0] is None:
+                return None
+            ts = row[0] if isinstance(row[0], datetime) else datetime.fromisoformat(str(row[0]))
+            return (now - ts).total_seconds()
+        except Exception:
+            if attempt == retries - 1:
+                return None
+            time.sleep(delay_s)
+    return None
 
 
 def _span_present() -> bool:
