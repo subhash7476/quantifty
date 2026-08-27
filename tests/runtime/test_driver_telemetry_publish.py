@@ -37,7 +37,8 @@ from _doubles import (FakeClock, FakeExecutionHandler, FakeMarketDataProvider,
 
 _UTC = pytz.UTC
 _START = datetime(2026, 6, 5, 9, 15, tzinfo=_UTC)   # known bar-time for assertions
-_HEALTH_KEYS = {"node", "state", "data_healthy", "market_open", "uptime_s", "last_tick"}
+_HEALTH_KEYS = {"node", "state", "data_healthy", "market_open", "derivatives_open",
+                "uptime_s", "last_tick"}
 
 
 class _RaisingPublisher:

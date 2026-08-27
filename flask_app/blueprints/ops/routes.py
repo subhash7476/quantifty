@@ -73,6 +73,9 @@ def api_status():
         market_status = "Open"
     elif MarketHours.is_pre_market():
         market_status = "Pre-Market"
+    elif MarketHours.is_derivatives_open():
+        # CAS: cash Cat-I shuts at 15:15 while F&O trades to 15:40.
+        market_status = "Derivatives Only"
     elif MarketHours.is_post_market():
         market_status = "Post-Market"
     else:

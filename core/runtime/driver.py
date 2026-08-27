@@ -869,8 +869,10 @@ class LoopDriver:
         - `state`     — the driver's own RuntimeState (covers loop/startup/recovery);
         - `data_healthy` — the watchdog's PUBLIC `data_healthy` flag (True when no
           watchdog is wired, i.e. nothing is monitoring staleness);
-        - `market_open` — `MarketHours.is_market_open(clock.now())`, keyed to the
-          trade clock so it is deterministic in replay and wall-clock-correct live;
+        - `market_open` — `MarketHours.is_market_open(clock.now())` (cash Category I;
+          ends 15:15 since CAS), keyed to the trade clock so it is deterministic in
+          replay and wall-clock-correct live;
+        - `derivatives_open` — the F&O segment, which runs to 15:40 since CAS;
         - `last_tick`  — the trade clock's current time (data-driven, §6);
         - `uptime_s`   — wall-clock process uptime (operational, §6.5);
         - `node`       — the configured telemetry node name.
@@ -881,6 +883,7 @@ class LoopDriver:
             "state": self._state.value,
             "data_healthy": self._watchdog.data_healthy if self._watchdog is not None else True,
             "market_open": MarketHours.is_market_open(now),
+            "derivatives_open": MarketHours.is_derivatives_open(now),
             "uptime_s": round(time.monotonic() - self._start_monotonic, 6),
             "last_tick": now.isoformat() if now is not None else None,
         }
