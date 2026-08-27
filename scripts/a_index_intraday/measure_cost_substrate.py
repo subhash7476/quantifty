@@ -88,17 +88,22 @@ def main() -> int:
             skipped_stamp += 1
             continue
         valid_sessions += 1
+        # exit-bar rule (D6, 2026-08-27): the 15:14-labeled bar must exist
+        exit_present = any(r[0].time().hour == 15 and r[0].time().minute == 14
+                           for r in rows)
         opens = [float(r[1]) for r in rows]
         closes = [float(r[2]) for r in rows]
         for t in range(1, len(rows)):
             if closes[t - 1] > 0:
                 pooled[era].append(abs(opens[t] - closes[t - 1]) / closes[t - 1])
-        if len(rows) > ENTRY_BAR_CELL1 and closes[ENTRY_BAR_CELL1 - 1] > 0:
+        if exit_present and len(rows) > ENTRY_BAR_CELL1 \
+                and closes[ENTRY_BAR_CELL1 - 1] > 0:
             entry31[era].append(abs(opens[ENTRY_BAR_CELL1]
                                     - closes[ENTRY_BAR_CELL1 - 1])
                                 / closes[ENTRY_BAR_CELL1 - 1])
             cadence[31][d[:4]] = cadence[31].get(d[:4], 0) + 1
-        if len(rows) > ENTRY_BAR_CELL2 and closes[ENTRY_BAR_CELL2 - 1] > 0:
+        if exit_present and len(rows) > ENTRY_BAR_CELL2 \
+                and closes[ENTRY_BAR_CELL2 - 1] > 0:
             entry46[era].append(abs(opens[ENTRY_BAR_CELL2]
                                     - closes[ENTRY_BAR_CELL2 - 1])
                                 / closes[ENTRY_BAR_CELL2 - 1])
@@ -309,9 +314,10 @@ def main() -> int:
             f"| {y} | {cadence[31].get(y, 0)} | {cadence[46].get(y, 0)} |")
     lines += [
         "",
-        "Cadence per year = sessions passing the session-validity rule with "
-        "the entry bar present. Trades/year for the RFA cadence figure: mean "
-        f"of the cell-1 column across 2012-2026 "
+        "Cadence per year = sessions passing the session-validity rule (first "
+        "bar date-stamped + entry bar present + **15:14 exit bar present**, "
+        "per D6) — counts only; no returns. Trades/year for the RFA cadence "
+        "figure: mean of the cell-1 column across 2012-2026 "
         f"({sum(cadence[31].values()) / 15:.0f}/yr).",
         "",
         "Snapshot: `data/a_index_intraday/cost_substrate_measurements.json`",

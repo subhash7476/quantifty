@@ -66,21 +66,35 @@ unmeasured. A exists to measure it.
 
 ## 3. Exit timestamp
 
-- **Exit (D4, decided 2026-08-27):** the **last bar close** of the session
-  — the vendor era's 15:30-labeled bar, the native era's 15:29 bar. EOD-flat
-  by construction — the position never survives overnight. Overnight is B's
-  question, not A's.
-- **Fidelity, disclosed, not costed:** the vendor-era last-bar close deviates
-  from the official 15:30 close print by median 5.4 bp / p99 32 bp / max
-  108 bp (native era: median 4 bp — the expected last-minute move;
-  `A_INDEX_SLICE_CERTIFICATION.md` §C5). The backtest exit price IS the last
-  bar close — the same convention in both eras — and execution realism is
-  carried by the measured slippage lane, so no separate exit-fidelity lane is
-  added (a lane would double-count what slippage covers). The distribution is
-  recorded here and cited by the pre-registration as a modeling property of
-  the vendor-era substrate.
-- The ISD convention (exit at the last bar close, slippage applied) is kept
-  for comparability.
+- **Exit (D6, decided 2026-08-27 — re-pin driven by CAS):** the **15:14 bar
+  close**, EOD-flat by construction — the last continuous-regime print in all
+  three structural eras. Pre-CAS it is an ordinary continuous close (the
+  construct voluntarily ends the hold ~15 minutes early); from CAS
+  (2026-08-03, SEBI Closing Auction Session) it is the last continuous print
+  before the 15:15 halt — fillable at market, sitting entirely outside the
+  auction window (no unreachable auction print, no exposure to auction-window
+  manipulation, comfortably before the F&O MIS square-off ~15:26 and the cash
+  square-off ~15:12). The traded instrument (Nifty futures) trades to 15:40;
+  the construct simply chooses not to hold into that tail.
+- **Supersedes D4 (2026-08-27, earlier the same day):** D4 pinned the exit at
+  the last bar close "by design, no lane." The CAS docs
+  (`CAS_ADAPTATION_REGISTER.md` A6; `CAS_IMPACT_ASSESSMENT.md` §4.2) voided
+  that reasoning: from 2026-08-03 the index's 15:29 bar is the auction print
+  (a discrete gap — +152/+200.8 pts on the launch days vs a 100.6-pt pre-CAS
+  max), not continuous trade, and the residual-vs-official-close distribution
+  recorded in `A_INDEX_SLICE_CERTIFICATION.md` C5 ceases to describe it. D6
+  removes the construct from that window entirely rather than pricing it.
+- **Fidelity, disclosed, not costed:** the construct's exit price IS the
+  15:14 bar close — a real continuous print in every era; no auction-gap lane
+  is needed or added (the construct never trades 15:15+). The unmodeled tail
+  (15:14 → session close) is the last-15-minutes' drift pre-CAS and the
+  auction gap post-CAS (mean |move| 20.1 pts / max 100.6 pre-CAS 2026
+  baseline; launch spikes +200.8/+152.0 on Aug 3–4, normalized to baseline
+  after the Aug 19 SEBI enforcement — impact §3) — measured, disclosed,
+  deliberately untraded.
+- **Exit bar presence is part of session validity:** a session is skipped
+  unless the 15:14-labeled bar exists (cadence re-measured 2026-08-27 with
+  this rule).
 
 ## 4. Position rule
 
@@ -166,11 +180,12 @@ must defend the declared effect size against it.
 ## 8. Sharpe definition
 
 - Per-trade Sharpe: `S = mean({r_t}) / sd({r_t})` on the **net** bp series.
-- Annualized: `S_ann = S · √cadence`, cadence = trades/year ≈ 250 (1/session;
-  exact cadence measured in certification, reported in the RFA).
+- Annualized: `S_ann = S · √cadence`, cadence = trades/year = **237**
+  (measured 2026-08-27 with the session-validity + exit-bar rules, mean of
+  2012–2026; per-year counts in `A_COST_SUBSTRATE_MEASUREMENTS.md` §D).
 - **RFA declaration form (contract v2, per_trade_pnl):** annualized Sharpe band
   + cadence_per_year. Candidate band (declared and frozen only at RFA):
-  `S_ann ∈ [0.95, 1.90]` (≈ per-trade S 0.06–0.12), cadence 250.
+  `S_ann ∈ [0.95, 1.90]` (≈ per-trade S 0.06–0.12), cadence **237**.
 - **Power arithmetic (one-sided α = 0.05, hurdle 0.80, ncp = 2.486):**
   - SEALED n ≈ 900 (2023-01-01 → 2026-08, ~3.6 yr): optimistic corner
     S_ann 1.90 → power ≈ 0.97; central 1.42 (S=0.09) → ≈ 0.85;
@@ -215,31 +230,35 @@ and the session-validity skip rule are detailed in
 this; only the count of tradeable sessions is affected, and the counts above
 are re-measured, never assumed, at pre-registration.
 
-## D5 — basis treatment (DECISION PENDING: 2026-08-27)
+## D5 — basis treatment (DECIDED 2026-08-27: option (a))
 
 Measured (2016–2026, within-contract, roll days excluded): basis level p50
 18 bp / p90 45 bp / max 130 bp over cash; full-day |Δ| p90 **19.2 bp**.
-The treatment question: the basis change over a ~5.7h hold has a MEAN
-component ≈ 0.4 bp (carry drift; the alternating book nets it out) and a
-DISPERSION component whose intraday value is unmeasurable pre-2023 (no
-futures 1m; the 19.2 bp full-day bound includes overnight basis gaps an
-intraday hold avoids). Options:
-
-- **(a) Mean-only + dispersion disclosure (recommended):** the net-spread
-  gate subtracts the mean (~0.4 bp, direction-consistent); the RFA defends
-  the declared effect size against the dispersion floor; optionally a cheap
-  live forward probe (~30 sessions, live futures LTP vs cash index over the
-  actual hold window) measures the intraday value on the native era.
-- **(b) Conservative full-day lane (19.2 bp/trade):** honest but almost
-  certainly kills the construct at the cost filter before TRAIN — the lane
-  exceeds any defensible gross edge.
-- **(c) Scaled lane (~13 bp, √(5.7/24) variance scaling):** statistically
-  arguable, but the scaling assumption (random-walk basis) is itself
-  unverified — invented precision, declined.
+**DECISION: (a) mean-only + dispersion disclosure.** The net-spread gate
+subtracts the mean carry component (~0.4 bp/trade, direction-consistent);
+the RFA defends the declared effect size against the dispersion floor
+(full-day within-contract |Δ| p90 19.2 bp — a conservative bound on the
+unmeasurable intraday-hold value; the construct is a cash-series backtest, so
+the noise is invisible to it and must be disclosed, not costed). The optional
+live forward probe (~30 sessions, live futures LTP vs cash index over the
+actual hold window) is **scheduled as a pre-registration-period task** to
+shrink the full-day bound with data rather than assumption. Options (b)
+conservative lane and (c) variance-scaled lane were declined as recorded
+below.
 
 The certified measurements:
 `docs/reports/A_COST_SUBSTRATE_MEASUREMENTS.md` +
 `data/a_index_intraday/cost_substrate_measurements.json`.
+
+## D6 — exit re-pin (DECIDED 2026-08-27: 15:14 bar close, all eras)
+
+See §3. Driven by the CAS docs (`CAS_ADAPTATION_REGISTER.md` A6,
+`CAS_IMPACT_ASSESSMENT.md` §4.2): from 2026-08-03 the index 15:29 bar is the
+closing-auction print, unfillable by continuous orders, while the traded
+instrument (futures) runs to 15:40. The 15:14 exit is the last continuous
+print in all eras — fillable, pre-auction, pre-square-off. The exit-fidelity
+question of D4 (last-bar vs official close) is retired; the unmodeled
+15:14→close tail is disclosed and deliberately untraded.
 
 ## D1 — operator decision (DECIDED 2026-08-27: continuation pinned)
 

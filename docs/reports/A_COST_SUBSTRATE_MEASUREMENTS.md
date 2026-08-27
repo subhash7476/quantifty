@@ -1,6 +1,6 @@
 # A — Phase-1 F&O Cost-Substrate Measurements
 
-Generated: 2026-08-27T17:16:29 · runtime 198s · valid sessions 3572 · stamp-mismatch skipped 2
+Generated: 2026-08-27T17:31:57 · runtime 205s · valid sessions 3572 · stamp-mismatch skipped 2
 
 **Read boundary:** raw bars + microstructure only; no construct signal, no P&L (per A_CONSTRUCT_DEFINITION.md).
 
@@ -39,22 +39,22 @@ Roll executes at entry-time instrument selection (flat overnight — 0 roll legs
 
 | Year | cell 1 (entry bar 31) | cell 2 (entry bar 46) |
 |---|---:|---:|
-| 2012 | 250 | 250 |
-| 2013 | 249 | 249 |
-| 2014 | 243 | 243 |
+| 2012 | 246 | 246 |
+| 2013 | 248 | 248 |
+| 2014 | 242 | 242 |
 | 2015 | 247 | 247 |
 | 2016 | 246 | 246 |
 | 2017 | 247 | 247 |
 | 2018 | 223 | 223 |
 | 2019 | 244 | 244 |
 | 2020 | 251 | 251 |
-| 2021 | 247 | 247 |
+| 2021 | 246 | 246 |
 | 2022 | 247 | 247 |
-| 2023 | 225 | 225 |
-| 2024 | 249 | 249 |
-| 2025 | 249 | 249 |
+| 2023 | 224 | 224 |
+| 2024 | 246 | 246 |
+| 2025 | 248 | 248 |
 | 2026 | 155 | 155 |
 
-Cadence per year = sessions passing the session-validity rule with the entry bar present. Trades/year for the RFA cadence figure: mean of the cell-1 column across 2012-2026 (238/yr).
+Cadence per year = sessions passing the session-validity rule (first bar date-stamped + entry bar present + **15:14 exit bar present**, per D6) — counts only; no returns. Trades/year for the RFA cadence figure: mean of the cell-1 column across 2012-2026 (237/yr).
 
 Snapshot: `data/a_index_intraday/cost_substrate_measurements.json`
