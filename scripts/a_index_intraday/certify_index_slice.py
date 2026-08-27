@@ -45,11 +45,28 @@ CANDLE_DIR_1D = ROOT / "data" / "market_data" / "nse" / "candles" / "1d"
 OUT_DIR = ROOT / "data" / "a_index_intraday"
 REPORT = ROOT / "docs" / "reports" / "A_INDEX_SLICE_CERTIFICATION.md"
 
+from core.market.session_schedule import CAS_EFFECTIVE  # noqa: E402
+
 NF = "NSE_INDEX|Nifty 50"
 VENDOR_LAST = "2023-01-31"  # vendor CSVs run 2012-01-02 -> 2023-01-31 (verified:
                             # 2023-01-31 still has vendor alignment, 09:16 first bar)
+CAS_FIRST = CAS_EFFECTIVE.isoformat()  # 2026-08-03 — third structural era
 EXPECTED_BARS = 375
 CLOSE_TOL = 1e-4  # 1 bp
+
+
+def era_for(session) -> str:
+    """Which structural era a session belongs to: vendor | native | cas.
+
+    Accepts a date or an ISO string — session keys are ISO strings in this
+    module, but callers and tests reason in dates.
+    """
+    iso = session if isinstance(session, str) else session.isoformat()
+    if iso >= CAS_FIRST:
+        return "cas"
+    if iso > VENDOR_LAST:
+        return "native"
+    return "vendor"
 
 KNOWN_SPECIALS = {
     # Diwali Muhurat (evening sessions, outside the 09:15-15:30 session shape
@@ -177,9 +194,11 @@ def main() -> int:
         if s["first_ts"]:
             ft = s["first_ts"][11:16]
             lt = s["last_ts"][11:16]
-            if d <= VENDOR_LAST:
+            if era_for(d) == "vendor":
                 bad = bad or ft != "09:16" or lt != "15:30"
             else:
+                # native and cas both label 09:15..15:29; in the cas era the
+                # last bar is the auction print, not a continuous trade.
                 bad = bad or ft != "09:15" or lt != "15:29"
         if bad:
             nf_viol[d] = s
@@ -363,7 +382,13 @@ def main() -> int:
         "p99 ~25-32 bp, max ~74-108 bp, while intraday high/low match official "
         "exactly (sampled). The native era carries the exact auction open (C6) "
         "and its last bar is 15:29 — the residual ~4 bp median vs the official "
-        "15:30 close is the expected last-minute move.",
+        "15:30 close is the expected last-minute move. "
+        "From 2026-08-03 (CAS) a third era applies: the 15:29 bar is the "
+        "closing-auction print rather than a continuous trade — it equals the "
+        "official close, but it is not reachable by a continuous-market order, "
+        "and the 15:15-15:27 bars are carry-forward artifacts. The index carries "
+        "volume=0 always, so the auction bar cannot be detected from index data; "
+        "the era boundary is the rule (see era_for).",
         "",
         "## Defect register",
         "",
