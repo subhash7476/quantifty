@@ -29,20 +29,28 @@ from typing import Dict, Any, Optional
 
 EPSILON = 1e-8          # General near-zero guard
 CLV_THRESHOLD = 0.2     # |CLV| gate for adverse excursion features
-AM_CUTOFF_BAR = 105     # Bar index for 11:00 AM (9:15 + 105 mins)
-PM_START_BAR = 135      # Bar index for 13:30 (9:15 + 135 mins) — wait, 1:30 PM
-# Actually: 9:15 + 135 = 150 mins → 11:45. Let's compute properly:
-# 11:00 AM = 9:15 + 105 min → bar index 105 (0-indexed bars 0-374)
-# 13:30 PM = 9:15 + 255 min → bar index 255
-AM_END_BAR = 105        # 11:00 AM cutoff (exclusive)
-PM_START_BAR = 255      # 13:30 PM cutoff (inclusive)
+AM_END_BAR = 105        # 11:00 AM cutoff (exclusive) — 09:15 + 105 min
+PM_START_BAR = 255      # 13:30 cutoff (inclusive)   — 09:15 + 255 min
 FIRST_HOUR_END_BAR = 60 # 10:15 AM cutoff (exclusive)
-EXPECTED_BARS = 375     # 9:15 to 15:29 inclusive
+EXPECTED_BARS = 375     # 09:15..15:29. Post-CAS (2026-08-03) a Category I
+                        # symbol has only 361 TRADEABLE minutes; the balance are
+                        # auction carry-forward bars, dropped by drop_synthetic.
 
 
 def _range_epsilon(high: float, low: float, open_: float) -> float:
     """Safe range denominator — prevents CLV explosion on compression days."""
     return max(high - low, EPSILON * open_)
+
+
+def drop_synthetic(df1m: pd.DataFrame) -> pd.DataFrame:
+    """Remove CAS auction carry-forward bars before any feature computation.
+
+    Positional bar slices (AM_END_BAR, PM_START_BAR) index into this frame, so
+    the index is reset after filtering.
+    """
+    if "is_synthetic" not in df1m.columns:
+        return df1m
+    return df1m[~df1m["is_synthetic"].fillna(False)].reset_index(drop=True)
 
 
 def _rolling_pct_rank(series: pd.Series, window: int) -> pd.Series:
@@ -526,6 +534,11 @@ def compute_session_features(session_1m: pd.DataFrame) -> Dict[str, Any]:
     Block A gap features (requiring prev day context) are computed separately
     via fill_block_a_rolling() after all days are collected.
     """
+    # CAS carry-forward bars are not observations — drop before anything reads
+    # them. Single call site: every block and the 5m/15m/TWAP frames derive from
+    # `df` below.
+    session_1m = drop_synthetic(session_1m)
+
     if session_1m.empty or len(session_1m) < 5:
         return {}
 
