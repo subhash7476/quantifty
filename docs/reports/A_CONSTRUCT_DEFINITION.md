@@ -19,33 +19,59 @@ unmeasured. A exists to measure it.
 
 ## 1. Signal window(s) — grid dimension 1
 
-- **Feature:** opening-period return = (window-end bar close − 09:15 auction
-  open) / 09:15 auction open, on `NSE_INDEX|Nifty 50` 1m bars.
-- **Window cells (frozen, 2):** {09:15–09:45, 09:15–10:00}.
-- The feature is intraday-only by construction (09:15 open base) — the overnight
-  gap is a *different* information set (ISD F4) and is deliberately absent here;
-  A and the retired F4 do not share a signal.
-- **Mechanism anchor for continuation:** the 09:15 call auction concentrates
-  opening information into one print; the index-pair trending slopes are the
-  empirical hint that index-level intraday flow persists. (See D1 — the sign
-  pin is a decision point, not a settled fact.)
+- **Feature:** opening-period return = (window-end bar close − **opening
+  print**) / **opening print**, on `NSE_INDEX|Nifty 50` 1m bars.
+- **Opening print (D3, decided 2026-08-27):** the first bar open of the
+  session — era-consistent semantics. The vendor era (2012-01-02 →
+  2023-01-31) has **no 09:15 auction bar** (its first bar is labeled 09:16
+  and approximates the auction: median 3.2 bp / p99 25 bp / max 74 bp off the
+  official open — `A_INDEX_SLICE_CERTIFICATION.md` §C5). The native era
+  (2023-03-01 → present) carries the exact auction print as its 09:15 bar.
+  The mechanism (the opening print concentrates the overnight information
+  set) is era-invariant; the price source is the first bar open in both eras.
+- **Window cells (frozen, 2):** {09:15–09:45, 09:15–10:00} — window-end
+  measured from the opening print.
+- The feature is intraday-only by construction (opening-print base) — the
+  overnight gap is a *different* information set (ISD F4) and is deliberately
+  absent here; A and the retired F4 do not share a signal.
+- **Mechanism anchor for continuation:** the opening call auction
+  concentrates opening information into one print; the index-pair trending
+  slopes are the empirical hint that index-level intraday flow persists.
+  (D1 — sign pinned +1, ratified 2026-08-27.)
 
 ## 2. Entry timestamp
 
 - **Entry:** the bar OPEN immediately after the window-end bar's close —
-  09:46 bar open for the 09:45 cell, 10:01 bar open for the 10:00 cell.
+  09:46 bar open for the 09:45 cell, 10:01 bar open for the 10:00 cell
+  (vendor-era labels: the equivalent post-window bar).
 - Signal fully known at entry (window-end close prints before the next bar
   opens; no look-ahead). Same convention as ISD F1, kept verbatim.
-- Sessions lacking the entry bar (partial-session files) are skipped, counted,
-  reported — never filled.
+- **Session validity rule (C6 defect class):** a session is skipped unless
+  its first bar is stamped with the session's own date and the entry bar
+  exists. This mechanically excludes the three certified first-bar defects
+  (2025-02-01, 2026-02-25, 2026-03-02) and all partial sessions lacking the
+  entry bar — skipped, counted, reported; never filled. Sessions whose
+  first bar is missing entirely (e.g., 2013-07-29 first at 09:21, 2014-11-05
+  first at 09:35) are skipped by this rule when the signal window is
+  incomplete.
 
 ## 3. Exit timestamp
 
-- **Exit:** the 15:29 bar close (last bar of the session). EOD-flat by
-  construction — the position never survives overnight. Overnight is B's
+- **Exit (D4, decided 2026-08-27):** the **last bar close** of the session
+  — the vendor era's 15:30-labeled bar, the native era's 15:29 bar. EOD-flat
+  by construction — the position never survives overnight. Overnight is B's
   question, not A's.
-- The ISD convention (exit at 15:29 close, slippage applied) is kept for
-  comparability.
+- **Fidelity, disclosed, not costed:** the vendor-era last-bar close deviates
+  from the official 15:30 close print by median 5.4 bp / p99 32 bp / max
+  108 bp (native era: median 4 bp — the expected last-minute move;
+  `A_INDEX_SLICE_CERTIFICATION.md` §C5). The backtest exit price IS the last
+  bar close — the same convention in both eras — and execution realism is
+  carried by the measured slippage lane, so no separate exit-fidelity lane is
+  added (a lane would double-count what slippage covers). The distribution is
+  recorded here and cited by the pre-registration as a modeling property of
+  the vendor-era substrate.
+- The ISD convention (exit at the last bar close, slippage applied) is kept
+  for comparability.
 
 ## 4. Position rule
 
@@ -72,6 +98,11 @@ unmeasured. A exists to measure it.
   Upstox cannot backfill; the FUTIDX bhavcopy is daily). The basis is a
   disclosed proxy assumption with a cost lane (below), measured in
   certification.
+- **Era boundary (certified):** vendor era 2012-01-02 → 2023-01-31
+  (vendor CSVs, no auction bar, evening-session filter), native era
+  2023-03-01 → present (Upstox). **2023-02-01 → 2023-02-28 (20 sessions)
+  has no index 1m at all** — a permanent transition hole
+  (`A_INDEX_SLICE_CERTIFICATION.md` §defects).
 - **Roll cost:** because the book is flat overnight, a roll requires no
   transaction — the entry simply executes on the new contract. Roll cost = 0
   legs; the basis lane covers the discrepancy.
@@ -161,6 +192,20 @@ keeps the arithmetic honest per session.
   trial-ledger discipline per ISD §5 (append-only, written before results
   visible).
 
+## 9a. Windows and availability (as certified, 2026-08-27)
+
+| Window | Span | Sessions with bars | Permanent in-scope holes |
+|---|---|---|---|
+| TRAIN | 2012-01-02 → 2018-12-31 | ~1,700 | 2018-05-02..31 (22, absent from source) |
+| HOLDOUT | 2019-01-01 → 2022-12-31 | ~1,000 | none in-scope (4 Diwali specials are out-of-shape) |
+| SEALED | 2023-01-01 → present | ~860 (excl. 2023-02, 20) | 2023-02-01..28 (20, transition hole) + C6-defect sessions (skipped by rule) |
+
+Out-of-shape specials (12 Muhurat/evening sessions, skipped by construction)
+and the session-validity skip rule are detailed in
+`A_INDEX_SLICE_CERTIFICATION.md` §defects. Fences are unchanged by any of
+this; only the count of tradeable sessions is affected, and the counts above
+are re-measured, never assumed, at pre-registration.
+
 ## D1 — operator decision (DECIDED 2026-08-27: continuation pinned)
 
 **DECISION: pin continuation (+1) by mechanism. Ratified by the operator on
@@ -181,14 +226,15 @@ declared at pre-registration: m = 2 (cells), not 3.
 
 ## 10. Certification checklist (next step — Phase-1 for A)
 
-1. **Index slice (2012-01-02 → 2026-08-21):** contiguity vs the certified 1d
-   calendar; session completeness (375-bar census; the 24 missing files and
-   partials); OHLC validity (high ≥ max(o,c), low ≤ min(o,c), no zeros/flat
-   runs); timestamp-type uniformity across the whole span (the 1d store had a
-   VARCHAR/TIMESTAMP split at 2023-01-01 — check the 1m store for the same);
-   **cross-source: pre-2023 daily close identity vs the certified 1d store**
-   (the audit's new gate — the only independent check on the vendor CSV
-   regime).
+1. **Index slice (2012-01-02 → 2026-08-21):** **DONE 2026-08-27 — overall
+   FAIL with a full defect register** (`A_INDEX_SLICE_CERTIFICATION.md`):
+   contiguity (2018-05 + 2023-02 permanent holes, 12 out-of-shape specials),
+   completeness (66 partials), validity (45 era-bound issues; zero OHLC/dup/
+   monotonic violations), schema PASS, alignment REPORT (vendor boundary
+   fidelity as recorded in §1/§3), C6 native first-bar defects (2026-02-25,
+   2026-03-02 — wrong-date first bars; excluded by the §2 skip rule). The
+   construct amendments (D3 opening print, D4 last-bar-close exit, skip
+   rule) are incorporated above.
 2. **F&O execution/cost substrate:** build the era-accurate futures fee model;
    measure index slippage (entry drift p90, exit drift p90); basis level +
    daily-change distribution over 2016–2026 (sizes the basis lane and the
