@@ -102,6 +102,9 @@ class DailyBhavcopyProvider(MarketDataProvider):
 
             self._data[sym] = {}
             for td, o, h, l, c in rows:
+                # Nominal session-close stamp. Post-CAS the Category I official
+                # close is struck 15:30-15:35; the VALUE here is correct, only
+                # the label is nominal.
                 ts = datetime.combine(td, time(15, 30))
                 self._data[sym][td] = OHLCVBar(
                     symbol=sym,
@@ -232,6 +235,9 @@ class DailyBhavcopyProvider(MarketDataProvider):
                 FROM near_month WHERE rn = 1 ORDER BY trade_date
             """).fetchall()
             for td, o, h, l, c in sym_rows:
+                # Nominal session-close stamp. Post-CAS the Category I official
+                # close is struck 15:30-15:35; the VALUE here is correct, only
+                # the label is nominal.
                 ts = datetime.combine(td, time(15, 30))
                 self._data.setdefault(sym, {})[td] = OHLCVBar(
                     symbol=sym, timestamp=ts,
