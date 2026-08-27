@@ -282,7 +282,7 @@ class MarketIngestorDaemon:
                     pass
                 last_telemetry_ts = time.time()
 
-            if MarketHours.is_market_open(now):
+            if MarketHours.is_any_open(now):
                 # Late-connect: if WebSocket never started (token was missing at boot),
                 # re-check credentials every 30 s and connect when a fresh token appears.
                 if not mock and (self.ingestor is None) and (time.time() - last_token_check_ts > 30):

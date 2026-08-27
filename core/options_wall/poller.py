@@ -179,7 +179,7 @@ class WallPoller:
     def run(self, provider=None, max_cycles: int | None = None) -> None:
         provider = provider or OptionsProvider(read_only=True)
         while not self._stop:
-            if not MarketHours.is_market_open():
+            if not MarketHours.is_derivatives_open():
                 time.sleep(self._idle_interval_s)
                 continue
             if not _token_ok():

@@ -372,7 +372,7 @@ class ChainPoller:
         log level on repeated consecutive cycles during market hours.
         """
         while not self._stop.is_set():
-            if not MarketHours.is_market_open():
+            if not MarketHours.is_derivatives_open():
                 time.sleep(self._idle_interval_s)
                 continue
             if not _token_ok():
