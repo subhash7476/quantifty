@@ -29,8 +29,18 @@ unmeasured. A exists to measure it.
   (2023-03-01 → present) carries the exact auction print as its 09:15 bar.
   The mechanism (the opening print concentrates the overnight information
   set) is era-invariant; the price source is the first bar open in both eras.
-- **Window cells (frozen, 2):** {09:15–09:45, 09:15–10:00} — window-end
-  measured from the opening print.
+- **Window cells (frozen, 2) — bar-count semantics from the opening print**
+  (era-invariant; certified 2026-08-27 — the vendor era's bars are labeled one
+  minute later than the native era, so clock labels are not era-consistent):
+  - Cell 1: window = bars 0..30 (opening print + 30 bars); entry bar 31.
+    Native-era labels: 09:15–09:45 window, 09:46 entry — identical to ISD F1.
+    Vendor-era labels: 09:16–09:46 window, 09:47 entry.
+  - Cell 2: window = bars 0..45 (opening print + 45 bars); entry bar 46.
+    Native-era labels: 09:15–10:00 window, 10:01 entry. Vendor-era labels:
+    09:16–10:01 window, 10:02 entry.
+  - The real-time window length differs by the vendor label offset (~1
+    minute, sized by the C5 alignment distribution) — a disclosed era
+    property, not a tunable.
 - The feature is intraday-only by construction (opening-print base) — the
   overnight gap is a *different* information set (ISD F4) and is deliberately
   absent here; A and the retired F4 do not share a signal.
@@ -41,11 +51,10 @@ unmeasured. A exists to measure it.
 
 ## 2. Entry timestamp
 
-- **Entry:** the bar OPEN immediately after the window-end bar's close —
-  09:46 bar open for the 09:45 cell, 10:01 bar open for the 10:00 cell
-  (vendor-era labels: the equivalent post-window bar).
-- Signal fully known at entry (window-end close prints before the next bar
-  opens; no look-ahead). Same convention as ISD F1, kept verbatim.
+- **Entry:** the bar OPEN at bar index 31 (cell 1) / 46 (cell 2) — the bar
+  immediately after the window-end bar. Signal fully known at entry
+  (window-end close prints before the next bar opens; no look-ahead). Same
+  convention as ISD F1, kept verbatim, generalized to bar counts.
 - **Session validity rule (C6 defect class):** a session is skipped unless
   its first bar is stamped with the session's own date and the entry bar
   exists. This mechanically excludes the three certified first-bar defects
@@ -124,35 +133,35 @@ unmeasured. A exists to measure it.
 
 ## 7. Cost model (era-accurate; applied per session)
 
-1. **F&O futures fees** — new build (`core/execution/futures/`), same
-   gate-(a)/(b) sourcing discipline as `intraday_fees.py`:
-   - Brokerage: min(₹20, 0.03% × notional) per executed order, both legs.
-   - STT (futures, SELL leg only): 0.02% from 2024-10-01; 0.0125%
-     2019-10-01 → 2024-09-30; 0.01% before 2019-10-01. [VERIFY against
-     Finance Act schedules during build]
-   - Exchange transaction charge: 0.00173% post-2024-10-01; 0.0021% before.
-     [VERIFY]
-   - SEBI turnover fee: ₹10/crore both legs. Stamp: buy-side 0.002%
-     (post-2020-07-01; state-wise before). GST 18% on
-     (brokerage + txn + SEBI). [VERIFY each]
-2. **Slippage** — measured on the index 1m store, G6 methodology applied to
-   the index: entry next-bar-open drift p90 and exit 15:29-close drift p90,
-   per era. Expected far tighter than the equity bands (2.35–2.90 bp/side);
-   measured, not assumed.
-3. **Basis lane** — conservative: p90 of |daily near-month futures − cash
-   basis change| (bp of cash level), measured over 2016–2026 overlap. Applied
-   per trade as a disclosed assumption for the pre-2016 span (where no futures
-   data exists) and as a conservatism buffer generally.
-4. **Tick/impact:** Nifty futures spread ~0.5–1 tick (0.05–0.10 pts ≈ 0.2–0.4
-   bp) — if the measured drift bands do not already contain a spread
-   component, an explicit tick lane is added. Certification decides this with
-   data, not here.
+1. **F&O futures fees** — **BUILT 2026-08-27**
+   (`core/execution/futures/futures_fees.py`, 13 tests green, gate-(a)/(b)
+   schedules with [VERIFY] flags): brokerage min(₹20, 0.03% × notional) per
+   order both legs; STT futures sell-side 0.01% (pre-2019-10-01) →
+   0.0125% (2019-10-01 → 2024-09-30) → 0.02% (2024-10-01+); NSE F&O txn
+   0.0021% → 0.00173% (2024-10-01+, [VERIFY]); SEBI ₹10/crore both legs;
+   stamp buy-side 0.002% ([VERIFY]); GST/service tax schedule identical to
+   the equity models. **Measured: 3.81 bp round trip at the canonical ₹2Cr
+   notional (16 lots @ 50, post-2024 era).**
+2. **Slippage** — **MEASURED 2026-08-27** (entry-bar drift p90 on the index
+   1m, era-split): cell-1 entry 0.78 bp (vendor) / 0.70 bp (native); cell-2
+   0.73 / 0.66 bp. Exit pays the same band (ISD convention). Round trip
+   ≈ 1.4–1.6 bp at p90.
+3. **Basis — MEASURED 2026-08-27, treatment per D5** (see below): mean
+   component ≈ 0.4 bp/trade (carry drift over the hold; alternating book
+   nets it out) — **not subtracted** from the net-spread gate; dispersion
+   component (full-day within-contract |Δ| p90 = 19.2 bp, level p50 18 bp /
+   p90 45 bp) is a **Sharpe/power disclosure** — the cash-series backtest
+   cannot see it, so the RFA band must defend against it. Pre-2016 spans
+   hold the 2016+ figures as the disclosed assumption.
+4. **Tick/impact:** the measured drift bands contain the index spread
+   component; no separate tick lane needed (certification decided this with
+   data).
 
-**The economics gate that matters:** with fees ≈ 2–3 bp/trip at ₹2Cr notional
-(brokerage floor is not binding at this ticket: ₹20 ≈ 0.1 bp) + slippage
-≈ 1–2 bp + basis ≈ small, the round-trip wall is ≈ **3–6 bp/session** — the
-lane the reassessment memo promised. The net-spread gate (mean net bp > 0)
-keeps the arithmetic honest per session.
+**The economics gate that matters (updated with measurements):** fees 3.81 +
+slippage ≈ 1.5 = **~5.3 bp/session** hard costs; basis mean ≈ 0.4 bp. The
+net-spread gate (mean net bp > 0) runs on these. The basis DISPERSION (19.2
+bp full-day bound) is the power question, not the cost question — the RFA
+must defend the declared effect size against it.
 
 ## 8. Sharpe definition
 
@@ -206,6 +215,32 @@ and the session-validity skip rule are detailed in
 this; only the count of tradeable sessions is affected, and the counts above
 are re-measured, never assumed, at pre-registration.
 
+## D5 — basis treatment (DECISION PENDING: 2026-08-27)
+
+Measured (2016–2026, within-contract, roll days excluded): basis level p50
+18 bp / p90 45 bp / max 130 bp over cash; full-day |Δ| p90 **19.2 bp**.
+The treatment question: the basis change over a ~5.7h hold has a MEAN
+component ≈ 0.4 bp (carry drift; the alternating book nets it out) and a
+DISPERSION component whose intraday value is unmeasurable pre-2023 (no
+futures 1m; the 19.2 bp full-day bound includes overnight basis gaps an
+intraday hold avoids). Options:
+
+- **(a) Mean-only + dispersion disclosure (recommended):** the net-spread
+  gate subtracts the mean (~0.4 bp, direction-consistent); the RFA defends
+  the declared effect size against the dispersion floor; optionally a cheap
+  live forward probe (~30 sessions, live futures LTP vs cash index over the
+  actual hold window) measures the intraday value on the native era.
+- **(b) Conservative full-day lane (19.2 bp/trade):** honest but almost
+  certainly kills the construct at the cost filter before TRAIN — the lane
+  exceeds any defensible gross edge.
+- **(c) Scaled lane (~13 bp, √(5.7/24) variance scaling):** statistically
+  arguable, but the scaling assumption (random-walk basis) is itself
+  unverified — invented precision, declined.
+
+The certified measurements:
+`docs/reports/A_COST_SUBSTRATE_MEASUREMENTS.md` +
+`data/a_index_intraday/cost_substrate_measurements.json`.
+
 ## D1 — operator decision (DECIDED 2026-08-27: continuation pinned)
 
 **DECISION: pin continuation (+1) by mechanism. Ratified by the operator on
@@ -235,12 +270,14 @@ declared at pre-registration: m = 2 (cells), not 3.
    2026-03-02 — wrong-date first bars; excluded by the §2 skip rule). The
    construct amendments (D3 opening print, D4 last-bar-close exit, skip
    rule) are incorporated above.
-2. **F&O execution/cost substrate:** build the era-accurate futures fee model;
-   measure index slippage (entry drift p90, exit drift p90); basis level +
-   daily-change distribution over 2016–2026 (sizes the basis lane and the
-   pre-2016 assumption); volume-dominance roll calendar from the FUTIDX
-   bhavcopy (355-roll-date machinery from CB-N50's substrate reused);
-   cadence measurement (trades/year).
+2. **F&O execution/cost substrate:** **DONE 2026-08-27** —
+   `core/execution/futures/futures_fees.py` (13 tests green; 3.81 bp round
+   trip at canonical notional); slippage measured era-split (entry p90
+   0.66–0.78 bp/side); basis measured 2016–2026 (level + within-contract
+   |Δ|, roll days excluded — D5 pending); volume-dominance roll calendar
+   built (131 roll dates, 2016-02-24 → 2026-10-26); cadence measured
+   (238/yr mean, cell 1). Report:
+   `A_COST_SUBSTRATE_MEASUREMENTS.md`.
 3. All gates report to a Phase-1 certification report, script-generated, with
    the same audit trail discipline as `ISD_PHASE1_SUBSTRATE_CERTIFICATION.md`.
 
