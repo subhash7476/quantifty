@@ -33,6 +33,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+from core.market.session_schedule import session_window  # noqa: E402
+
 REF_DIR = ROOT / "data" / "reference"
 CANDLE_DIR = ROOT / "data" / "market_data" / "nse" / "candles" / "1m"
 
@@ -43,8 +45,15 @@ NF_SYMBOL = "NSE_INDEX|Nifty 50"
 BN_SYMBOL = "NSE_INDEX|Nifty Bank"
 
 TIMEFRAME = "1m"
-SESSION_START = time(9, 15)
-SESSION_END   = time(15, 30)
+
+# This archive is 2012-2023 — entirely pre-CAS. Bounds resolve from the schedule
+# against a pre-CAS date on purpose: resolving against *today* would return the
+# post-CAS 15:15 Cat-I close and silently drop the 15:15-15:29 bars this archive
+# legitimately contains.
+_ARCHIVE_ERA_DATE = date(2012, 1, 2)
+SESSION_START, SESSION_END = session_window("cash_cat1", _ARCHIVE_ERA_DATE)
+SESSION_START_MIN = SESSION_START.hour * 60 + SESSION_START.minute
+SESSION_END_MIN = SESSION_END.hour * 60 + SESSION_END.minute
 EXPECTED_BARS = 375  # 9:15 to 15:29 inclusive = 375 minutes
 
 
@@ -129,9 +138,9 @@ def ingest_symbol(zip_path: Path, symbol: str, dry_run: bool = False) -> dict:
 
         df = df.drop(columns=["minute_bin"], errors="ignore")
 
-        # Session-hour filter: 9:15 to 15:30
+        # Session-hour filter, resolved from the schedule (pre-CAS era for this archive)
         hm = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
-        df = df[(hm >= 555) & (hm <= 930)].reset_index(drop=True)
+        df = df[(hm >= SESSION_START_MIN) & (hm <= SESSION_END_MIN)].reset_index(drop=True)
 
         if df.empty:
             continue

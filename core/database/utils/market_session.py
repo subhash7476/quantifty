@@ -11,6 +11,8 @@ from datetime import datetime, date, time, timedelta
 from typing import Optional, Tuple
 import pytz
 
+from core.market.session_schedule import session_window
+
 
 class MarketSession:
     """
@@ -37,9 +39,11 @@ class MarketSession:
 
     IST = pytz.timezone("Asia/Kolkata")
 
-    # Session times (IST)
-    SESSION_START = time(9, 15)  # Market open
-    SESSION_END = time(15, 30)  # Market close
+    # Session bounds are date-resolved (CAS, 2026-08-03) — see
+    # core/market/session_schedule.py. These constants are the pre-CAS values,
+    # retained for `for_timestamp`'s "before open belongs to prior session" rule.
+    SESSION_START = time(9, 15)
+    SESSION_END = time(15, 30)
 
     def __init__(self, session_date: date):
         """
@@ -50,13 +54,10 @@ class MarketSession:
         """
         self.session_date = session_date
 
-        # Pre-compute boundaries
-        self._start = self.IST.localize(
-            datetime.combine(session_date, self.SESSION_START)
-        )
-        self._end = self.IST.localize(
-            datetime.combine(session_date, self.SESSION_END)
-        )
+        # Pre-compute boundaries (date-resolved: CAS moved the Cat-I cash close)
+        start, end = session_window("cash_cat1", session_date)
+        self._start = self.IST.localize(datetime.combine(session_date, start))
+        self._end = self.IST.localize(datetime.combine(session_date, end))
 
     @classmethod
     def today(cls) -> "MarketSession":
