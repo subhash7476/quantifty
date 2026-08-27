@@ -3,9 +3,32 @@ from datetime import datetime
 from typing import Optional
 
 from core.database.manager import DatabaseManager
+from core.market.session_schedule import CAS_EFFECTIVE, session_window
 from core.messaging.zmq_handler import ZmqPublisher
 
 logger = logging.getLogger(__name__)
+
+CAS_MARKABLE_PREFIX = "NSE_EQ|"
+
+
+def is_carry_forward(symbol, bar_ts, op, hi, lo, cl, vol) -> bool:
+    """True if this bar is a stale-LTP artifact of the CAS cash halt.
+
+    During 15:15-15:35 the Upstox feed keeps broadcasting the last traded price
+    with quantity 0, so a bar materialises with no trades behind it.
+
+    EQUITIES ONLY. The predicate discriminates on volume == 0, and NSE_INDEX
+    symbols carry volume 0 on every bar of every session — applying it to an
+    index would mark that index's real closing value as fabricated.
+    """
+    if not symbol.startswith(CAS_MARKABLE_PREFIX):
+        return False
+    if bar_ts.date() < CAS_EFFECTIVE or int(vol) != 0:
+        return False
+    auction = session_window("cash_auction", bar_ts.date())
+    if auction is None:
+        return False
+    return auction[0] <= bar_ts.time() < auction[1] and op == hi == lo == cl
 
 class DBTickAggregator:
     """
@@ -56,16 +79,18 @@ class DBTickAggregator:
 
         with db_manager.live_candles_writer() as candles_conn:
             for bar_ts, op, hi, lo, cl, vol in completed:
+                synthetic = is_carry_forward(symbol, bar_ts, op, hi, lo, cl, vol)
                 candles_conn.execute(
                     """
                     INSERT INTO candles
                     (symbol, timeframe, timestamp, open, high, low, close, volume, is_synthetic)
-                    VALUES (?, '1m', ?, ?, ?, ?, ?, ?, FALSE)
+                    VALUES (?, '1m', ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT (symbol, timeframe, timestamp) DO UPDATE SET
                         open=EXCLUDED.open, high=EXCLUDED.high, low=EXCLUDED.low,
-                        close=EXCLUDED.close, volume=EXCLUDED.volume, is_synthetic=FALSE
+                        close=EXCLUDED.close, volume=EXCLUDED.volume,
+                        is_synthetic=EXCLUDED.is_synthetic
                     """,
-                    [symbol, bar_ts, op, hi, lo, cl, int(vol)],
+                    [symbol, bar_ts, op, hi, lo, cl, int(vol), synthetic],
                 )
 
         if zmq_publisher:
