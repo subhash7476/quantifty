@@ -42,6 +42,11 @@ from datetime import date
 # the cost model and its sizing basis ship together; scripts/isd re-exports.
 CANONICAL_CAPITAL = 20_000_000.0
 
+# Broker MIS auto-square-off for CAS Category I cash. Re-exported so the cost
+# model and the execution-feasibility limit ship together: post-CAS the broker
+# force-closes at ~15:12, BEFORE a 15:29 backtest exit would fire.
+from core.execution.equity.cas_rules import MIS_SQUAREOFF  # noqa: E402,F401
+
 DEFAULT_BROKERAGE_CAP = 20.0        # Rs per executed order
 DEFAULT_BROKERAGE_RATE = 0.0003     # 0.03% of trade value
 
