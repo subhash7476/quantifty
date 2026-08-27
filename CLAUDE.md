@@ -348,9 +348,11 @@ generous than anyone believes? It reads no market data, so it is free.
 | `governance/rfa/declarations/flow.py` | **FLOW declaration — frozen, ABANDON** (SHA-256 `d7a54cfb…`) |
 | `governance/rfa/declarations/rs_mom.py` | **RS-MOM declaration — frozen, ABANDON** (SHA-256 `67e3854b…`) |
 | `governance/rfa/declarations/cb_n50.py` | **CB-N50 declaration — frozen, PROCEED** (SHA-256 `e0437067…`) |
+| `governance/rfa/declarations/a_index_intraday.py` | **A-INDEX-INTRADAY declaration — frozen, PROCEED** (SHA-256 `221c6ca9…`; band S_ann [0.70, 1.45] @ cadence 237) |
 | `docs/reports/FLOW_RFA.md` | FLOW gate report — max power 0.6053 |
 | `docs/reports/RS_MOM_RFA.md` | RS-MOM gate report — max power 0.337, need 763 weeks |
 | `docs/reports/CB_N50_RFA.md` | CB-N50 gate report — max power 1.00, n_required=147 |
+| `docs/reports/A-INDEX-INTRADAY_RFA.md` | A-INDEX-INTRADAY gate report — max power 0.8720, n_required 699/1270/2992 |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
 

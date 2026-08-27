@@ -184,8 +184,14 @@ must defend the declared effect size against it.
   (measured 2026-08-27 with the session-validity + exit-bar rules, mean of
   2012–2026; per-year counts in `A_COST_SUBSTRATE_MEASUREMENTS.md` §D).
 - **RFA declaration form (contract v2, per_trade_pnl):** annualized Sharpe band
-  + cadence_per_year. Candidate band (declared and frozen only at RFA):
-  `S_ann ∈ [0.95, 1.90]` (≈ per-trade S 0.06–0.12), cadence **237**.
+  + cadence_per_year. **FROZEN 2026-08-27 (operator approval):**
+  `S_ann ∈ [0.70, 1.45]` (≈ per-trade S 0.045–0.094), cadence **237**.
+  Declaration `governance/rfa/declarations/a_index_intraday.py` — whole-file
+  SHA-256 `221c6ca97108fee6a9ee0e357a982a4cee1c3f3879e1f38c0523513ad6342d8b`,
+  body SHA-256 (excludes header) `c99012b044720cea03afc35a0080695d6a7a88866ae2ace
+  a2624e8786e4b1728` — gate verdict **PROCEED (max power 0.8720)**, report
+  `docs/reports/A-INDEX-INTRADAY_RFA.md`. The band is frozen; it is never
+  revised in response to results.
 - **Power arithmetic (one-sided α = 0.05, hurdle 0.80, ncp = 2.486):**
   - SEALED n ≈ 900 (2023-01-01 → 2026-08, ~3.6 yr): optimistic corner
     S_ann 1.90 → power ≈ 0.97; central 1.42 (S=0.09) → ≈ 0.85;
@@ -302,9 +308,8 @@ declared at pre-registration: m = 2 (cells), not 3.
 
 ## 11. What this document does not decide
 
-- The RFA bands (declared and frozen at the RFA step, per gate.py convention —
-  candidate band above is arithmetic, not a freeze).
-- The sealed-read protocol and spend floor (pre-registration step).
+- The sealed-read protocol and spend floor (pre-registration step — next in
+  the chain; the RFA band is now frozen, see §8).
 - Whether A is PAPER-then-LIVE (out of scope until research validates).
 
 **Chain:** prior-exposure audit → this definition → substrate certification →
