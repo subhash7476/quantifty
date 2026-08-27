@@ -62,6 +62,35 @@ disclosed prior for whatever starts next: the index 1m structural exposure
 decomposition (fees 1.9–3.8 bp by era, slippage ~0.7–0.8 bp/side, basis
 dispersion 19.2 bp).
 
+## Forward paper run — operator-commissioned (2026-08-27), pending build
+
+The operator commissioned a **forward PAPER run of the frozen w45 family book
+for ≥ 3 months** (trades recorded through Trade Intelligence; a decision to
+retire permanently at the end). Recorded here so the run cannot be misread
+later:
+
+- **Framing:** forward validation of the RETIRED construct. It is **not** a
+  path back to SEALED (the sealed spend gates never fire after the HOLDOUT
+  fail); it is not a resurrection mechanism. Any outcome other than
+  permanent retirement requires new governance (a fresh pre-registration),
+  never an automatic path.
+- **Mechanics (pre-reg §9 Paper gate, verbatim):** frozen w45 book, no
+  parameter edits, no early abort on eyeballed P&L; any discretionary change
+  restarts the 3-month clock and is logged in the trial ledger.
+- **Pre-committed evaluation (fixed before the first trade):** mean net
+  bp/trade vs the TRAIN (+1.27) and HOLDOUT (−0.22) benchmarks, over ≥ 3
+  months of forward sessions (clock starts at the first trade); outcome =
+  permanent retirement, recorded in a decision memo.
+- **Accounting conventions (pre-specified):** fills at actual bar prices
+  (the backtest's slippage lanes do not apply to paper fills); era-accurate
+  futures fees at fills; basis mean report-only, basis dispersion (19.2 bp
+  full-day p90) recorded as a standing caveat in each monthly evaluation
+  (D5-consistent, no silent cost).
+- **Build status:** pending operator go-ahead; the runner
+  (`scripts/a_index_intraday/run_paper_forward.py`) imports branch-only
+  modules (`common.py`, `core/execution/futures/futures_fees.py`) — the
+  `isd-program-reassessment` merge decision precedes the build.
+
 ## Record-keeping
 
 - Ledger: `data/a_index_intraday/trial_ledger.jsonl` (append-only; cell
