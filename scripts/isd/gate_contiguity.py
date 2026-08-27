@@ -9,6 +9,9 @@ Two layers:
   L2 intraday completeness: for each present (symbol, minute-of-day) slot in
      09:15..15:29 the file carries exactly one bar; shortfalls are counted into
      an explicit ledger (parquet under data/isd/) rather than silently ignored.
+     Bar presence is not tradeability — since CAS (2026-08-03) a Category I
+     symbol's 15:15..15:27 slots are carry-forward artifacts, counted here as
+     `synthetic_bars` and excluded from `tradeable_slots`.
 """
 from __future__ import annotations
 
@@ -74,6 +77,10 @@ def audit_session(path, session_iso: str) -> dict:
             "select count(*), count(distinct (symbol, "
             "hour(timestamp)*60 + minute(timestamp))) from candles "
             "where symbol like 'NSE_EQ%'").fetchone()
+        # CAS carry-forward bars: present, but not tradeable observations
+        n_synthetic = con.execute(
+            "select count(*) from candles where symbol like 'NSE_EQ%' "
+            "and is_synthetic").fetchone()[0]
     finally:
         con.close()
     expected = n_sym * (SESSION_LAST_MIN - SESSION_FIRST_MIN + 1)
@@ -85,6 +92,8 @@ def audit_session(path, session_iso: str) -> dict:
         "missing_slots": int(expected - distinct_slots),
         "duplicate_slots": int(total - distinct_slots),
         "bars_outside_grid": int(n_outside),
+        "synthetic_bars": int(n_synthetic),
+        "tradeable_slots": int(distinct_slots - n_synthetic),
     }
 
 
@@ -116,12 +125,13 @@ def run(sessions: list) -> dict:
 
     ledger_rows = []
     agg = {"symbols": 0, "missing_slots": 0, "duplicate_slots": 0,
-           "bars_outside_grid": 0}
+           "bars_outside_grid": 0, "synthetic_bars": 0}
     for iso, path in sessions:
         r = audit_session(path, iso)
         for k in agg:
             agg[k] += r[k]
-        if r["missing_slots"] or r["duplicate_slots"] or r["bars_outside_grid"]:
+        if (r["missing_slots"] or r["duplicate_slots"]
+                or r["bars_outside_grid"] or r["synthetic_bars"]):
             ledger_rows.append(r)
 
     ISD_DATA_DIR.mkdir(parents=True, exist_ok=True)
