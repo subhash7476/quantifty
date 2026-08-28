@@ -326,6 +326,14 @@ def main() -> int:
 
     clock = ReplayClock(start_time=datetime.combine(date.today(), dtime(9, 0)))
     db_manager = DatabaseManager(data_root="data", read_only=False)
+    # TLP v1: the trading ledger (data/trading/trading.db) is bootstrapped by
+    # the app entry points, not by a bare DatabaseManager — create the schema
+    # so the fill seam's trade save works for the paper run (idempotent).
+    from core.database.schema import (  # noqa: E402
+        TRADING_TRADES_SCHEMA, TRADING_TRADE_CONTEXT_SCHEMA)
+    with db_manager.trading_writer() as tconn:
+        tconn.execute(TRADING_TRADES_SCHEMA)
+        tconn.execute(TRADING_TRADE_CONTEXT_SCHEMA)
     broker = PaperBroker(clock=clock)
     execution = ExecutionHandler(
         db_manager=db_manager, clock=clock, broker=broker,
