@@ -1,6 +1,6 @@
 # Sleeve Combination Matrix — SSF monthly cross-section
 
-**Script-generated** — `scripts/signal_engine/combination/sleeve_pair_matrix.py`. Code commit `0b67a35`.
+**Script-generated** — `scripts/signal_engine/combination/sleeve_pair_matrix.py`. Code commit `bfbe7fc`.
 
 **What this is:** arithmetic on already-measured quantities from the built signal stores. No new data read, no sealed window touched — the same standing as `IVOL_COMPOSITE_CHECK_REPORT.md`. **Decision-support, not a gated read.**
 

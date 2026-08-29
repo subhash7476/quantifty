@@ -1,6 +1,6 @@
 # IVOL — Gate 4 Composite Power Check
 
-**Script-generated** — `scripts/signal_engine/ivol/composite_check.py`. Code commit `0987324`.
+**Script-generated** — `scripts/signal_engine/ivol/composite_check.py`. Code commit `bfbe7fc`.
 
 **Frozen protocol:** `IVOL_PHASE0_PRE_REGISTRATION.md` §9 gate 4 / §13 (declaration SHA `d7ebcbcc…`).
 
