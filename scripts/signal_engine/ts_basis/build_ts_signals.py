@@ -7,6 +7,18 @@ Reads raw_ann_basis from the existing signals DB, computes trailing
 z-scores per underlying, and writes to a new ts_signals.duckdb.
 
 Bridge: TS_BASIS_PHASE0_PRE_REGISTRATION.md §3.
+
+--source selects the formation grid:
+  weekly  (default) -> carry/weekly_signals.duckdb -> ts_signals.duckdb
+  monthly            -> carry/signals.duckdb       -> ts_signals_monthly.duckdb
+
+**The REGISTERED TS Basis sleeve is MONTHLY.** The weekly grid is a later
+variant that took over the default output path, which is why the on-disk
+ts_signals.duckdb is not the registered construction. The default is left on
+weekly so refresh_all_strategies.py keeps producing what it produces today;
+pass --source monthly to build the registered sleeve. The z parameters
+(504 calendar days, MIN_OBS 12, winsorize +/-3) are identical on both grids --
+only the formation spacing differs.
 """
 from __future__ import annotations
 
@@ -21,8 +33,12 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
 
-SRC_SIG_DB = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
-OUT_DB = ROOT / "data" / "signal_engine" / "ts_basis" / "ts_signals.duckdb"
+SOURCES = {
+    "weekly": (ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb",
+               ROOT / "data" / "signal_engine" / "ts_basis" / "ts_signals.duckdb"),
+    "monthly": (ROOT / "data" / "signal_engine" / "carry" / "signals.duckdb",
+                ROOT / "data" / "signal_engine" / "ts_basis" / "ts_signals_monthly.duckdb"),
+}
 
 Z_LOOKBACK = 504  # calendar days
 Z_MIN_OBS = 12     # minimum prior formations
@@ -31,6 +47,14 @@ WINSORIZE_SD = 3.0
 
 def main():
     incremental = "--incremental" in sys.argv
+    source = "weekly"
+    if "--source" in sys.argv:
+        source = sys.argv[sys.argv.index("--source") + 1]
+    if source not in SOURCES:
+        print(f"ERROR: --source must be one of {sorted(SOURCES)}")
+        return 1
+    SRC_SIG_DB, OUT_DB = SOURCES[source]
+    print(f"source={source}  src={SRC_SIG_DB.name}  out={OUT_DB.name}")
     OUT_DB.parent.mkdir(parents=True, exist_ok=True)
 
     con = duckdb.connect()
