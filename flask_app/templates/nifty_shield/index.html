@@ -38,14 +38,23 @@
     #ns-scrim.on { opacity: 1; pointer-events: auto; }
     .ns-sec-h { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: 11px; }
     .ns-live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; margin-right: 7px; }
+
+    /* Layout zones */
+    .ns-trio { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.12fr) minmax(0, 1.12fr); gap: 22px; align-items: start; }
+    .ns-tcol { min-width: 0; display: flex; flex-direction: column; gap: 22px; }
+    @media (max-width: 1500px) { .ns-trio { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+    @media (max-width: 1000px) { .ns-trio { grid-template-columns: minmax(0, 1fr); } }
+    .ns-zone { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: -8px; }
+    .ns-topbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+                 background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px; padding: 11px 18px; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="ns-page" style="display: flex; flex-direction: column; gap: 30px;">
+<div class="ns-page" style="display: flex; flex-direction: column; gap: 22px;">
 
-    <!-- Header row -->
-    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;">
+    <!-- Status bar -->
+    <div class="ns-topbar">
         <div id="session-tabs" style="display: flex; gap: 6px; flex-wrap: wrap;"></div>
         <div style="flex: 1;"></div>
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -56,11 +65,20 @@
         <span id="hb-time" class="mono" style="font-size: 11.5px; color: var(--faint);">Heartbeat --</span>
     </div>
 
-    <!-- Hero + fact band -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 36px 52px; align-items: end;">
+    <!-- Window evidence — primary block -->
+    <div class="ns-card" style="padding: 4px;">
+        <div style="padding: 14px 16px 11px;">
+            <span class="display" style="font-size: 19px;">Window evidence</span>
+            <span class="ns-k" style="margin-left: 12px;">counting sessions = telemetry-clean ∧ recorded ∧ ≥1 closed structure</span>
+        </div>
+        <div id="window-band" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));"></div>
+    </div>
+
+    <!-- Session read -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 26px 44px; align-items: end;">
         <div>
             <div class="mono" id="hero-meta" style="font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px;">--</div>
-            <h1 class="display" id="hero-title" style="font-size: clamp(34px, 3.8vw, 52px); line-height: 1.04; margin: 0 0 14px;">Waiting for the window.</h1>
+            <h1 class="display" id="hero-title" style="font-size: clamp(28px, 2.7vw, 38px); line-height: 1.08; margin: 0 0 12px;">Waiting for the window.</h1>
             <p id="hero-sub" style="max-width: 56ch; margin: 0; font-size: 15px; color: var(--body); text-wrap: pretty;">
                 The PAPER validation window persists its session evidence as it runs. Nothing here is computed by this page — every cell is a fact the runner wrote.
             </p>
@@ -71,11 +89,6 @@
         </div>
     </div>
 
-    <!-- Window metrics band -->
-    <div class="ns-card" style="padding: 4px;">
-        <div style="padding: 13px 16px 10px;"><span class="ns-k">Window evidence · counting sessions = telemetry-clean ∧ recorded ∧ ≥1 closed structure</span></div>
-        <div id="window-band" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));"></div>
-    </div>
 
     <!-- Gate strip -->
     <div style="border: 1px solid var(--line); border-radius: 14px; background: #FBFAF8; padding: 20px 26px 22px;">
@@ -88,13 +101,50 @@
         <div id="gate-strip" style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); background: #FFFFFF; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;"></div>
     </div>
 
+    <!-- Trio row: structures · orchestrator · journal -->
+    <div class="ns-trio">
+      <div class="ns-tcol">
     <!-- Structure cards -->
     <div>
         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; margin-bottom: 16px;">
-            <span class="display" style="font-size: 21px;">Structures &middot; <span id="struct-count">0</span> attempted</span>
+            <span class="display" style="font-size: 18px;">Structures &middot; <span id="struct-count">0</span> attempted</span>
             <div id="struct-filters" style="display: flex; gap: 6px;"></div>
         </div>
-        <div id="struct-rows" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 18px;"></div>
+        <div id="struct-rows" style="display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px;"></div>
+    </div>
+      </div>
+
+      <div class="ns-tcol">
+    <!-- Orchestrator children -->
+    <div class="ns-card" style="padding: 18px 20px 14px;">
+      <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px;">
+        <span class="display" style="font-size: 18px;">Orchestrator</span>
+        <span id="proc-verdict" class="mono" style="font-size: 11px; padding: 3px 9px; border-radius: 999px; background: #EFECE6; color: var(--muted);">--</span>
+      </div>
+      <div id="proc-box" style="margin-top: 12px; border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden;"></div>
+      <div style="font-size: 11px; color: var(--faint); margin-top: 8px;">Liveness from each child's pid file or native lock — the same check the orchestrator supervises on.</div>
+    </div>
+      </div>
+
+      <div class="ns-tcol">
+    <!-- Journal river -->
+    <div class="ns-card" style="padding: 20px 22px 18px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+            <span class="display" style="font-size: 18px;">Journal river &middot; <span id="jr-count">0</span> events</span>
+            <span style="font-size: 11.5px; color: var(--muted);">Newest first. Guards and skipped entries are the window doing its job.</span>
+        </div>
+        <div style="margin-top: 18px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
+            <div style="display: grid; grid-template-columns: 78px 1fr; gap: 8px; padding: 9px 14px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
+                <span>Time</span><span>Event &amp; detail</span>
+            </div>
+            <div id="jr-body" style="max-height: 420px; overflow-y: auto;"></div>
+        </div>
+        <div style="margin-top: 12px; text-align: center;">
+            <button id="jr-toggle" onclick="toggleJournal()" class="ns-chip">Show all events</button>
+        </div>
+    </div>
+
+      </div>
     </div>
 
     <!-- PnL band -->
@@ -106,33 +156,23 @@
         <div id="pnl-wrap" style="margin-top: 18px; position: relative;"></div>
     </div>
 
-    <!-- Journal river -->
-    <div class="ns-card" style="padding: 22px 26px 20px;">
-        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
-            <span class="display" style="font-size: 21px;">Journal river &middot; <span id="jr-count">0</span> events</span>
-            <span style="font-size: 12px; color: var(--muted);">Window-runtime events, newest first. Guards and skipped entries are the window doing its job — not noise.</span>
-        </div>
-        <div style="margin-top: 18px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
-            <div style="display: grid; grid-template-columns: 150px 180px 1fr 1.4fr; gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
-                <span>Timestamp</span><span>Event</span><span>Source</span><span>Detail</span>
-            </div>
-            <div id="jr-body"></div>
-        </div>
-        <div style="margin-top: 12px; text-align: center;">
-            <button id="jr-toggle" onclick="toggleJournal()" class="ns-chip">Show all events</button>
-        </div>
-    </div>
 
-    <!-- Marks band -->
-    <div class="ns-card" style="padding: 22px 26px 18px;">
+
+
+
+    <!-- Marks band — full width, page bottom -->
+    <div class="ns-card" style="padding: 22px 26px 20px;">
         <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
             <span class="display" style="font-size: 21px;">Chain marks</span>
             <span style="font-size: 12px; color: var(--muted);">The option-chain cache the PAPER executor prices legs against — real Upstox V3 marks, never synthetic.</span>
         </div>
-        <div id="marks-band" style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr)); background: #FFFFFF; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;"></div>
+        <div id="marks-band" style="margin-top: 18px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); background: #FFFFFF; border: 1px solid var(--line); border-radius: 11px; overflow: hidden;"></div>
         <div style="margin-top: 16px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
-            <div style="display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
-                <span>Strike</span><span style="text-align:right;">CE LTP</span><span style="text-align:right;">CE IV</span><span style="text-align:right;">PE LTP</span><span style="text-align:right;">PE IV</span>
+            <div style="display: grid; grid-template-columns: 1.2fr repeat(4, minmax(0,1fr)) 1fr; gap: 14px; padding: 9px 20px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
+                <span>Strike</span>
+                <span style="text-align:right;">CE LTP</span><span style="text-align:right;">CE IV</span>
+                <span style="text-align:right;">PE LTP</span><span style="text-align:right;">PE IV</span>
+                <span style="text-align:right;">Straddle</span>
             </div>
             <div id="marks-body"></div>
         </div>
@@ -270,6 +310,7 @@ function paintLive() {
     const hb = live.heartbeat;
     document.getElementById('hb-time').textContent =
         'Heartbeat ' + (hb && hb.timestamp ? tShort(hb.timestamp) : '--');
+    paintProcesses();
 }
 
 function paintMarksHeader() {
@@ -281,6 +322,64 @@ function paintMarksHeader() {
         : 'Chain ' + (m.error || 'unavailable');
     document.getElementById('marks-age').textContent = label;
     document.getElementById('marks-age').style.color = m.available ? C.faint : C.red;
+}
+
+/* -------------------------------------------------- orchestrator children */
+const CHILDREN = [
+    ['orchestrator', 'Orchestrator', 'supervisor — ops/orchestrator.pid'],
+    ['flask',        'Flask',        'scripts/run_flask.py'],
+    ['ingestor',     'Ingestor',     'scripts/market_ingestor.py'],
+    ['poller',       'Chain poller', 'nifty_shield_paper/chain_poller.py'],
+    ['session',      'Session',      'nifty_shield_paper/session.py'],
+    ['eod',          'EOD worker',   'scripts/schedule_worker.py']
+];
+
+function paintProcesses() {
+    const box = document.getElementById('proc-box');
+    if (!box) return;
+    const live = state.live;
+    const procs = (live && live.processes) || {};
+    const marketOpen = live ? live.market_open : null;
+    box.innerHTML = '';
+
+    let down = 0, reported = 0;
+    CHILDREN.forEach(([key, label, note], i) => {
+        const known = Object.prototype.hasOwnProperty.call(procs, key);
+        const alive = known ? !!procs[key] : null;
+
+        // Session and EOD are expected down outside market hours; that is not a fault.
+        const expectedIdle = (key === 'session' || key === 'eod') && marketOpen === false;
+        let tone, text;
+        if (!known)            { tone = { c: C.faint, dot: '#DCD7CF' }; text = 'not reported'; }
+        else if (alive)        { tone = { c: C.green, dot: C.green };   text = 'alive'; reported++; }
+        else if (expectedIdle) { tone = { c: C.amber, dot: C.amber };   text = 'idle — market closed'; reported++; }
+        else                   { tone = { c: C.red,   dot: C.red };     text = 'DOWN'; reported++; down++; }
+
+        box.appendChild(el('div',
+            'display:grid;grid-template-columns:9px minmax(0,1fr);gap:9px;align-items:start;padding:9px 12px;' +
+            (i ? 'border-top:1px solid #F5F2ED;' : '') +
+            (text === 'DOWN' ? 'background:rgba(180,71,47,.045);' : ''),
+            '<span style="width:7px;height:7px;border-radius:999px;margin-top:5px;background:' + tone.dot + ';"></span>' +
+            '<span style="min-width:0;">' +
+              '<span style="display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;">' +
+                '<span style="font-size:12.5px;color:var(--ink);">' + label + '</span>' +
+                '<span class="mono" style="font-size:11.5px;color:' + tone.c + ';">' + text + '</span>' +
+              '</span>' +
+              '<div class="mono" style="font-size:10.5px;color:var(--faint);margin-top:2px;overflow-wrap:anywhere;">' + note + '</div>' +
+            '</span>'));
+    });
+
+    const v = document.getElementById('proc-verdict');
+    if (!reported) {
+        v.textContent = 'no liveness data';
+        v.style.background = '#EFECE6'; v.style.color = C.muted;
+    } else if (down) {
+        v.textContent = down + ' down';
+        v.style.background = 'rgba(180,71,47,.10)'; v.style.color = C.red;
+    } else {
+        v.textContent = 'all healthy';
+        v.style.background = 'rgba(25,122,90,.12)'; v.style.color = C.green;
+    }
 }
 
 /* ---------------------------------------------------------------- hero */
@@ -545,46 +644,58 @@ function legMtm(s, i) {
 function legTableHtml(s) {
     const legs = s.leg_symbols || [];
     if (!legs.length) return '';
-    const cols = '70px 1.3fr repeat(6, minmax(0,.7fr))';
+    const LCOLS = '1.35fr repeat(4, minmax(0,1fr))';
     const rows = legs.map((sym, i) => {
         const fills = (s.fills && s.fills[i]) || [];
         const m = (state.legMarks && state.legMarks[sym]) || null;
-        const legHeader = '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:10px 14px;border-top:1px solid #F5F2ED;' +
-            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:center;">' +
-            '<span style="color:var(--ink);">' + sym + '</span>' +
-            '<span style="color:var(--faint);font-size:11px;">' + (s.filled_legs.includes(sym) ? 'filled' : 'no fill') + '</span>' +
-            '<span></span><span></span>' +
-            '<span id="mark-' + i + '" style="text-align:right;' + (m && m.ltp != null ? 'color:var(--ink);' : 'color:var(--faint);') + '">' +
-                (m && m.ltp != null ? n(m.ltp, 2) : '—') + '</span>' +
-            '<span id="delta-' + i + '" style="text-align:right;color:var(--faint);">—</span>' +
-            '<span></span><span></span></div>';
-        const fillsCols = '70px 1.3fr 1fr 1fr 1fr 1fr';
-        const rowsHtml = fills.length ? (
-            '<div style="display:grid;grid-template-columns:' + fillsCols + ';gap:6px;padding:6px 14px 9px 26px;' +
-            'font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);">' +
-            '<span></span><span>Ledger</span><span style="text-align:right;">Qty</span>' +
-            '<span style="text-align:right;">Entry</span><span style="text-align:right;">Realized PnL</span>' +
-            '<span style="text-align:right;">Fees</span></div>' +
-            fills.map(t =>
-            '<div style="display:grid;grid-template-columns:' + fillsCols + ';gap:6px;padding:7px 14px 7px 26px;border-top:1px solid #F5F2ED;' +
-            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;background:#FBFAF8;">' +
-            '<span></span>' +
-            '<span style="color:' + ((t.side || '').toUpperCase() === 'BUY' ? C.green : C.red) + '">' + (t.side || '') + ' · ' + (t.timestamp ? tShort(t.timestamp) : '') + '</span>' +
-            '<span style="text-align:right;">' + n(t.quantity, 0) + '</span>' +
-            '<span style="text-align:right;">' + n(t.price, 2) + '</span>' +
-            '<span style="text-align:right;color:' + (t.pnl >= 0 ? C.green : C.red) + '">' + rs(t.pnl, 0) + '</span>' +
-            '<span style="text-align:right;color:var(--muted);">' + n(t.fees, 2) + '</span></div>').join('')
-        ) : '<div style="padding:9px 14px 9px 26px;border-top:1px solid #F5F2ED;font-size:12px;color:var(--faint);">no ledger fill</div>';
-        return legHeader + rowsHtml;
+        const filled = (s.filled_legs || []).includes(sym);
+
+        // Leg header: symbol owns its own line; mark and MTM sit in a labelled pair.
+        const head =
+            '<div style="padding:13px 16px 11px;' + (i ? 'border-top:1px solid var(--hairline);' : '') + '">' +
+              '<div style="display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px;">' +
+                '<span class="mono" style="font-size:12.5px;color:var(--ink);overflow-wrap:anywhere;">' + sym + '</span>' +
+                '<span style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;padding:2px 8px;border-radius:999px;' +
+                  'background:' + (filled ? 'rgba(25,122,90,.10)' : 'rgba(201,130,26,.12)') + ';' +
+                  'color:' + (filled ? C.green : '#A8703C') + ';">' + (filled ? 'filled' : 'no fill') + '</span>' +
+              '</div>' +
+              '<div style="display:flex;flex-wrap:wrap;gap:6px 26px;margin-top:9px;">' +
+                '<span style="display:flex;align-items:baseline;gap:7px;">' +
+                  '<span style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);">Mark</span>' +
+                  '<span id="mark-' + i + '" class="mono" style="font-size:13px;color:' + (m && m.ltp != null ? 'var(--ink)' : 'var(--faint)') + ';">' +
+                    (m && m.ltp != null ? n(m.ltp, 2) : '—') + '</span></span>' +
+                '<span style="display:flex;align-items:baseline;gap:7px;">' +
+                  '<span style="font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);">MTM Δ</span>' +
+                  '<span id="delta-' + i + '" class="mono" style="font-size:13px;color:var(--faint);">—</span></span>' +
+              '</div></div>';
+
+        if (!fills.length) {
+            return head + '<div style="padding:0 16px 13px;font-size:12px;color:var(--faint);">No ledger fill for this leg.</div>';
+        }
+
+        const ledger =
+            '<div style="margin:0 16px 14px;border:1px solid var(--hairline);border-radius:9px;overflow:hidden;">' +
+              '<div style="display:grid;grid-template-columns:' + LCOLS + ';gap:10px;padding:7px 12px;background:#FBFAF8;' +
+                'font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);">' +
+                '<span>Ledger</span><span style="text-align:right;">Qty</span><span style="text-align:right;">Entry</span>' +
+                '<span style="text-align:right;">Realized</span><span style="text-align:right;">Fees</span></div>' +
+              fills.map(t =>
+                '<div style="display:grid;grid-template-columns:' + LCOLS + ';gap:10px;padding:8px 12px;border-top:1px solid #F5F2ED;' +
+                'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:baseline;">' +
+                '<span style="color:' + ((t.side || '').toUpperCase() === 'BUY' ? C.green : C.red) + ';overflow-wrap:anywhere;">' +
+                  (t.side || '') + '<span style="color:var(--faint);"> · ' + (t.timestamp ? tShort(t.timestamp) : '') + '</span></span>' +
+                '<span style="text-align:right;">' + n(t.quantity, 0) + '</span>' +
+                '<span style="text-align:right;">' + n(t.price, 2) + '</span>' +
+                '<span style="text-align:right;color:' + (t.pnl >= 0 ? C.green : C.red) + '">' + rs(t.pnl, 0) + '</span>' +
+                '<span style="text-align:right;color:var(--muted);">' + n(t.fees, 2) + '</span></div>').join('') +
+            '</div>';
+
+        return head + ledger;
     }).join('');
+
     return '<div style="margin-top:28px;"><div class="ns-sec-h">Legs at the snapshot ' +
         '<span id="leg-mark-age" style="margin-left:8px;font-size:10px;letter-spacing:.04em;text-transform:none;"></span></div>' +
-        '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' +
-          '<div style="display:grid;grid-template-columns:' + cols + ';gap:6px;padding:9px 14px;background:#FBFAF8;' +
-            'font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--faint);">' +
-            '<span>Symbol</span><span>Ledger</span><span></span><span></span>' +
-            '<span style="text-align:right;">Mark</span><span style="text-align:right;">MTM Δ</span>' +
-            '<span></span><span></span></div>' + rows + '</div></div>';
+        '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' + rows + '</div></div>';
 }
 
 function paintLegMarks() {
@@ -769,7 +880,7 @@ function paintPnl() {
 /* ----------------------------------------------------------- journal river */
 function paintJournal() {
     const events = effectiveJournal() || [];
-    const shown = state.journalFull ? events : events.slice(0, 12);
+    const shown = state.journalFull ? events : events.slice(0, 8);
     document.getElementById('jr-count').textContent = events.length;
 
     const body = document.getElementById('jr-body');
@@ -783,15 +894,15 @@ function paintJournal() {
         const md = e.metadata || {};
         const detail = md.session ? (md.session + ' · ') : '';
         body.appendChild(el('div',
-            'display:grid;grid-template-columns:150px 180px 1fr 1.4fr;gap:8px;padding:10px 16px;' +
+            'display:grid;grid-template-columns:78px 1fr;gap:8px;padding:9px 14px;' +
             'border-top:1px solid #F5F2ED;font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:baseline;',
             '<span style="color:var(--muted);">' + tShort(e.timestamp) + '</span>' +
-            '<span style="font-family:\'Public Sans\',sans-serif;font-size:12.5px;color:' + c + '">' + (EVENT_LABEL[e.event_type] || e.event_type) + '</span>' +
-            '<span style="color:var(--faint);">' + (e.source_component || '') + '</span>' +
-            '<span style="color:var(--body);text-wrap:pretty;">' + detail + (e.message || '') + '</span>'));
+            '<span><span style="font-family:\'Public Sans\',sans-serif;font-size:12.5px;color:' + c + '">' + (EVENT_LABEL[e.event_type] || e.event_type) + '</span>' +
+              '<span style="color:var(--faint);margin-left:7px;font-size:11px;">' + (e.source_component || '') + '</span>' +
+              '<div style="color:var(--body);font-size:11.5px;margin-top:2px;text-wrap:pretty;">' + detail + (e.message || '') + '</div></span>'));
     });
     document.getElementById('jr-toggle').textContent =
-        state.journalFull ? 'Show latest 12' : 'Show all ' + events.length + ' events';
+        state.journalFull ? 'Show latest 8' : 'Show all ' + events.length + ' events';
 }
 
 function toggleJournal() { state.journalFull = !state.journalFull; paintJournal(); }
@@ -836,14 +947,16 @@ function paintMarks() {
         const isAtm = atm != null && Number(strike) === atm;
         const q = v => v == null ? '<span style="color:#C0BAB0">—</span>' : n(v, 2);
         body.appendChild(el('div',
-            'display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:10px 16px;border-top:1px solid #F5F2ED;' +
-            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:baseline;' +
+            'display:grid;grid-template-columns:1.2fr repeat(4,minmax(0,1fr)) 1fr;gap:14px;padding:10px 20px;border-top:1px solid #F5F2ED;' +
+            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12.5px;align-items:baseline;' +
             (isAtm ? 'background:rgba(14,111,99,.05);' : ''),
             '<span style="color:' + (isAtm ? C.teal : C.ink) + ';' + (isAtm ? 'font-weight:500;' : '') + '">' + n(strike, 0) + (isAtm ? ' · ATM' : '') + '</span>' +
             '<span style="text-align:right;">' + q(ce.ltp) + '</span>' +
             '<span style="text-align:right;color:var(--muted);">' + (ce.iv != null ? n(ce.iv * 100, 1) + '%' : '—') + '</span>' +
             '<span style="text-align:right;">' + q(pe.ltp) + '</span>' +
-            '<span style="text-align:right;color:var(--muted);">' + (pe.iv != null ? n(pe.iv * 100, 1) + '%' : '—') + '</span>'));
+            '<span style="text-align:right;color:var(--muted);">' + (pe.iv != null ? n(pe.iv * 100, 1) + '%' : '—') + '</span>' +
+            '<span style="text-align:right;color:' + (isAtm ? C.teal : 'var(--muted)') + ';">' +
+              (ce.ltp != null && pe.ltp != null ? n(ce.ltp + pe.ltp, 2) : '—') + '</span>'));
     });
 }
 
