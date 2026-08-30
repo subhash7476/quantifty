@@ -106,3 +106,6 @@ cache/*
 
 # Example data (samples are small, keep if tracked)
 # Full dataset downloads are ignored via historical/ reference/ above
+
+# Stray root-level market_data/ (DatabaseManager DATA_ROOT mis-set; canonical store is data/market_data/)
+/market_data/
