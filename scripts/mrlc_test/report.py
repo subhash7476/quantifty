@@ -188,7 +188,27 @@ def main():
             f"{(sub['reason2'] == 'TRAIL').sum()} | "
             f"{(sub['reason2'] == 'TIMEOUT').sum()} |")
     out("")
-    out("## 10. Caveats (read before trusting anything)")
+    out("## 10. Size-split test — does the edge survive in tradable names? (2012-2022, 2× stop, guard ON)")
+    out("")
+    out("| Universe | Stretch | Trades | Win % | Expectancy/trade | t-stat |")
+    out("|---|---|---:|---:|---:|---:|")
+    for tag, label in (("live_196", "Live ~196 (mapped 161)"), ("top_200", "Top-200 by turnover proxy"),
+                       ("ext_2_0_guard", "All 2,300 symbols")):
+        path = OUT_DIR / f"trades_{tag}.csv"
+        if not path.exists():
+            continue
+        d = pd.read_csv(path)
+        for t in (10.0, 15.0, 20.0):
+            s = stats(d[d["divergence_pct"] <= -t])
+            out(f"| {label} | ≤{t:.0f}% | {s['n']} | {fmt(s['win_rate'], 1)}% | "
+                f"{fmt(s['exp_net'])} | {fmt(s['t'])} |")
+    out("")
+    out("**Read:** per-trade expectancy is comparable across universes (≈+0.12 to +0.14 R at")
+    out("≤10% stretch) — the edge is NOT small-cap-only. The 2023-26 1d cell's near-zero was")
+    out("small-sample noise (n=35), not a population difference. 35 of 196 live ISINs have no")
+    out("2012-22 mapping (recent listings), disclosed.")
+    out("")
+    out("## 11. Caveats (read before trusting anything)")
     out("")
     out("- **Survivorship (2023-26 window):** only today's ~196 stocks. The 2012-2022")
     out("  extension removes this for the daily variant (point-in-time symbols).")
