@@ -59,8 +59,13 @@ VIX_SYMBOL = "NSE_INDEX|India VIX"
 # must ride out a burst, and a final failure must be LOUD — a bare except turns
 # "we failed" into "the source doesn't have it", which is how the 2026-08-25
 # 13:00 fact skipped ten straight publishes while every bar sat in the buffer.
-READ_RETRIES = 8
-READ_RETRY_DELAY_S = 0.25
+# The original 2 s budget (8 x 0.25 s) was still shorter than the aggregator's
+# write bursts over the multi-GB buffer, so 2026-09-01 skipped the 13:00 fact a
+# second time (10/10 India VIX reads collided while NF/BN reads landed in free
+# windows). Budget is now sized to ride out a full burst while staying inside
+# the 1-minute bar cadence of the 13:00->13:10 retry window.
+READ_RETRIES = 40
+READ_RETRY_DELAY_S = 0.5
 
 
 def _read_candles(path: Path, symbol: str,
