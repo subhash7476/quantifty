@@ -4,6 +4,7 @@ Nightly run AFTER the EOD ingests land (bhavcopy + 1m):
 
     python scripts/mrlc_test/scanner.py run            # detect + fill + track
     python scripts/mrlc_test/scanner.py status         # open trades + summary
+    python scripts/mrlc_test/scanner.py trades         # all trades (--only open|closed)
     python scripts/mrlc_test/scanner.py run --as-of YYYY-MM-DD   # replay test
 
 Tracks:
@@ -503,16 +504,36 @@ def status():
     con.close()
 
 
+def trades_cmd(only="all"):
+    con = connect()
+    where = {"open": "WHERE status = 'OPEN'", "closed": "WHERE status = 'CLOSED'"}.get(only, "")
+    df = con.execute(
+        f"SELECT tf, symbol, signal_date, entry_date, entry_price AS entry, "
+        f"sl, tp, exit1_date, exit1_price, reason1, exit2_date, exit2_price, "
+        f"reason2, hold_sessions, r_net, fees_rs, status "
+        f"FROM trades {where} ORDER BY signal_date, tf, symbol").fetchdf()
+    con.close()
+    if df.empty:
+        print(f"no {only} trades")
+        return
+    pd.set_option("display.width", 200)
+    pd.set_option("display.max_columns", 30)
+    print(df.to_string(index=False))
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("cmd", choices=["run", "status"])
+    ap.add_argument("cmd", choices=["run", "status", "trades"])
     ap.add_argument("--as-of")
     ap.add_argument("--db")
+    ap.add_argument("--only", choices=["all", "open", "closed"], default="all")
     args = ap.parse_args()
     if args.db:
         PAPER_DB_OVERRIDE = args.db
     if args.cmd == "run":
         as_of = date.fromisoformat(args.as_of) if args.as_of else None
         run_pipeline(as_of)
-    else:
+    elif args.cmd == "status":
         status()
+    else:
+        trades_cmd(args.only)
