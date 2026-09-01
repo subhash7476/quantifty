@@ -1,21 +1,25 @@
-"""MRLC-test forward paper scanner (daily cadence).
+"""MRLC-test forward paper scanner (EOD cadence, 1d + 1h + 4h signal tracks).
 
-Nightly run AFTER the EOD bhavcopy ingest lands (ops EOD / download_all_data.py):
+Nightly run AFTER the EOD ingests land (bhavcopy + 1m):
 
     python scripts/mrlc_test/scanner.py run            # detect + fill + track
     python scripts/mrlc_test/scanner.py status         # open trades + summary
     python scripts/mrlc_test/scanner.py run --as-of YYYY-MM-DD   # replay test
 
-Logic reuses the backtest engine (run_symbol / _simulate) so the paper record is
-byte-consistent with the validated backtest. Signals: stretch >=10% below the
-prior-day 25-SMA + sweep (close below 10-session low on >=2x median volume) +
-reclaim close within 3 bars + news guard (no >=8% crash in prior 3 sessions).
-Entry = next session open. Exit = 50% at prior-day 25-SMA, 50% break-even then
-2x ATR trail, 20-session time stop. Ledger: data/mrlc_test/paper/paper.duckdb.
+Tracks:
+- 1d : daily sweep/reclaim on the bhavcopy CA-adjusted store (as before).
+- 1h/4h : sweep/reclaim on 1m-store resamples (EOD-detected). Requires the 1m
+  store to be fresh (gate: today's 1m file present with >= MIN_1M_SYMBOLS rows);
+  otherwise the intraday tracks are skipped for the run and logged.
 
-NOTE: prices come from the CA-adjusted view (backward-adjusted). A corporate
-action can revise past adjusted closes retroactively — disclosed approximation;
-fills are real next-open prices.
+Fill honesty: signals detected the day they fire are PENDING and fill at the NEXT
+SESSION'S OPEN (T+1 open) — a conservative degradation vs the backtest's next-bar
+open, by design. Backfilled signals (older than today) use their actual next-bar
+open. Exit logic is the validated engine (_simulate): 50% at the prior-day 25-SMA,
+break-even then 2x ATR trail, 20-session time stop, delivery fees.
+
+NOTE: the same symbol can signal on 1d, 1h and 4h in the same session — three
+ledger rows for one market event (validation ledger; not a position cap).
 """
 import sys
 import argparse
@@ -31,20 +35,30 @@ sys.path.insert(0, str(ROOT))
 
 from core.execution.equity.delivery_fees import delivery_equity_fees  # noqa: E402
 from scripts.mrlc_test.engine import (  # noqa: E402
-    run_symbol, _simulate, _crash_near, NEWS_WINDOW, RECLAIM_MAX_BARS,
+    run_symbol, _simulate, _crash_near, RECLAIM_MAX_BARS,
     VOL_MULT, MIN_STRETCH, SMA_DAYS, SUPPORT_SESSIONS,
 )
 
 ADJ_DB = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
+ONE_MIN_DIR = ROOT / "data" / "market_data" / "nse" / "candles" / "1m"
 PAPER_DB = ROOT / "data" / "mrlc_test" / "paper" / "paper.duckdb"
 TICKERS_CSV = ROOT / "data" / "mrlc_test" / "live_tickers.csv"
 LOOKBACK_DAYS = 130          # ~85 sessions, enough for SMA25 + support + guards
+MIN_1M_SYMBOLS = 100         # freshness gate for the intraday tracks
+TFS = ("1d", "1h", "4h")
+
+PAPER_DB_OVERRIDE = None
+
+
+def paper_db():
+    return Path(PAPER_DB_OVERRIDE) if PAPER_DB_OVERRIDE else PAPER_DB
 
 
 # ---------------------------------------------------------------- mapping
 def build_live_tickers(force=False):
     if TICKERS_CSV.exists() and not force:
-        return pd.read_csv(TICKERS_CSV)["ticker"].tolist()
+        df = pd.read_csv(TICKERS_CSV)
+        return df["ticker"].tolist()
     uni = pd.read_csv(ROOT / "data" / "mrlc_test" / "universe.csv")["symbol"]
     isins = {s.split("|")[1] for s in uni}
     con = duckdb.connect(str(ADJ_DB), read_only=True)
@@ -62,17 +76,41 @@ def build_live_tickers(force=False):
     return tickers
 
 
+def ticker_to_isin(tickers):
+    con = duckdb.connect(str(ADJ_DB), read_only=True)
+    rows = con.execute("SELECT symbol, isin FROM symbol_isin").fetchall()
+    rows += con.execute(
+        "SELECT symbol, isin FROM instrument_master WHERE isin IS NOT NULL"
+    ).fetchall()
+    con.close()
+    m = {}
+    for s, i in rows:
+        if i and s in set(tickers):
+            m[s] = i
+    return m
+
+
 # ---------------------------------------------------------------- ledger
 def connect():
-    PAPER_DB.parent.mkdir(parents=True, exist_ok=True)
-    con = duckdb.connect(str(PAPER_DB))
+    db = paper_db()
+    db.parent.mkdir(parents=True, exist_ok=True)
+    con = duckdb.connect(str(db))
+    cols = [r[0] for r in con.execute(
+        "SELECT column_name FROM information_schema.columns "
+        "WHERE table_name = 'signals'").fetchall()] if con.execute(
+        "SELECT count(*) FROM information_schema.tables WHERE table_name='signals'"
+    ).fetchone()[0] else []
+    if cols and "tf" not in cols:
+        con.execute("DROP TABLE IF EXISTS signals")
+        con.execute("DROP TABLE IF EXISTS trades")
+        con.execute("DROP TABLE IF EXISTS run_log")
     con.execute("""CREATE TABLE IF NOT EXISTS signals (
-        signal_id INTEGER PRIMARY KEY, symbol VARCHAR, signal_date DATE,
+        signal_id INTEGER PRIMARY KEY, symbol VARCHAR, tf VARCHAR, signal_date DATE,
         stretch_pct DOUBLE, support DOUBLE, sweep_low DOUBLE, sl DOUBLE,
         tp DOUBLE, atr_sig DOUBLE, entry_date DATE, entry_price DOUBLE,
         status VARCHAR, note VARCHAR, created_at TIMESTAMP)""")
     con.execute("""CREATE TABLE IF NOT EXISTS trades (
-        trade_id INTEGER PRIMARY KEY, signal_id INTEGER, symbol VARCHAR,
+        trade_id INTEGER PRIMARY KEY, signal_id INTEGER, symbol VARCHAR, tf VARCHAR,
         signal_date DATE, entry_date DATE, entry_price DOUBLE, sl DOUBLE,
         tp DOUBLE, atr_sig DOUBLE,
         exit1_date DATE, exit1_price DOUBLE, reason1 VARCHAR,
@@ -98,15 +136,99 @@ def load_recent(con, as_of):
     con.execute("DETACH adj")
 
 
-def bars_for(con, ticker):
+def load_1m_window(con, as_of, tk_to_isin, verbose=True):
+    """Resample the 1m store's recent window into m1h/m4h/m1d (keyed by ticker).
+    Returns True if the window was fresh enough to scan intraday tracks."""
+    as_of = as_of or date.today()
+    lo = as_of - timedelta(days=LOOKBACK_DAYS)
+    files = {f.stem: f for f in ONE_MIN_DIR.glob("*.duckdb")
+             if lo.isoformat() <= f.stem <= as_of.isoformat()}
+    if as_of.isoformat() not in files:
+        if verbose:
+            print(f"  1m gate: {as_of}.duckdb missing -> intraday tracks skipped")
+        return False
+    isin_set = set(tk_to_isin.values())
+    frames = []
+    sym_count = 0
+    for d in sorted(files):
+        f = files[d]
+        try:
+            con2 = duckdb.connect(str(f), read_only=True)
+            df = con2.execute(
+                "SELECT symbol, timestamp, open, high, low, close, volume "
+                "FROM candles WHERE symbol LIKE 'NSE_EQ|%' AND NOT is_synthetic"
+            ).fetchdf()
+            con2.close()
+        except Exception:
+            continue
+        if df.empty:
+            continue
+        df = df[df["symbol"].str.split("|", expand=True)[1].isin(isin_set)]
+        sym_count = max(sym_count, df["symbol"].nunique())
+        frames.append(df)
+    if sym_count < MIN_1M_SYMBOLS:
+        if verbose:
+            print(f"  1m gate: only {sym_count} mapped symbols on {as_of} -> intraday skipped")
+        return False
+    all1m = pd.concat(frames, ignore_index=True)
+    all1m["ticker"] = all1m["symbol"].map({f"NSE_EQ|{i}": t for t, i in tk_to_isin.items()})
+    all1m = all1m.dropna(subset=["ticker"])
+    ts = pd.to_datetime(all1m["timestamp"])
+    minutes = ts.dt.hour * 60 + ts.dt.minute
+    ok = (minutes >= 9 * 60 + 15) & (minutes <= 15 * 60 + 30)
+    df = all1m[ok].copy()
+    df["date"] = ts[ok].dt.normalize()
+    df["h_bucket"] = (minutes[ok] - (9 * 60 + 15)) // 60
+    df["h4_bucket"] = (minutes[ok] - (9 * 60 + 15)) // 240
+
+    def build(keys, unit):
+        g = df.groupby(["ticker"] + keys, sort=True).agg(
+            open=("open", "first"), high=("high", "max"), low=("low", "min"),
+            close=("close", "last"), volume=("volume", "sum")).reset_index()
+        g["ts"] = g["date"] + pd.to_timedelta(g[keys[-1]] * unit, unit="h") + pd.Timedelta(hours=9, minutes=15)
+        return g[["ticker", "ts", "open", "high", "low", "close", "volume"]]
+
+    con.execute("DROP TABLE IF EXISTS m1h")
+    con.execute("DROP TABLE IF EXISTS m4h")
+    con.execute("DROP TABLE IF EXISTS m1d")
+    for t, frame in (("m1h", build(["date", "h_bucket"], 1)),
+                     ("m4h", build(["date", "h4_bucket"], 4)),
+                     ("m1d", df.groupby(["ticker", "date"], sort=True).agg(
+                         open=("open", "first"), high=("high", "max"),
+                         low=("low", "min"), close=("close", "last"),
+                         volume=("volume", "sum")).reset_index().rename(columns={"date": "ts"})
+                       [["ticker", "ts", "open", "high", "low", "close", "volume"]])):
+        con.register("f_tmp", frame)
+        con.execute(f"CREATE TABLE {t} AS SELECT * FROM f_tmp")
+    if verbose:
+        n = con.execute("SELECT count(*) FROM m1h").fetchone()[0]
+        print(f"  1m window OK: {sym_count} symbols, {n:,} 1h bars "
+              f"({lo} -> {as_of})")
+    return True
+
+
+def bars_for(con, tk, tf):
+    if tf == "1d":
+        return con.execute(
+            "SELECT trade_date AS ts, open, high, low, close, volume FROM recent "
+            "WHERE symbol = ? ORDER BY trade_date", [tk]).fetchdf()
+    table = {"1h": "m1h", "4h": "m4h"}[tf]
     return con.execute(
-        "SELECT trade_date AS ts, open, high, low, close, volume "
-        "FROM recent WHERE symbol = ? ORDER BY trade_date", [ticker]).fetchdf()
+        f"SELECT ts, open, high, low, close, volume FROM {table} "
+        f"WHERE ticker = ? ORDER BY ts", [tk]).fetchdf()
+
+
+def daily_for(con, tk, tf):
+    if tf == "1d":
+        return bars_for(con, tk, "1d")
+    return con.execute(
+        "SELECT ts, open, high, low, close, volume FROM m1d WHERE ticker = ? ORDER BY ts",
+        [tk]).fetchdf()
 
 
 # ---------------------------------------------------------------- detect
 def detect_last_bar_signal(bars, daily):
-    """Signal whose reclaim bar is the FINAL session (entry bar does not exist yet)."""
+    """Signal whose reclaim bar is the FINAL bar of the window (entry bar does not exist yet)."""
     if len(bars) < 30:
         return []
     close = bars["close"].to_numpy()
@@ -114,10 +236,12 @@ def detect_last_bar_signal(bars, daily):
     volume = bars["volume"].to_numpy()
     n = len(bars)
     daily_close = daily["close"].to_numpy()
-    ranks = pd.to_datetime(bars["ts"].dt.date).map(
-        {d: r for r, d in enumerate(pd.to_datetime(daily["ts"].dt.date))}).to_numpy()
+    ranks = [int(r) if not pd.isna(r) else None for r in
+             pd.to_datetime(bars["ts"].dt.date).map(
+                 {d: r for r, d in enumerate(pd.to_datetime(daily["ts"].dt.date))}).to_numpy()]
     daily_ret = np.full(len(daily_close), np.nan)
-    daily_ret[1:] = np.diff(daily_close) / daily_close[:-1]
+    with np.errstate(divide="ignore", invalid="ignore"):
+        daily_ret[1:] = np.diff(daily_close) / daily_close[:-1]
     j = n - 1
     rj = ranks[j]
     if rj is None or rj < max(SMA_DAYS, SUPPORT_SESSIONS):
@@ -128,9 +252,10 @@ def detect_last_bar_signal(bars, daily):
     div = (close[j] - sma) / sma
     if div > -MIN_STRETCH or _crash_near(daily_ret, rj):
         return []
-    sup = float(low[:j][ranks[:j] >= rj - SUPPORT_SESSIONS].min()) if (ranks[:j] >= rj - SUPPORT_SESSIONS).any() else None
-    if sup is None:
+    mask = np.array([r is not None and r >= rj - SUPPORT_SESSIONS for r in ranks[:j]])
+    if not mask.any():
         return []
+    sup = float(low[:j][mask].min())
     for k in range(1, RECLAIM_MAX_BARS + 1):
         i = j - k
         if i < 0:
@@ -138,9 +263,10 @@ def detect_last_bar_signal(bars, daily):
         ri = ranks[i]
         if ri is None:
             continue
-        sup_i = float(low[:i][ranks[:i] >= ri - SUPPORT_SESSIONS].min()) if (ranks[:i] >= ri - SUPPORT_SESSIONS).any() else None
-        if sup_i is None:
+        mask_i = np.array([r is not None and r >= ri - SUPPORT_SESSIONS for r in ranks[:i]])
+        if not mask_i.any():
             continue
+        sup_i = float(low[:i][mask_i].min())
         med_i = pd.Series(volume[:i]).rolling(20, min_periods=20).median().iloc[-1]
         if np.isnan(med_i):
             continue
@@ -171,150 +297,168 @@ def run_pipeline(as_of=None, verbose=True):
     con = connect()
     load_recent(con, as_of)
     tickers = build_live_tickers()
+    tk_to_isin = ticker_to_isin(tickers)
+    m1_ok = load_1m_window(con, as_of, tk_to_isin, verbose)
+
     existing = set()
-    n_sig = con.execute("SELECT count(*) FROM signals").fetchone()[0]
-    if n_sig:
-        existing = {r[0] for r in con.execute(
-            "SELECT symbol || '|' || signal_date FROM signals").fetchall()}
-    n_tr = con.execute("SELECT count(*) FROM trades").fetchone()[0]
-    if n_tr:
-        existing |= {r[0] for r in con.execute(
-            "SELECT symbol || '|' || signal_date FROM trades").fetchall()}
-    new_signals = filled = closed = 0
-    scanned = 0
+    for table in ("signals", "trades"):
+        n = con.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+        if n:
+            existing |= {r[0] for r in con.execute(
+                f"SELECT symbol || '|' || tf || '|' || signal_date FROM {table}"
+            ).fetchall()}
 
-    closed += _fill_and_track(con, tickers, verbose)
+    new_signals = scanned = 0
+    skipped = [0]
 
-    for tk in tickers:
-        bars = bars_for(con, tk)
-        if len(bars) < 30:
+    for tf in TFS:
+        if tf != "1d" and not m1_ok:
             continue
-        daily = bars.copy()
-        scanned += 1
-        if con.execute("SELECT count(*) FROM trades WHERE symbol = ? AND status = 'OPEN'",
-                       [tk]).fetchone()[0] > 0:
-            continue
-
-        found = run_symbol(bars, daily, 2.0, tk, "1d_ext", news_guard=True)
-        for tr in found:
-            key = f"{tk}|{pd.Timestamp(tr['signal_date']).date()}"
-            if key in existing:
+        for tk in tickers:
+            bars = bars_for(con, tk, tf)
+            if len(bars) < 30:
                 continue
-            existing.add(key)
-            if tr["reason1"] == "OPEN_END" or tr["reason2"] == "OPEN_END":
-                status, note = "OPEN", "filled at next open"
-                _save_trade(con, tk, tr, "OPEN")
-            else:
-                status, note = "CLOSED", "backfilled (already exited)"
-                _save_trade(con, tk, tr, "CLOSED")
-            new_signals += 1
-            if verbose:
-                print(f"  SIGNAL {tk} {tr['signal_date'].date()} div={tr['divergence_pct']:.1f}% "
-                      f"-> {status}")
-
-        last = detect_last_bar_signal(bars, daily)
-        for sig in last:
-            key = f"{tk}|{sig['signal_date']}"
-            if key in existing:
+            daily = daily_for(con, tk, tf)
+            scanned += 1
+            if con.execute(
+                "SELECT count(*) FROM trades WHERE symbol = ? AND tf = ? AND status = 'OPEN'",
+                [tk, tf]).fetchone()[0] > 0:
                 continue
-            existing.add(key)
-            sid = _insert_signal(con, tk, sig, "PENDING_ENTRY")
-            new_signals += 1
-            if verbose:
-                print(f"  SIGNAL {tk} {sig['signal_date']} div={sig['stretch_pct']:.1f}% "
-                      f"-> PENDING_ENTRY (enter at next open)")
 
-    closed += _fill_and_track(con, tickers, verbose)
+            found = run_symbol(bars, daily, 2.0, tk, tf, news_guard=True,
+                               skipped_counter=skipped)
+            for tr in found:
+                sig_d = pd.Timestamp(tr["signal_date"]).date()
+                key = f"{tk}|{tf}|{sig_d}"
+                if key in existing:
+                    continue
+                existing.add(key)
+                if sig_d == as_of:
+                    _insert_signal(con, tk, tf, tr, "PENDING_ENTRY")
+                    new_signals += 1
+                    if verbose:
+                        print(f"  SIGNAL {tf} {tk} {sig_d} div={tr['divergence_pct']:.1f}% "
+                              f"-> PENDING_ENTRY (fill at next open)")
+                else:
+                    if tr["reason1"] == "OPEN_END" or tr["reason2"] == "OPEN_END":
+                        _save_trade(con, tk, tf, tr, "OPEN")
+                    else:
+                        _save_trade(con, tk, tf, tr, "CLOSED")
+                    new_signals += 1
+                    if verbose:
+                        print(f"  SIGNAL {tf} {tk} {sig_d} div={tr['divergence_pct']:.1f}% "
+                              f"-> backfill {'OPEN' if tr['reason1'] == 'OPEN_END' else 'CLOSED'}")
+
+            last = detect_last_bar_signal(bars, daily)
+            for sig in last:
+                key = f"{tk}|{tf}|{sig['signal_date']}"
+                if key in existing:
+                    continue
+                existing.add(key)
+                _insert_signal(con, tk, tf, sig, "PENDING_ENTRY")
+                new_signals += 1
+                if verbose:
+                    print(f"  SIGNAL {tf} {tk} {sig['signal_date']} "
+                          f"div={sig['stretch_pct']:.1f}% -> PENDING_ENTRY (fill at next open)")
+
+    closed = _fill_and_track(con, verbose)
+    tfs_run = ",".join(t for t in TFS if t == "1d" or m1_ok)
+    note = f"tfs={tfs_run}" + ("" if m1_ok else "; 1m gate FAILED")
     con.execute("INSERT INTO run_log VALUES (?, ?, ?, ?, ?, ?, ?)",
-                [date.today(), as_of, scanned, new_signals, 0, closed,
-                 "run"])
-    print(f"run @ {as_of}: scanned {scanned} tickers, {new_signals} new signals, "
-          f"{closed} closed")
+                [date.today(), as_of, scanned, new_signals, 0, closed, note])
+    print(f"run @ {as_of}: scanned {scanned}, {new_signals} new signals, "
+          f"{closed} closed [{note}]")
     con.close()
 
 
-def _insert_signal(con, tk, sig, status):
+def _insert_signal(con, tk, tf, sig, status):
     sid = con.execute("SELECT COALESCE(MAX(signal_id), 0) + 1 FROM signals").fetchone()[0]
-    con.execute("INSERT INTO signals VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                [sid, tk, sig["signal_date"], sig["stretch_pct"], sig["support"],
+    con.execute("INSERT INTO signals VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                [sid, tk, tf, sig["signal_date"], sig["stretch_pct"], sig["support"],
                  sig["sweep_low"], sig["sl"], sig["tp"], sig["atr_sig"],
                  None, None, status, "", pd.Timestamp.now()])
     return sid
 
 
-def _fill_and_track(con, tickers, verbose):
-    """Fill PENDING_ENTRY signals whose entry session now exists; track open trades."""
+def _fill_and_track(con, verbose):
     closed = 0
     pending = con.execute(
-        "SELECT signal_id, symbol, signal_date FROM signals WHERE status = 'PENDING_ENTRY'"
+        "SELECT signal_id, symbol, tf, signal_date FROM signals WHERE status = 'PENDING_ENTRY'"
     ).fetchall()
-    for sid, tk, sig_date in pending:
+    for sid, tk, tf, sig_date in pending:
         if con.execute(
-            "SELECT count(*) FROM trades WHERE symbol = ? AND status = 'OPEN'",
-            [tk]).fetchone()[0] > 0:
+            "SELECT count(*) FROM trades WHERE symbol = ? AND tf = ? AND status = 'OPEN'",
+            [tk, tf]).fetchone()[0] > 0:
             con.execute("UPDATE signals SET status = 'SKIPPED_OVERLAP' "
                         "WHERE signal_id = ?", [sid])
             continue
-        bars = bars_for(con, tk)
-        daily = bars.copy()
+        bars = bars_for(con, tk, tf)
+        daily = daily_for(con, tk, tf)
         sig_date = pd.Timestamp(sig_date)
-        dates = pd.to_datetime(bars["ts"].dt.date).tolist()
+        dates = pd.to_datetime(daily["ts"].dt.date).tolist()
         if not any(d > sig_date for d in dates):
             continue
         nxt = min(d for d in dates if d > sig_date)
-        idx = dates.index(nxt)
-        row = con.execute("SELECT * FROM signals WHERE signal_id = ?", [sid]).fetchone()
-        entry = float(bars["open"].iloc[idx])
+        day_bars = bars[pd.to_datetime(bars["ts"].dt.date) == nxt]
+        if day_bars.empty:
+            continue
+        entry = float(day_bars["open"].iloc[0])
         if entry <= 0:
             continue
-        ranks = pd.Series(dates).map(
-            {d: r for r, d in enumerate(pd.to_datetime(daily["ts"].dt.date))}).to_numpy()
+        idx = bars.index.get_loc(day_bars.index[0])
+        ranks = [int(r) if not pd.isna(r) else None for r in
+                 pd.to_datetime(bars["ts"].dt.date).map(
+                     {d: r for r, d in enumerate(pd.to_datetime(daily["ts"].dt.date))}).to_numpy()]
         rank_to_date = {r: daily["ts"].iloc[r] for r in range(len(daily))}
-        rec, _ = _simulate(bars, ranks, rank_to_date, daily, entry, row[6], row[7],
-                           row[8], idx, tk, "1d_ext", row[3] / 100.0, 2.0,
-                           row[5], row[4], daily["ts"].iloc[ranks[idx - 1]]
+        row = con.execute("SELECT * FROM signals WHERE signal_id = ?", [sid]).fetchone()
+        rec, _ = _simulate(bars, ranks, rank_to_date, daily, entry, row[7], row[8],
+                           row[9], idx, tk, tf, row[4] / 100.0, 2.0,
+                           row[6], row[5], daily["ts"].iloc[ranks[idx - 1]]
                            if idx - 1 >= 0 else daily["ts"].iloc[0])
         con.execute("UPDATE signals SET entry_date = ?, entry_price = ?, status = 'OPEN' "
-                    "WHERE signal_id = ?", [daily["ts"].iloc[idx].date(), entry, sid])
-        _save_trade(con, tk, rec, "OPEN")
+                    "WHERE signal_id = ?", [daily["ts"].iloc[ranks[idx]].date(), entry, sid])
+        _save_trade(con, tk, tf, rec, "OPEN")
         if verbose:
-            print(f"  FILL {tk} entry {entry:.2f} on {daily['ts'].iloc[idx].date()}")
+            print(f"  FILL {tf} {tk} entry {entry:.2f} on "
+                  f"{daily['ts'].iloc[ranks[idx]].date()}")
 
-    open_rows = con.execute("SELECT trade_id, symbol FROM trades WHERE status = 'OPEN'").fetchall()
-    for tid, tk in open_rows:
-        bars = bars_for(con, tk)
-        daily = bars.copy()
+    open_rows = con.execute(
+        "SELECT trade_id, symbol, tf FROM trades WHERE status = 'OPEN'").fetchall()
+    for tid, tk, tf in open_rows:
+        bars = bars_for(con, tk, tf)
+        daily = daily_for(con, tk, tf)
         row = con.execute(
             "SELECT signal_id, signal_date, entry_price, sl, tp, atr_sig, entry_date "
             "FROM trades WHERE trade_id = ?", [tid]).fetchone()
-        dates = pd.to_datetime(daily["ts"].dt.date).tolist()
-        try:
-            idx = dates.index(pd.Timestamp(row[6]))
-        except ValueError:
+        entry_dt = pd.Timestamp(row[6])
+        day_mask = pd.to_datetime(bars["ts"].dt.date) == entry_dt
+        if not day_mask.any():
             continue
-        ranks = pd.Series(dates).map(
-            {d: r for r, d in enumerate(pd.to_datetime(daily["ts"].dt.date))}).to_numpy()
+        idx = bars.index[day_mask][0]
+        ranks = [int(r) if not pd.isna(r) else None for r in
+                 pd.to_datetime(bars["ts"].dt.date).map(
+                     {d: r for r, d in enumerate(pd.to_datetime(daily["ts"].dt.date))}).to_numpy()]
         rank_to_date = {r: daily["ts"].iloc[r] for r in range(len(daily))}
         rec, _ = _simulate(bars, ranks, rank_to_date, daily, row[2], row[3], row[4],
-                           row[5], idx, tk, "1d_ext", 0.0, 2.0, 0.0, 0.0,
+                           row[5], idx, tk, tf, 0.0, 2.0, 0.0, 0.0,
                            pd.Timestamp(row[1]))
         if rec["reason1"] != "OPEN_END" and rec["reason2"] != "OPEN_END":
-            _save_trade(con, tk, rec, "CLOSED")
+            _save_trade(con, tk, tf, rec, "CLOSED")
             closed += 1
             if verbose:
-                print(f"  CLOSE {tk} entry {row[2]:.2f} -> {rec['reason1']}/{rec['reason2']} "
-                      f"r_net {rec['r_net']:.2f}")
+                print(f"  CLOSE {tf} {tk} entry {row[2]:.2f} -> "
+                      f"{rec['reason1']}/{rec['reason2']} r_net {rec['r_net']:.2f}")
     return closed
 
 
-def _save_trade(con, tk, rec, status):
+def _save_trade(con, tk, tf, rec, status):
     entry_d = pd.Timestamp(rec["entry_date"]).date() if rec["entry_date"] is not None else None
     sig_d = pd.Timestamp(rec["signal_date"]).date() if rec["signal_date"] is not None else None
     if status == "CLOSED":
         row = con.execute(
-            "SELECT trade_id FROM trades WHERE symbol = ? AND signal_date = ? "
+            "SELECT trade_id FROM trades WHERE symbol = ? AND tf = ? AND signal_date = ? "
             "AND status = 'OPEN'",
-            [tk, sig_d]).fetchone()
+            [tk, tf, sig_d]).fetchone()
         if row:
             con.execute(
                 "UPDATE trades SET exit1_date = ?, exit1_price = ?, reason1 = ?, "
@@ -329,8 +473,8 @@ def _save_trade(con, tk, rec, status):
             return
     tid = con.execute("SELECT COALESCE(MAX(trade_id), 0) + 1 FROM trades").fetchone()[0]
     con.execute(
-        "INSERT INTO trades VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        [tid, rec.get("signal_id", 0), tk, sig_d, entry_d,
+        "INSERT INTO trades VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [tid, rec.get("signal_id", 0), tk, tf, sig_d, entry_d,
          rec["entry"], rec["sl"], rec["tp"], rec["atr_sig"],
          pd.Timestamp(rec["exit1_date"]).date() if rec["exit1_date"] is not None else None,
          rec["exit1_price"], rec["reason1"],
@@ -342,16 +486,20 @@ def _save_trade(con, tk, rec, status):
 def status():
     con = connect()
     n_sig = con.execute("SELECT count(*) FROM signals").fetchone()[0]
-    open_ = con.execute(
-        "SELECT symbol, entry_date, entry_price, sl, tp "
-        "FROM trades WHERE status = 'OPEN'").fetchall()
-    print(f"signals: {n_sig}, open: {len(open_)}")
-    for r in open_:
-        print(f"  OPEN {r[0]} entry {r[1]} @ {r[2]:.2f} sl {r[3]:.2f} tp {r[4]:.2f}")
-    hist = con.execute(
-        "SELECT count(*), sum(r_net), avg(r_net) FROM trades WHERE status = 'CLOSED'"
-    ).fetchone()
-    print(f"closed: {hist[0]}, total net R {hist[1]:.2f}, avg {hist[2]:.2f}")
+    print(f"signals: {n_sig}")
+    for tf in TFS:
+        open_ = con.execute(
+            "SELECT symbol, entry_date, entry_price, sl, tp FROM trades "
+            "WHERE tf = ? AND status = 'OPEN'", [tf]).fetchall()
+        hist = con.execute(
+            "SELECT count(*), sum(r_net), avg(r_net) FROM trades "
+            "WHERE tf = ? AND status = 'CLOSED'", [tf]).fetchone()
+        h = f"closed {hist[0]}, net R {hist[1]:.2f}, avg {hist[2]:.2f}" if hist[0] else "no closed"
+        print(f"  [{tf}] open: {len(open_)} | {h}")
+        for r in open_[:8]:
+            print(f"     OPEN {r[0]} entry {r[1]} @ {r[2]:.2f} sl {r[3]:.2f} tp {r[4]:.2f}")
+        if len(open_) > 8:
+            print(f"     ... and {len(open_) - 8} more")
     con.close()
 
 
@@ -359,7 +507,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("cmd", choices=["run", "status"])
     ap.add_argument("--as-of")
+    ap.add_argument("--db")
     args = ap.parse_args()
+    if args.db:
+        PAPER_DB_OVERRIDE = args.db
     if args.cmd == "run":
         as_of = date.fromisoformat(args.as_of) if args.as_of else None
         run_pipeline(as_of)

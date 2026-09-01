@@ -64,7 +64,8 @@ def run_symbol(bars, daily, stop_mult, symbol, tf, news_guard=False,
 
     bars["date"] = pd.to_datetime(bars["ts"].dt.date)
     date_to_rank = {d: r for r, d in enumerate(daily["ts"].dt.normalize())}
-    ranks = bars["date"].map(date_to_rank).to_numpy()
+    ranks = [int(r) if not pd.isna(r) else None
+             for r in bars["date"].map(date_to_rank).to_numpy()]
 
     sma_prior = [None] * n_daily
     for r in range(SMA_DAYS, n_daily):
@@ -269,27 +270,34 @@ def _leg_fees(side, value, rank, daily):
     return delivery_equity_fees(side=side, trade_value=value, trade_date=d).total
 
 
-def main(stop_mult, news_guard=False):
-    con = duckdb.connect(str(CANDLES_DB), read_only=True)
-    universe = pd.read_csv(UNIVERSE_CSV)["symbol"].tolist()
+def main(stop_mult, news_guard=False, db=None, universe_csv=None, tag="",
+         start=None, end=None):
+    con = duckdb.connect(str(db or CANDLES_DB), read_only=True)
+    universe = pd.read_csv(universe_csv or UNIVERSE_CSV)["symbol"].tolist()
+    win = ""
+    if start:
+        win += f" AND ts >= TIMESTAMP '{start}'"
+    if end:
+        win += f" AND ts < TIMESTAMP '{end}'"
     all_trades = []
     skipped = [0]
     for tf, table in (("1h", "c1h"), ("4h", "c4h"), ("1d", "c1d")):
         for sym in universe:
             bars = con.execute(
                 f"SELECT ts, open, high, low, close, volume FROM {table} "
-                "WHERE symbol = ? ORDER BY ts", [sym]).fetchdf()
+                f"WHERE symbol = ?{win} ORDER BY ts", [sym]).fetchdf()
             if bars.empty:
                 continue
             daily = con.execute(
-                "SELECT ts, open, high, low, close, volume FROM c1d "
-                "WHERE symbol = ? ORDER BY ts", [sym]).fetchdf()
+                f"SELECT ts, open, high, low, close, volume FROM c1d "
+                f"WHERE symbol = ?{win} ORDER BY ts", [sym]).fetchdf()
             all_trades.extend(run_symbol(bars, daily, stop_mult, sym, tf,
                                          news_guard=news_guard,
                                          skipped_counter=skipped))
     df = pd.DataFrame(all_trades)
-    tag = "guard" if news_guard else ""
-    out = OUT_DIR / f"trades_{str(stop_mult).replace('.', '_')}{'_' if tag else ''}{tag}.csv"
+    g = "guard" if news_guard else ""
+    parts = [x for x in ("trades", tag, str(stop_mult).replace(".", "_"), g) if x]
+    out = OUT_DIR / ("_".join(parts) + ".csv")
     df.to_csv(out, index=False)
     print(f"{len(df)} trades (news-guard skipped {skipped[0]}) -> {out}")
     for tf in ("1h", "4h", "1d"):
@@ -301,5 +309,15 @@ def main(stop_mult, news_guard=False):
 
 
 if __name__ == "__main__":
-    guard = len(sys.argv) > 2 and sys.argv[2] == "--news-guard"
-    main(float(sys.argv[1]), news_guard=guard)
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("stop_mult", type=float)
+    ap.add_argument("--news-guard", action="store_true")
+    ap.add_argument("--db")
+    ap.add_argument("--universe")
+    ap.add_argument("--tag", default="")
+    ap.add_argument("--start")
+    ap.add_argument("--end")
+    args = ap.parse_args()
+    main(args.stop_mult, news_guard=args.news_guard, db=args.db,
+         universe_csv=args.universe, tag=args.tag, start=args.start, end=args.end)
