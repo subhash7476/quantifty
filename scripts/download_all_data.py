@@ -15,6 +15,7 @@ Usage:
   python scripts/download_all_data.py --download-only
   python scripts/download_all_data.py --build-only
   python scripts/download_all_data.py --lookback 3  # override trailing re-check window
+  python scripts/download_all_data.py --skip-1m     # skip 1m candle refresh (no Upstox token needed)
 
 Pipeline:
   1. Equity bhavcopy     → data/market_data/equity_bhavcopy.duckdb
@@ -22,12 +23,14 @@ Pipeline:
   3. Index history (1d)  → data/market_data/nse/candles/1d/{date}.duckdb
   4. Corporate actions   → equity_bhavcopy.duckdb (adds adjusted view)
   5. Stock options       → data/market_data/stock_options_bhavcopy.duckdb
-  6. Build Nifty 50 DB   → data/signal_engine/carry/nifty50.duckdb
-  7. Build continuous    → data/signal_engine/trend/continuous.duckdb
-  8. Refresh strategies  → carry + ts_basis + ts_basis_daily signals
+  6. 1m candles (Nifty200 + Nifty/BankNifty/IndiaVIX) → data/market_data/nse/candles/1m/{date}.duckdb (via fetch_upstox_historical.py)
+  7. Build Nifty 50 DB   → data/signal_engine/carry/nifty50.duckdb
+  8. Build continuous    → data/signal_engine/trend/continuous.duckdb
+  9. Refresh strategies  → carry + ts_basis + ts_basis_daily signals
 """
 from __future__ import annotations
 
+import csv
 import subprocess
 import sys
 import time
@@ -46,6 +49,14 @@ EQUITY_DB = DATA / "equity_bhavcopy.duckdb"
 FUTURES_DB = DATA / "futures_bhavcopy.duckdb"
 STOCK_OPT_DB = DATA / "stock_options_bhavcopy.duckdb"
 INDEX_1D_DIR = DATA / "nse" / "candles" / "1d"
+CANDLES_1M_DIR = DATA / "nse" / "candles" / "1m"
+NIFTY200_CSV = DATA / "universe_raw" / "nifty200_current.csv"
+
+ONE_MIN_INDICES = [
+    "NSE_INDEX|Nifty 50",
+    "NSE_INDEX|Nifty Bank",
+    "NSE_INDEX|India VIX",
+]
 
 
 def _max_trade_date(db_path: Path, table: str):
@@ -77,6 +88,105 @@ def _max_index_date():
         return None
     stems = [f.stem for f in INDEX_1D_DIR.glob("*.duckdb")]
     return max((date.fromisoformat(s) for s in stems), default=None)
+
+
+def _max_1m_date():
+    """Latest 1m candle file date (from filenames), or None."""
+    if not CANDLES_1M_DIR.exists():
+        return None
+    stems = [f.stem for f in CANDLES_1M_DIR.glob("*.duckdb")]
+    try:
+        return max((date.fromisoformat(s) for s in stems), default=None)
+    except ValueError:
+        return None
+
+
+def _load_nifty200_instrument_keys():
+    """Build Nifty200 instrument_keys as NSE_EQ|<ISIN> from the universe CSV.
+
+    Falls back to fo_stocks NSE_EQ keys when the CSV is absent.
+    """
+    keys: list[str] = []
+    if NIFTY200_CSV.exists():
+        try:
+            with open(NIFTY200_CSV, newline="", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    isin = (row.get("ISIN Code") or row.get("ISIN") or "").strip()
+                    if isin:
+                        keys.append(f"NSE_EQ|{isin}")
+        except Exception as exc:
+            print(f"  [1m-candles] WARNING: failed to read {NIFTY200_CSV}: {exc}")
+    if not keys:
+        # Fallback: fo_stocks NSE_EQ entries (parked 200 equities) — keeps the
+        # daily job functional even when the universe CSV is missing.
+        try:
+            import sqlite3
+
+            cfg = ROOT / "data" / "config" / "config.db"
+            if cfg.exists():
+                con = sqlite3.connect(f"file:{cfg}?mode=ro", uri=True)
+                rows = con.execute(
+                    "SELECT instrument_key FROM fo_stocks WHERE instrument_key LIKE 'NSE_EQ|%'"
+                ).fetchall()
+                keys = [r[0] for r in rows]
+                con.close()
+        except Exception as exc:
+            print(f"  [1m-candles] WARNING: fo_stocks fallback failed: {exc}")
+    # Deduplicate, stable order
+    return sorted(set(keys))
+
+
+def _download_1m_candles(full: bool, lookback: int) -> bool:
+    """Incrementally refresh 1m candles for Nifty200 + 3 indices via
+    fetch_upstox_historical.py (Upstox V3, 1-minute).
+
+    Window is (latest 1m file − lookback) → today so a daily run only
+    touches the trailing few sessions. Upstox caps 1-minute history at
+    29 days per request; fetch_upstox_historical handles chunking.
+    ON CONFLICT upsert makes re-running the same window idempotent.
+    """
+    nifty_keys = _load_nifty200_instrument_keys()
+    if not nifty_keys:
+        print("  [1m-candles] SKIP — no Nifty200 keys resolved (CSV + fo_stocks empty)")
+        return True
+    instrument_keys = sorted(set(nifty_keys + ONE_MIN_INDICES))
+    actual_max = _max_1m_date()
+    if not full and actual_max is not None:
+        start_date = actual_max - timedelta(days=lookback)
+    elif full and actual_max is not None:
+        # --full on a deep store: re-walk last 30 days rather than today-30d
+        # to keep the window anchored at the store head.
+        start_date = actual_max - timedelta(days=30)
+    else:
+        # Empty store (bootstrap): seed from lookback window (or 30d on --full)
+        seed_days = 30 if full else lookback
+        start_date = date.today() - timedelta(days=seed_days)
+    end_date = date.today()
+    if start_date > end_date:
+        start_date = end_date
+    # Upstox V3 caps 1-minute range at 29 days per call; the fetcher chunks
+    # internally, but keep the outer window bounded — daily incremental is
+    # 7–30 days; a --full still stays at 30 days by design.
+    start_iso = start_date.isoformat()
+    end_iso = end_date.isoformat()
+    joined = ",".join(instrument_keys)
+    print(f"  [1m-candles] Universe: {len(nifty_keys)} Nifty200 + {len(ONE_MIN_INDICES)} indices = {len(instrument_keys)} keys")
+    print(f"  [1m-candles] Window: {start_iso} → {end_iso} (lookback {lookback}d, full={full})")
+    args = [
+        "--instrument_key", joined,
+        "--unit", "minutes",
+        "--interval", "1",
+        "--from", start_iso,
+        "--to", end_iso,
+    ]
+    # 203 symbols × 2–30 days ≈ 200–1200 Upstox calls (29-day chunks, 8 rps).
+    # Allow 30 minutes wall time; 5 workers is the fetcher default.
+    ok = _run(SCRIPTS / "fetch_upstox_historical.py", args=args,
+              label="1m-candles", timeout=1800)
+    if not ok:
+        print("  [1m-candles] fetch_upstox_historical failed — check Upstox token / rate limits")
+    return ok
 
 
 def _warn_unresolved_calendar(start):
@@ -171,6 +281,15 @@ def download_data(full: bool, lookback: int):
     if not _run(SCRIPTS / "sfb" / "ingest_stock_options_bhavcopy.py", args=opt_args,
                 label="stock-options", timeout=1200):
         all_ok = False
+
+    # 6. 1m candles for Nifty200 + Nifty/BankNifty/IndiaVIX via Upstox V3
+    # Skip only when --skip-1m is explicitly passed; this step needs a valid
+    # Upstox token — failure is non-fatal for the rest of the pipeline.
+    if "--skip-1m" not in sys.argv:
+        if not _download_1m_candles(full, lookback):
+            all_ok = False
+    else:
+        print("\n  [1m-candles] SKIP (--skip-1m)")
 
     return all_ok
 
