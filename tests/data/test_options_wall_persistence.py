@@ -221,3 +221,65 @@ def test_open_trades_self_heals_missing_trades_table(tmp_path):
     assert "trades" in tables  # healed, not just papered over
 
     assert persistence.open_trades("NSE_INDEX|Nifty 50", db_path=db) == []  # idempotent
+
+
+def test_regime_persists_wall_metrics(tmp_path):
+    db = tmp_path / "results.duckdb"
+    snap = {"trade_date": date(2026, 9, 2), "regime": "Positive GEX (Stable)",
+            "underlying_ltp": 25000.0, "net_gex_cr": 1234.5, "hhi": 0.31, "hhi_call": 0.2,
+            "hhi_put": 0.4, "pin_conviction": 64.0, "pin_margin": 34.2, "runner_up": 24900.0,
+            "gex_at_pin_cr": 400.0, "gamma_ceiling": 25200.0, "gamma_floor": 24800.0,
+            "sigma_pts": 180.0, "side_coverage": 0.8, "side_reliable": True,
+            "hedge_ladder": [{"move_pct": 1.0, "flow_cr": -5.0, "side": "SELL"}],
+            "oi_rotation": {"added": 10, "unwound": 4}}
+    persistence.write_regime("NSE_INDEX|Nifty 50", snap, db_path=db)
+
+    latest = persistence.latest_regime("NSE_INDEX|Nifty 50", date(2026, 9, 2), db_path=db)
+    assert latest["net_gex_cr"] == 1234.5
+    assert latest["hhi"] == 0.31 and latest["pin_conviction"] == 64.0
+    assert latest["gamma_ceiling"] == 25200.0 and latest["sigma_pts"] == 180.0
+    assert latest["side_reliable"] is True
+    assert latest["hedge_ladder"] == [{"move_pct": 1.0, "flow_cr": -5.0, "side": "SELL"}]
+    assert latest["oi_rotation"] == {"added": 10, "unwound": 4}
+    assert persistence.regime_river("NSE_INDEX|Nifty 50", db_path=db)[-1]["hhi_put"] == 0.4
+
+
+def test_regime_wall_metrics_migrate_pre_existing_db(tmp_path):
+    """A live DB created before the wall-metric columns must ALTER cleanly; reads
+    select columns by name so the appended order cannot scramble the dict."""
+    db = tmp_path / "results.duckdb"
+    conn = duckdb.connect(str(db))
+    conn.execute(
+        """CREATE TABLE session_regime (
+            trade_date DATE NOT NULL, underlying VARCHAR NOT NULL, ts TIMESTAMP NOT NULL,
+            regime VARCHAR, net_gamma_total DOUBLE, zero_gamma_level DOUBLE,
+            pin_strike DOUBLE, put_wall DOUBLE, call_wall DOUBLE, atm_iv DOUBLE,
+            realized_vol DOUBLE, underlying_ltp DOUBLE, gamma_by_strike VARCHAR)""")
+    conn.execute(
+        "INSERT INTO session_regime VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [date(2026, 9, 1), "NSE_INDEX|Nifty 50", datetime(2026, 9, 1, 15, 0),
+         "Positive GEX (Stable)", 1.0, 24300.0, 24350.0, 24000.0, 24500.0, 11.0, 9.4,
+         24000.0, None])
+    conn.close()
+
+    persistence.write_regime("NSE_INDEX|Nifty 50",
+                             {"trade_date": date(2026, 9, 2), "regime": "Neutral",
+                              "underlying_ltp": 24100.0, "net_gex_cr": 7.0, "hhi": 0.2},
+                             db_path=db)
+    river = persistence.regime_river("NSE_INDEX|Nifty 50", db_path=db)
+    assert river[0]["net_gex_cr"] is None and river[0]["regime"] == "Positive GEX (Stable)"
+    assert river[0]["underlying_ltp"] == 24000.0
+    assert river[1]["net_gex_cr"] == 7.0 and river[1]["hhi"] == 0.2
+
+
+def test_regime_river_returns_the_latest_sessions(tmp_path):
+    """limit=N must be the newest N sessions (ascending), not the oldest N —
+    the dashboard reads the current regime as regime_river(sym, 1)[-1]."""
+    db = tmp_path / "results.duckdb"
+    for d in (1, 2, 3):
+        persistence.write_regime("NSE_INDEX|Nifty 50",
+                                 {"trade_date": date(2026, 9, d), "regime": f"day{d}"},
+                                 ts=datetime(2026, 9, d, 15, 0), db_path=db)
+    river = persistence.regime_river("NSE_INDEX|Nifty 50", limit=2, db_path=db)
+    assert [r["trade_date"] for r in river] == [date(2026, 9, 2), date(2026, 9, 3)]
+    assert persistence.regime_river("NSE_INDEX|Nifty 50", limit=1, db_path=db)[-1]["regime"] == "day3"

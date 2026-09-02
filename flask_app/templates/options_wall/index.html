@@ -86,6 +86,25 @@
         </div>
     </div>
 
+    <!-- Hedge ladder + OI since open -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px;">
+        <div class="ow-card" id="ladder-flow-card" style="padding: 22px 26px 18px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+                <span class="display" style="font-size: 21px;">Hedge ladder</span>
+                <span style="font-size: 12px; color: var(--muted);">Futures the dealer book must trade at each spot move. Linear at current gamma.</span>
+            </div>
+            <div id="ladder-flow-wrap" style="margin-top: 16px;"></div>
+        </div>
+        <div class="ow-card" id="oi-rotation-card" style="padding: 22px 26px 18px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+                <span class="display" style="font-size: 21px;">OI since open</span>
+                <span style="font-size: 12px; color: var(--muted);">Contracts added (right) and unwound (left) vs the 09:15 baseline, near spot.</span>
+            </div>
+            <div id="oi-rotation-band" style="margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;"></div>
+            <div id="oi-rotation-wrap" style="margin-top: 14px;"></div>
+        </div>
+    </div>
+
     <!-- Premium farm gate -->
     <div style="border: 1px solid var(--line); border-radius: 14px; background: #FBFAF8; padding: 20px 26px 22px;">
         <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px;">
@@ -126,9 +145,11 @@
         </div>
 
         <div style="margin-top: 20px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
-            <div style="display: grid; grid-template-columns: 100px 1.2fr repeat(6, minmax(0,1fr)); gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
+            <div style="display: grid; grid-template-columns: 100px 1.2fr repeat(9, minmax(0,1fr)); gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
                 <span>Date</span><span>Regime</span>
-                <span style="text-align:right;">Pin</span><span style="text-align:right;">Flip</span>
+                <span style="text-align:right;">Net GEX ₹Cr</span>
+                <span style="text-align:right;">Pin</span><span style="text-align:right;">Conv.</span>
+                <span style="text-align:right;">HHI</span><span style="text-align:right;">Flip</span>
                 <span style="text-align:right;">Put wall</span><span style="text-align:right;">Call wall</span>
                 <span style="text-align:right;">ATM IV</span><span style="text-align:right;">RV</span>
             </div>
@@ -187,6 +208,24 @@ function regimeColor(r) {
     if (!r) return C.muted;
     return r.includes('Positive') ? C.green : r.includes('Negative') ? C.red : C.muted;
 }
+function cr(v, d) {
+    if (v === null || v === undefined) return '--';
+    const a = Math.abs(v);
+    const s = v < 0 ? '−' : '+';
+    if (a >= 1e5) return s + n(a / 1e5, d === undefined ? 2 : d) + 'L Cr';
+    if (a >= 1e3) return s + n(a / 1e3, 1) + 'K Cr';
+    return s + n(a, d === undefined ? 1 : d) + ' Cr';
+}
+function hhiBand(h) { return h == null ? null : h >= 0.25 ? 'COMPRESSED' : h >= 0.10 ? 'BALANCED' : 'DISPERSED'; }
+function convBand(c) { return c == null ? null : c >= 70 ? 'LOCKED' : c >= 30 ? 'CONTESTED' : 'DRIFTING'; }
+function sigmaDist(level, r) {
+    if (level == null || r.underlying_ltp == null || !r.sigma_pts) return null;
+    return (level - r.underlying_ltp) / r.sigma_pts;
+}
+function sigmaNote(level, r) {
+    const d = sigmaDist(level, r);
+    return d == null ? '' : ' · ' + (d >= 0 ? '+' : '−') + n(Math.abs(d), 2) + 'σ';
+}
 function dte(expiry) {
     if (!expiry) return null;
     const d = new Date(expiry + 'T00:00:00');
@@ -218,14 +257,26 @@ function paintRegimeBand() {
     const band = document.getElementById('regime-band');
     band.innerHTML = '';
     const gap = (r.atm_iv != null && r.realized_vol != null) ? r.atm_iv - r.realized_vol : null;
+    const hb = hhiBand(r.hhi), cb = convBand(r.pin_conviction);
+    const sideNote = r.side_coverage != null
+        ? 'side inferred on ' + pct(r.side_coverage * 100, 0) + (r.side_reliable === false ? ' · THETA DRIFT' : '')
+        : 'side assumed';
     const cells = [
-        ['GEX regime', r.regime || '--', 'from net gamma', regimeColor(r.regime)],
-        ['Net gamma', r.net_gamma_total != null ? (r.net_gamma_total >= 0 ? '+' : '') + n(r.net_gamma_total / 1e6, 1) + 'M' : '--', 'chain total',
-            r.net_gamma_total >= 0 ? C.green : C.red],
-        ['Pin strike', n(r.pin_strike, 0), 'peak gamma strike', C.teal],
-        ['Gamma flip', n(r.zero_gamma_level, 0), 'zero-gamma level', C.amber],
-        ['Put wall', n(r.put_wall, 0), 'OI support', C.ink],
-        ['Call wall', n(r.call_wall, 0), 'OI resistance', C.ink],
+        ['GEX regime', r.regime || '--', sideNote, r.side_reliable === false ? C.amber : regimeColor(r.regime)],
+        ['Net GEX', r.net_gex_cr != null ? cr(r.net_gex_cr) : '--', 'per 1% move · neutral inside ±100 Cr',
+            r.net_gex_cr == null ? C.muted : Math.abs(r.net_gex_cr) < 100 ? C.muted : r.net_gex_cr > 0 ? C.green : C.red],
+        ['Concentration', r.hhi != null ? n(r.hhi, 3) : '--', hb ? hb + ' · call ' + n(r.hhi_call, 2) + ' / put ' + n(r.hhi_put, 2) : 'HHI of |gamma|',
+            hb === 'DISPERSED' ? C.amber : hb === 'COMPRESSED' ? C.green : C.ink],
+        ['Pin', n(r.pin_strike, 0), 'peak gamma mass' + sigmaNote(r.pin_strike, r), C.teal],
+        ['Pin conviction', r.pin_conviction != null ? n(r.pin_conviction, 0) + ' / 100' : '--',
+            cb ? cb + ' · margin ' + n(r.pin_margin, 1) + ' pts · runner-up ' + n(r.runner_up, 0) : 'lead over the board',
+            cb === 'LOCKED' ? C.green : cb === 'DRIFTING' ? C.amber : C.ink],
+        ['GEX at pin', r.gex_at_pin_cr != null ? cr(r.gex_at_pin_cr) : '--', 'signed, at the pin strike only', C.ink],
+        ['Gamma flip', n(r.zero_gamma_level, 0), 'zero-gamma level' + sigmaNote(r.zero_gamma_level, r), C.amber],
+        ['Gamma ceiling / floor', n(r.gamma_ceiling, 0) + ' / ' + n(r.gamma_floor, 0),
+            'call-side / put-side gamma peak' + sigmaNote(r.gamma_ceiling, r) + sigmaNote(r.gamma_floor, r), C.ink],
+        ['OI call / put wall', n(r.call_wall, 0) + ' / ' + n(r.put_wall, 0), 'max OI strikes', C.ink],
+        ['Sigma', r.sigma_pts != null ? n(r.sigma_pts, 0) + ' pts' : '--', 'ATM IV × √time to expiry', C.ink],
         ['ATM IV', pct(r.atm_iv, 1), 'mid of CE / PE', C.ink],
         ['Realized vol', pct(r.realized_vol, 1), 'session, annualised',
             gap != null && gap >= CFG.iv_rv_min_gap ? C.green : C.amber]
@@ -238,12 +289,15 @@ function paintRegimeBand() {
     });
 
     const positive = (r.regime || '').includes('Positive');
+    const neutral = r.regime === 'Neutral';
     document.getElementById('hero-meta').textContent =
         (currentIndex === 'NIFTY' ? 'Nifty 50' : 'Bank Nifty') +
         (state.rows[0] && state.rows[0].expiry ? '  ·  ' + state.rows[0].expiry + ' expiry' : '') +
         (state.rows[0] && dte(state.rows[0].expiry) != null ? '  ·  ' + dte(state.rows[0].expiry) + ' DTE' : '');
     document.getElementById('hero-title').innerHTML = r.regime
-        ? (positive
+        ? (neutral
+            ? 'Net gamma is inside the neutral band. <span style="font-style:italic;color:' + C.muted + '">Gamma is not today\'s story.</span>'
+            : positive
             ? 'Dealers are long gamma and the tape is pinned. <span style="font-style:italic;color:' + C.green + '">Premium is farmable at the pin.</span>'
             : 'Dealers are short gamma; <span style="font-style:italic;color:' + C.red + '">moves get amplified, not damped.</span>')
         : 'No persisted regime for this index yet.';
@@ -332,6 +386,76 @@ function paintSpotAndLadder() {
     }
 }
 
+/* ------------------------------------------------------------ hedge ladder */
+function paintLadderFlow() {
+    const r = state.regime || {};
+    const card = document.getElementById('ladder-flow-card');
+    const wrap = document.getElementById('ladder-flow-wrap');
+    const rows = r.hedge_ladder || [];
+    if (!rows.length) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const peak = Math.max.apply(null, rows.map(x => Math.abs(x.flow_cr))) || 1;
+    wrap.innerHTML = rows.slice().sort((a, b) => b.move_pct - a.move_pct).map(x => {
+        const buy = x.flow_cr >= 0;
+        const w = Math.abs(x.flow_cr) / peak * 50;
+        const bar = '<div style="position:absolute;top:6px;height:14px;border-radius:3px;background:' + (buy ? 'rgba(25,122,90,.34)' : 'rgba(180,71,47,.34)') +
+            ';left:' + (buy ? 50 : 50 - w).toFixed(1) + '%;width:' + w.toFixed(1) + '%;"></div>';
+        return '<div style="display:grid;grid-template-columns:72px 1fr 120px;gap:12px;align-items:center;padding:4px 0;font-size:12.5px;">' +
+            '<span class="mono" style="color:var(--muted);">' + (x.move_pct > 0 ? '+' : '') + n(x.move_pct, 1) + '%</span>' +
+            '<div style="position:relative;height:26px;"><div style="position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #DCD7CF;"></div>' + bar + '</div>' +
+            '<span class="mono" style="text-align:right;color:' + (buy ? C.green : C.red) + '">' + (buy ? 'BUY ' : 'SELL ') + cr(Math.abs(x.flow_cr)).slice(1) + '</span></div>';
+    }).join('') +
+    '<div style="font-size:11.5px;color:var(--faint);margin-top:10px;">Notional futures the dealer book must trade to stay delta-flat after the move. A jump between rungs marks the level where hedging becomes the largest flow in the tape.</div>';
+}
+
+/* ---------------------------------------------------------- OI since open */
+function paintOiRotation() {
+    const r = state.regime || {};
+    const card = document.getElementById('oi-rotation-card');
+    const band = document.getElementById('oi-rotation-band');
+    const wrap = document.getElementById('oi-rotation-wrap');
+    const o = r.oi_rotation;
+    if (!o) { card.style.display = 'none'; return; }
+    card.style.display = '';
+    const m = v => v == null ? '--' : n(v / 1e6, 2) + 'M';
+    band.innerHTML = [
+        ['Added', m(o.added), C.green], ['Unwound', m(o.unwound), C.red],
+        ['Net', m(o.added - o.unwound), (o.added - o.unwound) >= 0 ? C.green : C.red],
+        ['Total OI', m(o.total_oi), C.ink],
+        ['Vol / OI', o.vol_oi != null ? n(o.vol_oi, 2) : '--', o.vol_oi > 0.6 ? C.amber : C.ink]
+    ].map(([k, v, c]) => '<div style="background:#FFFFFF;padding:11px 14px;"><div class="ow-k">' + k + '</div>' +
+        '<div class="mono" style="font-size:15px;margin-top:4px;color:' + c + '">' + v + '</div></div>').join('');
+
+    const spot = r.underlying_ltp;
+    const raw = o.by_strike || {};
+    const keyOf = {};
+    Object.keys(raw).forEach(key => { const f = parseFloat(key); if (!Number.isNaN(f)) keyOf[f] = key; });
+    let ks = Object.keys(keyOf).map(Number).sort((a, b) => a - b);
+    if (spot != null && ks.length > 21) {
+        const i = ks.reduce((best, k, idx) => Math.abs(k - spot) < Math.abs(ks[best] - spot) ? idx : best, 0);
+        ks = ks.slice(Math.max(0, i - 10), i + 11);
+    }
+    const cell = k => raw[keyOf[k]] || { ce: 0, pe: 0 };
+    const peak = Math.max.apply(null, ks.map(k => Math.abs(cell(k).ce) + Math.abs(cell(k).pe))) || 1;
+    wrap.innerHTML = ks.slice().reverse().map(k => {
+        const c = cell(k);
+        const seg = (v, color) => {
+            const w = Math.abs(v) / peak * 50;
+            return '<div style="position:absolute;top:5px;height:12px;background:' + color + ';left:' + (v >= 0 ? 50 : 50 - w).toFixed(1) + '%;width:' + w.toFixed(1) + '%;"></div>';
+        };
+        const isSpot = spot != null && Math.abs(k - spot) === Math.min.apply(null, ks.map(x => Math.abs(x - spot)));
+        return '<div style="display:grid;grid-template-columns:64px 1fr 140px;gap:10px;align-items:center;font-size:11.5px;' + (isSpot ? 'background:#FBFAF8;' : '') + '">' +
+            '<span class="mono" style="color:' + (isSpot ? C.ink : 'var(--muted)') + '">' + n(k, 0) + '</span>' +
+            '<div style="position:relative;height:22px;"><div style="position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #DCD7CF;"></div>' +
+            seg(c.ce, 'rgba(201,130,26,.45)') + seg(c.pe, 'rgba(14,111,99,.40)') + '</div>' +
+            '<span class="mono" style="text-align:right;color:var(--muted);">CE ' + (c.ce >= 0 ? '+' : '') + n(c.ce / 1e3, 0) + 'K · PE ' + (c.pe >= 0 ? '+' : '') + n(c.pe / 1e3, 0) + 'K</span></div>';
+    }).join('') +
+    '<div style="display:flex;gap:18px;margin-top:10px;font-size:11.5px;color:var(--muted);">' +
+    '<span><span style="display:inline-block;width:12px;height:3px;background:rgba(201,130,26,.45);border-radius:2px;margin-right:6px;vertical-align:middle;"></span>Calls</span>' +
+    '<span><span style="display:inline-block;width:12px;height:3px;background:rgba(14,111,99,.40);border-radius:2px;margin-right:6px;vertical-align:middle;"></span>Puts</span>' +
+    '<span>Legs without a 09:15 baseline read as zero.</span></div>';
+}
+
 /* --------------------------------------------------------------- gate strip */
 function widestSpreadPct(legs) {
     if (!legs || !legs.length) return null;
@@ -361,7 +485,7 @@ function paintGate() {
         { label: 'GEX regime', reading: r.regime || '--', threshold: 'must contain "Positive"',
           state: r.regime ? ((r.regime.includes('Positive')) ? 'pass' : 'fail') : 'unknown' },
         { label: 'Spot inside pin band',
-          reading: pinDist != null ? pct(pinDist * 100, 3) + ' from pin' : 'spot not in payload',
+          reading: pinDist != null ? pct(pinDist * 100, 3) + ' from pin' + sigmaNote(r.pin_strike, r) : 'spot not in payload',
           threshold: 'band ≤ ' + pct(CFG.pin_band_pct * 100, 1),
           state: pinDist == null ? 'unknown' : (pinDist <= CFG.pin_band_pct ? 'pass' : 'fail') },
         { label: 'ATM IV − realized vol', reading: gap != null ? n(gap, 1) + ' pt' : '--',
@@ -618,8 +742,10 @@ function openPanel(r) {
 
     const context = [
         ['GEX regime', reg.regime || '--', regimeColor(reg.regime)],
-        ['Net gamma total', reg.net_gamma_total != null ? (reg.net_gamma_total >= 0 ? '+' : '') + n(reg.net_gamma_total / 1e6, 1) + 'M' : '--',
-            reg.net_gamma_total >= 0 ? C.green : C.red],
+        ['Net GEX', reg.net_gex_cr != null ? cr(reg.net_gex_cr) : '--', reg.net_gex_cr >= 0 ? C.green : C.red],
+        ['Concentration (HHI)', reg.hhi != null ? n(reg.hhi, 3) + ' · ' + hhiBand(reg.hhi) : '--', C.ink],
+        ['Pin conviction', reg.pin_conviction != null ? n(reg.pin_conviction, 0) + ' / 100 · ' + convBand(reg.pin_conviction) : '--', C.ink],
+        ['Sigma', reg.sigma_pts != null ? n(reg.sigma_pts, 0) + ' pts' : '--', C.ink],
         ['Zero-gamma flip', n(reg.zero_gamma_level, 0), C.amber],
         ['Pin strike', n(reg.pin_strike, 0), C.teal],
         ['Put wall / call wall', n(reg.put_wall, 0) + '  /  ' + n(reg.call_wall, 0), C.ink],
@@ -729,11 +855,14 @@ function paintRiver() {
     body.innerHTML = '';
     shown.forEach(r => {
         body.appendChild(el('div',
-            'display:grid;grid-template-columns:100px 1.2fr repeat(6,minmax(0,1fr));gap:8px;padding:10px 16px;' +
+            'display:grid;grid-template-columns:100px 1.2fr repeat(9,minmax(0,1fr));gap:8px;padding:10px 16px;' +
             'border-top:1px solid #F5F2ED;font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;',
-            '<span style="color:var(--muted);">' + r.trade_date + '</span>' +
+            '<span style="color:var(--muted);">' + new Date(r.trade_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' }) + '</span>' +
             '<span style="font-family:\'Public Sans\',sans-serif;font-size:12.5px;color:' + regimeColor(r.regime) + '">' + (r.regime || '--') + '</span>' +
+            '<span style="text-align:right;">' + (r.net_gex_cr != null ? cr(r.net_gex_cr, 1) : '--') + '</span>' +
             '<span style="text-align:right;">' + n(r.pin_strike, 0) + '</span>' +
+            '<span style="text-align:right;">' + n(r.pin_conviction, 0) + '</span>' +
+            '<span style="text-align:right;">' + n(r.hhi, 2) + '</span>' +
             '<span style="text-align:right;">' + n(r.zero_gamma_level, 0) + '</span>' +
             '<span style="text-align:right;">' + n(r.put_wall, 0) + '</span>' +
             '<span style="text-align:right;">' + n(r.call_wall, 0) + '</span>' +
@@ -758,7 +887,7 @@ async function loadFarm() {
             document.getElementById('last-update').textContent =
                 'Last scan ' + new Date(data.ts).toLocaleTimeString('en-IN');
         }
-        paintRegimeBand(); paintSpotAndLadder(); paintGate(); paintFilters(); paintRows();
+        paintRegimeBand(); paintSpotAndLadder(); paintLadderFlow(); paintOiRotation(); paintGate(); paintFilters(); paintRows();
     } catch (err) {
         console.error('Failed to load farm list:', err);
     }

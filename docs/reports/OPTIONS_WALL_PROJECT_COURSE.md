@@ -237,6 +237,36 @@ follow-up, not a wiring task.
 - Tests: `latest_scan_results` + `regime_river` round-trips (2 added). 60 pass
   across `tests/analytics` + `tests/data`.
 
+### Phase 5 — Board metrics (Hedgewall parity, §4.1 of the comparison) ✅ DONE (2026-09-02)
+Source: `docs/reports/HEDGEWALL_VS_OPTIONS_WALL_COMPARISON.md` §4.1. No new data; every
+item is arithmetic on the snapshot the poller already stores.
+- ✅ **Dealer-side inference** — `OptionsAnalytics.calculate_gex(..., dealer_side="inferred")`:
+  per-contract sign from sign(ΔOI) vs sign(Δprice) (same sign → dealer short gamma, opposite →
+  long), ambiguous contracts excluded (`side_coverage`), theta-drift guard (`side_reliable`).
+  The wall engine and the poller's executor use it (`engine.DEALER_SIDE`); the `/options/`
+  dashboard keeps the assumed sign.
+- ✅ **GEX in ₹ crore with spot²** — `net_gex_cr` / `gex_cr_by_strike` = gamma × OI × lot × spot² × 1 % / 1e7;
+  regime reads **Neutral** inside ±100 Cr (inferred mode only).
+- ✅ `core/analytics/wall_metrics.py` — HHI (total / call / put, bands 0.10 / 0.25), pin candidates
+  (pin, runner-up, conviction 0–100 with LOCKED / CONTESTED / DRIFTING at 70 / 30, margin in score
+  points), gamma ceiling / floor (side argmax), sigma (ATM IV × √TTE in points, weekday sessions +
+  remaining session fraction), hedge ladder (dealer futures flow at ±0.5 / 1.0 / 1.5 %), OI since open.
+- ✅ `session_regime` gained 15 columns (migrated in place; reads select by name); the poller's first
+  cycle of each session now captures `oi_baseline`, so "since open" is since open.
+- ✅ Page: regime band re-cut around the Hedgewall reading order (sign → size → concentration →
+  pin conviction → levels in σ), hedge-ladder and OI-since-open panels, river table carries net GEX /
+  conviction / HHI.
+- ✅ Fixed on the way: `regime_river(limit)` returned the **oldest** N sessions, so the page's
+  "current regime" was the first persisted day; store reads now ride out the poller's write lock
+  (bounded retry, 15 s budget) instead of surfacing IOException to "Scan now". Follow-up: each
+  append locks the 1.8 GB store 3–8 s because of four secondary indexes; consider dropping them.
+- ⚠️ **Open unit question:** Upstox `oi` is very likely in *units*, not contracts (Nifty weekly total
+  OI reads 288 M), in which case the long-standing `× lot_size` in GEX over-counts by the lot. It
+  scales every gamma figure uniformly (walls, pin, HHI, sign are unaffected; ₹ Cr magnitudes and the
+  ±100 Cr neutral band are). Verify against NSE's contract counts before quoting crore figures.
+- Not built (comparison §4.2): multi-expiry IV term structure / skew, vanna / charm, session
+  replay, alerts, SENSEX.
+
 ### Phase 4 — (deferred, not authorized here)
 - Forward paper execution. Only if a screen proves it surfaces actionable setups on the
   forward trail, and only under a fresh pre-registration.

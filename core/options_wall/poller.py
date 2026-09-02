@@ -29,6 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core.data import options_wall_store as store
 from core.data.options_provider import OptionsProvider
+from core.options_wall import persistence
 from core.brokers.upstox_market_data import UpstoxMarketData
 from core.database.utils.market_hours import MarketHours
 from core.logging import setup_logger
@@ -73,12 +74,15 @@ class WallPoller:
 
     def __init__(self, *, heartbeat_path: Path, pid_path: Path,
                  snapshot_db_path: Path = store.WALL_SNAPSHOT_DB,
+                 results_db_path: Path = persistence.WALL_RESULTS_DB,
                  poll_interval_s: float = POLL_INTERVAL_S,
                  idle_interval_s: float = IDLE_INTERVAL_S,
                  token_retry_interval_s: float = TOKEN_RETRY_INTERVAL_S):
         self._heartbeat_path = Path(heartbeat_path)
         self._pid_path = Path(pid_path)
         self._snapshot_db_path = Path(snapshot_db_path)
+        self._results_db_path = Path(results_db_path)
+        self._baseline_done: set = set()   # (sym, trade_date) captured this process
         self._poll_interval_s = poll_interval_s
         self._idle_interval_s = idle_interval_s
         self._token_retry_interval_s = token_retry_interval_s
@@ -123,13 +127,24 @@ class WallPoller:
         from core.analytics.realized_vol import session_realized_vol_pct
         from core.options_wall.paper_executor import PaperExecutor
         if not hasattr(self, "_executor"):
-            self._executor = PaperExecutor()
+            self._executor = PaperExecutor(db_path=self._results_db_path)
         spot = rows[0].underlying_ltp or 0.0
-        structural = OptionsAnalytics().build_structural_snapshot(rows, sym, spot, expiry)
+        from core.options_wall.engine import DEALER_SIDE
+        structural = OptionsAnalytics().build_structural_snapshot(
+            rows, sym, spot, expiry, dealer_side=DEALER_SIDE)
         rv = session_realized_vol_pct(sym)
         action = self._executor.step(sym, rows, structural, rv, datetime.now())
         if action:
             logger.info("%s paper action: %s", name, action)
+
+    def _capture_baseline(self, sym, rows) -> None:
+        """Session-open OI per strike: the first cycle of the day writes it
+        (INSERT OR IGNORE keeps the earliest); later cycles skip the write."""
+        key = (sym, datetime.now().date())
+        if key in self._baseline_done:
+            return
+        persistence.capture_oi_baseline(rows, sym, key[1], db_path=self._results_db_path)
+        self._baseline_done.add(key)
 
     def stop(self) -> None:
         self._stop = True
@@ -163,6 +178,7 @@ class WallPoller:
                     rows_by_name[name] = len(rows)
                     logger.info("%s: appended %d rows (%d quoted) @ %s",
                                 name, len(rows), len(quotes), expiry)
+                    self._capture_baseline(sym, rows)
                     try:
                         self._executor_step(name, sym, rows, expiry)
                     except Exception as exc:

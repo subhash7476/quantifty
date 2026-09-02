@@ -45,3 +45,27 @@ def test_poll_cycle_appends_and_heartbeats(tmp_path):
     assert len(store.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)) == 2
     assert len(store.latest_snapshot("NSE_INDEX|Nifty Bank", "2026-08-18", db_path=db)) == 2
     assert heartbeat.exists()
+
+
+def test_poll_cycle_captures_the_oi_baseline_once_per_session(tmp_path):
+    """The 09:15 OI baseline must come from the poller's first cycle of the day,
+    not from whenever the dashboard first asks for a scan."""
+    from datetime import date
+    from core.options_wall import persistence
+
+    db = tmp_path / "wall.duckdb"
+    results = tmp_path / "results.duckdb"
+    rows = [_row(100.0, "CE"), _row(100.0, "PE")]
+    rows[0].oi = 1000
+    provider = _FakeProvider({"NSE_INDEX|Nifty 50": rows, "NSE_INDEX|Nifty Bank": rows})
+
+    poller = WallPoller(heartbeat_path=tmp_path / "hb.json", pid_path=tmp_path / "p.pid",
+                        snapshot_db_path=db, results_db_path=results)
+    poller._poll_cycle(provider)
+    base = persistence.get_oi_baseline("NSE_INDEX|Nifty 50", date.today(), db_path=results)
+    assert base[(100.0, "CE")] == 1000
+
+    rows[0].oi = 5000
+    poller._poll_cycle(provider)
+    base = persistence.get_oi_baseline("NSE_INDEX|Nifty 50", date.today(), db_path=results)
+    assert base[(100.0, "CE")] == 1000          # first cycle of the session wins

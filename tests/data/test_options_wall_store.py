@@ -112,3 +112,44 @@ def test_latest_snapshot_migrates_pre_bid_ask_store(tmp_path):
     back = ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)
     assert back[0].best_bid == 4.9
     assert back[0].best_ask == 5.1
+
+
+def test_reads_retry_while_the_writer_holds_the_file(tmp_path, monkeypatch):
+    """The poller's appends briefly lock the store; readers must ride that out
+    with a bounded retry instead of surfacing IOException to the page."""
+    import duckdb
+    from core.data import options_wall_store as store
+
+    db = tmp_path / "wall.duckdb"
+    store.append_snapshot([_row(100.0, "CE", 5.0, "K1")], "NSE_INDEX|Nifty 50", "2026-09-08", db_path=db)
+
+    real_connect = duckdb.connect
+    calls = {"n": 0}
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            raise duckdb.IOException("IO Error: being used by another process")
+        return real_connect(*args, **kwargs)
+
+    monkeypatch.setattr(store.duckdb, "connect", flaky)
+    monkeypatch.setattr(store, "READ_RETRY_WAIT_S", 0.0)
+    rows = store.latest_snapshot("NSE_INDEX|Nifty 50", "2026-09-08", db_path=db)
+    assert len(rows) == 1 and calls["n"] >= 3
+
+
+def test_reads_give_up_after_the_retry_budget(tmp_path, monkeypatch):
+    import duckdb
+    import pytest
+    from core.data import options_wall_store as store
+
+    db = tmp_path / "wall.duckdb"
+    store.append_snapshot([_row(100.0, "CE", 5.0, "K1")], "NSE_INDEX|Nifty 50", "2026-09-08", db_path=db)
+
+    def always_locked(*args, **kwargs):
+        raise duckdb.IOException("IO Error: being used by another process")
+
+    monkeypatch.setattr(store.duckdb, "connect", always_locked)
+    monkeypatch.setattr(store, "READ_RETRY_WAIT_S", 0.0)
+    with pytest.raises(duckdb.IOException):
+        store.snapshot_timestamps("NSE_INDEX|Nifty 50", db_path=db)

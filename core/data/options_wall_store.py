@@ -17,6 +17,7 @@ Conventions:
 
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
@@ -27,6 +28,25 @@ from core.data.options_provider import OptionChainRow
 
 ROOT = Path(__file__).resolve().parents[2]
 WALL_SNAPSHOT_DB = ROOT / "data" / "options" / "wall_chain_snapshots.duckdb"
+
+# The poller's appends hold the file for 3-8 s each on the ~1.8 GB live store
+# (measured 2026-09-02: four secondary indexes over 1.7M rows); readers ride that
+# out with a bounded retry (agreed "short-lived writes + bounded-retry readers").
+READ_RETRY_ATTEMPTS = 30
+READ_RETRY_WAIT_S = 0.5
+
+
+def _connect_ro(db_path: Path) -> duckdb.DuckDBPyConnection:
+    """Read-only connection with a bounded retry on the cross-process lock."""
+    last = None
+    for attempt in range(READ_RETRY_ATTEMPTS):
+        try:
+            return duckdb.connect(str(db_path), read_only=True)
+        except duckdb.IOException as exc:
+            last = exc
+            if attempt + 1 < READ_RETRY_ATTEMPTS:
+                time.sleep(READ_RETRY_WAIT_S)
+    raise last
 
 _SNAPSHOT_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS option_chain_snapshot (
@@ -106,9 +126,10 @@ def append_snapshot(
     conn = duckdb.connect(str(db_path))
     try:
         init_schema(conn)
+        params = []
         for row in rows:
             q = (quotes or {}).get(row.instrument_key) or {}
-            conn.execute(_INSERT_SQL, [
+            params.append([
                 ts, underlying, expiry, row.strike, row.option_type,
                 row.instrument_key, row.tradingsymbol, row.ltp,
                 row.open, row.high, row.low, row.close,
@@ -120,6 +141,10 @@ def append_snapshot(
                 row.lot_size, row.underlying_ltp,
                 q.get("best_bid"), q.get("best_ask"),
             ])
+        # one batched statement: the write lock is held for the insert, not for
+        # 288 round-trips (readers ride the residue out with _connect_ro)
+        if params:
+            conn.executemany(_INSERT_SQL, params)
         conn.commit()
     finally:
         conn.close()
@@ -143,7 +168,7 @@ def latest_snapshot(
     """Newest cycle for (underlying, expiry), or [] if none recorded."""
     if not db_path.exists():
         return []
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = _connect_ro(db_path)
     try:
         cols = [r[0] for r in conn.execute(
             "PRAGMA table_info('option_chain_snapshot')").fetchall()]
@@ -151,7 +176,7 @@ def latest_snapshot(
         conn.close()
     if "best_bid" not in cols:
         _migrate_columns(db_path)
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = _connect_ro(db_path)
     try:
         result = conn.execute(
             """
@@ -196,7 +221,7 @@ def snapshot_timestamps(
 ) -> List[datetime]:
     if not db_path.exists():
         return []
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = _connect_ro(db_path)
     try:
         rows = conn.execute(
             "SELECT DISTINCT snapshot_timestamp FROM option_chain_snapshot "

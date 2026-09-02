@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Tuple
 from core.analytics.chain_scanner import ChainScanner, ScanConfig, ScanResult
 from core.analytics.options_analytics import OptionsAnalytics, OptionsStructuralData
 from core.analytics.realized_vol import session_realized_vol_pct
+from core.analytics import wall_metrics as wm
 from core.brokers.upstox_market_data import UpstoxMarketData
 from core.data import options_wall_store as store
 from core.data.options_provider import OptionsProvider
@@ -27,6 +28,8 @@ UNDERLYINGS = {
     "NIFTY": "NSE_INDEX|Nifty 50",
     "BANKNIFTY": "NSE_INDEX|Nifty Bank",
 }
+
+DEALER_SIDE = "inferred"   # per-contract sign from the OI×price grid (wall_metrics doc)
 
 STALE_AFTER_S = 60.0
 
@@ -46,7 +49,7 @@ def _load_chain(sym: str, provider: OptionsProvider):
 def _run_scan(chain, sym, expiry, config):
     underlying_ltp = chain[0].underlying_ltp or 0.0
     structural = OptionsAnalytics().build_structural_snapshot(
-        chain, sym, underlying_ltp, expiry)
+        chain, sym, underlying_ltp, expiry, dealer_side=DEALER_SIDE)
     rv = session_realized_vol_pct(sym)
 
     keys = [r.instrument_key for r in chain if r.instrument_key]
@@ -64,21 +67,46 @@ def _atm_iv(chain, spot):
     return sum(ivs) / len(ivs) if ivs else None
 
 
-def _regime_snapshot(structural, chain, rv) -> Dict:
-    dist = structural.gex.gamma_by_strike
-    pin = max(dist, key=lambda s: dist[s]) if dist else None
+def _regime_snapshot(structural, chain, rv, oi_baseline=None, now=None) -> Dict:
+    gex = structural.gex
+    dist = gex.gamma_by_strike
+    spot = structural.underlying_ltp
+    now = now or datetime.now()
+
+    pins = wm.pin_candidates(gex.gamma_ce_by_strike, gex.gamma_pe_by_strike)
+    pin = pins["pin"]
+    if pin is None and dist:
+        pin = max(dist, key=lambda s: dist[s])
+    ceiling, floor = wm.gamma_walls(gex.gamma_ce_by_strike, gex.gamma_pe_by_strike)
+    atm_iv = _atm_iv(chain, spot)
+    tte = wm.time_to_expiry_years(structural.expiry, now)
     return {
-        "trade_date": date.today(),
-        "regime": structural.gex.regime,
-        "net_gamma_total": structural.gex.net_gamma_total,
-        "zero_gamma_level": structural.gex.zero_gamma_level,
+        "trade_date": now.date(),
+        "regime": gex.regime,
+        "net_gamma_total": gex.net_gamma_total,
+        "zero_gamma_level": gex.zero_gamma_level,
         "pin_strike": pin,
         "put_wall": structural.oi_analysis.support_strike,
         "call_wall": structural.oi_analysis.resistance_strike,
-        "atm_iv": _atm_iv(chain, structural.underlying_ltp),
+        "atm_iv": atm_iv,
         "realized_vol": rv,
-        "underlying_ltp": structural.underlying_ltp,
+        "underlying_ltp": spot,
         "gamma_by_strike": dist,
+        "net_gex_cr": gex.net_gex_cr,
+        "hhi": wm.hhi(dist),
+        "hhi_call": wm.hhi(gex.gamma_ce_by_strike),
+        "hhi_put": wm.hhi(gex.gamma_pe_by_strike),
+        "pin_conviction": pins["conviction"],
+        "pin_margin": pins["margin"],
+        "runner_up": pins["runner_up"],
+        "gex_at_pin_cr": gex.gex_cr_by_strike.get(pin) if pin is not None else None,
+        "gamma_ceiling": ceiling,
+        "gamma_floor": floor,
+        "sigma_pts": wm.sigma_points(spot, atm_iv, tte),
+        "side_coverage": gex.side_coverage,
+        "side_reliable": gex.side_reliable,
+        "hedge_ladder": wm.hedge_ladder(dist, spot),
+        "oi_rotation": wm.oi_since_open(chain, oi_baseline or {}),
     }
 
 
@@ -127,7 +155,8 @@ def scan_and_persist(
             continue
         results, structural, rv = _run_scan(chain, sym, expiry, config)
         persistence.write_scan_results(results, sym)
-        persistence.write_regime(sym, _regime_snapshot(structural, chain, rv))
         persistence.capture_oi_baseline(chain, sym)
+        baseline = persistence.get_oi_baseline(sym)
+        persistence.write_regime(sym, _regime_snapshot(structural, chain, rv, baseline))
         written[name] = len(results)
     return written

@@ -30,6 +30,24 @@ limits at the chosen `--poll-interval`; widen the interval if not.
 **Token:** refresh the Upstox token via the Dashboard login before market open;
 the poller will not fetch without a valid token (loud, not silent).
 
+**Session-open OI baseline:** the poller's first cycle of each session writes
+`oi_baseline` (INSERT OR IGNORE, so the earliest cycle wins). Start it before
+09:15 or the "OI since open" panel measures from whenever it started.
+
+**Reading while the poller writes:** the store is locked on every append — measured
+3–8 s per index on the 1.8 GB live file even after batching the insert (the four
+secondary indexes on 1.7 M rows dominate; dropping them is a schema change on the
+live store and is a follow-up). Readers (`options_wall_store.latest_snapshot` /
+`snapshot_timestamps`) retry up to 30 × 0.5 s; a "being used by another process" error past that means either a
+second poller is running (check `wall_poller.pid` *and* the process list — on
+2026-09-02 a `taskkill` issued from Git Bash silently failed and two instances
+fought over the file) or the poller is holding the file longer than one cycle.
+Investigate; do not widen the budget.
+
+**Starting from a shell:** launch with PowerShell (`Start-Process python -ArgumentList
+"-u","core/options_wall/poller.py"`) or a plain terminal, not from Git Bash with
+`/PID`-style Windows flags in the same command — MSYS rewrites those as paths.
+
 **Quote-coverage check (do not skip):** entry requires a live bid/ask on every leg
 (spec §3.4) — a fly is not opened on ltp-only legs. After the first few live cycles,
 confirm the trail is actually carrying quotes: `best_bid`/`best_ask` should be
@@ -67,6 +85,14 @@ SL −2× / regime-flip / time-stop 15:15 the session before expiry; 1 lot; fees
 
 **Changing any of these during the pilot invalidates the month** (spec §1). If a
 change is genuinely needed, stop the pilot and restart the clock.
+
+> **Clock reset 2026-09-02.** The regime the executor gates on now comes from
+> `dealer_side="inferred"` (`core/options_wall/engine.DEALER_SIDE`): each contract's
+> gamma sign is read from the OI-change × option-price-change grid instead of the
+> fixed CE+/PE− assumption, ambiguous contracts are excluded, and |net GEX| inside
+> ±100 Cr reads **Neutral** (which the farm screen treats as not-Positive). The
+> poller had also been down 2026-08-20 → 2026-09-02. Month-1 restarts from
+> 2026-09-02; the single 2026-08-17 trade belongs to the old clock.
 
 ---
 

@@ -58,7 +58,22 @@ CREATE TABLE IF NOT EXISTS session_regime (
     atm_iv            DOUBLE,
     realized_vol      DOUBLE,
     underlying_ltp    DOUBLE,
-    gamma_by_strike   VARCHAR
+    gamma_by_strike   VARCHAR,
+    net_gex_cr        DOUBLE,
+    hhi               DOUBLE,
+    hhi_call          DOUBLE,
+    hhi_put           DOUBLE,
+    pin_conviction    DOUBLE,
+    pin_margin        DOUBLE,
+    runner_up         DOUBLE,
+    gex_at_pin_cr     DOUBLE,
+    gamma_ceiling     DOUBLE,
+    gamma_floor       DOUBLE,
+    sigma_pts         DOUBLE,
+    side_coverage     DOUBLE,
+    side_reliable     BOOLEAN,
+    hedge_ladder      VARCHAR,
+    oi_rotation       VARCHAR
 );
 CREATE INDEX IF NOT EXISTS idx_regime_underlying ON session_regime(underlying, trade_date, ts);
 
@@ -90,15 +105,26 @@ CREATE INDEX IF NOT EXISTS idx_trades_underlying ON trades(underlying);
 """
 
 
-_REGIME_COLS = ["trade_date", "underlying", "ts", "regime", "net_gamma_total",
-                "zero_gamma_level", "pin_strike", "put_wall", "call_wall",
-                "atm_iv", "realized_vol", "underlying_ltp", "gamma_by_strike"]
+_REGIME_BASE_COLS = ["trade_date", "underlying", "ts", "regime", "net_gamma_total",
+                     "zero_gamma_level", "pin_strike", "put_wall", "call_wall",
+                     "atm_iv", "realized_vol", "underlying_ltp", "gamma_by_strike"]
+_REGIME_WALL_COLS = {
+    "net_gex_cr": "DOUBLE", "hhi": "DOUBLE", "hhi_call": "DOUBLE", "hhi_put": "DOUBLE",
+    "pin_conviction": "DOUBLE", "pin_margin": "DOUBLE", "runner_up": "DOUBLE",
+    "gex_at_pin_cr": "DOUBLE", "gamma_ceiling": "DOUBLE", "gamma_floor": "DOUBLE",
+    "sigma_pts": "DOUBLE", "side_coverage": "DOUBLE", "side_reliable": "BOOLEAN",
+    "hedge_ladder": "VARCHAR", "oi_rotation": "VARCHAR",
+}
+_REGIME_COLS = _REGIME_BASE_COLS + list(_REGIME_WALL_COLS)
+_REGIME_JSON_COLS = ("gamma_by_strike", "hedge_ladder", "oi_rotation")
+_REGIME_SELECT = ", ".join(_REGIME_COLS)
 
 
 def _regime_dict(row) -> Dict:
     d = dict(zip(_REGIME_COLS, row))
-    if d.get("gamma_by_strike") is not None:
-        d["gamma_by_strike"] = json.loads(d["gamma_by_strike"])
+    for col in _REGIME_JSON_COLS:
+        if d.get(col) is not None:
+            d[col] = json.loads(d[col])
     return d
 
 
@@ -110,6 +136,9 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     # migrate a session_regime table created before spot/gamma columns existed
     for col in ("underlying_ltp DOUBLE", "gamma_by_strike VARCHAR"):
         conn.execute(f"ALTER TABLE session_regime ADD COLUMN IF NOT EXISTS {col}")
+    # migrate a session_regime table created before the wall-metrics columns existed
+    for col, typ in _REGIME_WALL_COLS.items():
+        conn.execute(f"ALTER TABLE session_regime ADD COLUMN IF NOT EXISTS {col} {typ}")
     # migrate a scan_results table created before the iron-fly legs column existed
     conn.execute("ALTER TABLE scan_results ADD COLUMN IF NOT EXISTS legs VARCHAR")
 
@@ -145,31 +174,24 @@ def write_regime(
     ts: Optional[datetime] = None,
     db_path: Path = WALL_RESULTS_DB,
 ) -> None:
-    """snapshot keys: trade_date, regime, net_gamma_total, zero_gamma_level,
-    pin_strike, put_wall, call_wall, atm_iv, realized_vol, underlying_ltp,
-    gamma_by_strike (stored as JSON)."""
+    """snapshot keys: every _REGIME_COLS name except underlying/ts (missing keys
+    persist as NULL); gamma_by_strike / hedge_ladder / oi_rotation are stored as JSON."""
     ts = ts or datetime.now()
-    ladder = snapshot.get("gamma_by_strike")
+    values = dict(snapshot)
+    values["underlying"] = underlying
+    values["ts"] = ts
+    values.setdefault("trade_date", date.today())
+    for col in _REGIME_JSON_COLS:
+        if values.get(col) is not None:
+            values[col] = json.dumps(values[col])
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = duckdb.connect(str(db_path))
     try:
         init_schema(conn)
         conn.execute(
-            "INSERT INTO session_regime VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            [
-                snapshot.get("trade_date", date.today()),
-                underlying, ts,
-                snapshot.get("regime"),
-                snapshot.get("net_gamma_total"),
-                snapshot.get("zero_gamma_level"),
-                snapshot.get("pin_strike"),
-                snapshot.get("put_wall"),
-                snapshot.get("call_wall"),
-                snapshot.get("atm_iv"),
-                snapshot.get("realized_vol"),
-                snapshot.get("underlying_ltp"),
-                json.dumps(ladder) if ladder is not None else None,
-            ],
+            f"INSERT INTO session_regime ({_REGIME_SELECT}) VALUES "
+            f"({', '.join('?' for _ in _REGIME_COLS)})",
+            [values.get(c) for c in _REGIME_COLS],
         )
         conn.commit()
     finally:
@@ -232,7 +254,7 @@ def latest_regime(
     conn = duckdb.connect(str(db_path), read_only=True)
     try:
         row = conn.execute(
-            "SELECT * FROM session_regime WHERE underlying = ? AND trade_date = ? "
+            f"SELECT {_REGIME_SELECT} FROM session_regime WHERE underlying = ? AND trade_date = ? "
             "ORDER BY ts DESC LIMIT 1",
             [underlying, trade_date],
         ).fetchone()
@@ -368,20 +390,20 @@ def regime_river(
     limit: int = 30,
     db_path: Path = WALL_RESULTS_DB,
 ) -> List[Dict]:
-    """Latest regime per trade_date, ascending, capped at `limit`."""
+    """Latest regime row for each of the newest `limit` sessions, ascending."""
     if not db_path.exists():
         return []
     conn = duckdb.connect(str(db_path), read_only=True)
     try:
         rows = conn.execute(
-            """
-            SELECT * FROM (
+            f"""
+            SELECT {_REGIME_SELECT} FROM (
                 SELECT *, row_number() OVER (PARTITION BY trade_date ORDER BY ts DESC) AS rn
                 FROM session_regime WHERE underlying = ?
-            ) WHERE rn = 1 ORDER BY trade_date ASC LIMIT ?
+            ) WHERE rn = 1 ORDER BY trade_date DESC LIMIT ?
             """,
             [underlying, limit],
         ).fetchall()
     finally:
         conn.close()
-    return [_regime_dict(r) for r in rows]
+    return [_regime_dict(r) for r in reversed(rows)]

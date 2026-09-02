@@ -55,6 +55,16 @@ class GEXResult:
     # Interpretation
     regime: str = "Neutral"  # Positive GEX = stable, Negative GEX = volatile
 
+    # Dealer-side inference + Rs crore units (populated by calculate_gex; the
+    # inferred sign is only used when dealer_side="inferred")
+    net_gex_cr: Optional[float] = None
+    gex_cr_by_strike: Dict[float, float] = field(default_factory=dict)
+    gamma_ce_by_strike: Dict[float, float] = field(default_factory=dict)  # unsigned mass
+    gamma_pe_by_strike: Dict[float, float] = field(default_factory=dict)  # unsigned mass
+    side_by_strike: Dict[Tuple[float, str], Optional[str]] = field(default_factory=dict)
+    side_coverage: Optional[float] = None
+    side_reliable: Optional[bool] = None
+
 
 @dataclass
 class MaxPainResult:
@@ -101,6 +111,15 @@ class OptionsAnalytics:
     PCR_BULLISH_THRESHOLD = 1.2
     PCR_BEARISH_THRESHOLD = 0.7
     
+    # Dealer-side inference (dealer_side="inferred") -- Hedgewall-style grid:
+    # sign(dOI) == sign(dPrice) -> public building/holding longs -> dealer SHORT gamma
+    # sign(dOI) != sign(dPrice) -> public writing / shorts covering -> dealer LONG gamma
+    MIN_PRICE_MOVE_FRAC = 0.005     # |ltp - close| / close needed to read the price side
+    THETA_DRIFT_SHARE = 0.8         # share of classified rows "price down" that flags drift
+    NEUTRAL_BAND_CR = 100.0         # |net GEX| inside this reads Neutral (inferred mode)
+    PCT_MOVE = 0.01                 # crore exposure is quoted per 1 % spot move
+    CRORE = 1e7
+
     # Lot sizes (can be overridden by API data)
     LOT_SIZE_MAP = {
         "NSE_INDEX|Nifty 50": 75,
@@ -256,95 +275,124 @@ class OptionsAnalytics:
         )
     
     @staticmethod
+    def _infer_dealer_side(row: OptionChainRow) -> Optional[str]:
+        """'short' / 'long' dealer gamma at this contract, or None when ambiguous."""
+        if row.close is None or row.ltp is None or row.close <= 0 or not row.oi_change:
+            return None
+        dp = (row.ltp - row.close) / row.close
+        if abs(dp) < OptionsAnalytics.MIN_PRICE_MOVE_FRAC:
+            return None
+        return "short" if (row.oi_change > 0) == (dp > 0) else "long"
+
+    @staticmethod
     def calculate_gex(
         option_chain: List[OptionChainRow],
         underlying_ltp: float,
-        lot_size: Optional[int] = None
+        lot_size: Optional[int] = None,
+        dealer_side: str = "assumed",
     ) -> GEXResult:
         """
         Calculate Net Gamma Exposure (GEX).
-        
-        GEX = Σ (Gamma × OI × LotSize)
-        
-        Positive GEX: Dealers are long gamma → market stability
-        Negative GEX: Dealers are short gamma → volatility amplification
-        
-        Zero Gamma Level: Strike where cumulative gamma = 0
-        - Above this level: market makers stabilize moves
-        - Below this level: market makers amplify moves
-        
-        Args:
-            option_chain: List of option contracts
-            underlying_ltp: Current underlying price
-            lot_size: Contract lot size (default: from LOT_SIZE_MAP)
-            
-        Returns:
-            GEXResult with net gamma and distribution
+
+        gamma_by_strike / net_gamma_* are in (gamma x OI x lot) units -- the change
+        in dealer delta per index point. gex_cr_by_strike / net_gex_cr scale that by
+        spot^2 x 1 % and quote it in Rs crore.
+
+        dealer_side:
+          "assumed"  -- CE positive, PE negative (dealers long calls / short puts).
+          "inferred" -- per-contract sign from the OI-change x price-change grid
+                        (`_infer_dealer_side`); ambiguous contracts are excluded and
+                        reported through side_coverage; a chain where almost every
+                        classified contract is "price down" is flagged
+                        side_reliable=False (theta drift, not positioning). Regime
+                        uses the +/-NEUTRAL_BAND_CR band.
+
+        Zero Gamma Level: strike where cumulative signed gamma crosses zero.
         """
-        # Calculate gamma exposure by strike
+        if dealer_side not in ("assumed", "inferred"):
+            raise ValueError(f"dealer_side must be 'assumed' or 'inferred', got {dealer_side!r}")
+
         gamma_by_strike: Dict[float, float] = {}
+        gex_cr_by_strike: Dict[float, float] = {}
+        ce_mass: Dict[float, float] = {}
+        pe_mass: Dict[float, float] = {}
+        side_by_strike: Dict[Tuple[float, str], Optional[str]] = {}
         gamma_distribution = []
-        
+        net_ce = net_pe = 0.0
+        n_rows = n_classified = n_price_down = 0
+        cr_scale = underlying_ltp ** 2 * OptionsAnalytics.PCT_MOVE / OptionsAnalytics.CRORE
+
         for row in option_chain:
             if row.gamma is None or row.gamma == 0:
                 continue
-            
-            effective_lot_size = lot_size or row.lot_size or 75
-            gamma_exposure = row.gamma * row.oi * effective_lot_size
-            
-            # CE gamma is positive, PE gamma is negative (for dealer positioning)
-            if row.option_type == "PE":
-                gamma_exposure = -gamma_exposure
-            
-            strike = row.strike
-            if strike not in gamma_by_strike:
-                gamma_by_strike[strike] = 0
-            gamma_by_strike[strike] += gamma_exposure
-            
+            n_rows += 1
+            mass = row.gamma * row.oi * (lot_size or row.lot_size or 75)
+            side_mass = ce_mass if row.option_type == "CE" else pe_mass
+            side_mass[row.strike] = side_mass.get(row.strike, 0.0) + mass
+
+            if dealer_side == "inferred":
+                side = OptionsAnalytics._infer_dealer_side(row)
+                side_by_strike[(row.strike, row.option_type)] = side
+                if side is None:
+                    continue
+                n_classified += 1
+                if row.ltp < row.close:
+                    n_price_down += 1
+                sign = -1.0 if side == "short" else 1.0
+            else:
+                sign = -1.0 if row.option_type == "PE" else 1.0
+
+            exposure = sign * mass
+            gamma_by_strike[row.strike] = gamma_by_strike.get(row.strike, 0.0) + exposure
+            gex_cr_by_strike[row.strike] = gex_cr_by_strike.get(row.strike, 0.0) + exposure * cr_scale
+            if row.option_type == "CE":
+                net_ce += exposure
+            else:
+                net_pe += exposure
             gamma_distribution.append({
-                "strike": strike,
+                "strike": row.strike,
                 "option_type": row.option_type,
                 "gamma": row.gamma,
                 "oi": row.oi,
-                "gamma_exposure": gamma_exposure
+                "gamma_exposure": exposure,
             })
-        
-        # Calculate totals
-        net_gamma_ce = sum(
-            row.gamma * row.oi * (lot_size or row.lot_size or 75)
-            for row in option_chain
-            if row.gamma and row.option_type == "CE"
-        )
-        
-        net_gamma_pe = sum(
-            -row.gamma * row.oi * (lot_size or row.lot_size or 75)
-            for row in option_chain
-            if row.gamma and row.option_type == "PE"
-        )
-        
-        net_gamma_total = net_gamma_ce + net_gamma_pe
-        
-        # Find zero gamma level (strike where cumulative gamma crosses zero)
+
+        net_gamma_total = net_ce + net_pe
+        net_gex_cr = net_gamma_total * cr_scale
         zero_gamma_level = OptionsAnalytics._find_zero_gamma_level(gamma_by_strike)
-        
-        # Interpret regime
-        if net_gamma_total > 0:
+
+        if dealer_side == "inferred" and abs(net_gex_cr) < OptionsAnalytics.NEUTRAL_BAND_CR:
+            regime = "Neutral"
+        elif net_gamma_total > 0:
             regime = "Positive GEX (Stable)"
         elif net_gamma_total < 0:
             regime = "Negative GEX (Volatile)"
         else:
             regime = "Neutral"
-        
+
+        side_coverage = side_reliable = None
+        if dealer_side == "inferred":
+            side_coverage = (n_classified / n_rows) if n_rows else 0.0
+            if n_classified:
+                side_reliable = (n_price_down / n_classified) < OptionsAnalytics.THETA_DRIFT_SHARE
+
         return GEXResult(
             net_gamma_total=net_gamma_total,
-            net_gamma_ce=net_gamma_ce,
-            net_gamma_pe=net_gamma_pe,
+            net_gamma_ce=net_ce,
+            net_gamma_pe=net_pe,
             gamma_by_strike=gamma_by_strike,
             zero_gamma_level=zero_gamma_level,
             gamma_distribution=gamma_distribution,
-            regime=regime
+            regime=regime,
+            net_gex_cr=net_gex_cr,
+            gex_cr_by_strike=gex_cr_by_strike,
+            gamma_ce_by_strike=ce_mass,
+            gamma_pe_by_strike=pe_mass,
+            side_by_strike=side_by_strike,
+            side_coverage=side_coverage,
+            side_reliable=side_reliable,
         )
-    
+
     @staticmethod
     def calculate_max_pain(
         option_chain: List[OptionChainRow],
@@ -399,7 +447,8 @@ class OptionsAnalytics:
         underlying_ltp: float,
         expiry: str,
         previous_pcr: Optional[float] = None,
-        include_max_pain: bool = False
+        include_max_pain: bool = False,
+        dealer_side: str = "assumed",
     ) -> OptionsStructuralData:
         """
         Build complete structural snapshot.
@@ -411,13 +460,14 @@ class OptionsAnalytics:
             expiry: Expiry date (YYYY-MM-DD)
             previous_pcr: Previous PCR for change calculation
             include_max_pain: Whether to calculate max pain (default: False)
+            dealer_side: "assumed" or "inferred" -- see calculate_gex
             
         Returns:
             OptionsStructuralData with all metrics
         """
         # Calculate all metrics
         pcr = self.calculate_pcr(option_chain, previous_pcr)
-        gex = self.calculate_gex(option_chain, underlying_ltp)
+        gex = self.calculate_gex(option_chain, underlying_ltp, dealer_side=dealer_side)
         oi_analysis = self.analyze_oi_changes(option_chain, underlying_ltp)
         
         # Max pain (optional - secondary metric)
