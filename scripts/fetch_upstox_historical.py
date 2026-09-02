@@ -130,6 +130,20 @@ def fetch_symbol_intraday(client, symbol, unit, interval):
         logger.error(f"[{symbol}] Failed to fetch intraday {unit}/{interval}: {e}")
         return symbol, []
 
+def _session_closed(now=None) -> bool:
+    """True once today's trading session is over (or today is not a trading day).
+
+    Gates the persist-today write so a partial intraday snapshot never lands in
+    the EOD per-date store. Post-market close is used, not market close, so a
+    run during the closing auction does not race the final bars.
+    """
+    from core.database.utils.market_hours import MarketHours
+    now = now or MarketHours.get_ist_now()
+    if not MarketHours.is_trading_day(now):
+        return True
+    return now.time() >= MarketHours.POST_MARKET_CLOSE
+
+
 def insert_all_candles_to_db(db_manager: DatabaseManager, symbol_results: list, timeframe: str, persist_today_to_historical: bool = False):
     """Group all results by date and write efficiently.
 
@@ -189,8 +203,20 @@ def insert_all_candles_to_db(db_manager: DatabaseManager, symbol_results: list, 
         except Exception as e:
             logger.error(f"Error writing live buffer data: {e}")
 
-        # 3. Optionally duplicate today's rows to historical per-date files
-        if persist_today_to_historical:
+        # 3. Optionally duplicate today's rows to historical per-date files.
+        # ONLY once the session has closed. The per-date store is the EOD
+        # store, and every consumer treats "the file for date D exists" as
+        # "date D is complete". A mid-session run breaks that: on 2026-09-02 a
+        # 09:58 run wrote a 43-bar 09:15..09:57 snapshot into
+        # nse/candles/1m/2026-09-02.duckdb, which then shadowed the live buffer
+        # and cost that session its 13:00 DayType fact. Rows are upserted
+        # (ON CONFLICT DO UPDATE), so skipping here loses nothing -- the
+        # post-close run writes the full session to the same file.
+        if persist_today_to_historical and not _session_closed():
+            logger.info("  [DB] persist-today skipped: session still open "
+                        "(the per-date store is the EOD store; a partial file "
+                        "reads as a complete session downstream)")
+        elif persist_today_to_historical:
             # Regroup live rows by (exchange, date) for historical writer
             hist_today = defaultdict(list)
             for d, rows in live_groups.items():

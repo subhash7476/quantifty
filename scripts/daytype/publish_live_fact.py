@@ -42,7 +42,7 @@ sys.path.insert(0, str(ROOT))
 
 from core.logging import setup_logger  # noqa: E402
 from scripts.daytype.publish_facts import (  # noqa: E402
-    CANDLE_DIR_1M, CHECKPOINT, MIN_BARS, TRAINED_ON,
+    CANDLE_DIR_1M, CHECKPOINT, TARGET_BAR, TRAINED_ON,
     commit_ref, model_hash, regime_fact_version,
 )
 
@@ -92,44 +92,85 @@ def _read_candles(path: Path, symbol: str,
     return None
 
 
-def _session_bars_from_df(df: pd.DataFrame, upto_min: int = 780) -> Optional[pd.DataFrame]:
-    if df is None or df.empty:
-        return None
-    if "timestamp" not in df.columns:
+SESSION_OPEN_MIN = 555                  # 09:15 IST, in minutes from midnight
+CHECKPOINT_MIN = 780                    # 13:00 IST
+REQUIRED_BARS = TARGET_BAR + 1          # 226 bars, 09:15..13:00 inclusive
+
+
+def _session_frame(df: pd.DataFrame,
+                   upto_min: int = CHECKPOINT_MIN) -> Optional[pd.DataFrame]:
+    """Bars filtered to 09:15..the checkpoint. No coverage judgement here."""
+    if df is None or df.empty or "timestamp" not in df.columns:
         return None
     df = df.copy()
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     hour_min = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
-    df = df[(hour_min >= 555) & (hour_min <= upto_min)].reset_index(drop=True)
-    return df if len(df) >= MIN_BARS else None
+    return df[(hour_min >= SESSION_OPEN_MIN)
+              & (hour_min <= upto_min)].reset_index(drop=True)
 
 
-def _today_bars(symbol: str, today: date) -> Optional[pd.DataFrame]:
-    """Today's session bars: per-day store first, then the live buffer."""
-    db_path = CANDLE_DIR_1M / f"{today.isoformat()}.duckdb"
-    if db_path.exists():
-        df = _read_candles(db_path, symbol)
-        if df is not None:
-            return _session_bars_from_df(df)
+def _coverage(frame: Optional[pd.DataFrame]) -> str:
+    if frame is None or frame.empty:
+        return "0 bars"
+    return f"{len(frame)} bars, last {frame['timestamp'].iloc[-1]:%H:%M}"
 
-    if LIVE_BUFFER.exists():
-        df = _read_candles(LIVE_BUFFER, symbol)
-        if df is not None:
-            return _session_bars_from_df(df)
 
-    return None
+def _today_bars(symbol: str, today: date,
+                diag: Optional[list] = None) -> tuple:
+    """Today's session bars from the first source that COVERS 09:15..13:00.
+
+    Ordered ladder: per-day store, then the live buffer. Returns
+    ``(frame, source_label)``.
+
+    A source that reads but falls short of the checkpoint is REJECTED and the
+    ladder continues. Two live misses came from getting this wrong:
+
+    * 2026-09-02 -- `download_all_data --persist-today` wrote a 43-bar
+      09:15..09:57 snapshot into the per-day store *mid-session*. The read
+      succeeded, the short frame was returned as-is, and the live buffer --
+      holding all 226 bars -- was never tried.
+    * 2026-08-31 -- the stack started at 11:39, so no source held the morning.
+      A 100..225-bar frame clears `MIN_BARS` (100) yet can never reach
+      `compute_13pm_state`'s bar index 225, so the miss surfaced three bar
+      counts later as the opaque "no 13pm checkpoint produced".
+
+    Coverage and the 226-bar requirement are therefore the SAME number, checked
+    once, at source selection -- not two independent gates.
+    """
+    sources = (("per_day_store", CANDLE_DIR_1M / f"{today.isoformat()}.duckdb"),
+               ("live_buffer", LIVE_BUFFER))
+    for label, path in sources:
+        if not path.exists():
+            _note(diag, f"{label}: absent")
+            continue
+        df = _read_candles(path, symbol)
+        if df is None:
+            _note(diag, f"{label}: unreadable")
+            continue
+        frame = _session_frame(df)
+        if frame is not None and len(frame) >= REQUIRED_BARS:
+            _note(diag, f"{label}: {_coverage(frame)} -> used")
+            return frame, label
+        _note(diag, f"{label}: {_coverage(frame)} -- short of 13:00, rejected")
+        logger.warning("%s: %s short of 13:00 for %s (%s); trying next source",
+                       symbol, label, today, _coverage(frame))
+    return None, None
+
+
+def _note(diag: Optional[list], line: str) -> None:
+    if diag is not None and line not in diag:
+        diag.append(line)
 
 
 def vix_at_checkpoint(today: date) -> Optional[float]:
     """Last India VIX 1m close at or before 13:00 (DS2-3).
 
-    Read from the same live/per-day 1m source used for NF/BN — never the EOD
-    1d store (which does not exist intraday). `_today_bars` filters to
-    9:15..13:00 and requires >= MIN_BARS, so None means the VIX feed is
-    missing/thin — the publisher then writes nothing and the source skips the
+    Read from the same source ladder used for NF/BN -- never the EOD 1d store
+    (which does not exist intraday). None means no source covers the session
+    through 13:00; the publisher then writes nothing and the source skips the
     session (F2 NULL-VIX skip, DS2-4).
     """
-    df = _today_bars(VIX_SYMBOL, today)
+    df, _ = _today_bars(VIX_SYMBOL, today)
     if df is None or df.empty:
         return None
     return float(df["close"].iloc[-1])
@@ -141,11 +182,16 @@ def publish_live(db_path: Path, today: Optional[date] = None) -> dict:
     from scripts.daytype.publish_facts import compute_13pm_state
 
     today = today or date.today()
-    nf = _today_bars(NF_SYMBOL, today)
-    bn = _today_bars(BN_SYMBOL, today)
+    diag: list = []
+    nf, source = _today_bars(NF_SYMBOL, today, diag)
+    bn, _ = _today_bars(BN_SYMBOL, today, diag)
 
     if nf is None or bn is None:
-        return {"ready": False, "reason": "insufficient bars up to 13:00", "session": today}
+        # Name every source and its coverage: a skip must be diagnosable from
+        # the one journal line, not reconstructed from three sessions of logs.
+        return {"ready": False, "session": today,
+                "reason": "no source covers 09:15..13:00 ["
+                          + "; ".join(diag) + "]"}
 
     st = compute_13pm_state(today, nf, bn)
     if st is None or st.get("predicted_state") == "Unknown":
@@ -190,7 +236,7 @@ def publish_live(db_path: Path, today: Optional[date] = None) -> dict:
     con.close()
     return {"ready": True, "session": today, "regime": st["predicted_state"],
             "confidence": st["confidence"], "vix_at_checkpoint": vix_cp,
-            "produced_by": produced_by}
+            "produced_by": produced_by, "source": source}
 
 
 def make_driver_hook(db_path: Path, today: Optional[date] = None):

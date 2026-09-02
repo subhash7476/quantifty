@@ -433,3 +433,70 @@ def test_live_publisher_not_ready_without_data(tmp_path, monkeypatch):
     future = date(2099, 1, 2)                # no store file -> not ready
     res = live.publish_live(tmp_path / "live.duckdb", today=future)
     assert res["ready"] is False
+
+
+@pytest.mark.skipif(not _model_present(), reason="models/daytype not present")
+def test_partial_per_day_store_falls_back_to_live_buffer(tmp_path, monkeypatch):
+    """2026-09-02 13:00 root cause: `download_all_data --persist-today` wrote a
+    43-bar 09:15..09:57 snapshot into the per-day 1m store *mid-session*, so the
+    per-day file existed but stopped 3 hours short of the checkpoint. The
+    publisher read it successfully, got a short frame, and returned that frame's
+    None **without ever trying the live buffer** — which held all 226 bars. Eleven
+    straight `insufficient bars up to 13:00` skips, then the window latched.
+
+    A source that does not reach 13:00 must be REJECTED so the ladder continues,
+    never silently accepted (a 100..225-bar frame passes MIN_BARS but can never
+    reach compute_13pm_state's bar index 225 — that is the 2026-08-31 message).
+    """
+    import scripts.daytype.publish_live_fact as live
+
+    d = date(2023, 1, 2)
+    full = {
+        pf.NF_SYMBOL: _craft_session_bars(seed=1, base=24000.0),
+        pf.BN_SYMBOL: _craft_session_bars(seed=2, base=52000.0),
+        pf.VIX_SYMBOL: _craft_session_bars(seed=3, base=14.0),
+    }
+    partial = {sym: df.head(43).copy() for sym, df in full.items()}
+
+    candle_dir = tmp_path / "candles_1m"
+    candle_dir.mkdir()
+    _write_candle_db(candle_dir / f"{d.isoformat()}.duckdb", partial)
+    buf = tmp_path / "candles_today.duckdb"
+    _write_candle_db(buf, full)
+
+    monkeypatch.setattr(live, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(pf, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(live, "LIVE_BUFFER", buf)
+
+    res = live.publish_live(tmp_path / "live.duckdb", today=d)
+    assert res["ready"] is True, res.get("reason")
+    assert res["source"] == "live_buffer"
+
+
+@pytest.mark.skipif(not _model_present(), reason="models/daytype not present")
+def test_source_short_of_checkpoint_is_rejected_with_coverage_in_reason(tmp_path, monkeypatch):
+    """2026-08-31 / 2026-09-01: the stack was started at 11:39 / 12:03, so no
+    local source ever held the 09:15 morning. A 100..225-bar frame clears
+    MIN_BARS but can never reach bar index 225, so the publisher reported the
+    downstream `no 13pm checkpoint produced` and the operator could not tell
+    which source was short. Not-ready must name the source and its coverage."""
+    import scripts.daytype.publish_live_fact as live
+
+    d = date(2023, 1, 2)
+    short = {sym: _craft_session_bars(seed=s, base=b).head(150).copy()
+             for sym, s, b in [(pf.NF_SYMBOL, 1, 24000.0),
+                               (pf.BN_SYMBOL, 2, 52000.0),
+                               (pf.VIX_SYMBOL, 3, 14.0)]}
+    candle_dir = tmp_path / "candles_1m"
+    candle_dir.mkdir()
+    buf = tmp_path / "candles_today.duckdb"
+    _write_candle_db(buf, short)
+
+    monkeypatch.setattr(live, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(pf, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(live, "LIVE_BUFFER", buf)
+
+    res = live.publish_live(tmp_path / "live.duckdb", today=d)
+    assert res["ready"] is False
+    assert "live_buffer" in res["reason"]
+    assert "150" in res["reason"]
