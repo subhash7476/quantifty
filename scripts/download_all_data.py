@@ -145,6 +145,14 @@ def _download_1m_candles(full: bool, lookback: int) -> bool:
     touches the trailing few sessions. Upstox caps 1-minute history at
     29 days per request; fetch_upstox_historical handles chunking.
     ON CONFLICT upsert makes re-running the same window idempotent.
+
+    Today's session is fetched via the intraday endpoint
+    (fetch_intraday_candles_v3) instead of historical — historical for
+    today is unreliable/unavailable until EOD, while intraday is the
+    live truth. The fetcher auto-splits [from, yesterday] historical +
+    today intraday when --to == today and unit == minutes; --persist-today
+    also materialises today's intraday into the per-date historical files
+    (nse/candles/1m/{today}.duckdb) so backtests can read today immediately.
     """
     nifty_keys = _load_nifty200_instrument_keys()
     if not nifty_keys:
@@ -172,15 +180,19 @@ def _download_1m_candles(full: bool, lookback: int) -> bool:
     end_iso = end_date.isoformat()
     joined = ",".join(instrument_keys)
     print(f"  [1m-candles] Universe: {len(nifty_keys)} Nifty200 + {len(ONE_MIN_INDICES)} indices = {len(instrument_keys)} keys")
-    print(f"  [1m-candles] Window: {start_iso} → {end_iso} (lookback {lookback}d, full={full})")
+    print(f"  [1m-candles] Window: {start_iso} → {end_iso} (lookback {lookback}d, full={full}) — today via intraday, past via historical")
     args = [
         "--instrument_key", joined,
         "--unit", "minutes",
         "--interval", "1",
         "--from", start_iso,
         "--to", end_iso,
+        "--persist-today",
     ]
     # 203 symbols × 2–30 days ≈ 200–1200 Upstox calls (29-day chunks, 8 rps).
+    # Historical split is [from, yesterday]; today is fetched via intraday
+    # (fetch_intraday_candles_v3) for immediate availability. --persist-today
+    # also writes today's intraday into nse/candles/1m/{today}.duckdb.
     # Allow 30 minutes wall time; 5 workers is the fetcher default.
     ok = _run(SCRIPTS / "fetch_upstox_historical.py", args=args,
               label="1m-candles", timeout=1800)

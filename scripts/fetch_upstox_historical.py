@@ -115,8 +115,30 @@ def fetch_symbol_data(client, symbol, unit, interval, from_date, to_date):
             
     return symbol, all_candles
 
-def insert_all_candles_to_db(db_manager: DatabaseManager, symbol_results: list, timeframe: str):
-    """Group all results by date and write efficiently."""
+
+def fetch_symbol_intraday(client, symbol, unit, interval):
+    """Fetch today's intraday candles for a single symbol (no date params)."""
+    limiter.wait()
+    try:
+        candles = client.fetch_intraday_candles_v3(
+            instrument_key=symbol,
+            unit=unit,
+            interval=interval,
+        )
+        return symbol, candles or []
+    except Exception as e:
+        logger.error(f"[{symbol}] Failed to fetch intraday {unit}/{interval}: {e}")
+        return symbol, []
+
+def insert_all_candles_to_db(db_manager: DatabaseManager, symbol_results: list, timeframe: str, persist_today_to_historical: bool = False):
+    """Group all results by date and write efficiently.
+
+    Today (>= today) goes to live_buffer by default. When
+    persist_today_to_historical is True, today's rows are *also*
+    written to the per-date historical files (nse/candles/<tf>/<date>.duckdb)
+    so a post-close daily job materialises today's file immediately
+    without waiting for the next day's historical backfill.
+    """
     historical_groups = defaultdict(list)
     live_groups = defaultdict(list)
     
@@ -145,7 +167,7 @@ def insert_all_candles_to_db(db_manager: DatabaseManager, symbol_results: list, 
             total_count += 1
 
     # Sequential writes to avoid lock contention
-    # 1. Write historical data
+    # 1. Write historical data (past dates)
     for (exchange, d), rows in historical_groups.items():
         try:
             # Each file opened and locked only once
@@ -166,6 +188,25 @@ def insert_all_candles_to_db(db_manager: DatabaseManager, symbol_results: list, 
                     logger.info(f"  [DB] Written {len(rows)} rows to live buffer ({d})")
         except Exception as e:
             logger.error(f"Error writing live buffer data: {e}")
+
+        # 3. Optionally duplicate today's rows to historical per-date files
+        if persist_today_to_historical:
+            # Regroup live rows by (exchange, date) for historical writer
+            hist_today = defaultdict(list)
+            for d, rows in live_groups.items():
+                for row in rows:
+                    # row = (symbol, timeframe, ts, o,h,l,c, vol)
+                    symbol = row[0]
+                    exchange = get_exchange_from_key(symbol)
+                    hist_today[(exchange, d)].append(row)
+            for (exchange, d), rows in hist_today.items():
+                try:
+                    with db_manager.historical_writer(exchange, 'candles', timeframe, d) as conn:
+                        conn.execute(schema.MARKET_CANDLES_SCHEMA)
+                        _batch_insert_rows(conn, rows)
+                        logger.info(f"  [DB] Persisted {len(rows)} today rows to historical {d} ({exchange})")
+                except Exception as e:
+                    logger.error(f"Error persisting today to historical for {d}: {e}")
 
     return total_count
 
@@ -205,6 +246,8 @@ def main():
     parser.add_argument('--from', dest='from_date', required=True)
     parser.add_argument('--to', dest='to_date', required=True)
     parser.add_argument('--workers', type=int, default=5, help='Number of parallel workers')
+    parser.add_argument('--no-intraday', action='store_true', help='Disable automatic intraday fetch for today (1m only)')
+    parser.add_argument('--persist-today', action='store_true', help='Also write today intraday rows to per-date historical files')
     
     args = parser.parse_args()
     
@@ -238,25 +281,90 @@ def main():
         
         start_total = time.time()
         
+        # Split window: historical up to yesterday, intraday for today (1m only).
+        # Upstox historical for today is unreliable/late; intraday endpoint is the
+        # source of truth for the in-flight session.
+        today_str = date.today().isoformat()
+        use_intraday = (
+            not args.no_intraday
+            and args.unit.lower() == 'minutes'
+            and args.to_date == today_str
+        )
+        hist_from = args.from_date
+        hist_to = args.to_date
+        intraday_needed = False
+        if use_intraday:
+            # Historical covers [from, yesterday]; today is fetched via intraday.
+            yesterday = (date.today() - timedelta(days=1)).isoformat()
+            if args.from_date == today_str:
+                # Window is exactly today → skip historical entirely
+                hist_from = None
+            elif args.from_date <= yesterday:
+                hist_to = yesterday
+            else:
+                hist_from = None
+            intraday_needed = True
+            logger.info(f"Intraday mode: historical window {hist_from} → {hist_to}, today via intraday")
+
         all_results = []
-        with ThreadPoolExecutor(max_workers=args.workers) as executor:
-            future_to_symbol = {
-                executor.submit(fetch_symbol_data, client, s, args.unit, args.interval, args.from_date, args.to_date): s 
-                for s in symbols_to_fetch
-            }
-            
-            for future in as_completed(future_to_symbol):
-                symbol, candles = future.result()
-                if candles:
-                    all_results.append((symbol, candles))
-                    logger.info(f"[{symbol}] Fetched {len(candles)} candles")
-                else:
-                    logger.warning(f"[{symbol}] No data found")
+        if hist_from is not None:
+            with ThreadPoolExecutor(max_workers=args.workers) as executor:
+                future_to_symbol = {
+                    executor.submit(fetch_symbol_data, client, s, args.unit, args.interval, hist_from, hist_to): s 
+                    for s in symbols_to_fetch
+                }
+                
+                for future in as_completed(future_to_symbol):
+                    symbol, candles = future.result()
+                    if candles:
+                        all_results.append((symbol, candles))
+                        logger.info(f"[{symbol}] Fetched {len(candles)} historical candles")
+                    else:
+                        logger.warning(f"[{symbol}] No historical data")
+
+        # Intraday for today (same symbols, same unit/interval)
+        if intraday_needed:
+            logger.info(f"Fetching intraday for today ({today_str}) for {len(symbols_to_fetch)} symbols...")
+            # Re-use limiter; intraday burst is also 8 rps.
+            intraday_results: dict[str, list] = {}
+            with ThreadPoolExecutor(max_workers=args.workers) as executor:
+                fut_map = {
+                    executor.submit(fetch_symbol_intraday, client, s, args.unit, args.interval): s
+                    for s in symbols_to_fetch
+                }
+                for fut in as_completed(fut_map):
+                    symbol, candles = fut.result()
+                    if candles:
+                        intraday_results[symbol] = candles
+                        logger.info(f"[{symbol}] Fetched {len(candles)} intraday candles")
+                    else:
+                        logger.warning(f"[{symbol}] No intraday data (market closed / holiday?)")
+
+            # Merge intraday into all_results (append or new entry)
+            if intraday_results:
+                # Index existing results for merge
+                existing = {sym: lst for sym, lst in all_results}
+                merged = []
+                seen = set()
+                for sym, lst in all_results:
+                    if sym in intraday_results:
+                        lst = lst + intraday_results[sym]
+                        seen.add(sym)
+                    merged.append((sym, lst))
+                for sym, lst in intraday_results.items():
+                    if sym not in seen and sym not in existing:
+                        merged.append((sym, lst))
+                all_results = merged
 
         if all_results:
             logger.info("Fetching complete. Starting optimized database write...")
-            total_inserted = insert_all_candles_to_db(db_manager, all_results, timeframe)
+            total_inserted = insert_all_candles_to_db(
+                db_manager, all_results, timeframe,
+                persist_today_to_historical=args.persist_today,
+            )
             logger.info(f"DATABASE WRITE COMPLETED. Total rows processed: {total_inserted}")
+        else:
+            logger.warning("No candles fetched (historical + intraday empty)")
 
         logger.info(f"TOTAL PROCESS COMPLETED in {time.time() - start_total:.2f} seconds")
         
