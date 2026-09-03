@@ -12,6 +12,7 @@ Two entry points:
 
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 from typing import Dict, List, Optional, Tuple
 
@@ -135,6 +136,73 @@ def scan_indices(
         results, structural, rv = scan_underlying(name, provider, config)
         out[name] = {"results": results, "structural": structural, "rv": rv}
     return out
+
+
+def _snapshot_mids(rows) -> Dict[Tuple[float, str], float]:
+    """Per-(strike, type) mid from a snapshot: bid/ask mid, else LTP."""
+    out: Dict[Tuple[float, str], float] = {}
+    for r in rows or []:
+        bid = getattr(r, "best_bid", None)
+        ask = getattr(r, "best_ask", None)
+        if bid and ask and bid > 0 and ask > 0:
+            mid = (bid + ask) / 2.0
+        else:
+            ltp = getattr(r, "ltp", None)
+            mid = ltp if ltp and ltp > 0 else None
+        if mid is not None:
+            out[(r.strike, r.option_type)] = mid
+    return out
+
+
+def _open_trade_marks(trade: Dict, mids: Dict[Tuple[float, str], float]):
+    """Current mark, unrealized P&L, and per-leg current mids for one open fly.
+
+    Mark is the cost-to-close (short legs add, wings subtract) × qty; unrealized
+    P&L is entry credit minus that. Returns (None, None, legs) if any leg is
+    unquoted in this snapshot.
+    """
+    legs = json.loads(trade["entry_legs"]) if trade.get("entry_legs") else []
+    cur_legs, mark, complete = [], 0.0, True
+    for l in legs:
+        m = mids.get((l["strike"], l["type"]))
+        cur_legs.append({"side": l["side"], "type": l["type"], "strike": l["strike"],
+                         "entry_mid": l.get("mid"), "cur_mid": m})
+        if m is None:
+            complete = False
+        elif complete:
+            mark += m if l["side"] == "SELL" else -m
+    current_mark = mark * trade["qty"] if complete else None
+    unrealized = (trade["net_credit"] - current_mark) if complete else None
+    return current_mark, unrealized, cur_legs
+
+
+def trades_view(name: str) -> List[Dict]:
+    """Open + closed paper flies for one index, newest first, with live marks.
+
+    Each open trade is marked against the newest quoted snapshot of its expiry
+    (current_mark / unrealized_pnl / current_legs); closed trades carry their
+    persisted realized fields unchanged. Read-only.
+    """
+    sym = UNDERLYINGS[name]
+    trades = persistence.all_trades(sym)
+    mids_by_expiry: Dict[str, Dict] = {}
+    for t in trades:
+        if t.get("exit_ts") is not None:
+            continue
+        exp = t["expiry"]
+        if exp not in mids_by_expiry:
+            # The snapshot store's sole writer is the live poller; a read that
+            # collides with an in-flight append raises transiently. Degrade to
+            # "unquoted" for this cycle rather than failing the whole endpoint.
+            try:
+                mids_by_expiry[exp] = _snapshot_mids(store.latest_snapshot(sym, exp))
+            except Exception:
+                mids_by_expiry[exp] = {}
+        mark, unrealized, cur_legs = _open_trade_marks(t, mids_by_expiry[exp])
+        t["current_mark"] = mark
+        t["unrealized_pnl"] = unrealized
+        t["current_legs"] = cur_legs
+    return trades
 
 
 def scan_and_persist(

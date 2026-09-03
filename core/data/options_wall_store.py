@@ -175,7 +175,13 @@ def latest_snapshot(
     finally:
         conn.close()
     if "best_bid" not in cols:
-        _migrate_columns(db_path)
+        # The live poller is this file's sole writer; a read-write migrate can't
+        # coexist with it. The column exists in every real store, so a failed
+        # migrate must never break a read — fall through to the SELECT.
+        try:
+            _migrate_columns(db_path)
+        except duckdb.IOException:
+            pass
     conn = _connect_ro(db_path)
     try:
         result = conn.execute(

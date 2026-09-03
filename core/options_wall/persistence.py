@@ -14,6 +14,7 @@ single-writer discipline as the snapshot store.
 from __future__ import annotations
 
 import json
+import time
 from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -24,6 +25,26 @@ from core.analytics.chain_scanner import ScanResult
 
 ROOT = Path(__file__).resolve().parents[2]
 WALL_RESULTS_DB = ROOT / "data" / "options" / "wall_scan_results.duckdb"
+
+_READ_RETRY_ATTEMPTS = 30
+_READ_RETRY_WAIT_S = 0.5
+
+
+def _connect_ro(db_path: Path) -> duckdb.DuckDBPyConnection:
+    """Read-only connection with a bounded retry on the cross-process write lock.
+
+    The poller writes this file; a read that lands mid-append raises transiently.
+    Mirrors options_wall_store._connect_ro so dashboard reads ride out a write.
+    """
+    last = None
+    for attempt in range(_READ_RETRY_ATTEMPTS):
+        try:
+            return duckdb.connect(str(db_path), read_only=True)
+        except duckdb.IOException as exc:
+            last = exc
+            if attempt + 1 < _READ_RETRY_ATTEMPTS:
+                time.sleep(_READ_RETRY_WAIT_S)
+    raise last
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS scan_results (
@@ -231,7 +252,7 @@ def get_oi_baseline(
     trade_date = trade_date or date.today()
     if not db_path.exists():
         return {}
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = _connect_ro(db_path)
     try:
         rows = conn.execute(
             "SELECT strike, option_type, oi FROM oi_baseline "
@@ -251,7 +272,7 @@ def latest_regime(
     trade_date = trade_date or date.today()
     if not db_path.exists():
         return None
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = _connect_ro(db_path)
     try:
         row = conn.execute(
             f"SELECT {_REGIME_SELECT} FROM session_regime WHERE underlying = ? AND trade_date = ? "
@@ -284,7 +305,7 @@ def latest_scan_results(
     """Newest scan cycle for `underlying`: (ts, rows sorted by score desc)."""
     if not db_path.exists():
         return None, []
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = _connect_ro(db_path)
     try:
         ts = conn.execute(
             "SELECT MAX(ts) FROM scan_results WHERE underlying = ?", [underlying],
@@ -337,7 +358,7 @@ def _ensure_trades_table(db_path: Path) -> None:
     open_trades runs before open_paper_trade in the executor's step, so the
     read path must not depend on a writer having initialized the schema first.
     """
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = _connect_ro(db_path)
     try:
         row = conn.execute(
             "SELECT count(*) FROM information_schema.tables "
@@ -357,11 +378,27 @@ def open_trades(underlying, db_path=WALL_RESULTS_DB) -> List[Dict]:
     if not db_path.exists():
         return []
     _ensure_trades_table(db_path)
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = _connect_ro(db_path)
     try:
         rows = conn.execute(
             "SELECT * FROM trades WHERE underlying = ? AND exit_ts IS NULL "
             "ORDER BY entry_ts", [underlying],
+        ).fetchall()
+    finally:
+        conn.close()
+    return [dict(zip(_TRADE_COLS, r)) for r in rows]
+
+
+def all_trades(underlying, db_path=WALL_RESULTS_DB) -> List[Dict]:
+    """Every paper trade for `underlying` (open and closed), newest entry first."""
+    if not db_path.exists():
+        return []
+    _ensure_trades_table(db_path)
+    conn = _connect_ro(db_path)
+    try:
+        rows = conn.execute(
+            "SELECT * FROM trades WHERE underlying = ? ORDER BY entry_ts DESC",
+            [underlying],
         ).fetchall()
     finally:
         conn.close()
@@ -393,7 +430,7 @@ def regime_river(
     """Latest regime row for each of the newest `limit` sessions, ascending."""
     if not db_path.exists():
         return []
-    conn = duckdb.connect(str(db_path), read_only=True)
+    conn = _connect_ro(db_path)
     try:
         rows = conn.execute(
             f"""

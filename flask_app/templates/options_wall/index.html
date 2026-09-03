@@ -130,6 +130,25 @@
         <div id="farm-rows" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 18px;"></div>
     </div>
 
+    <!-- Paper trades -->
+    <div class="ow-card" style="padding: 22px 26px 20px;" id="trades-card">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+            <span class="display" style="font-size: 21px;">Paper trades &middot; <span id="trades-count">0</span> open</span>
+            <span style="font-size: 12px; color: var(--muted);">Auto-opened &amp; managed by the executor. Marks update live from the newest quoted snapshot.</span>
+        </div>
+        <div style="margin-top: 16px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
+            <div style="display: grid; grid-template-columns: 72px 148px 1fr 64px repeat(3, minmax(0,1fr)) 84px; gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
+                <span>Status</span><span>Entered</span><span>Structure</span>
+                <span style="text-align:right;">Qty</span>
+                <span style="text-align:right;">Credit</span>
+                <span style="text-align:right;">Mark</span>
+                <span style="text-align:right;">P&amp;L ₹</span>
+                <span style="text-align:right;">Note</span>
+            </div>
+            <div id="trades-body"></div>
+        </div>
+    </div>
+
     <!-- Regime river -->
     <div class="ow-card" style="padding: 22px 26px 20px;">
         <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
@@ -248,7 +267,7 @@ function paintTabs() {
 function switchIndex(index) {
     currentIndex = index;
     state.open = null; closePanel();
-    paintTabs(); loadFarm(); loadRiver();
+    paintTabs(); loadFarm(); loadRiver(); loadTrades();
 }
 
 /* ------------------------------------------------------------- regime band */
@@ -904,6 +923,65 @@ async function loadRiver() {
     }
 }
 
+/* ------------------------------------------------------------- paper trades */
+function pnlColor(v) { return v == null ? 'var(--muted)' : (v >= 0 ? C.green : '#B4472F'); }
+function money(v) { return v == null ? '—' : '₹' + Math.round(v).toLocaleString('en-IN'); }
+
+function tradeRow(t, isOpen) {
+    const pnl = isOpen ? t.unrealized_pnl : t.net_pnl;
+    const mark = isOpen ? t.current_mark : t.exit_mark;
+    const legs = t.current_legs || JSON.parse(t.entry_legs || '[]');
+    const legStr = legs.map(l =>
+        '<span style="margin-right:14px;white-space:nowrap;">' + (l.side === 'SELL' ? '−' : '+') + ' ' +
+        n(l.strike, 0) + ' ' + l.type + ' @' + n(l.entry_mid != null ? l.entry_mid : l.mid, 1) +
+        (l.cur_mid != null ? ' <span style="color:var(--muted);">→ ' + n(l.cur_mid, 1) + '</span>' : '') + '</span>').join('');
+    return '<div style="padding:12px 16px;border-top:1px solid #F5F2ED;">' +
+      '<div style="display:grid;grid-template-columns:72px 148px 1fr 64px repeat(3,minmax(0,1fr)) 84px;gap:8px;align-items:center;' +
+        'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;">' +
+        '<span style="justify-self:start;font-family:\'Public Sans\',sans-serif;font-size:10px;letter-spacing:.07em;padding:2px 9px;border-radius:999px;background:' +
+          (isOpen ? 'rgba(25,122,90,.10);color:' + C.green : '#EFECE6;color:var(--muted)') + ';">' + (isOpen ? 'OPEN' : 'CLOSED') + '</span>' +
+        '<span style="color:var(--muted);">' + (t.entry_ts ? new Date(t.entry_ts).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '--') + '</span>' +
+        '<span style="font-family:\'Public Sans\',sans-serif;">Iron fly ' + n(t.short_strike, 0) + ' <span style="color:var(--faint);">wings ' + n(t.put_wing, 0) + '/' + n(t.call_wing, 0) + '</span></span>' +
+        '<span style="text-align:right;">' + t.qty + '</span>' +
+        '<span style="text-align:right;">' + money(t.net_credit) + '</span>' +
+        '<span style="text-align:right;">' + money(mark) + '</span>' +
+        '<span style="text-align:right;color:' + pnlColor(pnl) + ';">' + money(pnl) + '</span>' +
+        '<span style="text-align:right;color:var(--faint);font-size:11px;">' + (isOpen ? 'live' : (t.exit_reason || '')) + '</span>' +
+      '</div>' +
+      '<div style="margin-top:6px;font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:var(--faint);">' + legStr + '</div>' +
+    '</div>';
+}
+
+function paintTrades() {
+    const rows = state.trades || [];
+    const open = rows.filter(t => !t.exit_ts);
+    const closed = rows.filter(t => t.exit_ts);
+    document.getElementById('trades-count').textContent = open.length;
+    const body = document.getElementById('trades-body');
+    if (!rows.length) {
+        body.innerHTML = '<div style="padding:26px;text-align:center;color:var(--muted);font-size:13px;">' +
+            'No paper trades yet. The executor opens an iron fly when a farm signal fires inside the entry window.</div>';
+        return;
+    }
+    body.innerHTML = open.map(t => tradeRow(t, true)).join('') + closed.map(t => tradeRow(t, false)).join('');
+}
+
+async function loadTrades() {
+    try {
+        const resp = await fetch('/options/wall/api/trades?index=' + currentIndex);
+        const data = await resp.json();
+        state.trades = data.trades || [];
+        paintTrades();
+    } catch (err) {
+        console.error('Failed to load paper trades:', err);
+    }
+}
+
+async function silentRefresh() {
+    // Keep farm list + regime fresh without the manual-scan spinner theatre.
+    try { await fetch('/options/wall/api/refresh', { method: 'POST' }); } catch (err) { /* transient */ }
+}
+
 async function triggerRefresh() {
     if (state.scanning) return;
     state.scanning = true;
@@ -934,8 +1012,11 @@ document.addEventListener('DOMContentLoaded', function () {
     paintTabs();
     loadFarm();
     loadRiver();
-    setInterval(loadFarm, 15000);
+    loadTrades();
+    setInterval(loadTrades, 7000);      // live paper-trade marks
+    setInterval(loadFarm, 10000);       // re-read latest scan + regime band
     setInterval(loadRiver, 60000);
+    setInterval(silentRefresh, 30000);  // persist a fresh scan so farm/regime keep moving
 });
 </script>
 {% endblock %}

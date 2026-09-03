@@ -59,6 +59,19 @@ def api_farm():
     })
 
 
+@options_wall_bp.route("/api/trades")
+@login_required
+def api_trades():
+    index = request.args.get("index", "NIFTY").upper()
+    from core.options_wall.engine import trades_view
+    rows = trades_view(index)
+    for r in rows:
+        for k in ("entry_ts", "exit_ts"):
+            if r.get(k) is not None:
+                r[k] = r[k].isoformat()
+    return jsonify({"index": index, "trades": rows})
+
+
 @options_wall_bp.route("/api/regime")
 @login_required
 def api_regime():
