@@ -49,8 +49,12 @@ INSTRUMENTS_URL = "https://assets.upstox.com/market-quote/instruments/exchange/c
 DB_PATH = ROOT / "data" / "instruments" / "nse_fo_instruments.duckdb"
 
 # Segments the platform trades (FO/EQ) or references as an underlying (INDEX).
-ACCEPTED_SEGMENTS = ("NSE_FO", "MCX_FO", "NSE_EQ", "NSE_INDEX")
+# BSE_FO / BSE_INDEX carry Sensex (and Bankex) derivatives + the index underlying.
+ACCEPTED_SEGMENTS = ("NSE_FO", "MCX_FO", "NSE_EQ", "NSE_INDEX", "BSE_FO", "BSE_INDEX")
 # Derivative segments whose cleanly-typed shape the contract-shape guard asserts.
+# BSE_FO is intentionally excluded: its type vocabulary is unverified and the guard
+# rejects the whole publish (NSE included) on any stray type. BSE contracts are
+# still ingested via ACCEPTED_SEGMENTS; only the shape assertion skips them.
 _DERIVATIVE_SEGMENTS = ("NSE_FO", "MCX_FO")
 # The traded underlyings whose active expiry the refresh validates before publish.
 DEFAULT_UNDERLYINGS = ("NIFTY", "BANKNIFTY")

@@ -28,6 +28,7 @@ from core.options_wall import persistence
 UNDERLYINGS = {
     "NIFTY": "NSE_INDEX|Nifty 50",
     "BANKNIFTY": "NSE_INDEX|Nifty Bank",
+    "SENSEX": "BSE_INDEX|SENSEX",
 }
 
 DEALER_SIDE = "inferred"   # per-contract sign from the OI×price grid (wall_metrics doc)

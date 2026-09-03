@@ -22,4 +22,4 @@ def test_poll_cycle_invokes_executor(tmp_path, monkeypatch):
     monkeypatch.setattr(p, "_executor_step",
                         lambda name, sym, rows, expiry: calls.append(name))
     p._poll_cycle(_FakeProvider())
-    assert set(calls) == {"NIFTY", "BANKNIFTY"}
+    assert set(calls) == {"NIFTY", "BANKNIFTY", "SENSEX"}

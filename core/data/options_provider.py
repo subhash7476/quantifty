@@ -89,12 +89,15 @@ class OptionsProvider:
     UNDERLYING_MAP = {
         "NIFTY": "NSE_INDEX|Nifty 50",
         "BANKNIFTY": "NSE_INDEX|Nifty Bank",
+        "SENSEX": "BSE_INDEX|SENSEX",
     }
-    
-    # Expiry weekday mapping (Nifty: Tuesday, Banknifty: Wednesday)
+
+    # Expiry weekday mapping (Nifty: Tuesday, Banknifty: Wednesday, Sensex: Thursday).
+    # Fallback only — the real expiry is read from the instrument master.
     EXPIRY_WEEKDAY = {
         "NSE_INDEX|Nifty 50": 1,      # Tuesday
         "NSE_INDEX|Nifty Bank": 2,    # Wednesday
+        "BSE_INDEX|SENSEX": 3,        # Thursday
     }
     
     def __init__(self, db_path: Optional[Path] = None, read_only: bool = False):
@@ -514,6 +517,7 @@ class OptionsProvider:
         index_map = {
             "NSE_INDEX|Nifty 50": "NIFTY",
             "NSE_INDEX|Nifty Bank": "BANKNIFTY",
+            "BSE_INDEX|SENSEX": "SENSEX",
         }
         index_name = index_map.get(underlying)
         

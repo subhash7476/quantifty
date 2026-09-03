@@ -40,6 +40,7 @@ ROOT = Path(__file__).resolve().parents[2]
 UNDERLYINGS = {
     "NIFTY": "NSE_INDEX|Nifty 50",
     "BANKNIFTY": "NSE_INDEX|Nifty Bank",
+    "SENSEX": "BSE_INDEX|SENSEX",
 }
 
 POLL_INTERVAL_S = 5.0

@@ -37,6 +37,7 @@
         <div style="display: flex; gap: 2px; background: #EFECE6; padding: 3px; border-radius: 8px;">
             <button onclick="switchIndex('NIFTY')" id="tab-NIFTY" class="ow-tab">Nifty 50</button>
             <button onclick="switchIndex('BANKNIFTY')" id="tab-BANKNIFTY" class="ow-tab">Bank Nifty</button>
+            <button onclick="switchIndex('SENSEX')" id="tab-SENSEX" class="ow-tab">Sensex</button>
         </div>
         <div id="spot-readout" style="display: flex; align-items: baseline; gap: 9px;">
             <span id="spot-value" class="mono" style="font-size: 21px; letter-spacing: -.02em;">--</span>
@@ -255,7 +256,7 @@ function dte(expiry) {
 
 /* ------------------------------------------------------------- index tabs */
 function paintTabs() {
-    ['NIFTY', 'BANKNIFTY'].forEach(k => {
+    ['NIFTY', 'BANKNIFTY', 'SENSEX'].forEach(k => {
         const b = document.getElementById('tab-' + k);
         const on = currentIndex === k;
         b.setAttribute('style',
@@ -310,7 +311,7 @@ function paintRegimeBand() {
     const positive = (r.regime || '').includes('Positive');
     const neutral = r.regime === 'Neutral';
     document.getElementById('hero-meta').textContent =
-        (currentIndex === 'NIFTY' ? 'Nifty 50' : 'Bank Nifty') +
+        ({ NIFTY: 'Nifty 50', BANKNIFTY: 'Bank Nifty', SENSEX: 'Sensex' }[currentIndex] || currentIndex) +
         (state.rows[0] && state.rows[0].expiry ? '  ·  ' + state.rows[0].expiry + ' expiry' : '') +
         (state.rows[0] && dte(state.rows[0].expiry) != null ? '  ·  ' + dte(state.rows[0].expiry) + ' DTE' : '');
     document.getElementById('hero-title').innerHTML = r.regime
