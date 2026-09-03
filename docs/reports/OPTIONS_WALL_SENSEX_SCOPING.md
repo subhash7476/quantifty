@@ -8,8 +8,11 @@
 
 - **D1 (BSE in instrument master): DONE + verified.** `BSE_FO`/`BSE_INDEX` added to `ACCEPTED_SEGMENTS`; master re-fetched (61,692 rows). `BSE_INDEX|SENSEX` resolves, live option chain returns 260 rows @ spot 76,615, weekly expiry Thursday.
 - **Code wiring 1–6: DONE + verified.** Sensex is a tab; `trades_view('SENSEX')` and the structural build both work (regime "Positive GEX (Stable)", pin 75,200). Farm screen correctly returns 0 signals because RV is `None`.
-- **D2 (Sensex 1m candles for realized vol): NOT done — the remaining job**, scoped below. Until it lands, the Sensex tab shows the live structural wall + trades but the **premium-farm screen stays dark** (no RV → no farm signal → no paper trades).
+- **D2 (Sensex 1m candles for realized vol): DONE.** Backfilled 8 sessions (2026-08-24 → 09-02, 3,000 1m bars) via `fetch_intermarket_data.py --instrument "BSE_INDEX|SENSEX" --include-1m`; `session_realized_vol_pct('BSE_INDEX|SENSEX')` returns **7.37%**. The farm screen is unblocked. Implementation note below.
 - Requires a **Flask + poller restart** to load (both `UNDERLYINGS` dicts and the template changed).
+
+### D2 as implemented (differs from the original plan below)
+`BSE_INDEX|SENSEX` maps to exchange **`bse`** (`get_exchange_from_key`), so the fetcher writes to `data/market_data/**bse**/candles/1m/{date}.duckdb` — not `nse/`. Rather than co-locate BSE data in the NSE dir, `realized_vol` was made exchange-aware (`_candles_1m_dir(symbol)` resolves the dir from the symbol's exchange; NSE behavior unchanged). `BSE_INDEX|SENSEX` was added to `ONE_MIN_INDICES` in `scripts/download_all_data.py` so the nightly pipeline keeps it current. **Still TODO for durability:** confirm the BSE holiday calendar in the nightly job, and today's session isn't backfilled by the historical endpoint (intraday-only) — RV uses the 5 most recent SENSEX-bearing files, so it stays valid, but a same-day top-up would keep it freshest.
 
 ## TL;DR
 

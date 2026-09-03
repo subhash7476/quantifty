@@ -16,14 +16,22 @@ from typing import List, Optional
 
 import duckdb
 
+from core.database.utils.symbol_utils import get_exchange_from_key
+
 ROOT = Path(__file__).resolve().parents[2]
-CANDLES_1M_DIR = ROOT / "data" / "market_data" / "nse" / "candles" / "1m"
+MARKET_DATA_DIR = ROOT / "data" / "market_data"
+CANDLES_1M_DIR = MARKET_DATA_DIR / "nse" / "candles" / "1m"
 TRADING_DAYS_PER_YEAR = 252
 BARS_PER_SESSION = 375
 
 
+def _candles_1m_dir(symbol: str) -> Path:
+    """1m store dir for a symbol's exchange (nse for NSE_*, bse for BSE_INDEX|SENSEX)."""
+    return MARKET_DATA_DIR / get_exchange_from_key(symbol) / "candles" / "1m"
+
+
 def _load_sessions(symbol: str, lookback_files: int = 5) -> List[List[float]]:
-    files = sorted(CANDLES_1M_DIR.glob("*.duckdb"), reverse=True)
+    files = sorted(_candles_1m_dir(symbol).glob("*.duckdb"), reverse=True)
     sessions: List[List[float]] = []
     for f in files:
         if len(sessions) >= lookback_files:

@@ -56,6 +56,7 @@ ONE_MIN_INDICES = [
     "NSE_INDEX|Nifty 50",
     "NSE_INDEX|Nifty Bank",
     "NSE_INDEX|India VIX",
+    "BSE_INDEX|SENSEX",   # Options-Wall Sensex realized-vol; lands in bse/candles/1m/
 ]
 
 
