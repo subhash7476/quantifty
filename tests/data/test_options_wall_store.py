@@ -153,3 +153,39 @@ def test_reads_give_up_after_the_retry_budget(tmp_path, monkeypatch):
     monkeypatch.setattr(store, "READ_RETRY_WAIT_S", 0.0)
     with pytest.raises(duckdb.IOException):
         store.snapshot_timestamps("NSE_INDEX|Nifty 50", db_path=db)
+
+
+# --------------------------------------------------------------------------- #
+# Per-day files: each session lands in wall_chain_snapshots/{date}.duckdb so a
+# single file never grows unbounded (the 2 GB single-file failure mode).
+# --------------------------------------------------------------------------- #
+from datetime import date, datetime
+
+
+def test_db_for_date_is_dated_file_in_base_dir(tmp_path):
+    p = ws.db_for_date(date(2026, 9, 3), base_dir=tmp_path)
+    assert p == tmp_path / "2026-09-03.duckdb"
+
+
+def test_append_default_routes_to_todays_per_day_file(tmp_path):
+    ts = datetime(2026, 9, 3, 10, 0, 0)
+    ws.append_snapshot([_row(100.0, "CE", 5.0, "K1")], "NSE_INDEX|Nifty 50",
+                       "2026-09-08", ts=ts, base_dir=tmp_path)
+    assert (tmp_path / "2026-09-03.duckdb").exists()
+    # default read (no db_path) resolves the newest per-day file
+    chain = ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-09-08", base_dir=tmp_path)
+    assert len(chain) == 1 and chain[0].strike == 100.0
+
+
+def test_latest_snapshot_reads_the_newest_per_day_file(tmp_path):
+    ws.append_snapshot([_row(100.0, "CE", 5.0, "K1")], "NSE_INDEX|Nifty 50",
+                       "2026-09-08", ts=datetime(2026, 9, 2, 15, 0), base_dir=tmp_path)
+    ws.append_snapshot([_row(200.0, "CE", 7.0, "K2")], "NSE_INDEX|Nifty 50",
+                       "2026-09-08", ts=datetime(2026, 9, 3, 10, 0), base_dir=tmp_path)
+    chain = ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-09-08", base_dir=tmp_path)
+    assert len(chain) == 1 and chain[0].strike == 200.0   # newest day wins
+
+
+def test_default_reads_return_empty_when_no_per_day_file_yet(tmp_path):
+    assert ws.latest_snapshot("NSE_INDEX|Nifty 50", "2026-09-08", base_dir=tmp_path) == []
+    assert ws.snapshot_timestamps("NSE_INDEX|Nifty 50", base_dir=tmp_path) == []

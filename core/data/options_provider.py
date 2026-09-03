@@ -116,6 +116,10 @@ class OptionsProvider:
         self._cache: Dict[str, List[OptionChainRow]] = {}
         self._last_fetch_time: Dict[str, datetime] = {}
         self._underlying_cache: Dict[str, UnderlyingData] = {}
+        # Weekly-expiry memo: key = (underlying, as_of_date). The expiry changes
+        # at most once a day, but each lookup opens the instrument-master DuckDB;
+        # the pollers call it 2-3x every 5s cycle. Memoise per (sym, date).
+        self._expiry_memo: Dict[tuple, str] = {}
 
         # Initialize database schema (writer only)
         if not read_only:
@@ -513,6 +517,11 @@ class OptionsProvider:
         Get the nearest weekly expiry date for given index.
         Uses instrument master if available, otherwise calculates.
         """
+        memo_key = (underlying, as_of_date or date.today())
+        cached = self._expiry_memo.get(memo_key)
+        if cached is not None:
+            return cached
+
         # Map underlying to index name
         index_map = {
             "NSE_INDEX|Nifty 50": "NIFTY",
@@ -533,6 +542,7 @@ class OptionsProvider:
                 """, [index_name, (as_of_date or date.today()).isoformat()]).fetchone()
                 conn.close()
                 if result and result[0]:
+                    self._expiry_memo[memo_key] = result[0]
                     return result[0]
             except Exception:
                 pass
@@ -543,7 +553,9 @@ class OptionsProvider:
         target = as_of + timedelta(days=1)
         days_ahead = (expiry_weekday - target.weekday()) % 7
         expiry = target + timedelta(days=days_ahead)
-        return expiry.strftime("%Y-%m-%d")
+        resolved = expiry.strftime("%Y-%m-%d")
+        self._expiry_memo[memo_key] = resolved
+        return resolved
     
     def get_available_expiries(
         self,

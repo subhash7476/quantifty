@@ -7,6 +7,7 @@ children; stops them cleanly. See the design spec for the full contract.
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import os
 import signal
@@ -73,6 +74,12 @@ CHILDREN = {
     "eod": ChildSpec(
         "eod", [PY, str(ROOT / "scripts" / "schedule_worker.py")],
         native_lock=ROOT / "data" / "_eod_worker.lock"),
+    # Options-Wall pilot poller — its own PID lock, independent of the NiftyShield
+    # session. Supervised (crash-restart) but never gates the production start
+    # sequence; `stop` skips it like the other natively-locked children.
+    "wall_poller": ChildSpec(
+        "wall_poller", [PY, str(ROOT / "scripts" / "options_wall_poller.py")],
+        native_lock=ROOT / "data" / "options" / "wall_poller.pid"),
 }
 
 
@@ -189,6 +196,10 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
 
     # 9. Ensure the EOD worker.
     _ensure(deps, "eod")
+
+    # 10. Ensure the Options-Wall pilot poller (independent; last, so it never
+    #     gates the production path).
+    _ensure(deps, "wall_poller")
     return "started"
 
 
@@ -261,8 +272,45 @@ class Supervisor:
             self._stopper(CHILDREN[name], self._started[name])
 
 
-def _dispatch_catchup() -> None:
-    """Fire download_all_data as a detached background one-shot; never blocks."""
+CATCHUP_STAMP = OPS_DIR / "last_catchup.json"
+
+
+def _catchup_due(*, stamp_path: Path = CATCHUP_STAMP,
+                 now: Optional[datetime] = None) -> bool:
+    """True when no catch-up download has been dispatched today.
+
+    The catch-up is a whole-pipeline bhavcopy/1m re-walk that costs hundreds of
+    Upstox calls; firing it on every orchestrator start meant a restart mid-session
+    re-ran it against the same stores while the live pollers competed for the same
+    rate limit. The EOD chain (`core/scheduler/eod_job.py`) still runs it
+    unconditionally after close — that is the run which picks up today's bhavcopy.
+    """
+    today = (now or datetime.now()).date().isoformat()
+    try:
+        return json.loads(Path(stamp_path).read_text(encoding="utf-8")).get("date") != today
+    except (OSError, ValueError, AttributeError):
+        return True
+
+
+def _record_catchup(*, stamp_path: Path = CATCHUP_STAMP,
+                    now: Optional[datetime] = None) -> None:
+    """Stamp the dispatch. Records *dispatched*, not *succeeded* — the ingests
+    self-heal on their trailing lookback window and EOD re-runs nightly."""
+    at = now or datetime.now()
+    stamp_path = Path(stamp_path)
+    stamp_path.parent.mkdir(parents=True, exist_ok=True)
+    stamp_path.write_text(
+        json.dumps({"date": at.date().isoformat(), "dispatched_at": at.isoformat()}),
+        encoding="utf-8")
+
+
+def _dispatch_catchup(*, stamp_path: Path = CATCHUP_STAMP) -> None:
+    """Fire download_all_data as a detached background one-shot; never blocks.
+
+    At most once per calendar day (`_catchup_due`)."""
+    if not _catchup_due(stamp_path=stamp_path):
+        _logger.info("catch-up download already dispatched today — skipping")
+        return
     argv = [PY, str(ROOT / "scripts" / "download_all_data.py")]
     flags = _CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     kw = {"cwd": str(ROOT)}
@@ -272,6 +320,7 @@ def _dispatch_catchup() -> None:
         kw["start_new_session"] = True
     try:
         subprocess.Popen(argv, **kw)
+        _record_catchup(stamp_path=stamp_path)
         _logger.info("background catch-up download dispatched")
     except Exception as exc:  # noqa: BLE001
         _logger.warning("catch-up dispatch failed (non-blocking): %s", exc)
@@ -335,7 +384,7 @@ def _live_deps(started: dict) -> Deps:
 def _cmd_start(dry_run: bool) -> int:
     if dry_run:
         print("DRY-RUN start plan (dependency order):")
-        for name in ["flask", "ingestor", "poller", "session", "eod"]:
+        for name in ["flask", "ingestor", "poller", "session", "eod", "wall_poller"]:
             spec = CHILDREN[name]
             print(f"  {name:9} -> {' '.join(spec.argv)}"
                   + (" [new group]" if spec.new_group else ""))

@@ -18,7 +18,7 @@ Conventions:
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import List, Optional
 
@@ -27,7 +27,30 @@ import duckdb
 from core.data.options_provider import OptionChainRow
 
 ROOT = Path(__file__).resolve().parents[2]
+# Per-day files. Each session lands in its own DuckDB so a single file never grows
+# unbounded — the 2 GB / 1.9 M-row single-file failure mode that pushed append
+# latency past the 5 s poll interval. Nothing reads snapshot *history*: the only
+# access patterns are latest_snapshot (newest cycle) and snapshot_timestamps
+# (staleness), so a bounded per-session file loses nothing a reader consumes.
+# (The derived scan trail + regime river live in wall_scan_results.duckdb.)
+WALL_SNAPSHOT_DIR = ROOT / "data" / "options" / "wall_chain_snapshots"
+# Legacy single-file store (pre per-day split). Orphaned once the poller writes
+# per-day files; retained only so an operator can archive/drop it deliberately.
 WALL_SNAPSHOT_DB = ROOT / "data" / "options" / "wall_chain_snapshots.duckdb"
+
+
+def db_for_date(d: date, base_dir: Path = WALL_SNAPSHOT_DIR) -> Path:
+    """The per-day snapshot file for `d` (data/options/wall_chain_snapshots/{date}.duckdb)."""
+    return Path(base_dir) / f"{d.isoformat()}.duckdb"
+
+
+def _newest_db(base_dir: Path = WALL_SNAPSHOT_DIR) -> Optional[Path]:
+    """Newest existing per-day file, or None if the directory is empty/absent."""
+    base_dir = Path(base_dir)
+    if not base_dir.exists():
+        return None
+    files = sorted(base_dir.glob("*.duckdb"))
+    return files[-1] if files else None
 
 # The poller's appends hold the file for 3-8 s each on the ~1.8 GB live store
 # (measured 2026-09-02: four secondary indexes over 1.7M rows); readers ride that
@@ -112,16 +135,21 @@ def append_snapshot(
     underlying: str,
     expiry: str,
     ts: Optional[datetime] = None,
-    db_path: Path = WALL_SNAPSHOT_DB,
+    db_path: Optional[Path] = None,
     quotes: Optional[dict] = None,
+    base_dir: Path = WALL_SNAPSHOT_DIR,
 ) -> datetime:
     """Append one full chain snapshot for (underlying, expiry) under a single ts.
 
+    Writes to the per-day file for `ts` unless an explicit `db_path` is given.
     `quotes` (optional, keyed by instrument_key with best_bid/best_ask) is the
     bid/ask enrichment from `UpstoxMarketData.fetch_quotes_batch`; when absent the
     two columns are stored NULL.
     """
     ts = ts or datetime.now()
+    if db_path is None:
+        db_path = db_for_date(ts.date(), base_dir)
+    db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = duckdb.connect(str(db_path))
     try:
@@ -163,9 +191,17 @@ def _migrate_columns(db_path: Path) -> None:
 def latest_snapshot(
     underlying: str,
     expiry: str,
-    db_path: Path = WALL_SNAPSHOT_DB,
+    db_path: Optional[Path] = None,
+    base_dir: Path = WALL_SNAPSHOT_DIR,
 ) -> List[OptionChainRow]:
-    """Newest cycle for (underlying, expiry), or [] if none recorded."""
+    """Newest cycle for (underlying, expiry), or [] if none recorded.
+
+    With no explicit `db_path`, reads the newest per-day file."""
+    if db_path is None:
+        db_path = _newest_db(base_dir)
+        if db_path is None:
+            return []
+    db_path = Path(db_path)
     if not db_path.exists():
         return []
     conn = _connect_ro(db_path)
@@ -223,8 +259,16 @@ def latest_snapshot(
 
 def snapshot_timestamps(
     underlying: str,
-    db_path: Path = WALL_SNAPSHOT_DB,
+    db_path: Optional[Path] = None,
+    base_dir: Path = WALL_SNAPSHOT_DIR,
 ) -> List[datetime]:
+    """Cycle timestamps for `underlying`. With no explicit `db_path`, reads the
+    newest per-day file (staleness only needs the latest, and it lives there)."""
+    if db_path is None:
+        db_path = _newest_db(base_dir)
+        if db_path is None:
+            return []
+    db_path = Path(db_path)
     if not db_path.exists():
         return []
     conn = _connect_ro(db_path)
