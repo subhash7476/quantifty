@@ -237,3 +237,68 @@ def test_supervisor_shutdown_leaves_adopted_children():
     )
     sup.shutdown()
     assert stops == ["session"]                   # session only; eod untouched
+
+
+# --------------------------------------------------------------------------- #
+# Catch-up download: at most one dispatch per calendar day
+# --------------------------------------------------------------------------- #
+def test_catchup_due_when_no_stamp(tmp_path):
+    assert orch._catchup_due(stamp_path=tmp_path / "absent.json",
+                             now=datetime(2026, 9, 3, 9, 20)) is True
+
+
+def test_catchup_not_due_after_todays_stamp(tmp_path):
+    stamp = tmp_path / "last_catchup.json"
+    orch._record_catchup(stamp_path=stamp, now=datetime(2026, 9, 3, 9, 20))
+    assert orch._catchup_due(stamp_path=stamp,
+                            now=datetime(2026, 9, 3, 14, 55)) is False
+
+
+def test_catchup_due_again_the_next_day(tmp_path):
+    stamp = tmp_path / "last_catchup.json"
+    orch._record_catchup(stamp_path=stamp, now=datetime(2026, 9, 3, 9, 20))
+    assert orch._catchup_due(stamp_path=stamp,
+                            now=datetime(2026, 9, 4, 9, 20)) is True
+
+
+def test_catchup_due_when_stamp_is_corrupt(tmp_path):
+    stamp = tmp_path / "last_catchup.json"
+    stamp.write_text("not json", encoding="utf-8")
+    assert orch._catchup_due(stamp_path=stamp,
+                             now=datetime(2026, 9, 3, 9, 20)) is True
+
+
+def test_dispatch_catchup_spawns_once_per_day(tmp_path, monkeypatch):
+    stamp = tmp_path / "last_catchup.json"
+    spawned = []
+    monkeypatch.setattr(orch.subprocess, "Popen",
+                        lambda argv, **kw: spawned.append(argv) or _FakePopen(argv))
+    orch._dispatch_catchup(stamp_path=stamp)
+    orch._dispatch_catchup(stamp_path=stamp)
+    orch._dispatch_catchup(stamp_path=stamp)
+    assert len(spawned) == 1
+    assert "download_all_data.py" in spawned[0][-1]
+
+
+# --------------------------------------------------------------------------- #
+# Wall poller adopted as a supervised, natively-locked child
+# --------------------------------------------------------------------------- #
+def test_wall_poller_is_a_native_locked_child():
+    spec = orch.CHILDREN["wall_poller"]
+    assert spec.native_lock is not None and spec.pid_path is None
+    assert "options_wall_poller.py" in spec.argv[-1]
+
+
+def test_happy_path_ensures_wall_poller():
+    deps, calls = _deps()
+    assert orch.start_sequence(deps) == "started"
+    assert "wall_poller" in calls["spawned"]
+
+
+def test_stop_skips_wall_poller(monkeypatch, tmp_path):
+    # natively-locked children are never torn down by `stop` (like poller/eod)
+    stops = []
+    monkeypatch.setattr(orch, "stop_child", lambda spec, proc, **k: stops.append(spec.name))
+    monkeypatch.setattr(orch.pidfile, "read_pid", lambda p: None)
+    orch._cmd_stop()
+    assert "wall_poller" not in stops

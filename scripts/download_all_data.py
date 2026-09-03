@@ -40,8 +40,18 @@ from pathlib import Path
 import duckdb
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from scripts.ops import pidfile
+
 SCRIPTS = ROOT / "scripts"
 DATA = ROOT / "data" / "market_data"
+
+# Single-instance lock. Two pipelines running at once (the orchestrator's
+# start-of-session catch-up overlapping the EOD chain, or a hand-run overlapping
+# either) ingest the same trailing window into the same DuckDB stores
+# concurrently and compete for the same Upstox rate limit.
+RUN_LOCK = ROOT / "data" / "ops" / "download_all_data.pid"
 
 LOOKBACK_DAYS = 7  # trailing window re-checked each incremental run (self-heals gaps)
 
@@ -328,6 +338,18 @@ def refresh_strategies():
 
 
 def main():
+    if not pidfile.acquire_lock(RUN_LOCK):
+        print(f"another download_all_data.py is already running "
+              f"(PID {pidfile.read_pid(RUN_LOCK)}) — refusing to start a second "
+              f"pipeline against the same stores")
+        return 1
+    try:
+        return _main()
+    finally:
+        pidfile.release_lock(RUN_LOCK)
+
+
+def _main():
     download_only = "--download-only" in sys.argv
     build_only = "--build-only" in sys.argv
     full = "--full" in sys.argv

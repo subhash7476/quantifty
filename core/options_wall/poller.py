@@ -24,6 +24,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -74,14 +75,16 @@ class WallPoller:
     """Long-running, accumulating writer of `wall_chain_snapshots.duckdb`."""
 
     def __init__(self, *, heartbeat_path: Path, pid_path: Path,
-                 snapshot_db_path: Path = store.WALL_SNAPSHOT_DB,
+                 snapshot_db_path: Optional[Path] = None,
                  results_db_path: Path = persistence.WALL_RESULTS_DB,
                  poll_interval_s: float = POLL_INTERVAL_S,
                  idle_interval_s: float = IDLE_INTERVAL_S,
                  token_retry_interval_s: float = TOKEN_RETRY_INTERVAL_S):
         self._heartbeat_path = Path(heartbeat_path)
         self._pid_path = Path(pid_path)
-        self._snapshot_db_path = Path(snapshot_db_path)
+        # None → the store writes to the per-day file for each cycle's date; an
+        # explicit path (tests) pins a single file.
+        self._snapshot_db_path = Path(snapshot_db_path) if snapshot_db_path else None
         self._results_db_path = Path(results_db_path)
         self._baseline_done: set = set()   # (sym, trade_date) captured this process
         self._poll_interval_s = poll_interval_s
@@ -129,9 +132,11 @@ class WallPoller:
         from core.options_wall.paper_executor import PaperExecutor
         if not hasattr(self, "_executor"):
             self._executor = PaperExecutor(db_path=self._results_db_path)
+        if not hasattr(self, "_analytics"):
+            self._analytics = OptionsAnalytics()
         spot = rows[0].underlying_ltp or 0.0
         from core.options_wall.engine import DEALER_SIDE
-        structural = OptionsAnalytics().build_structural_snapshot(
+        structural = self._analytics.build_structural_snapshot(
             rows, sym, spot, expiry, dealer_side=DEALER_SIDE)
         rv = session_realized_vol_pct(sym)
         action = self._executor.step(sym, rows, structural, rv, datetime.now())
@@ -156,6 +161,7 @@ class WallPoller:
         Returns {name: rows_written} (or -1 on fetch error, 0 on empty).
         """
         rows_by_name = {}
+        market_data = UpstoxMarketData()
         for name, sym in UNDERLYINGS.items():
             try:
                 expiry = provider.get_weekly_expiry(sym)
@@ -164,7 +170,7 @@ class WallPoller:
                     keys = [r.instrument_key for r in rows if r.instrument_key]
                     quotes = {}
                     if keys:
-                        qresp = UpstoxMarketData().fetch_quotes_batch(keys)
+                        qresp = market_data.fetch_quotes_batch(keys)
                         quotes = qresp.get("quotes", {})
                         if qresp.get("error"):
                             logger.warning("%s quotes error: %s", name, qresp["error"])
