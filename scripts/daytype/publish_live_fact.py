@@ -42,7 +42,7 @@ sys.path.insert(0, str(ROOT))
 
 from core.logging import setup_logger  # noqa: E402
 from scripts.daytype.publish_facts import (  # noqa: E402
-    CANDLE_DIR_1M, CHECKPOINT, TARGET_BAR, TRAINED_ON,
+    CANDLE_DIR_1M, CHECKPOINT, MIN_BARS, TRAINED_ON,
     commit_ref, model_hash, regime_fact_version,
 )
 
@@ -94,19 +94,41 @@ def _read_candles(path: Path, symbol: str,
 
 SESSION_OPEN_MIN = 555                  # 09:15 IST, in minutes from midnight
 CHECKPOINT_MIN = 780                    # 13:00 IST
-REQUIRED_BARS = TARGET_BAR + 1          # 226 bars, 09:15..13:00 inclusive
 
 
-def _session_frame(df: pd.DataFrame,
-                   upto_min: int = CHECKPOINT_MIN) -> Optional[pd.DataFrame]:
-    """Bars filtered to 09:15..the checkpoint. No coverage judgement here."""
+def _session_frame(df: pd.DataFrame) -> Optional[pd.DataFrame]:
+    """Session bars from 09:15 up to and including the first bar at/after 13:00.
+
+    No coverage judgement here — the caller decides acceptance from the returned
+    frame (its last bar's minute vs the checkpoint, and its length). This mirrors
+    the DayTypeEngine, which fires 13pm on the first bar whose wall-clock time is
+    >= 13:00, so a single dropped interior minute is harmless. When no bar reaches
+    13:00 the full 09:15-onward frame is returned so the coverage note reports the
+    true count and last minute.
+    """
     if df is None or df.empty or "timestamp" not in df.columns:
         return None
     df = df.copy()
     df["timestamp"] = pd.to_datetime(df["timestamp"])
-    hour_min = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
-    return df[(hour_min >= SESSION_OPEN_MIN)
-              & (hour_min <= upto_min)].reset_index(drop=True)
+    minute = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
+    sess = df[minute >= SESSION_OPEN_MIN].sort_values("timestamp").reset_index(drop=True)
+    if sess.empty:
+        return sess
+    sess_min = sess["timestamp"].dt.hour * 60 + sess["timestamp"].dt.minute
+    reached = sess.index[sess_min >= CHECKPOINT_MIN]
+    if len(reached):
+        return sess.iloc[: reached[0] + 1].reset_index(drop=True)
+    return sess
+
+
+def _reaches_checkpoint(frame: Optional[pd.DataFrame]) -> bool:
+    """True iff the frame's last bar is at/after 13:00 — the engine's wall-clock
+    trigger condition. A frame that stops before 13:00 can never fire 13pm, which
+    guards the ``13pm``-stamped-from-a-truncated-window fabrication."""
+    if frame is None or frame.empty:
+        return False
+    last = frame["timestamp"].iloc[-1]
+    return last.hour * 60 + last.minute >= CHECKPOINT_MIN
 
 
 def _coverage(frame: Optional[pd.DataFrame]) -> str:
@@ -117,25 +139,21 @@ def _coverage(frame: Optional[pd.DataFrame]) -> str:
 
 def _today_bars(symbol: str, today: date,
                 diag: Optional[list] = None) -> tuple:
-    """Today's session bars from the first source that COVERS 09:15..13:00.
+    """Today's session bars from the first source that reaches 13:00.
 
     Ordered ladder: per-day store, then the live buffer. Returns
     ``(frame, source_label)``.
 
-    A source that reads but falls short of the checkpoint is REJECTED and the
-    ladder continues. Two live misses came from getting this wrong:
+    A source is accepted iff its session frame REACHES 13:00 (a bar at/after the
+    checkpoint exists) AND holds >= MIN_BARS (100) bars -- the exact condition the
+    DayTypeEngine needs to fire 13pm (wall-clock trigger, gap-tolerant). Interior
+    gaps are tolerated: on 2026-09-03 the live buffer held 225 of 226 bars,
+    missing only the interior minute 12:53, and the engine processes that fine.
 
-    * 2026-09-02 -- `download_all_data --persist-today` wrote a 43-bar
-      09:15..09:57 snapshot into the per-day store *mid-session*. The read
-      succeeded, the short frame was returned as-is, and the live buffer --
-      holding all 226 bars -- was never tried.
-    * 2026-08-31 -- the stack started at 11:39, so no source held the morning.
-      A 100..225-bar frame clears `MIN_BARS` (100) yet can never reach
-      `compute_13pm_state`'s bar index 225, so the miss surfaced three bar
-      counts later as the opaque "no 13pm checkpoint produced".
-
-    Coverage and the 226-bar requirement are therefore the SAME number, checked
-    once, at source selection -- not two independent gates.
+    A source that does not reach 13:00 is REJECTED and the ladder continues (the
+    2026-09-02 partial per-day store stopped at 09:57; the 2026-08-31 late start
+    at 11:39 never held the morning). Not-ready names every source and its
+    coverage in one line.
     """
     sources = (("per_day_store", CANDLE_DIR_1M / f"{today.isoformat()}.duckdb"),
                ("live_buffer", LIVE_BUFFER))
@@ -148,12 +166,15 @@ def _today_bars(symbol: str, today: date,
             _note(diag, f"{label}: unreadable")
             continue
         frame = _session_frame(df)
-        if frame is not None and len(frame) >= REQUIRED_BARS:
+        n = 0 if frame is None else len(frame)
+        if _reaches_checkpoint(frame) and n >= MIN_BARS:
             _note(diag, f"{label}: {_coverage(frame)} -> used")
             return frame, label
-        _note(diag, f"{label}: {_coverage(frame)} -- short of 13:00, rejected")
-        logger.warning("%s: %s short of 13:00 for %s (%s); trying next source",
-                       symbol, label, today, _coverage(frame))
+        why = ("short of 13:00" if not _reaches_checkpoint(frame)
+               else f"only {n} bars < {MIN_BARS}")
+        _note(diag, f"{label}: {_coverage(frame)} -- {why}, rejected")
+        logger.warning("%s: %s %s for %s (%s); trying next source",
+                       symbol, label, why, today, _coverage(frame))
     return None, None
 
 

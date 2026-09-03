@@ -500,3 +500,98 @@ def test_source_short_of_checkpoint_is_rejected_with_coverage_in_reason(tmp_path
     assert res["ready"] is False
     assert "live_buffer" in res["reason"]
     assert "150" in res["reason"]
+
+
+@pytest.mark.skipif(not _model_present(), reason="models/daytype not present")
+def test_interior_gap_frame_still_publishes_13pm(tmp_path, monkeypatch):
+    """2026-09-03 13:00 miss: the live buffer held 09:15..13:00 minus one interior
+    minute (12:53) — 225 of 226 bars. The Sep-2 len>=226 gate rejected it, though
+    the wall-clock engine processes it fine. A single dropped bar must not block
+    the fact."""
+    import scripts.daytype.publish_live_fact as live
+
+    d = date(2023, 1, 2)
+
+    def drop_1253(df):
+        m = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
+        return df[m != (12 * 60 + 53)].reset_index(drop=True)
+
+    full = {
+        pf.NF_SYMBOL: drop_1253(_craft_session_bars(seed=1, base=24000.0)),
+        pf.BN_SYMBOL: drop_1253(_craft_session_bars(seed=2, base=52000.0)),
+        pf.VIX_SYMBOL: drop_1253(_craft_session_bars(seed=3, base=14.0)),
+    }
+    assert len(full[pf.NF_SYMBOL]) == 225        # one interior bar dropped
+
+    candle_dir = tmp_path / "candles_1m"
+    candle_dir.mkdir()
+    buf = tmp_path / "candles_today.duckdb"
+    _write_candle_db(buf, full)
+    monkeypatch.setattr(live, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(pf, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(live, "LIVE_BUFFER", buf)
+
+    res = live.publish_live(tmp_path / "live.duckdb", today=d)
+    assert res["ready"] is True, res.get("reason")
+
+
+@pytest.mark.skipif(not _model_present(), reason="models/daytype not present")
+def test_missing_exact_1300_bar_fires_on_next_bar(tmp_path, monkeypatch):
+    """If the 13:00 bar itself is the dropped minute but 13:01 has arrived, the
+    feed has passed the checkpoint and the engine fires on the >=13:00 bar. The
+    fact must publish without any backfill."""
+    import scripts.daytype.publish_live_fact as live
+
+    d = date(2023, 1, 2)
+
+    def to_1301_drop_1300(seed, base):
+        df = _craft_session_bars(seed=seed, base=base, min_count=227)  # 09:15..13:01
+        m = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
+        return df[m != (13 * 60)].reset_index(drop=True)              # drop 13:00
+
+    full = {
+        pf.NF_SYMBOL: to_1301_drop_1300(1, 24000.0),
+        pf.BN_SYMBOL: to_1301_drop_1300(2, 52000.0),
+        pf.VIX_SYMBOL: to_1301_drop_1300(3, 14.0),
+    }
+    candle_dir = tmp_path / "candles_1m"
+    candle_dir.mkdir()
+    buf = tmp_path / "candles_today.duckdb"
+    _write_candle_db(buf, full)
+    monkeypatch.setattr(live, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(pf, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(live, "LIVE_BUFFER", buf)
+
+    res = live.publish_live(tmp_path / "live.duckdb", today=d)
+    assert res["ready"] is True, res.get("reason")
+
+
+@pytest.mark.skipif(not _model_present(), reason="models/daytype not present")
+def test_reaches_checkpoint_but_below_min_bars_is_rejected(tmp_path, monkeypatch):
+    """Guard: the loosened gate must still reject a frame with too few bars.
+    Reaching 13:00 is necessary but not sufficient — the engine needs
+    >= MIN_BARS (100). A ~90-bar frame that includes the 13:00 bar is rejected,
+    and the reason reports its coverage."""
+    import scripts.daytype.publish_live_fact as live
+
+    d = date(2023, 1, 2)
+
+    def sparse(df):                               # 90 bars: first 89 + the 13:00 bar
+        return pd.concat([df.head(89), df.tail(1)]).reset_index(drop=True)
+
+    thin = {
+        pf.NF_SYMBOL: sparse(_craft_session_bars(seed=1, base=24000.0)),
+        pf.BN_SYMBOL: sparse(_craft_session_bars(seed=2, base=52000.0)),
+        pf.VIX_SYMBOL: sparse(_craft_session_bars(seed=3, base=14.0)),
+    }
+    candle_dir = tmp_path / "candles_1m"
+    candle_dir.mkdir()
+    buf = tmp_path / "candles_today.duckdb"
+    _write_candle_db(buf, thin)
+    monkeypatch.setattr(live, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(pf, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(live, "LIVE_BUFFER", buf)
+
+    res = live.publish_live(tmp_path / "live.duckdb", today=d)
+    assert res["ready"] is False
+    assert "90" in res["reason"]
