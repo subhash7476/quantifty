@@ -1,10 +1,11 @@
 """Options-Wall scan-result persistence.
 
-Three tables in one DuckDB file, all append-only (latest-wins reads):
+Four tables in one DuckDB file; the first three are append-only (latest-wins reads):
 
   scan_results   — one row per ScanResult (the persisted farm list / scan trail)
   session_regime — one row per (trade_date, underlying, ts); the regime river
   oi_baseline    — 09:15 OI per strike, captured once per session (INSERT OR IGNORE)
+  trades         — one row per paper iron fly, updated in place on close
 
 The wall snapshot store (`wall_chain_snapshots.duckdb`) holds raw chains; this
 file holds derived scan output. The poller is the SOLE writer of both stores;
