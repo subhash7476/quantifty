@@ -40,7 +40,7 @@ def _connect_ro(db_path: Path) -> duckdb.DuckDBPyConnection:
     for attempt in range(_READ_RETRY_ATTEMPTS):
         try:
             return duckdb.connect(str(db_path), read_only=True)
-        except duckdb.IOException as exc:
+        except (duckdb.IOException, duckdb.ConnectionException) as exc:
             last = exc
             if attempt + 1 < _READ_RETRY_ATTEMPTS:
                 time.sleep(_READ_RETRY_WAIT_S)
@@ -58,7 +58,7 @@ def _connect_rw(db_path: Path) -> duckdb.DuckDBPyConnection:
     for attempt in range(_READ_RETRY_ATTEMPTS):
         try:
             return duckdb.connect(str(db_path))
-        except duckdb.IOException as exc:
+        except (duckdb.IOException, duckdb.ConnectionException) as exc:
             last = exc
             if attempt + 1 < _READ_RETRY_ATTEMPTS:
                 time.sleep(_READ_RETRY_WAIT_S)
