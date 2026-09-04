@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from core.analytics.chain_scanner import ChainScanner, ScanConfig, ScanResult
@@ -61,6 +62,31 @@ def _run_scan(chain, sym, expiry, config):
 
     results = ChainScanner(config).scan_chain(chain, structural, rv, quotes)
     return results, structural, rv
+
+
+def persist_scan_and_regime(
+    sym: str,
+    chain: List,
+    quotes: Optional[Dict[str, dict]],
+    structural: OptionsStructuralData,
+    rv: Optional[float],
+    *,
+    config: Optional[ScanConfig] = None,
+    db_path: Path = persistence.WALL_RESULTS_DB,
+) -> int:
+    """Scan an already-fetched chain and persist scan_results + session_regime.
+
+    The single-writer persist path used by the poller: it passes the chain,
+    quotes, structural, and rv it built for its executor this cycle, so nothing
+    is re-fetched. The 09:15 OI baseline is captured by the poller separately;
+    this only reads it (RO) before the two writes so the cycle stays RO→RW→RW.
+    Returns the number of scan_results rows written."""
+    results = ChainScanner(config).scan_chain(chain, structural, rv, quotes)
+    baseline = persistence.get_oi_baseline(sym, db_path=db_path)
+    persistence.write_scan_results(results, sym, db_path=db_path)
+    persistence.write_regime(
+        sym, _regime_snapshot(structural, chain, rv, baseline), db_path=db_path)
+    return len(results)
 
 
 def _atm_iv(chain, spot):

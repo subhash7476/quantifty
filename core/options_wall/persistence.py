@@ -7,8 +7,8 @@ Three tables in one DuckDB file, all append-only (latest-wins reads):
   oi_baseline    — 09:15 OI per strike, captured once per session (INSERT OR IGNORE)
 
 The wall snapshot store (`wall_chain_snapshots.duckdb`) holds raw chains; this
-file holds derived scan output. Writers open short-lived connections — the same
-single-writer discipline as the snapshot store.
+file holds derived scan output. The poller is the SOLE writer of both stores;
+Flask holds only read-only connections. Writers open short-lived connections.
 """
 
 from __future__ import annotations
@@ -48,11 +48,14 @@ def _connect_ro(db_path: Path) -> duckdb.DuckDBPyConnection:
 
 
 def _connect_rw(db_path: Path) -> duckdb.DuckDBPyConnection:
-    """Read-write connection with a bounded retry on the cross-process write lock.
+    """Read-write connection with a bounded retry (belt-and-suspenders).
 
-    Two processes write this file — Flask's scan_and_persist and the poller's
-    executor — so a write can land while the other holds the lock. Retry rather
-    than fail the scan (which would leave a dashboard gate empty).
+    Only the poller writes this file now, but a single cycle alternates RO and RW
+    connections against it (get_oi_baseline → write_scan_results → write_regime,
+    plus the executor's open_trades → open_paper_trade). The short-lived
+    `finally: close()` is what normally makes that fine; the retry — on both the
+    cross-process IOException and the same-process ConnectionException ("different
+    configuration than existing connections") — covers when a flip overlaps.
     """
     last = None
     for attempt in range(_READ_RETRY_ATTEMPTS):
@@ -370,32 +373,23 @@ def open_paper_trade(underlying, expiry, fly, entry_ts, db_path=WALL_RESULTS_DB)
     return row[0]
 
 
-def _ensure_trades_table(db_path: Path) -> None:
-    """Create the trades table in a results DB that predates it (idempotent).
-
-    open_trades runs before open_paper_trade in the executor's step, so the
-    read path must not depend on a writer having initialized the schema first.
-    """
+def _trades_table_exists(db_path: Path) -> bool:
+    """True if the `trades` table exists. Read-only by design: the read path must
+    never create it — the poller is the results DB's sole writer, and Flask reads
+    trades every ~7s, so a create-on-read here would make Flask a second writer."""
     conn = _connect_ro(db_path)
     try:
         row = conn.execute(
             "SELECT count(*) FROM information_schema.tables "
             "WHERE table_schema = 'main' AND table_name = 'trades'").fetchone()
-        exists = bool(row and row[0])
     finally:
         conn.close()
-    if not exists:
-        conn = _connect_rw(db_path)
-        try:
-            init_schema(conn)
-        finally:
-            conn.close()
+    return bool(row and row[0])
 
 
 def open_trades(underlying, db_path=WALL_RESULTS_DB) -> List[Dict]:
-    if not db_path.exists():
+    if not db_path.exists() or not _trades_table_exists(db_path):
         return []
-    _ensure_trades_table(db_path)
     conn = _connect_ro(db_path)
     try:
         rows = conn.execute(
@@ -409,9 +403,8 @@ def open_trades(underlying, db_path=WALL_RESULTS_DB) -> List[Dict]:
 
 def all_trades(underlying, db_path=WALL_RESULTS_DB) -> List[Dict]:
     """Every paper trade for `underlying` (open and closed), newest entry first."""
-    if not db_path.exists():
+    if not db_path.exists() or not _trades_table_exists(db_path):
         return []
-    _ensure_trades_table(db_path)
     conn = _connect_ro(db_path)
     try:
         rows = conn.execute(

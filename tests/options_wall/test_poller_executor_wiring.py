@@ -18,8 +18,15 @@ def test_poll_cycle_invokes_executor(tmp_path, monkeypatch):
     monkeypatch.setattr("core.options_wall.poller.UpstoxMarketData",
         lambda: type("M", (), {"fetch_quotes_batch": lambda self, k: {"quotes": {}}})())
     p = WallPoller(heartbeat_path=tmp_path / "hb.json", pid_path=tmp_path / "p.pid",
-                   snapshot_db_path=tmp_path / "w.duckdb")
+                   snapshot_db_path=tmp_path / "w.duckdb",
+                   results_db_path=tmp_path / "res.duckdb")
+    # Bypass the real analytics build + scan-persist; this test asserts only that
+    # the executor is invoked once per underlying.
+    monkeypatch.setattr(p, "_analytics_for",
+                        lambda sym, rows, expiry: (object(), 9.0))
+    monkeypatch.setattr(p, "_scan_persist_step",
+                        lambda name, sym, rows, structural, rv, quotes: None)
     monkeypatch.setattr(p, "_executor_step",
-                        lambda name, sym, rows, expiry: calls.append(name))
+                        lambda name, sym, rows, structural, rv: calls.append(name))
     p._poll_cycle(_FakeProvider())
     assert set(calls) == {"NIFTY", "BANKNIFTY", "SENSEX"}

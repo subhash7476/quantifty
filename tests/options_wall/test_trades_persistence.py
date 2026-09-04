@@ -26,6 +26,30 @@ def test_open_then_close_trade(tmp_path):
     assert p.open_trades("NSE_INDEX|Nifty 50", db_path=db) == []
 
 
+def test_read_path_never_creates_trades_table(tmp_path):
+    """Flask reads trades every ~7s; the read path must stay read-only so the
+    poller remains the results DB's sole writer. A results DB whose `trades`
+    table doesn't exist yet returns [] and is left without the table created."""
+    import duckdb
+
+    db = tmp_path / "res.duckdb"
+    # A results DB that has other tables but no `trades` (poller hasn't written
+    # a trade yet, or Flask opened the dashboard before the poller's first cycle).
+    conn = duckdb.connect(str(db))
+    conn.execute("CREATE TABLE scan_results (ts TIMESTAMP)")
+    conn.close()
+
+    assert p.open_trades("NSE_INDEX|Nifty 50", db_path=db) == []
+    assert p.all_trades("NSE_INDEX|Nifty 50", db_path=db) == []
+
+    conn = duckdb.connect(str(db), read_only=True)
+    tables = {r[0] for r in conn.execute(
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_schema = 'main'").fetchall()}
+    conn.close()
+    assert "trades" not in tables          # the read path created nothing
+
+
 def test_all_trades_returns_open_and_closed_newest_first(tmp_path):
     db = tmp_path / "res.duckdb"
     fly = build_iron_fly(_chain(), spot=100.0, wing_pct=0.03, qty=75,
