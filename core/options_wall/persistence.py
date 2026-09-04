@@ -46,6 +46,24 @@ def _connect_ro(db_path: Path) -> duckdb.DuckDBPyConnection:
                 time.sleep(_READ_RETRY_WAIT_S)
     raise last
 
+
+def _connect_rw(db_path: Path) -> duckdb.DuckDBPyConnection:
+    """Read-write connection with a bounded retry on the cross-process write lock.
+
+    Two processes write this file — Flask's scan_and_persist and the poller's
+    executor — so a write can land while the other holds the lock. Retry rather
+    than fail the scan (which would leave a dashboard gate empty).
+    """
+    last = None
+    for attempt in range(_READ_RETRY_ATTEMPTS):
+        try:
+            return duckdb.connect(str(db_path))
+        except duckdb.IOException as exc:
+            last = exc
+            if attempt + 1 < _READ_RETRY_ATTEMPTS:
+                time.sleep(_READ_RETRY_WAIT_S)
+    raise last
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS scan_results (
     ts              TIMESTAMP NOT NULL,
@@ -172,7 +190,7 @@ def write_scan_results(
 ) -> int:
     ts = ts or datetime.now()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(db_path))
+    conn = _connect_rw(db_path)
     try:
         init_schema(conn)
         for r in results:
@@ -206,7 +224,7 @@ def write_regime(
         if values.get(col) is not None:
             values[col] = json.dumps(values[col])
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(db_path))
+    conn = _connect_rw(db_path)
     try:
         init_schema(conn)
         conn.execute(
@@ -228,7 +246,7 @@ def capture_oi_baseline(
     """Record 09:15 OI per strike once per session (idempotent via PK)."""
     trade_date = trade_date or date.today()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(db_path))
+    conn = _connect_rw(db_path)
     n = 0
     try:
         init_schema(conn)
@@ -335,7 +353,7 @@ def _legs_json(fly) -> str:
 
 def open_paper_trade(underlying, expiry, fly, entry_ts, db_path=WALL_RESULTS_DB) -> int:
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = duckdb.connect(str(db_path))
+    conn = _connect_rw(db_path)
     try:
         init_schema(conn)
         row = conn.execute(
@@ -367,7 +385,7 @@ def _ensure_trades_table(db_path: Path) -> None:
     finally:
         conn.close()
     if not exists:
-        conn = duckdb.connect(str(db_path))
+        conn = _connect_rw(db_path)
         try:
             init_schema(conn)
         finally:
@@ -408,7 +426,7 @@ def all_trades(underlying, db_path=WALL_RESULTS_DB) -> List[Dict]:
 def close_paper_trade(trade_id, exit_ts, exit_mark, exit_fees, gross_pnl,
                       net_pnl, exit_reason, return_on_margin=None, exit_legs=None,
                       db_path=WALL_RESULTS_DB) -> None:
-    conn = duckdb.connect(str(db_path))
+    conn = _connect_rw(db_path)
     try:
         init_schema(conn)
         conn.execute(

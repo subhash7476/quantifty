@@ -127,10 +127,14 @@ def scan_underlying(
 
 
 def scan_indices(
-    names: Tuple[str, ...] = ("NIFTY", "BANKNIFTY"),
+    names: Optional[Tuple[str, ...]] = None,
     config: Optional[ScanConfig] = None,
 ) -> Dict[str, dict]:
-    """Scan the given indices; returns {name: {results, structural, rv}}."""
+    """Scan the given indices; returns {name: {results, structural, rv}}.
+
+    Defaults to every configured underlying (NIFTY, BANKNIFTY, SENSEX).
+    """
+    names = names or tuple(UNDERLYINGS)
     provider = OptionsProvider(read_only=True)
     out: Dict[str, dict] = {}
     for name in names:
@@ -207,14 +211,16 @@ def trades_view(name: str) -> List[Dict]:
 
 
 def scan_and_persist(
-    names: Tuple[str, ...] = ("NIFTY", "BANKNIFTY"),
+    names: Optional[Tuple[str, ...]] = None,
     config: Optional[ScanConfig] = None,
 ) -> Dict[str, int]:
     """Scan each index and persist scan_results + session_regime + OI baseline.
 
     Returns {name: number of scan_results rows written} for indices whose chain
-    resolved; a name with no chain is omitted.
+    resolved; a name with no chain is omitted. Defaults to every configured
+    underlying (NIFTY, BANKNIFTY, SENSEX) so the dashboard gate covers them all.
     """
+    names = names or tuple(UNDERLYINGS)
     provider = OptionsProvider(read_only=True)
     written: Dict[str, int] = {}
     for name in names:
