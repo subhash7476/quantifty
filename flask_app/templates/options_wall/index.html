@@ -978,35 +978,29 @@ async function loadTrades() {
     }
 }
 
-async function silentRefresh() {
-    // Keep farm list + regime fresh without the manual-scan spinner theatre.
-    try { await fetch('/options/wall/api/refresh', { method: 'POST' }); } catch (err) { /* transient */ }
-}
-
 async function triggerRefresh() {
+    // Read-only: the poller is the results DB's sole writer, so "Scan now" just
+    // re-reads the freshest persisted farm/regime/trades — it triggers no scan.
     if (state.scanning) return;
     state.scanning = true;
     const btn = document.getElementById('refresh-scan-btn');
     document.getElementById('scan-spinner').style.display = 'inline-block';
-    document.getElementById('scan-label').textContent = 'Scanning';
+    document.getElementById('scan-label').textContent = 'Refreshing';
     document.getElementById('poll-dot').style.background = C.amber;
     btn.style.background = '#EFECE6';
     btn.style.color = C.muted;
 
     try {
-        await fetch('/options/wall/api/refresh', { method: 'POST' });
-        setTimeout(() => { loadFarm(); loadRiver(); }, 4000);
+        await Promise.all([loadFarm(), loadRiver(), loadTrades()]);
     } catch (err) {
         console.error('Refresh failed:', err);
     }
-    setTimeout(() => {
-        state.scanning = false;
-        document.getElementById('scan-spinner').style.display = 'none';
-        document.getElementById('scan-label').textContent = 'Scan now';
-        document.getElementById('poll-dot').style.background = C.green;
-        btn.style.background = '#FFFFFF';
-        btn.style.color = C.ink;
-    }, 4200);
+    state.scanning = false;
+    document.getElementById('scan-spinner').style.display = 'none';
+    document.getElementById('scan-label').textContent = 'Scan now';
+    document.getElementById('poll-dot').style.background = C.green;
+    btn.style.background = '#FFFFFF';
+    btn.style.color = C.ink;
 }
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -1017,7 +1011,6 @@ document.addEventListener('DOMContentLoaded', function () {
     setInterval(loadTrades, 7000);      // live paper-trade marks
     setInterval(loadFarm, 10000);       // re-read latest scan + regime band
     setInterval(loadRiver, 60000);
-    setInterval(silentRefresh, 30000);  // persist a fresh scan so farm/regime keep moving
 });
 </script>
 {% endblock %}

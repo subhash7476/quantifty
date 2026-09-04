@@ -1,13 +1,16 @@
-"""Options-Wall chain poller — the sole writer of `wall_chain_snapshots.duckdb`.
+"""Options-Wall chain poller — the sole writer of BOTH results stores.
 
-Accumulates Nifty + BankNifty near-weekly chains every poll cycle during market
-hours. Append-only: each cycle appends one fresh snapshot per underlying via
+Accumulates Nifty + BankNifty + Sensex near-weekly chains every poll cycle during
+market hours. Append-only: each cycle appends one fresh snapshot per underlying via
 `options_wall_store.append_snapshot` — nothing is overwritten, so the scan trail
 and regime river keep their history.
 
-Single-writer discipline (review LOW-3): this process is the ONLY writer to the
-snapshot store. The scan engine reads it; it does not append. A PID lock prevents
-a second instance from opening the same file read-write.
+Single-writer discipline: this process is the ONLY writer to both
+`wall_chain_snapshots.duckdb` (raw chains) and `wall_scan_results.duckdb`
+(scan_results / session_regime / oi_baseline / trades). Each cycle it appends the
+snapshot, runs the paper executor, and — throttled to SCAN_PERSIST_INTERVAL_S —
+scans + persists scan_results + session_regime. Flask only ever reads these files.
+A PID lock prevents a second instance from opening the snapshot file read-write.
 
 Loudness mirrors the repo pitfalls: token absent/stale → loud + retry; outside
 market hours → idle; a fetch failure is a transient log event, never a permanent
@@ -31,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from core.data import options_wall_store as store
 from core.data.options_provider import OptionsProvider
 from core.options_wall import persistence
+from core.options_wall.engine import UNDERLYINGS
 from core.brokers.upstox_market_data import UpstoxMarketData
 from core.database.utils.market_hours import MarketHours
 from core.logging import setup_logger
@@ -38,15 +42,13 @@ from core.logging import setup_logger
 logger = setup_logger("options_wall_poller")
 
 ROOT = Path(__file__).resolve().parents[2]
-UNDERLYINGS = {
-    "NIFTY": "NSE_INDEX|Nifty 50",
-    "BANKNIFTY": "NSE_INDEX|Nifty Bank",
-    "SENSEX": "BSE_INDEX|SENSEX",
-}
+# UNDERLYINGS is imported from the engine so the poller (the results DB's sole
+# writer) and Flask's read path (_sym) can never disagree on what to persist.
 
 POLL_INTERVAL_S = 5.0
 IDLE_INTERVAL_S = 30.0
 TOKEN_RETRY_INTERVAL_S = 30.0
+SCAN_PERSIST_INTERVAL_S = 30.0   # throttle scan_results/regime writes below the 5s cycle
 
 
 def _token_ok() -> bool:
@@ -79,7 +81,8 @@ class WallPoller:
                  results_db_path: Path = persistence.WALL_RESULTS_DB,
                  poll_interval_s: float = POLL_INTERVAL_S,
                  idle_interval_s: float = IDLE_INTERVAL_S,
-                 token_retry_interval_s: float = TOKEN_RETRY_INTERVAL_S):
+                 token_retry_interval_s: float = TOKEN_RETRY_INTERVAL_S,
+                 scan_persist_interval_s: float = SCAN_PERSIST_INTERVAL_S):
         self._heartbeat_path = Path(heartbeat_path)
         self._pid_path = Path(pid_path)
         # None → the store writes to the per-day file for each cycle's date; an
@@ -87,9 +90,11 @@ class WallPoller:
         self._snapshot_db_path = Path(snapshot_db_path) if snapshot_db_path else None
         self._results_db_path = Path(results_db_path)
         self._baseline_done: set = set()   # (sym, trade_date) captured this process
+        self._scan_last: dict = {}         # sym → monotonic ts of last scan/regime write
         self._poll_interval_s = poll_interval_s
         self._idle_interval_s = idle_interval_s
         self._token_retry_interval_s = token_retry_interval_s
+        self._scan_persist_interval_s = scan_persist_interval_s
         self._stop = False
 
     def _acquire_lock(self) -> bool:
@@ -126,22 +131,41 @@ class WallPoller:
         except OSError as exc:
             logger.error("heartbeat write failed: %s", exc)
 
-    def _executor_step(self, name, sym, rows, expiry):
+    def _analytics_for(self, sym, rows, expiry):
+        """Structural snapshot + realized vol, built once per underlying so the
+        executor and the scan-persist step share one build (no double compute)."""
         from core.analytics.options_analytics import OptionsAnalytics
         from core.analytics.realized_vol import session_realized_vol_pct
-        from core.options_wall.paper_executor import PaperExecutor
-        if not hasattr(self, "_executor"):
-            self._executor = PaperExecutor(db_path=self._results_db_path)
+        from core.options_wall.engine import DEALER_SIDE
         if not hasattr(self, "_analytics"):
             self._analytics = OptionsAnalytics()
         spot = rows[0].underlying_ltp or 0.0
-        from core.options_wall.engine import DEALER_SIDE
         structural = self._analytics.build_structural_snapshot(
             rows, sym, spot, expiry, dealer_side=DEALER_SIDE)
         rv = session_realized_vol_pct(sym)
+        return structural, rv
+
+    def _executor_step(self, name, sym, rows, structural, rv):
+        from core.options_wall.paper_executor import PaperExecutor
+        if not hasattr(self, "_executor"):
+            self._executor = PaperExecutor(db_path=self._results_db_path)
         action = self._executor.step(sym, rows, structural, rv, datetime.now())
         if action:
             logger.info("%s paper action: %s", name, action)
+
+    def _scan_persist_step(self, name, sym, rows, structural, rv, quotes):
+        """Persist scan_results + session_regime for this cycle (the poller is the
+        results DB's sole writer). Throttled per underlying to
+        `scan_persist_interval_s` so the 5s executor cadence never bloats the
+        scan/regime tables; the executor still runs every cycle."""
+        now = time.monotonic()
+        if now - self._scan_last.get(sym, float("-inf")) < self._scan_persist_interval_s:
+            return
+        from core.options_wall.engine import persist_scan_and_regime
+        n = persist_scan_and_regime(sym, rows, quotes, structural, rv,
+                                    db_path=self._results_db_path)
+        self._scan_last[sym] = now
+        logger.info("%s: persisted %d scan_results + regime", name, n)
 
     def _capture_baseline(self, sym, rows) -> None:
         """Session-open OI per strike: the first cycle of the day writes it
@@ -187,9 +211,19 @@ class WallPoller:
                                 name, len(rows), len(quotes), expiry)
                     self._capture_baseline(sym, rows)
                     try:
-                        self._executor_step(name, sym, rows, expiry)
+                        structural, rv = self._analytics_for(sym, rows, expiry)
                     except Exception as exc:
-                        logger.warning("%s executor step failed: %s", name, exc)
+                        logger.warning("%s analytics build failed: %s", name, exc)
+                    else:
+                        try:
+                            self._executor_step(name, sym, rows, structural, rv)
+                        except Exception as exc:
+                            logger.warning("%s executor step failed: %s", name, exc)
+                        try:
+                            self._scan_persist_step(name, sym, rows,
+                                                    structural, rv, quotes)
+                        except Exception as exc:
+                            logger.warning("%s scan-persist step failed: %s", name, exc)
                 else:
                     rows_by_name[name] = 0
                     logger.warning("%s: empty chain @ %s", name, expiry)
