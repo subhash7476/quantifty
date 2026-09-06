@@ -1,0 +1,19 @@
+{
+  "artifact_checksum": "db06ceffd9e4fdeddff82b916968673ab99fbfcc562997f0b670241dd74f9aa6",
+  "artifact_version": "v1.0.0",
+  "candidate_verdict": "Inconclusive (Not Approved)",
+  "dataset_snapshot_hash": "e51363ea9681fda72120964b483b70daed34ea64e395bd098fc5cb3a6aad5e72",
+  "domain_verdicts": {
+    "architectural": "PASS",
+    "calibration": "REPORTED",
+    "operational": "PASS",
+    "reproducibility": "PASS",
+    "robustness": "REPORTED",
+    "scientific": "FAIL",
+    "temporal": "PASS"
+  },
+  "phase": "6/sealed-read",
+  "results_digest": "176fd9ee9c202fc8d2cfdbb51e604160586da9c8f8cdd5296d70d188307de02f",
+  "timestamp": "2026-07-12T00:00:00Z",
+  "validation_id": "872a0c050688be64c014aab43542924b9c6b37b02bd934a1d9cd597a4155ac64"
+}

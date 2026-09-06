@@ -1,0 +1,9 @@
+{
+  "algorithm": "sha256",
+  "combined_hash": "a39bce3b19ca7d6c6c5eda9186525b621083c206ddb4316d291a01f6b018ec25",
+  "files": {
+    "methodology.json": "9aec3aff0b073092a5c803ef99754a2903ede43cff8839babfb85aa68c25206a",
+    "record.json": "8b2732128e7471e63b885abed63d34a1fcde5035afbcc9b0183f5a47c10fdd87",
+    "results.json": "286bda22e6ad08ba4c64fe203db7f546a1cc82c8764f2fa503106990567f74b6"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "run_timestamp": "2026-07-23T08:17:58.636363Z",
+  "commit": "0ea419e",
+  "window": {
+    "lo": "2023-01-01",
+    "hi": "2026-07-20"
+  },
+  "sign": "+1",
+  "portfolio": "quintile_equal_weight",
+  "fee_model": {
+    "stt_tiers": {
+      "pre_2023_04": 0.0001,
+      "2023_04_to_2024_09": 0.000125,
+      "post_2024_10": 0.0002
+    },
+    "exchange_txn": 2.1e-05,
+    "sebi_fee": 1e-06,
+    "stamp_duty": 2e-05,
+    "brokerage": 20.0,
+    "gst": 0.18,
+    "slippage_bp": 5
+  },
+  "frozen_artifacts": {
+    "CARRY_V2_PRE_REGISTRATION.md": "74c7311cd84d48db8552f8bacd880b5e43d2264ae3b671aa12e7b3013fe4b1ec",
+    "CARRY_SEALED_READ_PROTOCOL.md": "459411ab20374f07dbe531519724574f9625e784d947511885fbb7d92b7874ba",
+    "governance/rfa/declarations/carry.py": "4b589e2f2afc6282c3e0400c6d24052e34140f4769130239a59ae150d77df855"
+  },
+  "results": {
+    "ic": {
+      "mean": 0.06104314011977402,
+      "sd": 0.08805258808591888,
+      "n": 42,
+      "tstat": 4.492823790106144,
+      "p_one": 2.817440529478965e-05,
+      "ac1": 0.13464711664445234,
+      "sign_correct": true
+    },
+    "portfolio": {
+      "ann_gross": 0.2223009773007154,
+      "ann_net": 0.20523668838736087,
+      "fee_drag_bp": 170.64288913354542,
+      "total_fees": 190393.99955261583,
+      "total_slippage": 305601.12765794614,
+      "avg_turnover": 1.4663469641851021,
+      "return_periods": 41,
+      "fee_breakdown": {
+        "brokerage": 100920.0,
+        "stt": 49329.56645145608,
+        "exchange_txn": 12835.247361634341,
+        "sebi_fee": 611.2022553158973,
+        "stamp_duty": 6112.022553158688,
+        "gst": 20585.96093105169
+      }
+    },
+    "power": 0.9972163242808997,
+    "gate_pass": true
+  }
+}

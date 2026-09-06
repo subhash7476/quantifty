@@ -1,0 +1,19 @@
+{
+  "artifact_checksum": "db06ceffd9e4fdeddff82b916968673ab99fbfcc562997f0b670241dd74f9aa6",
+  "artifact_version": "v1.0.0",
+  "candidate_verdict": "Approved & Deployable",
+  "dataset_snapshot_hash": "e51363ea9681fda72120964b483b70daed34ea64e395bd098fc5cb3a6aad5e72",
+  "domain_verdicts": {
+    "architectural": "PASS",
+    "calibration": "REPORTED",
+    "operational": "PASS",
+    "reproducibility": "PASS",
+    "robustness": "REPORTED",
+    "scientific": "PASS",
+    "temporal": "PASS"
+  },
+  "phase": "5/A2-dev-dry-run",
+  "results_digest": "af97a283af4687a805d5ea50f2e9e33782f9a70933040d6c0c9e148623762789",
+  "timestamp": "2026-07-12T00:00:00Z",
+  "validation_id": "f8153e1147246655bc451b027053b79af14d3afbe822adff8ab61ac144ef0bf1"
+}

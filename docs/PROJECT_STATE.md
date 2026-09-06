@@ -2,7 +2,9 @@
 
 **Purpose:** track current repository status. Populated from `docs/PLATFORM_CONSTITUTION.md`, `docs/PLATFORM_INVENTORY.md`, `docs/reports/SALVAGE_REPORT.md`, `docs/reports/CAPABILITY_REVIEW.md`, `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, and `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`.
 
-**Last updated:** 2026-08-01 — **Nifty-BankNifty pair research complete (NO OPPORTUNITY on mean reversion); RS-MOM RFA ABANDON; CB-N50 constituent breadth RFA PROCEED.** See CHANGELOG.
+**Last updated:** 2026-09-05 — **Catch-up 2026-08-02 → 2026-09-04 (see CHANGELOG for detail).** Prior 2026-08-01 entry retained below.
+
+**Catch-up 2026-08-02 → 2026-09-04:** CB-N50 CLOSED 2026-08-01 (HOLDOUT IC +0.029 PASS; G4 breadth→futures not evaluated; sealed 2023–2026 preserved). ISD Phase-1 substrate CERTIFIED (G1–G7 PASS). NiftyShield sealed-2026 INCONCLUSIVE (Sharpe 0.746 < 0.80; E008 PAPER window opened). Options-Wall DW-1 paper pilot merged 2026-08-17; Hedgewall-parity board metrics + per-day wall snapshots 2026-09-02/03. CAS adaptation implemented (segment schedule, `is_synthetic`, 15:40 derivatives close). Ops orchestrator + preflight live. Trade Intelligence v2 universal recorder live. Carry SEALED PASS (+20.52%) stands; TS Basis de-authorized (PAPER-candidate); IVOL SEALED FAIL. `docs/reports/` reorganized 2026-09-05 into 11 lineage subfolders (see its README). Repo now: `core/` 212 `.py`, `tests/` 223 test files, HEAD `8b06f42` (2026-09-04).
 
 **Forward planning (2026-08-01, non-authorizing):**
 

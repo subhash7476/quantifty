@@ -1,0 +1,210 @@
+{
+  "domains": [
+    {
+      "evidence": {
+        "artifact_version": "v1.0.0",
+        "construct": "classic 12-1 cross-sectional momentum (monthly, equal-weight, long-only)",
+        "latent_variable": "xs_momentum_score"
+      },
+      "name": "architectural",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "approved": true,
+        "delta_net": 0.059465,
+        "deployable": true,
+        "gate": "one-sided 95% Student-t lower bound of mean_IC > 0 (D-i pinned)",
+        "mean_ic": 0.045681,
+        "n_months": 131,
+        "sd_ic": 0.20786,
+        "student_t_lb": 0.015595
+      },
+      "name": "scientific",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "delisting_convention": "\u00a75.2 (shared fwd); rule1/rule2 counts reported",
+        "evaluation_window": [
+          "2010-01-01",
+          "2022-12-31"
+        ],
+        "note": "score uses prices <= t-1m; membership PIT; label uses t->t+1",
+        "observed_max_trade_date": "2022-12-30"
+      },
+      "name": "temporal",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "by_year_ic": {
+          "2012": 0.11212,
+          "2013": 0.079115,
+          "2014": -0.03021,
+          "2015": 0.095472,
+          "2016": -0.043035,
+          "2017": 0.059468,
+          "2018": 0.053109,
+          "2019": 0.141067,
+          "2020": 0.010286,
+          "2021": 0.043279,
+          "2022": -0.023979
+        },
+        "delta_net_ci": [
+          0.000514,
+          0.007697
+        ],
+        "ls_quintile_spread": 0.010593,
+        "reported_iid_perc_lb": 0.015848,
+        "reported_mb_l12_lb": 0.014788,
+        "risk_top40": [
+          0.213208,
+          0.785261,
+          -0.355184
+        ],
+        "risk_universe": [
+          0.226173,
+          0.505797,
+          -0.499287
+        ],
+        "rule1_total": 21,
+        "rule2_total": 1,
+        "stress_neg100_mean_ic": 0.04568,
+        "subperiod_first_ic": 0.043831,
+        "subperiod_second_ic": 0.047504,
+        "top40_rule2_events": []
+      },
+      "name": "robustness",
+      "status": "REPORTED"
+    },
+    {
+      "evidence": {
+        "block_length": 12,
+        "in_run_double_digest_equal": true,
+        "n_replicates": 20000,
+        "seed": 20260711
+      },
+      "name": "reproducibility",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "evaluate_deterministic": true,
+        "uncertainty_acts_on_gate": false,
+        "void_precondition_passed": true,
+        "void_undocumented_residue": 0
+      },
+      "name": "operational",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "monotonic_low_gt_high": false,
+        "note": "uncertainty reported-not-acted-on; tercile-IC monotonicity is a calibration disclosure, non-gating (\u00a77/\u00a79)",
+        "uncertainty_tercile_ic_low_mid_high": [
+          0.048532,
+          0.044638,
+          0.049551
+        ]
+      },
+      "name": "calibration",
+      "status": "REPORTED"
+    }
+  ],
+  "results": {
+    "by_year_hit": {
+      "2012": 0.666667,
+      "2013": 0.583333,
+      "2014": 0.5,
+      "2015": 0.666667,
+      "2016": 0.25,
+      "2017": 0.75,
+      "2018": 0.666667,
+      "2019": 0.75,
+      "2020": 0.416667,
+      "2021": 0.583333,
+      "2022": 0.454545
+    },
+    "by_year_ic": {
+      "2012": 0.11212,
+      "2013": 0.079115,
+      "2014": -0.03021,
+      "2015": 0.095472,
+      "2016": -0.043035,
+      "2017": 0.059468,
+      "2018": 0.053109,
+      "2019": 0.141067,
+      "2020": 0.010286,
+      "2021": 0.043279,
+      "2022": -0.023979
+    },
+    "delta_net": 0.059465,
+    "delta_net_ci": [
+      0.000514,
+      0.007697
+    ],
+    "delta_net_fees_only": 0.062364,
+    "domain_verdicts": {
+      "architectural": "PASS",
+      "calibration": "REPORTED",
+      "operational": "PASS",
+      "reproducibility": "PASS",
+      "robustness": "REPORTED",
+      "scientific": "PASS",
+      "temporal": "PASS"
+    },
+    "evaluation_window": [
+      "2010-01-01",
+      "2022-12-31"
+    ],
+    "formation_exclusions": 382,
+    "gate_student_t_lb": 0.015595,
+    "ls_quintile_spread": 0.010593,
+    "mean_ic": 0.045681,
+    "n_months": 131,
+    "reported_iid_perc_lb": 0.015848,
+    "reported_mb_l12_lb": 0.014788,
+    "risk_top40": [
+      0.213208,
+      0.785261,
+      -0.355184
+    ],
+    "risk_universe": [
+      0.226173,
+      0.505797,
+      -0.499287
+    ],
+    "rule1_by_year": {
+      "2012": 1,
+      "2013": 4,
+      "2014": 1,
+      "2015": 4,
+      "2016": 1,
+      "2017": 3,
+      "2018": 2,
+      "2019": 3,
+      "2020": 1,
+      "2022": 1
+    },
+    "rule2_by_year": {
+      "2020": 1
+    },
+    "sd_ic": 0.20786,
+    "stress_neg100_delta_net": 0.059906,
+    "stress_neg100_mean_ic": 0.04568,
+    "subperiod_first_ic": 0.043831,
+    "subperiod_second_ic": 0.047504,
+    "top40_net": 0.154379,
+    "top40_rule2_events": [],
+    "uncertainty_tercile_ic": [
+      0.048532,
+      0.044638,
+      0.049551
+    ],
+    "universe_stronger_net": 0.092015,
+    "universe_weaker_net": 0.091129,
+    "verdict": "Approved & Deployable",
+    "void_undocumented_residue": 0
+  }
+}

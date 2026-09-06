@@ -1,0 +1,58 @@
+{
+  "run_timestamp": "2026-07-26T05:18:49.230924Z",
+  "commit": "fc92693",
+  "window": {
+    "lo": "2023-01-01",
+    "hi": "2026-07-20"
+  },
+  "sign": "-1",
+  "portfolio": "quintile_equal_weight_long_lowvol",
+  "fee_model": {
+    "stt_tiers": {
+      "pre_2023_04": 0.0001,
+      "2023_04_to_2024_09": 0.000125,
+      "post_2024_10": 0.0002
+    },
+    "exchange_txn": 2.1e-05,
+    "sebi_fee": 1e-06,
+    "stamp_duty": 2e-05,
+    "brokerage": 20.0,
+    "gst": 0.18,
+    "slippage_bp": 5
+  },
+  "frozen_artifacts": {
+    "IVOL_PHASE0_PRE_REGISTRATION.md": "82ed96f9c493852c81c7452f54dee20cd452d7656ebb243cfe5fb406cd1c3f4d",
+    "IVOL_SEALED_READ_PROTOCOL.md": "d54e955b9134c3287715ba255d58db1fb94c06c3e3fb0447b2f706ac8d627201",
+    "governance/rfa/declarations/ivol.py": "d7ebcbcc743dc708ab6bb0896bf5bde8187d72f38d6b62fe58a24e203e48989f"
+  },
+  "results": {
+    "ic": {
+      "mean": 0.018211637391685926,
+      "sd": 0.13765433799030863,
+      "n": 42,
+      "tstat": 0.8574005102349535,
+      "p_one": 0.801896087894993,
+      "ac1": 0.07987798645478177,
+      "sign_correct": false
+    },
+    "portfolio": {
+      "ann_gross": -0.13178478684035622,
+      "ann_net": -0.1377988971279105,
+      "fee_drag_bp": 60.14110287554275,
+      "total_fees": 103047.89913684005,
+      "total_slippage": 139127.24489295526,
+      "avg_turnover": 0.6542792433802695,
+      "return_periods": 41,
+      "fee_breakdown": {
+        "brokerage": 59840.0,
+        "stt": 22430.66768413871,
+        "exchange_txn": 5843.3442855042,
+        "sebi_fee": 278.2544897859096,
+        "stamp_duty": 2782.544897859116,
+        "gst": 11873.087779552572
+      }
+    },
+    "power": 0.21140184711720808,
+    "gate_pass": false
+  }
+}

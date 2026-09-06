@@ -1,0 +1,181 @@
+{
+  "domains": [
+    {
+      "evidence": {
+        "artifact_version": "v1.0.0",
+        "construct": "classic 12-1 cross-sectional momentum (monthly, equal-weight, long-only)",
+        "latent_variable": "xs_momentum_score"
+      },
+      "name": "architectural",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "approved": false,
+        "delta_net": 0.061918,
+        "deployable": false,
+        "gate": "one-sided 95% Student-t lower bound of mean_IC > 0 (D-i pinned)",
+        "mean_ic": 0.027857,
+        "n_months": 42,
+        "sd_ic": 0.163781,
+        "student_t_lb": -0.014673
+      },
+      "name": "scientific",
+      "status": "FAIL"
+    },
+    {
+      "evidence": {
+        "delisting_convention": "\u00a75.2 (shared fwd); rule1/rule2 counts reported",
+        "evaluation_window": [
+          "2023-01-01",
+          "2026-06-30"
+        ],
+        "note": "score uses prices <= t-1m; membership PIT; label uses t->t+1",
+        "observed_max_trade_date": "2026-06-30"
+      },
+      "name": "temporal",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "by_year_ic": {
+          "2022": -0.076406,
+          "2023": 0.110921,
+          "2024": -0.043599,
+          "2025": 0.012248,
+          "2026": 0.058309
+        },
+        "delta_net_ci": [
+          -0.002774,
+          0.017333
+        ],
+        "ls_quintile_spread": 0.00919,
+        "reported_iid_perc_lb": -0.014075,
+        "reported_mb_l12_lb": -0.033483,
+        "risk_top40": [
+          0.254272,
+          1.026141,
+          -0.30613
+        ],
+        "risk_universe": [
+          0.188218,
+          1.017138,
+          -0.222619
+        ],
+        "rule1_total": 1,
+        "rule2_total": 0,
+        "stress_neg100_mean_ic": 0.027857,
+        "subperiod_first_ic": 0.043004,
+        "subperiod_second_ic": 0.012709,
+        "top40_rule2_events": []
+      },
+      "name": "robustness",
+      "status": "REPORTED"
+    },
+    {
+      "evidence": {
+        "block_length": 12,
+        "in_run_double_digest_equal": true,
+        "n_replicates": 20000,
+        "seed": 20260711
+      },
+      "name": "reproducibility",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "evaluate_deterministic": true,
+        "uncertainty_acts_on_gate": false,
+        "void_precondition_passed": true,
+        "void_undocumented_residue": 0
+      },
+      "name": "operational",
+      "status": "PASS"
+    },
+    {
+      "evidence": {
+        "monotonic_low_gt_high": false,
+        "note": "uncertainty reported-not-acted-on; tercile-IC monotonicity is a calibration disclosure, non-gating (\u00a77/\u00a79)",
+        "uncertainty_tercile_ic_low_mid_high": [
+          0.007316,
+          0.043629,
+          0.039877
+        ]
+      },
+      "name": "calibration",
+      "status": "REPORTED"
+    }
+  ],
+  "results": {
+    "by_year_hit": {
+      "2022": 0.0,
+      "2023": 0.75,
+      "2024": 0.416667,
+      "2025": 0.5,
+      "2026": 0.6
+    },
+    "by_year_ic": {
+      "2022": -0.076406,
+      "2023": 0.110921,
+      "2024": -0.043599,
+      "2025": 0.012248,
+      "2026": 0.058309
+    },
+    "delta_net": 0.061918,
+    "delta_net_ci": [
+      -0.002774,
+      0.017333
+    ],
+    "delta_net_fees_only": 0.065602,
+    "domain_verdicts": {
+      "architectural": "PASS",
+      "calibration": "REPORTED",
+      "operational": "PASS",
+      "reproducibility": "PASS",
+      "robustness": "REPORTED",
+      "scientific": "FAIL",
+      "temporal": "PASS"
+    },
+    "evaluation_window": [
+      "2023-01-01",
+      "2026-06-30"
+    ],
+    "formation_exclusions": 157,
+    "gate_student_t_lb": -0.014673,
+    "ls_quintile_spread": 0.00919,
+    "mean_ic": 0.027857,
+    "n_months": 42,
+    "reported_iid_perc_lb": -0.014075,
+    "reported_mb_l12_lb": -0.033483,
+    "risk_top40": [
+      0.254272,
+      1.026141,
+      -0.30613
+    ],
+    "risk_universe": [
+      0.188218,
+      1.017138,
+      -0.222619
+    ],
+    "rule1_by_year": {
+      "2023": 1
+    },
+    "rule2_by_year": {},
+    "sd_ic": 0.163781,
+    "stress_neg100_delta_net": 0.061918,
+    "stress_neg100_mean_ic": 0.027857,
+    "subperiod_first_ic": 0.043004,
+    "subperiod_second_ic": 0.012709,
+    "top40_net": 0.25564,
+    "top40_rule2_events": [],
+    "uncertainty_tercile_ic": [
+      0.007316,
+      0.043629,
+      0.039877
+    ],
+    "universe_stronger_net": 0.190039,
+    "universe_weaker_net": 0.188863,
+    "verdict": "Inconclusive (Not Approved)",
+    "void_undocumented_residue": 0
+  }
+}

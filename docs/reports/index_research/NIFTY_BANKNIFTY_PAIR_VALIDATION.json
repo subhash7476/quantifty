@@ -1,0 +1,274 @@
+{
+  "train_test": {
+    "2016-2019 train --> 2020-2026 test": {
+      "train_n": 985,
+      "test_n": 1635,
+      "best_params": {
+        "entry_z": 1.0,
+        "exit_z": 1.5,
+        "window": 10
+      },
+      "best_train_net_bps": 1747.5,
+      "test_result": {
+        "net_pnl_bps": 1114.2,
+        "annualized_net_bps": 170.3,
+        "n_trades": 85,
+        "win_rate": 36.5,
+        "profit_factor": 1.14,
+        "max_drawdown_bps": -3135.0
+      },
+      "top5_train": [
+        {
+          "entry_z": 1.0,
+          "exit_z": 1.5,
+          "window": 10,
+          "net_pnl_bps": 1747.5,
+          "n_trades": 39,
+          "win_rate": 43.6,
+          "annual_bps": 441.1
+        },
+        {
+          "entry_z": 1.0,
+          "exit_z": 0.0,
+          "window": 10,
+          "net_pnl_bps": 1293.7,
+          "n_trades": 81,
+          "win_rate": 45.7,
+          "annual_bps": 326.6
+        },
+        {
+          "entry_z": 1.0,
+          "exit_z": 1.0,
+          "window": 10,
+          "net_pnl_bps": 1086.1,
+          "n_trades": 55,
+          "win_rate": 47.3,
+          "annual_bps": 274.2
+        },
+        {
+          "entry_z": 1.5,
+          "exit_z": 1.5,
+          "window": 10,
+          "net_pnl_bps": 1082.0,
+          "n_trades": 36,
+          "win_rate": 41.7,
+          "annual_bps": 273.1
+        },
+        {
+          "entry_z": 1.5,
+          "exit_z": 1.0,
+          "window": 10,
+          "net_pnl_bps": 947.0,
+          "n_trades": 47,
+          "win_rate": 46.8,
+          "annual_bps": 239.0
+        }
+      ]
+    },
+    "2020-2022 train --> 2023-2026 test": {
+      "train_n": 748,
+      "test_n": 887,
+      "best_params": {
+        "entry_z": 1.5,
+        "exit_z": 0.5,
+        "window": 10
+      },
+      "best_train_net_bps": 2486.7,
+      "test_result": {
+        "net_pnl_bps": 423.2,
+        "annualized_net_bps": 119.4,
+        "n_trades": 56,
+        "win_rate": 46.4,
+        "profit_factor": 1.15,
+        "max_drawdown_bps": -1071.2
+      },
+      "top5_train": [
+        {
+          "entry_z": 1.5,
+          "exit_z": 0.5,
+          "window": 10,
+          "net_pnl_bps": 2486.7,
+          "n_trades": 50,
+          "win_rate": 34.0,
+          "annual_bps": 840.2
+        },
+        {
+          "entry_z": 1.5,
+          "exit_z": 0.0,
+          "window": 20,
+          "net_pnl_bps": 2300.0,
+          "n_trades": 33,
+          "win_rate": 39.4,
+          "annual_bps": 787.3
+        },
+        {
+          "entry_z": 1.5,
+          "exit_z": 1.0,
+          "window": 10,
+          "net_pnl_bps": 2285.7,
+          "n_trades": 43,
+          "win_rate": 39.5,
+          "annual_bps": 772.3
+        },
+        {
+          "entry_z": 2.0,
+          "exit_z": 0.0,
+          "window": 20,
+          "net_pnl_bps": 2111.2,
+          "n_trades": 24,
+          "win_rate": 50.0,
+          "annual_bps": 722.7
+        },
+        {
+          "entry_z": 1.0,
+          "exit_z": 0.5,
+          "window": 10,
+          "net_pnl_bps": 1760.0,
+          "n_trades": 59,
+          "win_rate": 28.8,
+          "annual_bps": 594.7
+        }
+      ]
+    }
+  },
+  "walk_forward": {
+    "n_windows": 8,
+    "n_windows_positive": 5,
+    "n_windows_negative": 3,
+    "total_test_net_bps": 2103.2,
+    "mean_test_net_bps": 262.9,
+    "median_test_net_bps": 148.4,
+    "windows": [
+      {
+        "train_years": "2016-2017",
+        "test_year": 2018,
+        "best_params": {
+          "entry_z": 1.5,
+          "exit_z": 1.0,
+          "window": 10
+        },
+        "test_net_bps": 151.5,
+        "test_n_trades": 14,
+        "test_win_rate": 50.0,
+        "error": false
+      },
+      {
+        "train_years": "2017-2018",
+        "test_year": 2019,
+        "best_params": {
+          "entry_z": 1.0,
+          "exit_z": 0.0,
+          "window": 10
+        },
+        "test_net_bps": 418.0,
+        "test_n_trades": 18,
+        "test_win_rate": 55.6,
+        "error": false
+      },
+      {
+        "train_years": "2018-2019",
+        "test_year": 2020,
+        "best_params": {
+          "entry_z": 1.0,
+          "exit_z": 0.0,
+          "window": 10
+        },
+        "test_net_bps": 1946.1,
+        "test_n_trades": 19,
+        "test_win_rate": 36.8,
+        "error": false
+      },
+      {
+        "train_years": "2019-2020",
+        "test_year": 2021,
+        "best_params": {
+          "entry_z": 1.0,
+          "exit_z": 1.0,
+          "window": 10
+        },
+        "test_net_bps": 145.2,
+        "test_n_trades": 16,
+        "test_win_rate": 37.5,
+        "error": false
+      },
+      {
+        "train_years": "2020-2021",
+        "test_year": 2022,
+        "best_params": {
+          "entry_z": 1.5,
+          "exit_z": 0.5,
+          "window": 10
+        },
+        "test_net_bps": -314.1,
+        "test_n_trades": 17,
+        "test_win_rate": 29.4,
+        "error": false
+      },
+      {
+        "train_years": "2021-2022",
+        "test_year": 2023,
+        "best_params": {
+          "entry_z": 1.5,
+          "exit_z": 0.0,
+          "window": 20
+        },
+        "test_net_bps": -592.9,
+        "test_n_trades": 9,
+        "test_win_rate": 22.2,
+        "error": false
+      },
+      {
+        "train_years": "2022-2023",
+        "test_year": 2024,
+        "best_params": {
+          "entry_z": 1.0,
+          "exit_z": 1.0,
+          "window": 40
+        },
+        "test_net_bps": -208.8,
+        "test_n_trades": 6,
+        "test_win_rate": 33.3,
+        "error": false
+      },
+      {
+        "train_years": "2023-2024",
+        "test_year": 2025,
+        "best_params": {
+          "entry_z": 1.0,
+          "exit_z": 1.0,
+          "window": 40
+        },
+        "test_net_bps": 558.2,
+        "test_n_trades": 3,
+        "test_win_rate": 100.0,
+        "error": false
+      }
+    ]
+  },
+  "regime": {
+    "bull": {
+      "n_days": 1144,
+      "n_trades": 52,
+      "net_pnl_bps": 2080.0,
+      "annualized_net_bps": 235.2,
+      "win_rate": 30.8,
+      "max_drawdown_bps": -2280.2
+    },
+    "bear": {
+      "n_days": 184,
+      "n_trades": 7,
+      "net_pnl_bps": -83.7,
+      "annualized_net_bps": -13.5,
+      "win_rate": 71.4,
+      "max_drawdown_bps": -583.3
+    },
+    "sideways": {
+      "n_days": 1093,
+      "n_trades": 42,
+      "net_pnl_bps": 1835.6,
+      "annualized_net_bps": 190.2,
+      "win_rate": 47.6,
+      "max_drawdown_bps": -1132.0
+    }
+  }
+}

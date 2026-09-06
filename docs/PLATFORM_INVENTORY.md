@@ -1,6 +1,8 @@
 # PLATFORM_INVENTORY.md
 
 **Date:** 2026-06-04  **Governing document:** `docs/PLATFORM_CONSTITUTION.md` v1.0
+
+> **Status note (2026-09-05):** this inventory is a point-in-time snapshot (125 `.py` modules at adoption). It is **stale by design** — repo now holds 212 `.py` under `core/` across 19 module dirs (incl. new `core/runtime/`, `core/msi/`, `core/strategies/`, `core/market/`, `core/options_wall/`) and 223 test files. Do not use its module lists as current truth. What remains valid: the classification method, the Constitution cross-analysis shape, and the MM11 resolution notes already inline (§Market Data, §Dead Code). MM11 ledger lives at `docs/reports/platform/MM11_REMOVAL_LEDGER.md`. A full re-inventory has not been run.
 **Basis:** enumeration of the actual `F:\Nifty` tree (125 `.py` modules) + import-trace verification. **No architecture redesigned. No code written. No features proposed.**
 **Method:** each module classified into **exactly one** category by *dominant role*; cross-roles noted. Verdicts: KEEP / REFACTOR / REMOVE.
 
