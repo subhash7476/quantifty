@@ -35,6 +35,7 @@ from core.data import options_wall_store as store
 from core.data.options_provider import OptionsProvider
 from core.options_wall import persistence
 from core.options_wall.engine import UNDERLYINGS
+from core.options_wall.health import StepHealth
 from core.brokers.upstox_market_data import UpstoxMarketData
 from core.database.utils.market_hours import MarketHours
 from core.logging import setup_logger
@@ -96,6 +97,7 @@ class WallPoller:
         self._token_retry_interval_s = token_retry_interval_s
         self._scan_persist_interval_s = scan_persist_interval_s
         self._stop = False
+        self._health = StepHealth()
 
     def _acquire_lock(self) -> bool:
         if self._pid_path.exists():
@@ -123,6 +125,8 @@ class WallPoller:
         payload = {
             "last_snapshot": datetime.now().isoformat(),
             "rows": rows_by_name,
+            "status": "DEGRADED" if self._health.any_failing() else "OK",
+            "steps": self._health.snapshot(),
         }
         tmp = self._heartbeat_path.with_name(self._heartbeat_path.name + ".tmp")
         tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -130,6 +134,25 @@ class WallPoller:
             os.replace(str(tmp), str(self._heartbeat_path))
         except OSError as exc:
             logger.error("heartbeat write failed: %s", exc)
+
+    def _record_step(self, step: str, underlying: str, exc=None) -> None:
+        verdict = self._health.record(step, underlying, exc)
+        if exc is not None:
+            log = logger.error if verdict.level == "error" else logger.warning
+            log("%s %s step failed (%s): %s", underlying, step, verdict.kind, exc)
+        if verdict.alert:
+            self._alert(step, underlying, verdict)
+
+    def _alert(self, step: str, underlying: str, verdict) -> None:
+        record = verdict.record
+        text = (f"[options-wall] {underlying} {step} failing\n"
+                f"{record['error_type']}: {record['error_msg'].splitlines()[0]}\n"
+                f"since {record['since']} ({record['consecutive']} cycles)")
+        try:
+            from core.alerts.telegram_notifier import TelegramNotifier
+            TelegramNotifier().send_message(text)
+        except Exception as exc:
+            logger.error("health alert delivery failed: %s", exc)
 
     def _analytics_for(self, sym, rows, expiry):
         """Structural snapshot + realized vol, built once per underlying so the
@@ -226,7 +249,10 @@ class WallPoller:
                         qresp = market_data.fetch_quotes_batch(keys)
                         quotes = qresp.get("quotes", {})
                         if qresp.get("error"):
-                            logger.warning("%s quotes error: %s", name, qresp["error"])
+                            self._record_step("quotes", name,
+                                              RuntimeError(qresp["error"]))
+                        else:
+                            self._record_step("quotes", name)
                     # attach bid/ask to the in-memory rows so the executor's spread
                     # cap and no-quote-no-trade rule (spec §3.4) apply on the live path
                     for r in rows:
@@ -236,33 +262,41 @@ class WallPoller:
                     store.append_snapshot(rows, sym, expiry,
                                           db_path=self._snapshot_db_path, quotes=quotes)
                     rows_by_name[name] = len(rows)
+                    self._record_step("fetch", name)
                     logger.info("%s: appended %d rows (%d quoted) @ %s",
                                 name, len(rows), len(quotes), expiry)
                     self._capture_baseline(sym, rows)
                     try:
                         structural, rv = self._analytics_for(sym, rows, expiry)
                     except Exception as exc:
-                        logger.warning("%s analytics build failed: %s", name, exc)
+                        self._record_step("analytics", name, exc)
                     else:
+                        self._record_step("analytics", name)
                         try:
                             self._executor_step(name, sym, rows, structural, rv)
                         except Exception as exc:
-                            logger.warning("%s executor step failed: %s", name, exc)
+                            self._record_step("executor", name, exc)
+                        else:
+                            self._record_step("executor", name)
                         try:
                             self._scan_persist_step(name, sym, rows,
                                                     structural, rv, quotes)
                         except Exception as exc:
-                            logger.warning("%s scan-persist step failed: %s", name, exc)
+                            self._record_step("scan_persist", name, exc)
+                        else:
+                            self._record_step("scan_persist", name)
                     try:
                         self._process_close_requests(name, sym, rows, datetime.now())
                     except Exception as exc:
-                        logger.warning("%s close-request step failed: %s", name, exc)
+                        self._record_step("close_request", name, exc)
+                    else:
+                        self._record_step("close_request", name)
                 else:
                     rows_by_name[name] = 0
                     logger.warning("%s: empty chain @ %s", name, expiry)
             except Exception as exc:
                 rows_by_name[name] = -1
-                logger.warning("%s fetch failed: %s", name, exc)
+                self._record_step("fetch", name, exc)
         self._write_heartbeat(rows_by_name)
         return rows_by_name
 
