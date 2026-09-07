@@ -25,7 +25,7 @@ def test_poll_cycle_persists_quotes(tmp_path, monkeypatch):
     monkeypatch.setattr(WallPoller, "_executor_step",
                         lambda self, name, sym, rows, expiry: None, raising=False)
     p = WallPoller(heartbeat_path=tmp_path / "hb.json", pid_path=tmp_path / "p.pid",
-                   snapshot_db_path=db)
+                   snapshot_db_path=db, results_db_path=tmp_path / "res.duckdb")
     p._poll_cycle(_FakeProvider())
     back = store.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)
     assert back[0].best_bid == 4.9 and back[0].best_ask == 5.1

@@ -316,9 +316,15 @@ class OptionsProvider:
                 change_pct=0
             )
         
+        # Contract lot size is a property of the underlying, not of any per-strike
+        # field — the Upstox chain payload does not carry it, so resolve it once
+        # from the instrument master (never the stale hardcoded 75).
+        lot_size = self._lot_size_for_symbol(
+            option_chain[0].get("underlying_key", "")) if option_chain else 75
+
         # Parse option chain
         chain_rows = []
-        
+
         for strike_data in option_chain:
             strike = strike_data.get("strike_price", 0)
             underlying_ltp = strike_data.get("underlying_spot_price")
@@ -351,7 +357,7 @@ class OptionsProvider:
                     theta=option_greeks.get("theta"),
                     vega=option_greeks.get("vega"),
                     rho=None,  # Not provided by Upstox
-                    lot_size=call_data.get("lot_size", 75),
+                    lot_size=lot_size,
                     underlying_ltp=underlying_ltp
                 )
                 chain_rows.append(ce_row)
@@ -383,7 +389,7 @@ class OptionsProvider:
                     theta=option_greeks.get("theta"),
                     vega=option_greeks.get("vega"),
                     rho=None,
-                    lot_size=put_data.get("lot_size", 75),
+                    lot_size=lot_size,
                     underlying_ltp=underlying_ltp
                 )
                 chain_rows.append(pe_row)
@@ -609,14 +615,38 @@ class OptionsProvider:
             logger.error(f"[OptionsProvider] Failed to get strikes: {e}")
             return []
 
+    def _lot_size_for_symbol(self, underlying_key: str) -> int:
+        """Current lot size for an underlying symbol (e.g. 'NSE_INDEX|Nifty 50').
+
+        Maps the symbol to the instrument-master name and reads the master.
+        Cached per process — lot sizes change at most on an exchange revision,
+        which a poller restart picks up on the next day's master snapshot.
+        """
+        if not hasattr(self, "_lot_cache"):
+            self._lot_cache = {}
+        if underlying_key not in self._lot_cache:
+            name = next((k for k, v in self.UNDERLYING_MAP.items()
+                         if v == underlying_key), None)
+            self._lot_cache[underlying_key] = self.get_lot_size(name) if name else 75
+        return self._lot_cache[underlying_key]
+
     def get_lot_size(self, index_name: str) -> int:
-        """Get lot size for an index from instrument master."""
-        name_map = {"NIFTY": "NIFTY", "BANKNIFTY": "BANKNIFTY"}
+        """Get lot size for an index from instrument master.
+
+        Falls back to 75 only when the master can't answer — and says so loudly
+        each time, so a name-map drift or a missing master never silently
+        reinstates the stale-75 bug this method exists to prevent.
+        """
+        name_map = {"NIFTY": "NIFTY", "BANKNIFTY": "BANKNIFTY", "SENSEX": "SENSEX"}
         name = name_map.get(index_name.upper())
         if not name:
+            logger.error("[OptionsProvider] lot_size: no master name for '%s' "
+                         "— falling back to 75", index_name)
             return 75
 
         if not INSTRUMENT_DB_PATH.exists():
+            logger.error("[OptionsProvider] lot_size: instrument master missing at "
+                         "%s — falling back to 75", INSTRUMENT_DB_PATH)
             return 75
 
         try:
@@ -628,8 +658,14 @@ class OptionsProvider:
                 LIMIT 1
             """, [name]).fetchone()
             conn.close()
-            return result[0] if result else 75
-        except Exception:
+            if result and result[0]:
+                return result[0]
+            logger.error("[OptionsProvider] lot_size: no row for '%s' in latest "
+                         "master snapshot — falling back to 75", name)
+            return 75
+        except Exception as e:
+            logger.error("[OptionsProvider] lot_size lookup failed for '%s': %s "
+                         "— falling back to 75", name, e)
             return 75
 
     def get_expiry_list(

@@ -74,6 +74,26 @@ def test_time_stop_squares_off(tmp_path):
     assert action == "time_stop"
 
 
+def test_manual_close_closes_regardless_of_rules(tmp_path):
+    from core.options_wall import persistence
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
+    tid = persistence.open_trades("NSE_INDEX|Nifty 50", db_path=db)[0]["trade_id"]
+    # Stable regime, mid-session, no TP/SL — nothing the rules would close on.
+    result = ex.manual_close("NSE_INDEX|Nifty 50", tid, _chain(),
+                             datetime(2026, 8, 14, 11, 0))
+    assert result == "manual"
+    assert persistence.open_trades("NSE_INDEX|Nifty 50", db_path=db) == []
+    assert persistence.all_trades("NSE_INDEX|Nifty 50", db_path=db)[0]["exit_reason"] == "manual"
+
+
+def test_manual_close_unknown_trade_returns_none(tmp_path):
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb")
+    assert ex.manual_close("NSE_INDEX|Nifty 50", 999, _chain(),
+                           datetime(2026, 8, 14, 11, 0)) is None
+
+
 def test_only_one_open_position_per_index(tmp_path):
     from core.options_wall import persistence as pers
     db = tmp_path / "r.duckdb"

@@ -85,8 +85,6 @@ CREATE TABLE IF NOT EXISTS scan_results (
     reason          VARCHAR,
     legs            VARCHAR
 );
-CREATE INDEX IF NOT EXISTS idx_scan_underlying ON scan_results(underlying);
-CREATE INDEX IF NOT EXISTS idx_scan_ts ON scan_results(ts);
 
 CREATE TABLE IF NOT EXISTS session_regime (
     trade_date        DATE NOT NULL,
@@ -118,7 +116,6 @@ CREATE TABLE IF NOT EXISTS session_regime (
     hedge_ladder      VARCHAR,
     oi_rotation       VARCHAR
 );
-CREATE INDEX IF NOT EXISTS idx_regime_underlying ON session_regime(underlying, trade_date, ts);
 
 CREATE TABLE IF NOT EXISTS oi_baseline (
     underlying  VARCHAR NOT NULL,
@@ -144,8 +141,18 @@ CREATE TABLE IF NOT EXISTS trades (
     return_on_margin DOUBLE, entry_legs VARCHAR, exit_legs VARCHAR,
     PRIMARY KEY (trade_id)
 );
-CREATE INDEX IF NOT EXISTS idx_trades_underlying ON trades(underlying);
 """
+
+# scan_results and session_regime carry no secondary index, and none of these
+# tables gains one. Every write here opens a connection and closes it (the
+# cross-process lock leaves no choice), and each close checkpoints the whole
+# index set: measured at 265 MB per 1,000 checkpoints indexed vs 1.3 MB
+# unindexed. That is why this file reached 836 MB holding 7.9 MB of rows.
+# The primary keys on oi_baseline (INSERT OR IGNORE) and trades (identity) stay
+# — they are load-bearing, and both tables are written a handful of times a
+# session rather than hundreds. Reads are filters over a few thousand rows.
+_STALE_INDEXES = ("idx_scan_underlying", "idx_scan_ts",
+                  "idx_regime_underlying", "idx_trades_underlying")
 
 
 _REGIME_BASE_COLS = ["trade_date", "underlying", "ts", "regime", "net_gamma_total",
@@ -198,6 +205,9 @@ def _align_trade_id_sequence(conn: duckdb.DuckDBPyConnection) -> None:
 
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute(_SCHEMA)
+    # drop the indexes an older store was created with (see _STALE_INDEXES)
+    for stale in _STALE_INDEXES:
+        conn.execute(f"DROP INDEX IF EXISTS {stale}")
     # migrate a trades table created before these columns existed
     for col in ("return_on_margin DOUBLE", "entry_legs VARCHAR", "exit_legs VARCHAR"):
         conn.execute(f"ALTER TABLE trades ADD COLUMN IF NOT EXISTS {col}")

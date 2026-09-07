@@ -71,3 +71,49 @@ def test_weekly_expiry_ignores_stale_snapshot(provider):
     # the latest snapshot only lists 2026-06-25.
     nearest = provider.get_weekly_expiry("NSE_INDEX|Nifty 50", date(2026, 1, 1))
     assert nearest == "2026-06-25"
+
+
+def _named_ce(name, ikey, strike, expiry, lot):
+    return {"segment": "NSE_FO", "instrument_key": ikey,
+            "tradingsymbol": f"{name}{int(strike)}CE", "name": name,
+            "instrument_type": "CE", "expiry": expiry,
+            "strike_price": strike, "lot_size": lot, "tick_size": 5}
+
+
+@pytest.fixture
+def multi_index_provider(tmp_path, monkeypatch):
+    """Master with three distinct lot sizes so a per-underlying miss is visible."""
+    master = tmp_path / "instruments.duckdb"
+    rows = [
+        _named_ce("NIFTY", "NSE_FO|N", 23000, "2026-09-10", 65),
+        _named_ce("BANKNIFTY", "NSE_FO|B", 50000, "2026-09-10", 30),
+        _named_ce("SENSEX", "NSE_FO|S", 76000, "2026-09-10", 20),
+    ]
+    write_snapshot(parse_instruments(rows, "2026-09-01"), db_path=master)
+    monkeypatch.setattr(op_mod, "INSTRUMENT_DB_PATH", master)
+    return OptionsProvider(db_path=tmp_path / "cache.duckdb", read_only=True)
+
+
+def _chain_payload(underlying_key):
+    return [{"expiry": "2026-09-10", "strike_price": 100, "underlying_key": underlying_key,
+             "underlying_spot_price": 100.0,
+             "call_options": {"instrument_key": "c", "market_data": {"ltp": 1}},
+             "put_options": {"instrument_key": "p", "market_data": {"ltp": 1}}}]
+
+
+@pytest.mark.parametrize("key,expected", [
+    ("NSE_INDEX|Nifty 50", 65),
+    ("NSE_INDEX|Nifty Bank", 30),
+    ("BSE_INDEX|SENSEX", 20),
+])
+def test_parsed_chain_carries_master_lot_size(multi_index_provider, key, expected):
+    # The Upstox chain payload has no per-strike lot_size; every row must take
+    # the underlying's master lot size, never the stale hardcoded 75.
+    rows, _ = multi_index_provider._parse_option_chain_response(
+        _chain_payload(key), "2026-09-10")
+    assert rows and {r.lot_size for r in rows} == {expected}
+
+
+def test_get_lot_size_handles_sensex(multi_index_provider):
+    # SENSEX was absent from the name_map → silently returned 75.
+    assert multi_index_provider.get_lot_size("SENSEX") == 20
