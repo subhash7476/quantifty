@@ -1,6 +1,6 @@
 # Options-Wall step health — design
 
-**Status:** DRAFT, awaiting review · 2026-09-07
+**Status:** APPROVED · 2026-09-07
 
 ## Problem
 
@@ -83,8 +83,12 @@ the record to serialise.
 101 failures must produce **one** alert, not 101.
 
 - **structural:** alert on the transition from ok to failing (`consecutive == 1`).
-- **transient:** alert only at `consecutive == 10` — roughly 50 s at the 5 s cycle. Lock
-  contention that persists that long is no longer contention.
+- **transient:** alert at `consecutive == ALERT_AT[step]`, default **10** — roughly 50 s at
+  the 5 s cycle. Lock contention that persists that long is no longer contention.
+- **`close_request` is the exception: `ALERT_AT["close_request"] = 1`.** It alerts on the
+  first failure of either kind. A dropped manual exit means the operator believes a position
+  is flat when it is not, and one missed 5-second cycle is enough to matter. Every other
+  step can afford to wait out a lock; this one cannot.
 - Re-arm only after a success. No repeat alert while a fault persists.
 - Delivered through the existing `TelegramNotifier.send_message` in
   `core/alerts/telegram_notifier.py`. If the notifier is unconfigured or raises, that
@@ -157,15 +161,19 @@ reports. The heartbeat file is already atomic and already written every cycle.
 | accumulator | failure increments `consecutive` and pins `since`; success clears and re-arms |
 | edge-trigger | 101 consecutive structural failures produce exactly 1 alert; success then failure produces a 2nd |
 | transient threshold | 9 lock errors produce no alert; the 10th produces 1 |
+| `close_request` threshold | a single transient `close_request` failure produces 1 alert immediately |
 | poller wiring | a raising executor step records structural **and** `scan_persist` still runs |
 | notifier failure | a raising notifier does not propagate out of `_record_step` |
 | api | `/api/health` reports DEGRADED with the executor entry; a stale heartbeat reports unknown |
 
 The regression bar: **replay today's failure and have it be visible within one cycle.**
 
-## Open question for review
+## Resolved decisions
 
-Should `close_request` failures alert on the *first* transient occurrence rather than the
-tenth? A dropped manual close is operator-visible and time-critical in a way a dropped scan
-cycle is not. The current design treats all steps identically; special-casing it is a
-one-line change if wanted.
+- **`close_request` alerts on the first occurrence** (operator decision, 2026-09-07),
+  transient or structural. Expressed as `ALERT_AT["close_request"] = 1` against a default of
+  10, so the threshold is data rather than a branch and other steps can be retuned without
+  touching the classifier.
+- Structural faults alert on the first occurrence for **every** step; the per-step threshold
+  applies only to transient ones.
+- The spec is otherwise approved as written. Status moves to APPROVED on this revision.
