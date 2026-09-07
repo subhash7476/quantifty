@@ -171,11 +171,37 @@ def _regime_dict(row) -> Dict:
     return d
 
 
+def _align_trade_id_sequence(conn: duckdb.DuckDBPyConnection) -> None:
+    """Push wall_trade_id_seq past MAX(trade_id) when a rebuilt store left it behind.
+
+    A store rebuilt by the compaction script keeps its rows but recreates the
+    sequence at START 1, so nextval() collides with an existing primary key and
+    every open is refused. DuckDB 1.4 has no ALTER SEQUENCE ... RESTART, so the
+    sequence is burned forward instead; reading duckdb_sequences() first means an
+    already-aligned sequence is not consumed (no trade_id gaps).
+    """
+    max_id = conn.execute("SELECT COALESCE(MAX(trade_id), 0) FROM trades").fetchone()[0]
+    if not max_id:
+        return
+    row = conn.execute(
+        "SELECT start_value, last_value, increment_by FROM duckdb_sequences() "
+        "WHERE sequence_name = 'wall_trade_id_seq'").fetchone()
+    if row is None:
+        return
+    start, last, step = row
+    nxt = start if last is None else last + step
+    if nxt > max_id:
+        return
+    conn.execute("SELECT nextval('wall_trade_id_seq') FROM range(?)",
+                 [max_id - nxt + 1])
+
+
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute(_SCHEMA)
     # migrate a trades table created before these columns existed
     for col in ("return_on_margin DOUBLE", "entry_legs VARCHAR", "exit_legs VARCHAR"):
         conn.execute(f"ALTER TABLE trades ADD COLUMN IF NOT EXISTS {col}")
+    _align_trade_id_sequence(conn)
     # migrate a session_regime table created before spot/gamma columns existed
     for col in ("underlying_ltp DOUBLE", "gamma_by_strike VARCHAR"):
         conn.execute(f"ALTER TABLE session_regime ADD COLUMN IF NOT EXISTS {col}")

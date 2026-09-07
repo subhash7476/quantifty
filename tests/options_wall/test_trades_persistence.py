@@ -94,3 +94,31 @@ def test_open_trade_marks_none_when_a_leg_is_unquoted():
     mark, unrealized, legs = _open_trade_marks(trade, {})     # no quotes
     assert mark is None and unrealized is None
     assert legs[0]["cur_mid"] is None
+
+
+def test_open_paper_trade_survives_a_sequence_reset_to_1(tmp_path):
+    """A rebuilt store keeps its rows but restarts wall_trade_id_seq at 1.
+
+    The 2026-09-04 compaction did exactly this: trades 1-7 were copied forward
+    while the sequence was recreated at START 1, so every subsequent insert
+    collided on the primary key and the poller swallowed it as a warning.
+    """
+    import duckdb
+    db = tmp_path / "r.duckdb"
+    conn = duckdb.connect(str(db))
+    p.init_schema(conn)
+    # simulate the rebuild: rows present, sequence untouched at 1
+    conn.execute(
+        "INSERT INTO trades (trade_id, underlying, expiry, entry_ts, short_strike, "
+        "call_wing, put_wing, qty, net_credit, entry_fees, max_loss) "
+        "VALUES (1,'NSE_INDEX|Nifty 50','2026-09-08','2026-09-07 10:00:00',"
+        "23800,24150,23450,75,9000,100,17250)")
+    conn.commit()
+    conn.close()
+
+    fly = build_iron_fly(_chain(), spot=100.0, wing_pct=0.03, qty=75,
+                         trade_date=date(2026, 9, 7))
+    tid = p.open_paper_trade("NSE_INDEX|Nifty 50", "2026-09-08", fly,
+                                datetime(2026, 9, 7, 14, 30), db_path=db)
+    assert tid > 1
+    assert len(p.all_trades("NSE_INDEX|Nifty 50", db_path=db)) == 2
