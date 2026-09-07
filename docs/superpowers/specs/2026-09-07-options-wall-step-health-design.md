@@ -62,9 +62,18 @@ def classify(exc: BaseException) -> str   # "transient" | "structural"
 - everything else, explicitly including `duckdb.ConstraintException`,
   `duckdb.CatalogException`, `KeyError`, `TypeError`, `AttributeError`, `ZeroDivisionError`
 
-Structural is the **default**. Today's log contains `float division by zero` and a
-`TypeError` from a stray test lambda — both real defects, both silently discarded. An
-unrecognised exception is a defect until proven otherwise.
+Structural is the **default**: an unrecognised exception is a defect until proven otherwise.
+
+**Correction (2026-09-07, after the restart check).** An earlier revision of this spec cited
+a `TypeError` from a stray test lambda in `logs/options_wall_poller.log` as evidence of a
+silently discarded production defect. It was not. `core/logging/logger.py:80` hardcodes
+`Path("logs")` and `poller.py:42` builds its logger at import time, so the **test suite**
+writes into the live operational log; those 57 entries came from a pytest run, not from the
+poller. The remaining `float division by zero` entries have the same provenance question and
+should not be cited as evidence either. The structural-by-default argument does not depend
+on them — it rests on the `ConstraintException` that actually did cost three hours. The log
+pollution is fixed as Task 0 of the implementation plan, and it must land before this design
+starts emitting `ERROR` and sending alerts.
 
 ```python
 class StepHealth:
