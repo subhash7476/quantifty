@@ -622,23 +622,16 @@ function paintStructs() {
 }
 
 /* ------------------------------------------------------------- slide-over */
+// Signed quantity and average entry come from the server (_leg_position), which
+// scopes the ledger to this session's leg. signed_qty is already in units, so
+// the mark difference is NOT multiplied by lot_size again.
 function legMtm(s, i) {
     const sym = (s.leg_symbols || [])[i];
     const m = state.legMarks && state.legMarks[sym];
     if (!m || m.ltp == null) return null;
-    const fills = (s.fills && s.fills[i]) || [];
-    let signedQty = 0, cost = 0;
-    fills.forEach(t => {
-        const q = Number(t.quantity) || 0;
-        const p = Number(t.price) || 0;
-        const sign = ((t.side || '').toUpperCase() === 'BUY') ? 1 : -1;
-        signedQty += q * sign;
-        cost += p * q * sign;
-    });
-    if (signedQty === 0) return null;
-    const avg = cost / Math.abs(signedQty);
-    const lot = m.lot_size || 75;
-    return (m.ltp - avg) * signedQty * lot;
+    const pos = (s.leg_positions && s.leg_positions[i]) || null;
+    if (!pos || !pos.signed_qty) return null;
+    return (m.ltp - pos.avg_price) * pos.signed_qty;
 }
 
 function legTableHtml(s) {
@@ -760,18 +753,29 @@ function entryMarginHtml(s) {
         e.event_type === 'ENTRY_MARGIN' && e.metadata && e.metadata.group_id === s.group_id);
     if (!ev) return '';
     const md = ev.metadata;
+    // SPAN/ELM only exist when NseMarginEngine priced the entry. On the
+    // flat-rate fallback they are absent by construction, so say that rather
+    // than showing a bare dash that reads like a missing value.
+    const flat = md.engine && md.engine !== 'NseMarginEngine';
+    const noSpan = flat ? 'n/a — flat-rate engine' : '--';
     const rows = [
         ['Engine', md.engine || '--'],
         ['Lots × lot size', (md.lots != null ? md.lots + ' × ' + md.lot_size : '--')],
-        ['SPAN', md.span != null ? '₹' + n(md.span, 0) : '--'],
-        ['ELM', md.elm != null ? '₹' + n(md.elm, 0) : '--'],
+        ['SPAN', md.span != null ? '₹' + n(md.span, 0) : noSpan],
+        ['ELM', md.elm != null ? '₹' + n(md.elm, 0) : noSpan],
         ['Margin total', md.margin_total != null ? '₹' + n(md.margin_total, 0) : '--'],
         ['Declared risk R', md.risk_r != null ? '₹' + n(md.risk_r, 0) : '--'],
     ].map(([k, v]) =>
         '<div style="display:flex;justify-content:space-between;gap:14px;padding:10px 15px;border-top:1px solid #F5F2ED;font-size:12.5px;">' +
         '<span style="color:var(--muted);">' + k + '</span><span class="mono">' + v + '</span></div>').join('');
+    const warn = flat
+        ? '<div style="padding:10px 15px;border-top:1px solid #F5F2ED;font-size:11.5px;line-height:1.5;color:#A8703C;' +
+          'background:rgba(201,130,26,.07);">No SPAN snapshot was loaded, so margin fell back to the flat-rate ' +
+          'MarginTracker (20% of premium notional). ADR-011 makes NseMarginEngine the sole margin authority in ' +
+          'every mode — this figure is not the certified SPAN+ELM number and understates the broker figure.</div>'
+        : '';
     return '<div style="margin-top:28px;"><div class="ns-sec-h">Entry margin evidence (journal)</div>' +
-        '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' + rows + '</div></div>';
+        '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' + rows + warn + '</div></div>';
 }
 
 function openPanel(s) {

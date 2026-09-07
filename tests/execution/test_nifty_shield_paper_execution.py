@@ -56,8 +56,8 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
         "vix_reduce": False,
         "sl_distance": 100.0,
         "risk_r": 15000.0,
-        "exit": {"tp_pct": 0.5, "sl_mult": 2.0, "hard_exit": "15:15",
-                 "max_portfolio_delta": 500},
+        "exit": {"tp_pct": 0.5, "sl_mult": 2.0, "sl_frac": 0.5,
+                 "hard_exit": "15:15", "max_portfolio_delta": 500},
     }
     md.update(md_over)
     return SignalEvent(strategy_id="nifty_shield_v1",
@@ -126,7 +126,7 @@ def test_gates_config_matches_datasheet_9():
     assert cfg.max_drawdown_limit == pytest.approx(30000.0 / 1_000_000.0)
     assert cfg.max_capital_utilisation == pytest.approx(0.25)
     assert cfg.max_portfolio_delta == 500.0       # declared |Δ| flatten gate
-    assert cfg.max_position_size == 150.0         # 2 lots x 75
+    assert cfg.max_position_size == 130.0         # 2 lots x 65
     assert cfg.max_portfolio_vega > 1e9           # undeclared -> effectively off
     assert cfg.max_gamma_exposure > 1e9
 
@@ -211,7 +211,7 @@ def test_entry_assembles_group_fills_at_marks_and_journals_margin(tmp_path, monk
     for sym, mark in _entry_marks().items():
         pos = handler.position_tracker.get_position(sym)
         assert pos is not None and pos.side.value != "FLAT"
-        assert pos.quantity == 150.0            # 2 lots x 75
+        assert pos.quantity == 130.0            # 2 lots x 65
 
     # Group registered under the source group_id with the right type.
     group = handler.group_tracker.get_group(__import__("uuid").UUID(GROUP_ID))
@@ -221,7 +221,7 @@ def test_entry_assembles_group_fills_at_marks_and_journals_margin(tmp_path, monk
 
     # Structure credit derived from fills (net premium collected).
     credit = handler.structure_credit(group.group_id)
-    assert credit == pytest.approx((100.0 + 100.0 - 20.0 - 20.0) * 150.0)
+    assert credit == pytest.approx((100.0 + 100.0 - 20.0 - 20.0) * 130.0)
 
     # Margin evidence journaled (F).
     events = [json.loads(l) for l in
@@ -296,7 +296,7 @@ def _enter_iron_fly(tmp_path, monkeypatch, journal=None):
 def test_exit_driver_take_profit_closes(tmp_path, monkeypatch):
     journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
     handler = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
-    # Shorts at 40 (profit 60 each), wings flat -> group P&L = 2 x 60 x 150.
+    # Shorts at 40 (profit 60 each), wings flat -> group P&L = 2 x 60 x 130.
     profit_marks = {
         "NIFTY10JAN2318150CE": 40.0,
         "NIFTY10JAN2318150PE": 40.0,
@@ -357,7 +357,7 @@ def test_exit_updates_entry_keyed_trade_ledger(tmp_path, monkeypatch):
     for trade_id, symbol, exit_price, pnl, fees in after:
         assert exit_price == pytest.approx(40.0 if "18150" in symbol else 20.0)
         assert fees > 0.0                      # entry + exit fees accumulated
-        expected = (100.0 - 40.0) * 150.0 if "18150" in symbol else 0.0
+        expected = (100.0 - 40.0) * 130.0 if "18150" in symbol else 0.0
         assert pnl == pytest.approx(expected)
 def test_exit_driver_holds_before_any_trigger(tmp_path, monkeypatch):
     handler = _enter_iron_fly(tmp_path, monkeypatch)
@@ -430,3 +430,85 @@ def test_restored_closed_group_not_reopened_by_new_structure(tmp_path, monkeypat
     for sym in ("NIFTY10JAN2318150PE", "NIFTY10JAN2318150CE"):
         pos = restored.position_tracker.get_position(sym)
         assert pos.side.value == "SHORT"         # the new structure's legs
+
+
+# --------------------------------------------------------------------------- #
+# structure_max_loss — the bound the stop is measured against, from real fills.
+# Coherent fly marks: shorts 60/58, wings 20/18 on a 100-point wing.
+# credit/unit 80 -> max_loss/unit 20; at 2 lots x 65 that is 10,400 / 2,600.
+# --------------------------------------------------------------------------- #
+_COHERENT_FLY = {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0,
+                 "NIFTY10JAN2318250CE": 20.0, "NIFTY10JAN2318050PE": 18.0}
+
+
+def _enter(tmp_path, monkeypatch, signals, marks):
+    handler = _build_handler(tmp_path, monkeypatch, marks=marks)
+    for s in signals:
+        handler.process_signal(s, 24000.0)
+    return handler
+
+
+def test_structure_max_loss_is_wing_width_less_credit(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
+    gid = handler.open_nifty_shield_groups()[0]
+    assert handler.structure_credit(gid) == pytest.approx(10_400.0)
+    assert handler.structure_max_loss(gid) == pytest.approx(2_600.0)
+
+
+def test_structure_max_loss_is_none_for_undefined_structure(tmp_path, monkeypatch):
+    signals = [_leg_signal("short_ce", "CE", 18150, SignalType.SELL,
+                           structure="short_straddle"),
+               _leg_signal("short_pe", "PE", 18150, SignalType.SELL,
+                           structure="short_straddle")]
+    handler = _enter(tmp_path, monkeypatch, signals,
+                     {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0})
+    gid = handler.open_nifty_shield_groups()[0]
+    assert handler.structure_max_loss(gid) is None
+
+
+def test_structure_max_loss_for_a_vertical_spread(tmp_path, monkeypatch):
+    """The majority structure: both legs share an option_type, matched by side."""
+    signals = [_leg_signal("short_pe", "PE", 18150, SignalType.SELL,
+                           structure="bull_put_spread", sl_distance=150.0),
+               _leg_signal("wing_pe", "PE", 18000, SignalType.BUY,
+                           structure="bull_put_spread", sl_distance=150.0)]
+    handler = _enter(tmp_path, monkeypatch, signals,
+                     {"NIFTY10JAN2318150PE": 90.0, "NIFTY10JAN2318000PE": 35.0})
+    gid = handler.open_nifty_shield_groups()[0]
+    assert handler.structure_credit(gid) == pytest.approx(7_150.0)
+    assert handler.structure_max_loss(gid) == pytest.approx(12_350.0)
+
+
+def test_structure_max_loss_is_none_when_a_wing_did_not_fill(tmp_path, monkeypatch):
+    """A fly missing a wing is not defined-risk — no fabricated bound.
+
+    Entry with a mark missing is skipped outright, so the state that reaches the
+    exit driver is a group whose wing leg carries no fill: strip it directly.
+    """
+    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
+    gid = handler.open_nifty_shield_groups()[0]
+    assert handler.structure_max_loss(gid) is not None       # bound exists first
+    wing = next(l for l in handler.group_tracker.get_group(gid).legs
+                if l.side.value == "BUY")
+    handler.order_tracker.get_order(wing.correlation_id).filled_quantity = 0.0
+    assert handler.structure_max_loss(gid) is None
+
+
+def test_exit_driver_stop_closes_on_fraction_of_max_loss(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
+    # CE side breached: short 60 -> 80, wing 20 -> 29. P&L -1,650 vs -1,500.
+    # The old rule needed -24,000 against a structural floor of -3,000.
+    loss_marks = {**_COHERENT_FLY, "NIFTY10JAN2318150CE": 80.0,
+                  "NIFTY10JAN2318250CE": 29.0}
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(loss_marks))
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups[GROUP_ID] == "stop_loss"
+
+
+def test_exit_driver_holds_inside_the_max_loss_band(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
+    hold_marks = {**_COHERENT_FLY, "NIFTY10JAN2318150CE": 72.0,
+                  "NIFTY10JAN2318250CE": 26.0}          # P&L -900, inside band
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(hold_marks))
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    assert GROUP_ID not in handler._closed_groups

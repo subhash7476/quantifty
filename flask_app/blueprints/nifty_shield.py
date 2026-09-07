@@ -137,7 +137,10 @@ def _merged_structures(ev: Dict[str, Any]) -> List[dict]:
             "gross_exposure_rs": p["gross_exposure_rs"],
             "leg_symbols": a.leg_symbols if a else [],
             "filled_legs": a.filled_legs if a else [],
-            "fills": [fills.get(s, []) for s in (a.leg_symbols if a else [])],
+            "fills": [fills.get((p["session"], s), [])
+                      for s in (a.leg_symbols if a else [])],
+            "leg_positions": [_leg_position(fills.get((p["session"], s), []))
+                              for s in (a.leg_symbols if a else [])],
         })
     for a in audit.structures:
         if a.status != "skipped" or a.group_id in seen:
@@ -158,13 +161,21 @@ def _merged_structures(ev: Dict[str, Any]) -> List[dict]:
             "leg_symbols": a.leg_symbols,
             "filled_legs": [],
             "fills": [],
+            "leg_positions": [],
         })
     out.sort(key=lambda s: (s["session"] or "", 0 if s["closed"] else 1))
     return out
 
 
-def _leg_fills(db_path: Path) -> Dict[str, List[dict]]:
-    out: Dict[str, List[dict]] = {}
+def _leg_fills(db_path: Path) -> Dict[tuple, List[dict]]:
+    """Ledger fills keyed by (session, symbol).
+
+    Symbol alone pools every session that ever traded that strike, so a
+    re-traded strike nets its quantities across sessions and the leg's average
+    entry and open quantity both come out wrong. One structure per session makes
+    (session, symbol) the leg's real identity.
+    """
+    out: Dict[tuple, List[dict]] = {}
     if not db_path.exists():
         return out
     try:
@@ -176,11 +187,34 @@ def _leg_fills(db_path: Path) -> Dict[str, List[dict]]:
     except sqlite3.Error:
         return out
     for sym, side, qty, price, pnl, fees, ts in rows:
-        out.setdefault(sym, []).append({
+        session = str(ts)[:10]
+        out.setdefault((session, sym), []).append({
             "side": side, "quantity": qty, "price": price,
             "pnl": pnl, "fees": fees, "timestamp": ts,
         })
     return out
+
+
+def _leg_position(fills: List[dict]) -> Optional[dict]:
+    """Open signed quantity and average entry for one leg, or None when flat.
+
+    `signed_qty` is in units (the ledger quantity is already lots x lot_size),
+    so a caller marks the leg with `(ltp - avg_price) * signed_qty` and must not
+    apply lot_size again. `avg_price` divides by the signed quantity, not its
+    absolute value -- a short leg's cost is negative and dividing by |qty| would
+    report a negative average entry.
+    """
+    signed_qty = 0.0
+    cost = 0.0
+    for t in fills:
+        qty = float(t.get("quantity") or 0.0)
+        price = float(t.get("price") or 0.0)
+        sign = 1.0 if str(t.get("side", "")).upper() == "BUY" else -1.0
+        signed_qty += qty * sign
+        cost += price * qty * sign
+    if signed_qty == 0:
+        return None
+    return {"signed_qty": signed_qty, "avg_price": cost / signed_qty}
 
 
 def _journal_tail(limit: int = 60, session: Optional[str] = None) -> List[dict]:

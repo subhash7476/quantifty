@@ -148,6 +148,8 @@ class NiftyShieldSignalSource(SignalSource):
                 "exit": {
                     "tp_pct": float(self._cfg.get("profit_target_pct", 0.50)),
                     "sl_mult": float(self._cfg.get("stop_loss_multiplier", 2.0)),
+                    "sl_frac": float(
+                        self._cfg.get("stop_loss_max_loss_frac", 0.50)),
                     "hard_exit": "15:15",
                     "max_portfolio_delta": float(
                         self._cfg.get("max_portfolio_delta", 500)),

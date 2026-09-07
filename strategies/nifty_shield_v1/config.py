@@ -23,12 +23,25 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "entry_window_minutes": 10,
     "exit_time": {"hour": 15, "minute": 15},
     "profit_target_pct": 0.50,
+    # Defined-risk structures (iron_fly / the two verticals) stop on a fraction
+    # of max loss. A credit multiple cannot bound them: loss is capped at
+    # wing_width x qty - credit, so -stop_loss_multiplier x credit is reachable
+    # only when max_loss / credit >= the multiple -- true for 10.5% of
+    # defined-risk entries over the certified facts, and 0 of 56 iron flies.
+    "stop_loss_max_loss_frac": 0.50,
+    # Retained for short_straddle / short_strangle, which have no structural
+    # bound and for which a credit multiple is the only rule available.
     "stop_loss_multiplier": 2.0,
     # D1: delta adjustment dropped in v1 — delta is a flatten-gate (close-only).
     "delta_adjustment_threshold": 0.55,
     "max_portfolio_delta": 500,
     "max_lots": 2,
-    "lot_size": 75,
+    # NSE NIFTY F&O lot size. 65 since the 2026-09 revision -- the instrument
+    # master carries 65 on every option expiry from 2026-09-08. The handler
+    # sizes from this value directly, so a stale number routes an un-tradeable
+    # quantity. Better still would be resolving it per-contract from the
+    # instrument layer at the execution boundary (ADR-016) -- see the report.
+    "lot_size": 65,
     "regime_sizing": {"Choppy": 1.0, "BullTrend": 0.5, "BearTrend": 0.5},
     "vix_skip_above": 20.0,
     "vix_reduce_above": 16.0,

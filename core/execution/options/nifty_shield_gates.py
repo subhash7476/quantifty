@@ -42,7 +42,7 @@ DEFAULT_CERTIFIED_CONFIG: Dict[str, Any] = {
     "iron_fly_vix_above": 14.0,
     "max_portfolio_delta": 500,
     "max_lots": 2,
-    "lot_size": 75,
+    "lot_size": 65,   # must track strategies.nifty_shield_v1.config
 }
 
 

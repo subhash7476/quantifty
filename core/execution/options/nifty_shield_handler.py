@@ -55,6 +55,13 @@ LEG_COUNTS: Dict[str, int] = {
 }
 
 
+# Structures whose loss is bounded by bought wings. The undefined ones
+# (short_straddle / short_strangle) have no structural bound, so their stop
+# stays the credit multiple -- see NiftyShieldExitManager.
+DEFINED_RISK_STRUCTURES = frozenset(
+    ("iron_fly", "bull_put_spread", "bear_call_spread"))
+
+
 def _expected_legs(structure: str) -> int:
     return LEG_COUNTS.get(structure, 4)
 
@@ -122,6 +129,51 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             sign = 1.0 if leg.side.value == "SELL" else -1.0
             total += sign * state.average_price * state.filled_quantity
         return total
+
+    def structure_max_loss(self, group_id: UUID) -> Optional[float]:
+        """Worst-case loss in Rs for a wing-protected structure, else None.
+
+        Every short leg must be matched by a bought leg of the same option_type
+        at equal filled quantity; the widest such pair bounds the structure
+        (only one side of a fly can be breached). Derived from fills, not from
+        the declared `sl_distance`, so it tracks the margin-clamped `final_lots`
+        actually routed rather than the source's declared lots.
+
+        None means no structural bound: an undefined structure, or a defined one
+        whose wings did not all fill. A fly missing a wing is not defined-risk,
+        and a stop set to a fraction of a fabricated bound is worse than one
+        that never fires.
+        """
+        group = self.group_tracker.get_group(group_id)
+        if group is None or not group.legs:
+            return None
+        md = group.legs[0].metadata
+        md = getattr(md, "strategy_metadata", md)
+        if md.get("structure") not in DEFINED_RISK_STRUCTURES:
+            return None
+
+        shorts, wings = [], []
+        for leg in group.legs:
+            state = self.order_tracker.get_order(leg.correlation_id)
+            if state is None or not state.filled_quantity:
+                continue
+            (shorts if leg.side.value == "SELL" else wings).append(
+                (leg, float(state.filled_quantity)))
+        if not shorts:
+            return None
+
+        widest = 0.0
+        for leg, qty in shorts:
+            matched = [w for w, wqty in wings
+                       if w.instrument.option_type == leg.instrument.option_type
+                       and wqty == qty]
+            if not matched:
+                return None                  # unprotected short -> not defined
+            wing = min(matched, key=lambda w: abs(w.instrument.strike
+                                                  - leg.instrument.strike))
+            widest = max(widest, abs(wing.instrument.strike
+                                     - leg.instrument.strike) * qty)
+        return widest - self.structure_credit(group_id)
 
     def close_group(self, group_id: UUID, reason: str, bar_time: datetime,
                     marks: Dict[str, float]) -> None:
@@ -462,7 +514,8 @@ class NiftyShieldExitDriver:
             manager = self._manager_for(group.legs[0].metadata)
             portfolio_delta = self._portfolio_delta(marks)
             reason = manager.evaluate(
-                gid, credit, marks, timestamp, portfolio_delta=portfolio_delta)
+                gid, credit, marks, timestamp, portfolio_delta=portfolio_delta,
+                max_loss=handler.structure_max_loss(gid))
             if reason is not None:
                 handler.close_group(gid, reason, timestamp, marks)
         return False
@@ -478,6 +531,7 @@ class NiftyShieldExitDriver:
             cfg = {
                 "profit_target_pct": exit_md.get("tp_pct", 0.50),
                 "stop_loss_multiplier": exit_md.get("sl_mult", 2.0),
+                "stop_loss_max_loss_frac": exit_md.get("sl_frac", 0.50),
                 "exit_time": {"hour": 15, "minute": 15},
                 "max_portfolio_delta": exit_md.get("max_portfolio_delta", 500),
             }

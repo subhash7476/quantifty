@@ -18,7 +18,8 @@ def build_signal_source(config: Dict[str, Any] = None) -> NiftyShieldSignalSourc
     Args:
         config: optional dict merged over DEFAULT_CONFIG. Recognised keys:
             underlying, entry_checkpoint, exit_time, profit_target_pct,
-            stop_loss_multiplier, delta_adjustment_threshold,
+            stop_loss_max_loss_frac, stop_loss_multiplier,
+            delta_adjustment_threshold,
             max_portfolio_delta, max_lots, lot_size, regime_sizing,
             vix_skip_above, vix_reduce_above, iron_fly_vix_above,
             wing_offset_pts, directional_wing_pts, strangle_otm_pts,

@@ -50,8 +50,8 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
         "vix_reduce": False,
         "sl_distance": 100.0,
         "risk_r": 15000.0,
-        "exit": {"tp_pct": 0.5, "sl_mult": 2.0, "hard_exit": "15:15",
-                 "max_portfolio_delta": 500},
+        "exit": {"tp_pct": 0.5, "sl_mult": 2.0, "sl_frac": 0.5,
+                 "hard_exit": "15:15", "max_portfolio_delta": 500},
     }
     md.update(md_over)
     return SignalEvent(strategy_id="nifty_shield_v1", symbol="NIFTY10JAN23" + str(strike) + ot,
@@ -243,3 +243,99 @@ def test_holds_when_no_trigger():
     credit = 100.0 * 75 * 2
     flat = _current_prices(legs, {l.symbol: 100.0 for l in legs})
     assert manager.evaluate(UUID(_GROUP_ID), credit, flat, _TS) is None
+
+
+# --------------------------------------------------------------------------- #
+# Stop reachability (D5) — a defined-risk structure cannot lose a multiple of
+# its own credit, so `-sl_mult x credit` is unreachable whenever
+# max_loss / credit < sl_mult. Marks below price all four legs coherently; the
+# older fixtures pin wings flat while shorts move, which is an arbitrage state
+# a real fly never reaches and is why the defect survived them.
+# --------------------------------------------------------------------------- #
+_FLY_ENTRY = {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0,
+              "NIFTY10JAN2318250CE": 20.0, "NIFTY10JAN2318050PE": 18.0}
+# credit/unit 80 on a 100-point wing -> max_loss/unit 20, ratio 0.25 << 2.0
+_FLY_CREDIT = 80.0 * 150
+_FLY_MAX_LOSS = 100.0 * 150 - _FLY_CREDIT
+
+
+def _fly_manager():
+    legs = assemble_group(_iron_fly_signals(), _UNDERLYING, 2, 75).legs
+    manager, _ = _manager_with_tracker(legs, {l.symbol: _FLY_ENTRY[l.symbol]
+                                              for l in legs})
+    return manager, legs
+
+
+def test_iron_fly_stop_fires_on_fraction_of_max_loss():
+    manager, legs = _fly_manager()
+    # CE side breached: short 60 -> 80, wing 20 -> 29. P&L = -1,650.
+    marks = _current_prices(legs, {**_FLY_ENTRY,
+                                   "NIFTY10JAN2318150CE": 80.0,
+                                   "NIFTY10JAN2318250CE": 29.0})
+    # The old rule needed -2 x 12,000 = -24,000 against a structural floor of
+    # -3,000: unreachable by a factor of eight.
+    assert _FLY_MAX_LOSS < 2.0 * _FLY_CREDIT
+    assert manager.evaluate(UUID(_GROUP_ID), _FLY_CREDIT, marks, _TS,
+                            max_loss=_FLY_MAX_LOSS) == "stop_loss"
+
+
+def test_iron_fly_stop_holds_inside_the_max_loss_band():
+    manager, legs = _fly_manager()
+    # short 60 -> 72, wing 20 -> 26. P&L = -900, inside 0.5 x 3,000.
+    marks = _current_prices(legs, {**_FLY_ENTRY,
+                                   "NIFTY10JAN2318150CE": 72.0,
+                                   "NIFTY10JAN2318250CE": 26.0})
+    assert manager.evaluate(UUID(_GROUP_ID), _FLY_CREDIT, marks, _TS,
+                            max_loss=_FLY_MAX_LOSS) is None
+
+
+def test_vertical_spread_stop_fires_on_fraction_of_max_loss():
+    legs = assemble_group(
+        [_leg_signal("short_pe", "PE", 18150, SignalType.SELL,
+                     structure="bull_put_spread", sl_distance=150.0),
+         _leg_signal("wing_pe", "PE", 18000, SignalType.BUY,
+                     structure="bull_put_spread", sl_distance=150.0)],
+        _UNDERLYING, 2, 75).legs
+    entry = {"NIFTY10JAN2318150PE": 90.0, "NIFTY10JAN2318000PE": 35.0}
+    manager, _ = _manager_with_tracker(legs, {l.symbol: entry[l.symbol]
+                                              for l in legs})
+    credit = 55.0 * 150                      # 150-point wing -> max_loss 14,250
+    max_loss = 150.0 * 150 - credit
+    assert max_loss < 2.0 * credit           # ratio 1.73 -> old stop unreachable
+    # short 90 -> 150, wing 35 -> 47. P&L = -7,200 vs -7,125 trigger.
+    marks = _current_prices(legs, {"NIFTY10JAN2318150PE": 150.0,
+                                   "NIFTY10JAN2318000PE": 47.0})
+    assert manager.evaluate(UUID(_GROUP_ID), credit, marks, _TS,
+                            max_loss=max_loss) == "stop_loss"
+
+
+def test_undefined_structure_keeps_the_credit_multiple_stop():
+    """straddle/strangle have no structural bound — sl_mult is the real rule."""
+    legs = assemble_group(
+        [_leg_signal("short_ce", "CE", 18150, SignalType.SELL,
+                     structure="short_straddle"),
+         _leg_signal("short_pe", "PE", 18150, SignalType.SELL,
+                     structure="short_straddle")],
+        _UNDERLYING, 2, 75).legs
+    entry = {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0}
+    manager, _ = _manager_with_tracker(legs, {l.symbol: entry[l.symbol]
+                                              for l in legs})
+    credit = 118.0 * 150                                   # -2x -> -35,400
+    fires = _current_prices(legs, {**entry, "NIFTY10JAN2318150CE": 300.0})
+    holds = _current_prices(legs, {**entry, "NIFTY10JAN2318150CE": 200.0})
+    assert manager.evaluate(UUID(_GROUP_ID), credit, fires, _TS,
+                            max_loss=None) == "stop_loss"
+    assert manager.evaluate(UUID(_GROUP_ID), credit, holds, _TS,
+                            max_loss=None) is None
+
+
+# --------------------------------------------------------------------------- #
+# Lot size — NSE moved NIFTY to 65 (instrument master: every option expiry from
+# 2026-09-08). It is declared in two places; they must not drift apart, and the
+# handler sizes from the strategy config, so a stale value routes an
+# un-tradeable quantity (the 2026-09-07 spread filled 75 units, not 65).
+# --------------------------------------------------------------------------- #
+def test_certified_nifty_lot_size_is_65():
+    from core.execution.options.nifty_shield_gates import DEFAULT_CERTIFIED_CONFIG
+    assert DEFAULT_CONFIG["lot_size"] == 65
+    assert DEFAULT_CERTIFIED_CONFIG["lot_size"] == DEFAULT_CONFIG["lot_size"]

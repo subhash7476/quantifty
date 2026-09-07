@@ -46,7 +46,7 @@ from typing import Any, Dict, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from scripts.nifty_shield_paper.audit import audit_window
+from scripts.nifty_shield_paper.audit import audit_window, is_structure_entry
 from scripts.nifty_shield_paper.metrics_report import risk_metrics_report
 from scripts.nifty_shield_paper.session import _jsonable
 
@@ -96,7 +96,7 @@ def _backfill_group_ids(data_root: Path, session: str) -> List[dict]:
         if not line.strip():
             continue
         e = json.loads(line)
-        if (e.get("event_type") == "ENTRY_MARGIN"
+        if (is_structure_entry(e)
                 and str(e.get("metadata", {}).get("session")) == session):
             md = e["metadata"]
             entries.append((str(md["group_id"]), list(md.get("leg_symbols", []))))

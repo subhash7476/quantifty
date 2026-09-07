@@ -37,7 +37,7 @@ from core.execution.options.nifty_shield_marks import (
 from core.execution.watchdog import RuntimeWatchdog
 from core.runtime.config import Mode
 from core.runtime.metrics import InMemoryTelemetrySink, TelemetrySink
-from core.runtime.event_journal import RuntimeEventJournal
+from core.runtime.event_journal import EventType, RuntimeEventJournal, Severity
 from core.risk.span.span_freshness import expected_span_date
 from core.risk.span.span_repository import SpanRepository
 from strategies.nifty_shield_v1 import build_signal_source
@@ -66,14 +66,41 @@ _REPLAY_DEFAULT_START = datetime(2026, 6, 5, 9, 15, 0)
 _logger = logging.getLogger("nifty_shield_paper")
 
 
-def _load_span_snapshot():
-    """Best-effort SPAN snapshot for NseMarginEngine (SPAN+ELM margin evidence).
-    Absent -> flat-rate MarginTracker fallback (journaled as such, §7.7)."""
+def _load_span_snapshot(journal=None):
+    """SPAN snapshot for NseMarginEngine (SPAN+ELM margin evidence).
+
+    Absent -> flat-rate MarginTracker fallback. ADR-011/012/013 make
+    NseMarginEngine the sole margin authority in every mode, so this downgrade
+    is a departure from the certified margin architecture and not a detail: the
+    flat rate prices 20% of premium notional, which on the 2026-09-07 spread
+    read Rs 4,619 against the broker's Rs 79,902. A logger warning is not an
+    audit record, so journal it at CRITICAL and leave the evidence trail able
+    to say which engine priced each entry.
+    """
     try:
         repo = SpanRepository()
         return repo.load(expected_span_date())
     except Exception as exc:
         _logger.warning("SPAN snapshot unavailable (%s) — flat-rate margin", exc)
+        if journal is not None:
+            try:
+                # STARTUP, not ENTRY_MARGIN: this is a session-level
+                # composition fact with no structure behind it, and every
+                # ENTRY_MARGIN consumer indexes metadata["group_id"].
+                journal.record(
+                    EventType.STARTUP,
+                    "SPAN snapshot unavailable — margin downgraded to the "
+                    "flat-rate MarginTracker (NOT NseMarginEngine); SPAN/ELM "
+                    "evidence will be absent and the margin figure is not the "
+                    "certified SPAN+ELM number",
+                    severity=Severity.CRITICAL,
+                    source_component="nifty_shield_paper_runner",
+                    metadata={"expected_span_date": str(expected_span_date()),
+                              "error": str(exc),
+                              "engine": "MarginTracker"},
+                )
+            except Exception:
+                _logger.exception("journal write failed for SPAN downgrade")
         return None
 
 
@@ -139,7 +166,7 @@ def build_nifty_shield_paper_driver(
     if check is not None:
         check()
     if span_snapshot is None:
-        span_snapshot = _load_span_snapshot()
+        span_snapshot = _load_span_snapshot(journal)
     strategy_config = dict(DEFAULT_CONFIG)
 
     source = build_signal_source({"facts_db_path": facts_db_path})

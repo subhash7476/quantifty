@@ -75,6 +75,18 @@ def _trade_symbols(db_path: str) -> Dict[str, List[str]]:
     return out
 
 
+def is_structure_entry(event: dict) -> bool:
+    """True for an ENTRY_MARGIN row that describes a structure.
+
+    ENTRY_MARGIN also carries session-level notices (the SPAN-downgrade line),
+    which have no structure and therefore no `group_id`. Every consumer keys off
+    that field, so the presence of a group -- not the event type alone -- is what
+    makes a row auditable.
+    """
+    return (event.get("event_type") == EventType.ENTRY_MARGIN.value
+            and bool((event.get("metadata") or {}).get("group_id")))
+
+
 def audit_window(journal_path: str, trades_db_path: str) -> AuditReport:
     events = _read_journal(journal_path)
     report = AuditReport()
@@ -82,8 +94,7 @@ def audit_window(journal_path: str, trades_db_path: str) -> AuditReport:
     report.guard_events = Counter(
         e["event_type"] for e in events if e["event_type"] in GUARD_TYPES)
 
-    entries = [e for e in events
-               if e["event_type"] == EventType.ENTRY_MARGIN.value]
+    entries = [e for e in events if is_structure_entry(e)]
     skips = [e for e in events
              if e["event_type"] == EventType.ENTRY_SKIPPED.value]
     closes = [e for e in events

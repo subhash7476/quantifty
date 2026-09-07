@@ -263,3 +263,57 @@ def test_marks_legs_endpoint_empty_cache_is_graceful(monkeypatch, tmp_path):
     payload = resp.get_json()
     assert payload["marks"] == {}
     assert payload["snapshot_ts"] is None
+
+
+# --------------------------------------------------------------------------- #
+# Leg MTM — the slide-over's "MTM Δ" was wrong on both legs of the 2026-09-07
+# spread: a short leg's average came out negative (cost / abs(qty)) and the
+# result was multiplied by lot_size a second time, though the ledger quantity is
+# already in units. Numbers below are that live trade.
+# --------------------------------------------------------------------------- #
+def _trades_db(tmp_path, rows):
+    db = tmp_path / "trading" / "trading.db"
+    db.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE trades (symbol TEXT, side TEXT, quantity REAL, "
+                "entry_price REAL, pnl REAL, fees REAL, timestamp TEXT)")
+    con.executemany("INSERT INTO trades VALUES (?,?,?,?,?,?,?)", rows)
+    con.commit()
+    con.close()
+    return db
+
+
+def test_leg_position_short_leg_average_is_positive():
+    """cost / abs(qty) flipped a short leg's average negative."""
+    fills = [{"side": "SELL", "quantity": 75, "price": 193.95}]
+    pos = ns._leg_position(fills)
+    assert pos["signed_qty"] == -75
+    assert pos["avg_price"] == pytest.approx(193.95)
+
+
+def test_leg_position_mtm_matches_the_live_spread():
+    short = ns._leg_position([{"side": "SELL", "quantity": 75, "price": 193.95}])
+    long_ = ns._leg_position([{"side": "BUY", "quantity": 75, "price": 114.00}])
+    # Ledger quantity is already units (lots x lot_size) -- no second lot factor.
+    assert (198.00 - short["avg_price"]) * short["signed_qty"] == pytest.approx(-303.75)
+    assert (117.55 - long_["avg_price"]) * long_["signed_qty"] == pytest.approx(266.25)
+
+
+def test_leg_position_is_none_for_a_closed_round_trip():
+    pos = ns._leg_position([{"side": "SELL", "quantity": 75, "price": 193.95},
+                            {"side": "BUY", "quantity": 75, "price": 150.00}])
+    assert pos is None
+
+
+def test_leg_fills_are_scoped_to_the_session(monkeypatch, tmp_path):
+    """Keying by symbol alone pooled every session's fills for a re-traded strike."""
+    db = _trades_db(tmp_path, [
+        ("NIFTY15SEP2623750CE", "SELL", 75, 193.95, 0.0, 28.28,
+         "2026-09-07 13:01:04+05:30"),
+        ("NIFTY15SEP2623750CE", "SELL", 75, 210.00, 0.0, 29.00,
+         "2026-09-08 13:01:04+05:30"),
+    ])
+    fills = ns._leg_fills(db)
+    assert len(fills[("2026-09-07", "NIFTY15SEP2623750CE")]) == 1
+    assert len(fills[("2026-09-08", "NIFTY15SEP2623750CE")]) == 1
+    assert fills[("2026-09-07", "NIFTY15SEP2623750CE")][0]["price"] == 193.95

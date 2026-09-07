@@ -131,7 +131,7 @@ def synthetic_session(tmp_path, monkeypatch):
     """Run the LIVE-shaped composition root (REPLAY driver) with the recorder
     over a deterministic synthetic session; finalize the session package.
     Returns (data_root, package_dir)."""
-    monkeypatch.setattr(runner_mod, "_load_span_snapshot", lambda: None)
+    monkeypatch.setattr(runner_mod, "_load_span_snapshot", lambda journal=None: None)
 
     work = tmp_path / "window"
     work.mkdir()
@@ -658,7 +658,7 @@ def test_live_watchdog_writes_real_heartbeat(tmp_path, monkeypatch):
     """F-B4: the LIVE composition root constructs a REAL RuntimeWatchdog and a
     driven tick writes heartbeat.json (not a stub)."""
     from core.execution.watchdog import RuntimeWatchdog
-    monkeypatch.setattr(runner_mod, "_load_span_snapshot", lambda: None)
+    monkeypatch.setattr(runner_mod, "_load_span_snapshot", lambda journal=None: None)
     work = tmp_path / "live"
     work.mkdir()
     DatabaseManager.reset_instance()

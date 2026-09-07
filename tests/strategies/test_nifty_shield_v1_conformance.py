@@ -160,7 +160,10 @@ def test_leg_encoding_and_risk_metadata(facts_db):
             assert key in md, f"missing metadata key {key}"
         assert md["sl_distance"] > 0 and md["risk_r"] > 0
         assert md["exit"]["tp_pct"] == 0.50
+        # sl_mult is the stop for the undefined structures only; the defined
+        # ones stop on sl_frac x max_loss (a credit multiple cannot bound them).
         assert md["exit"]["sl_mult"] == 2.0
+        assert md["exit"]["sl_frac"] == 0.50
         assert md["exit"]["hard_exit"] == "15:15"
         assert s.context is not None
         assert s.context.regime_state in {"BullTrend", "BearTrend", "Choppy"}
