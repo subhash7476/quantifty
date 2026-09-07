@@ -97,3 +97,54 @@ def test_qty_derived_from_chain_lot_size(tmp_path):
     opens = pers.open_trades("NSE_INDEX|Nifty Bank", db_path=db)
     assert len(opens) == 1
     assert opens[0]["qty"] == 30
+
+
+def _chain_scaled(factor):
+    """Same chain with every premium scaled — moves the mark without moving strikes."""
+    rows = []
+    for k, (ce, pe) in _PREMIA.items():
+        rows.append(_row(k, "CE", round(ce * factor, 4)))
+        rows.append(_row(k, "PE", round(pe * factor, 4)))
+    return rows
+
+
+def test_tp_fires_at_quarter_of_credit(tmp_path):
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
+    # 0.70x premia -> mark 136.5 vs credit 195 -> +30% of credit: above 0.25, below 0.50
+    action = ex.step("NSE_INDEX|Nifty 50", _chain_scaled(0.70), _structural(), 1.0,
+                     datetime(2026, 8, 14, 11, 0))
+    assert action == "tp"
+
+
+def test_tp_does_not_fire_below_threshold(tmp_path):
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
+    # 0.90x premia -> +10% of credit
+    action = ex.step("NSE_INDEX|Nifty 50", _chain_scaled(0.90), _structural(), 1.0,
+                     datetime(2026, 8, 14, 11, 0))
+    assert action is None
+
+
+def test_sl_fires_on_fraction_of_max_loss(tmp_path):
+    """The stop must be reachable: a fly cannot lose a multiple of its own credit."""
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
+    # credit 195, max_loss 30. 1.15x premia -> mark 224.25 -> -29.25, past 0.5 x max_loss.
+    # The old -2.0 x credit rule needed -390, which this position can never reach.
+    action = ex.step("NSE_INDEX|Nifty 50", _chain_scaled(1.15), _structural(), 1.0,
+                     datetime(2026, 8, 14, 11, 0))
+    assert action == "sl"
+
+
+def test_sl_does_not_fire_inside_the_band(tmp_path):
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
+    # 1.05x premia -> -9.75, inside 0.5 x max_loss (-15)
+    action = ex.step("NSE_INDEX|Nifty 50", _chain_scaled(1.05), _structural(), 1.0,
+                     datetime(2026, 8, 14, 11, 0))
+    assert action is None

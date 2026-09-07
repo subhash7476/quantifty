@@ -25,8 +25,8 @@ from core.options_wall.fly import (FlyLeg, IronFly, build_iron_fly, exit_fees,
 class PaperConfig:
     wing_pct: float = 0.015
     lots: int = 1          # qty = lots × the contract's lot_size (per-index, not hardcoded)
-    tp_frac: float = 0.5
-    sl_mult: float = 2.0
+    tp_frac: float = 0.25       # of net credit
+    sl_frac: float = 0.5        # of max_loss, NOT of credit: a fly cannot lose a multiple of its own credit
     entry_start: str = "09:30"
     entry_end: str = "15:00"
     squareoff: str = "15:15"
@@ -94,7 +94,7 @@ class PaperExecutor:
             pnl = unrealized_pnl(fly, mids)
             if pnl is not None and pnl >= self.cfg.tp_frac * row["net_credit"]:
                 reason = "tp"
-            elif pnl is not None and pnl <= -self.cfg.sl_mult * row["net_credit"]:
+            elif pnl is not None and pnl <= -self.cfg.sl_frac * row["max_loss"]:
                 reason = "sl"
         dte = (date.fromisoformat(row["expiry"]) - now.date()).days
         if reason is None and dte <= 1 and now.time() >= _hhmm(self.cfg.squareoff):
