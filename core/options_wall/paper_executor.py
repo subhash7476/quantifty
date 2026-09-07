@@ -101,7 +101,22 @@ class PaperExecutor:
             reason = "time_stop"
         if reason is None:
             return None
+        return self._close(row, fly, mids, now, reason)
 
+    def manual_close(self, underlying, trade_id, chain, now: datetime) -> Optional[str]:
+        """Force-close one open trade at current marks (operator-requested).
+
+        Bypasses the rule checks in `_manage` — a manual exit always closes,
+        regardless of TP/SL/regime/time-stop. Returns "manual" on success, or
+        None if the trade isn't open here or any leg is unquoted this cycle.
+        """
+        row = next((t for t in pers.open_trades(underlying, db_path=self.db_path)
+                    if t["trade_id"] == trade_id), None)
+        if row is None:
+            return None
+        return self._close(row, self._rehydrate(row), _mids(chain), now, "manual")
+
+    def _close(self, row, fly, mids, now, reason) -> Optional[str]:
         cost = mark_to_close(fly, mids)
         efees = exit_fees(fly, mids, now.date())
         if cost is None or efees is None:

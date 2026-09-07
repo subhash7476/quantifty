@@ -167,6 +167,35 @@ class WallPoller:
         self._scan_last[sym] = now
         logger.info("%s: persisted %d scan_results + regime", name, n)
 
+    def _process_close_requests(self, name, sym, rows, now) -> None:
+        """Consume operator close requests for this underlying (Flask → poller).
+
+        Flask queues a request file per trade; the poller (sole writer of the
+        results DB) force-closes matching open trades at this cycle's marks.
+        Stale requests (trade already closed / unknown) are cleared; a request
+        for an open trade whose legs are unquoted this cycle is left for retry.
+        """
+        from core.options_wall import commands
+        reqs = [r for r in commands.pending_closes() if r.get("index") == name]
+        if not reqs:
+            return
+        if not hasattr(self, "_executor"):
+            from core.options_wall.paper_executor import PaperExecutor
+            self._executor = PaperExecutor(db_path=self._results_db_path)
+        open_ids = {t["trade_id"] for t in
+                    persistence.open_trades(sym, db_path=self._results_db_path)}
+        for req in reqs:
+            tid = req.get("trade_id")
+            if tid not in open_ids:
+                commands.clear_close(tid)
+                continue
+            if self._executor.manual_close(sym, tid, rows, now):
+                commands.clear_close(tid)
+                logger.info("%s manual close: trade %s", name, tid)
+            else:
+                logger.warning("%s manual close deferred (unquoted): trade %s",
+                               name, tid)
+
     def _capture_baseline(self, sym, rows) -> None:
         """Session-open OI per strike: the first cycle of the day writes it
         (INSERT OR IGNORE keeps the earliest); later cycles skip the write."""
@@ -224,6 +253,10 @@ class WallPoller:
                                                     structural, rv, quotes)
                         except Exception as exc:
                             logger.warning("%s scan-persist step failed: %s", name, exc)
+                    try:
+                        self._process_close_requests(name, sym, rows, datetime.now())
+                    except Exception as exc:
+                        logger.warning("%s close-request step failed: %s", name, exc)
                 else:
                     rows_by_name[name] = 0
                     logger.warning("%s: empty chain @ %s", name, expiry)
