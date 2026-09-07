@@ -136,17 +136,24 @@ class WallPoller:
             logger.error("heartbeat write failed: %s", exc)
 
     def _record_step(self, step: str, underlying: str, exc=None) -> None:
-        verdict = self._health.record(step, underlying, exc)
-        if exc is not None:
-            log = logger.error if verdict.level == "error" else logger.warning
-            log("%s %s step failed (%s): %s", underlying, step, verdict.kind, exc)
-        if verdict.alert:
-            self._alert(step, underlying, verdict)
+        # Health reporting must never take the poller down. A defect in here at
+        # the fetch site would otherwise escape _poll_cycle, so the module built
+        # to surface failures would be the one that stops the cycle.
+        try:
+            verdict = self._health.record(step, underlying, exc)
+            if exc is not None:
+                log = logger.error if verdict.level == "error" else logger.warning
+                log("%s %s step failed (%s): %s", underlying, step, verdict.kind, exc)
+            if verdict.alert:
+                self._alert(step, underlying, verdict)
+        except Exception as health_exc:
+            logger.error("step health recording failed for %s %s: %s",
+                         underlying, step, health_exc)
 
     def _alert(self, step: str, underlying: str, verdict) -> None:
         record = verdict.record
         text = (f"[options-wall] {underlying} {step} failing\n"
-                f"{record['error_type']}: {record['error_msg'].splitlines()[0]}\n"
+                f"{record['error_type']}: {(record['error_msg'].splitlines() or [''])[0]}\n"
                 f"since {record['since']} ({record['consecutive']} cycles)")
         try:
             from core.alerts.telegram_notifier import TelegramNotifier

@@ -67,3 +67,9 @@ def test_alert_is_sent_once_for_a_persistent_fault(tmp_path, monkeypatch):
         p._record_step("executor", "NIFTY", duckdb.ConstraintException("Duplicate key"))
     assert len(sent) == 1
     assert "NIFTY" in sent[0] and "executor" in sent[0]
+
+
+def test_an_exception_with_an_empty_message_does_not_crash(tmp_path):
+    """`AssertionError()` stringifies to "", and "".splitlines() is []."""
+    p = _poller(tmp_path)
+    p._record_step("executor", "NIFTY", AssertionError())
