@@ -20,7 +20,102 @@
 - `ALERT_AT["close_request"] = 1` — operator decision, alerts on first failure of either kind. Default for all other steps is 10.
 - Repo conventions: no docstrings/comments on code you did not change; no back-compat shims; delete rather than deprecate.
 - Actual heartbeat file: `data/options/wall_poller_heartbeat.json` (written by `WallPoller._write_heartbeat`, `poller.py:122`). Its existing keys are `last_snapshot` and `rows` — **extend, do not rename**.
+- **Task 0 is a prerequisite, not optional.** `core/logging/logger.py:80` hardcodes `Path("logs")`, and `poller.py:42` calls `setup_logger("options_wall_poller")` at import time — so any test importing the poller writes into the live operational log. Verified on 2026-09-07: a test-suite run injected 57 `<lambda>() takes 5 positional arguments` warnings into `logs/options_wall_poller.log`, which were then mistaken for production faults during the outage diagnosis. Once Task 3 emits `ERROR` and sends Telegram, an un-isolated test run would inject fake ERRORs **and fire real alerts**.
+- No test may reach the real `TelegramNotifier`. Every test touching `_record_step` monkeypatches it.
 - Blueprint prefix is `/options/wall` (the spec's `/options-wall/api/health` was shorthand). The real route is **`/options/wall/api/health`**.
+
+---
+
+### Task 0: Isolate test logging from the operational log
+
+**Files:**
+- Modify: `core/logging/logger.py:80`
+- Create: `tests/conftest.py`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: `setup_logger` honours `NIFTY_LOG_DIR`; every pytest run writes logs to a temp directory instead of `logs/`.
+
+- [ ] **Step 1: Write the failing test**
+
+Create `tests/test_log_isolation.py`:
+
+```python
+"""A test run must never write into the operational log directory."""
+import os
+from pathlib import Path
+
+
+def test_tests_do_not_log_into_the_repo_logs_dir():
+    assert os.environ.get("NIFTY_LOG_DIR"), "conftest must redirect logs during tests"
+    assert Path(os.environ["NIFTY_LOG_DIR"]).resolve() != (Path.cwd() / "logs").resolve()
+
+
+def test_setup_logger_writes_under_the_override(tmp_path, monkeypatch):
+    monkeypatch.setenv("NIFTY_LOG_DIR", str(tmp_path))
+    from core.logging.logger import setup_logger
+    logger = setup_logger("isolation_probe")
+    logger.warning("probe")
+    for handler in logger.handlers:
+        handler.flush()
+    assert (tmp_path / "isolation_probe.log").exists()
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `python -m pytest tests/test_log_isolation.py -q`
+Expected: FAIL — first test fails on the missing `NIFTY_LOG_DIR`; second fails because the file lands in `logs/`
+
+- [ ] **Step 3: Write minimal implementation**
+
+In `core/logging/logger.py`, change line 80 from `logs_dir = Path("logs")` to:
+
+```python
+    logs_dir = Path(os.environ.get("NIFTY_LOG_DIR", "logs"))
+```
+
+Add `import os` to that module's imports if it is not already present.
+
+Create `tests/conftest.py`:
+
+```python
+"""Redirect logging away from `logs/` for the whole test session.
+
+`setup_logger` runs at module import time, so this must take effect before any
+test module imports a production module. conftest.py top-level code runs during
+collection, which is early enough; an autouse fixture is not.
+"""
+
+import os
+import tempfile
+from pathlib import Path
+
+_TEST_LOGS = Path(tempfile.gettempdir()) / "nifty-test-logs"
+_TEST_LOGS.mkdir(parents=True, exist_ok=True)
+os.environ["NIFTY_LOG_DIR"] = str(_TEST_LOGS)
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `python -m pytest tests/test_log_isolation.py -q`
+Expected: PASS, 2 passed
+
+Then confirm the whole suite no longer touches the operational log:
+
+```bash
+cp logs/options_wall_poller.log /tmp/before.log
+python -m pytest tests/options_wall/ tests/data/test_options_wall_poller.py -q
+diff -q /tmp/before.log logs/options_wall_poller.log
+```
+
+Expected: `diff` reports no difference.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add core/logging/logger.py tests/conftest.py tests/test_log_isolation.py
+git commit -m "fix(logging): keep test runs out of the operational log directory"
+```
 
 ---
 
@@ -307,7 +402,7 @@ git commit -m "feat(options-wall): edge-triggered failure accumulator for poller
 - Test: `tests/options_wall/test_poller_health.py` (create)
 
 **Interfaces:**
-- Consumes: `StepHealth`, `Verdict` from Task 2.
+- Consumes: `StepHealth`, `Verdict` from Task 2; the log isolation from Task 0 (without it this task's ERROR logging and alerting pollute the operational log and can fire real alerts).
 - Produces: `WallPoller._record_step(step: str, underlying: str, exc: BaseException | None = None) -> None`; `WallPoller._health: StepHealth`; heartbeat JSON gains `status` (`"OK"` / `"DEGRADED"`) and `steps`.
 
 - [ ] **Step 1: Write the failing test**
@@ -319,6 +414,7 @@ Create `tests/options_wall/test_poller_health.py`:
 import json
 
 import duckdb
+import pytest
 
 from core.options_wall.poller import WallPoller
 
@@ -327,6 +423,15 @@ def _poller(tmp_path):
     return WallPoller(heartbeat_path=tmp_path / "hb.json", pid_path=tmp_path / "p.pid",
                       snapshot_db_path=tmp_path / "s.duckdb",
                       results_db_path=tmp_path / "r.duckdb")
+
+
+@pytest.fixture(autouse=True)
+def _no_telegram(monkeypatch):
+    """No test may reach the real notifier — a structural failure alerts by design."""
+    class Silent:
+        def send_message(self, text):
+            pass
+    monkeypatch.setattr("core.alerts.telegram_notifier.TelegramNotifier", lambda: Silent())
 
 
 def test_structural_failure_lands_in_the_heartbeat(tmp_path):
@@ -734,5 +839,7 @@ git commit -m "feat(options-wall): surface step health and a gate banner on the 
 **Spec coverage.** §1 classify → Task 1. §1 `StepHealth`/`Verdict` → Task 2. §2 edge-triggered alerting incl. `ALERT_AT["close_request"] = 1` → Task 2 (thresholds) and Task 3 (delivery). §3 poller integration, WARNING/ERROR split, success recording → Task 3. §4 heartbeat `status` + `steps` → Task 3. §5 endpoint, strip, gate banner, 60 s staleness → Tasks 4 and 5. Every spec test row maps to a test above.
 
 **Two spec corrections carried into the plan.** The route is `/options/wall/api/health`, not `/options-wall/...` — the blueprint's `url_prefix` is `/options/wall`. And the heartbeat's existing keys are `last_snapshot`/`rows`, not `last_heartbeat`/`rows_by_name` as the spec's illustrative JSON showed; the plan extends the real keys.
+
+**Amendment 2026-09-07 (post-restart verification).** Two problems found by checking the plan against the running system rather than against the spec. First, `core/logging/logger.py:80` hardcodes `Path("logs")` and `poller.py:42` builds its logger at import time, so the test suite writes into the live operational log — confirmed when a suite run injected 57 warnings that were then misread as production faults during the outage diagnosis. That is now Task 0, and it is a prerequisite: once Task 3 emits ERROR and calls Telegram, an un-isolated run would inject fake ERRORs and fire real alerts. Second, two Task 3 tests drove `_record_step` with a structural exception — which alerts by design — without patching the notifier, so on any machine with `TELEGRAM_TOKEN` set they would have sent live messages. Task 3 now carries an autouse `_no_telegram` fixture.
 
 **Deferred deliberately.** The spec's "poller wiring: a raising executor step records structural **and** `scan_persist` still runs" is covered structurally — Task 3 keeps the independent `try/except` blocks, and the existing `tests/options_wall/test_poller_executor_wiring.py` already asserts the isolation. No new test duplicates it.
