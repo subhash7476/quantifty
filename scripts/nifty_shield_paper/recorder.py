@@ -118,6 +118,18 @@ class RecordingMarksSource(OptionMarksSource):
         self._recorder.record_marks(symbols, result, None)
         return result
 
+    # A decorator that forwards only part of its interface silently answers for
+    # the rest. Both of these have "absent" defaults on the ABC ({} and None),
+    # so a recorded LIVE session reported NO instrument keys and NO snapshot age
+    # — which skipped every 13:00 entry as "broker basket margin unavailable"
+    # (2026-09-08). Not recorded: neither is a market observation, so replay
+    # fidelity does not depend on them.
+    def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
+        return self._inner.instrument_keys(symbols)
+
+    def snapshot_age_s(self, now=None):
+        return self._inner.snapshot_age_s(now)
+
 
 class RecordingSignalSource(SignalSource):
     """Wraps a strategy source, capturing the emitted signal stream."""
@@ -459,6 +471,16 @@ class ReplayMarksSource(OptionMarksSource):
         if "outage" in rec:
             raise MarksSourceUnavailable(rec["outage"])
         return dict(rec["marks"])
+
+    def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
+        """None: a replay never calls a broker, and REPLAY sizes on the local
+        engine (`use_broker_margin=False`), so nothing consumes these."""
+        return {}
+
+    def snapshot_age_s(self, now=None):
+        """None: recorded snapshots are historical by construction, so an age
+        would be a number about the replay's wall clock, not about the data."""
+        return None
 
 
 class ReplayBarProvider(MarketDataProvider):

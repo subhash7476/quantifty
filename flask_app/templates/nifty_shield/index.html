@@ -425,7 +425,7 @@ function paintHero() {
             title = 'Choppy and cheap. <span style="font-style:italic;color:' + C.amber + '">Short straddle is the 13:00 play.</span>';
         }
         sub = (factIsStale()
-            ? 'This is the ' + f.session_date + ' fact — today's 13:00 fact has not been published yet, so the play below is the last one on record, not a live call. '
+            ? 'This is the ' + f.session_date + ' fact — today’s 13:00 fact has not been published yet, so the play below is the last one on record, not a live call. '
             : '')
             + 'The structure cell below is the frozen selection rule (datasheet §5a) applied to the published fact — display only. What the runner actually attempted is in the journal below.';
         document.getElementById('hero-title').innerHTML = title;
@@ -512,9 +512,14 @@ function paintGates() {
     const spanPass = live ? live.span.present : null;
     const vixState = !f || f.vix == null ? null : (f.vix <= 20.0 ? 'pass' : 'fail');
     const onePer = structs.length <= 1;
+    // The real gate is _margin_budget() = 25% of cash (datasheet §7/§9), NOT
+    // the full capital base. Against ₹10,00,000 a genuine budget breach
+    // displayed as a pass — harmless while the flat rate understated 17x,
+    // wrong now that the figure is the broker's.
+    const marginBudget = 0.25 * ((live && live.initial_capital) || 1000000.0);
     const marginState = !lastEntry ? null
         : (lastEntry.metadata && lastEntry.metadata.margin_total != null
-           ? (lastEntry.metadata.margin_total <= 1000000.0 ? 'pass' : 'fail') : null);
+           ? (lastEntry.metadata.margin_total <= marginBudget ? 'pass' : 'fail') : null);
 
     const checks = [
         { label: 'Kill switch (STOP)', reading: live ? (live.stop_present ? 'STOP file present' : 'STOP absent') : '--',
@@ -529,8 +534,8 @@ function paintGates() {
         { label: '1 structure / session', reading: structs.length + ' attempted on ' + (d || 'this session'),
           threshold: 'must be ≤ 1 (max 4 legs)', state: structs.length ? (onePer ? 'pass' : 'fail') : 'unknown' },
         { label: 'Margin fit', reading: lastEntry && lastEntry.metadata && lastEntry.metadata.margin_total != null
-              ? '₹' + n(lastEntry.metadata.margin_total, 0) + ' vs ₹10,00,000' : 'no entry yet',
-          threshold: 'structure margin ≤ capital', state: marginState }
+              ? '₹' + n(lastEntry.metadata.margin_total, 0) + ' vs ₹' + n(marginBudget, 0) : 'no entry yet',
+          threshold: 'structure margin ≤ 25% of capital', state: marginState }
     ];
 
     const strip = document.getElementById('gate-strip');
@@ -776,11 +781,17 @@ function entryMarginHtml(s) {
         e.event_type === 'ENTRY_MARGIN' && e.metadata && e.metadata.group_id === s.group_id);
     if (!ev) return '';
     const md = ev.metadata;
-    // SPAN/ELM only exist when NseMarginEngine priced the entry. On the
-    // flat-rate fallback they are absent by construction, so say that rather
-    // than showing a bare dash that reads like a missing value.
-    const flat = md.engine && md.engine !== 'NseMarginEngine';
-    const noSpan = flat ? 'n/a — flat-rate engine' : '--';
+    // Three engines can price an entry, and SPAN/ELM are absent for two of
+    // them for OPPOSITE reasons — so "not NseMarginEngine" must never be
+    // collapsed to "flat-rate". The broker basket has no SPAN/ELM because
+    // Upstox does not decompose its figure, which is not a downgrade; the
+    // flat-rate MarginTracker has none because it never computed them, which
+    // is. Reading the broker's figure as a fallback restates in the UI exactly
+    // the false claim this margin path was built to remove.
+    const broker = md.engine === 'UpstoxBasketMargin';
+    const flat = md.engine && md.engine !== 'NseMarginEngine' && !broker;
+    const noSpan = broker ? 'n/a — broker basket, not decomposed'
+                 : flat ? 'n/a — flat-rate engine' : '--';
     const rows = [
         ['Engine', md.engine || '--'],
         ['Lots × lot size', (md.lots != null ? md.lots + ' × ' + md.lot_size : '--')],
@@ -796,6 +807,12 @@ function entryMarginHtml(s) {
           'background:rgba(201,130,26,.07);">No SPAN snapshot was loaded, so margin fell back to the flat-rate ' +
           'MarginTracker (20% of premium notional). ADR-011 makes NseMarginEngine the sole margin authority in ' +
           'every mode — this figure is not the certified SPAN+ELM number and understates the broker figure.</div>'
+        : broker
+        ? '<div style="padding:10px 15px;border-top:1px solid #F5F2ED;font-size:11.5px;line-height:1.5;color:var(--muted);' +
+          'background:rgba(25,122,90,.06);">Sized on the broker’s own basket margin for the whole structure ' +
+          '(Upstox <span class="mono">/charges/margin</span>), net of the spread benefit a hedged book earns. ' +
+          'Upstox does not decompose it, so SPAN/ELM are genuinely absent rather than missing — this is the ' +
+          'figure the sizing clamp used, not an estimate of it.</div>'
         : '';
     return '<div style="margin-top:28px;"><div class="ns-sec-h">Entry margin evidence (journal)</div>' +
         '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' + rows + warn + '</div></div>';

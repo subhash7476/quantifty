@@ -412,3 +412,22 @@ def test_basket_margin_clamps_lots_down_to_the_budget():
     # declared = max(1, round(4 x 0.5)) = 2 -> Rs 72,000 > budget -> 1 lot.
     assert final_lots({"base_lots": 4, "regime_mult": 0.5},
                       margin_at, 50000.0) == 1
+
+
+def test_min_lots_over_budget_is_refused_not_routed():
+    """margin_clamped_lots floors at 1 lot and returns it even when that lot
+    does not fit. Unreachable while the flat rate understated 17x; with real
+    broker figures it is not, so the handler must refuse rather than route a
+    structure over the datasheet §9 budget."""
+    from core.execution.options.nifty_shield_sizing import (
+        final_lots, margin_clamped_lots)
+
+    def margin_at(lots):
+        return 400000.0 * lots           # 1 lot already busts a 250k budget
+
+    assert margin_clamped_lots(3, margin_at, 250000.0) == 1
+    assert final_lots({"base_lots": 4, "regime_mult": 0.5},
+                      margin_at, 250000.0) == 1
+    # ...and the figure the handler then checks is over budget, which is what
+    # the ENTRY_SKIPPED guard keys on.
+    assert margin_at(1) > 250000.0

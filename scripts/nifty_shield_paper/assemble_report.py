@@ -149,7 +149,10 @@ def load_window_evidence(data_root: Path,
         if md.get("engine") == "NseMarginEngine":
             if session not in span_snapshot_sessions:
                 span_snapshot_sessions.append(session)
-        else:
+        elif md.get("engine") == "MarginTracker":
+            # "flat" means the flat-rate fallback SPECIFICALLY. A live session
+            # priced by the broker is not a downgrade and must never be counted
+            # as one — this list is read as the SPAN-absence evidence.
             if session not in flat_sessions:
                 flat_sessions.append(session)
 
@@ -283,6 +286,7 @@ def _fmt(evidence: Dict[str, Any]) -> Dict[str, str]:
 
     margin_flat = margin["by_engine"].get("MarginTracker", 0)
     margin_span = margin["by_engine"].get("NseMarginEngine", 0)
+    margin_broker = margin["by_engine"].get("UpstoxBasketMargin", 0)
 
     return {
         "window": window,
@@ -318,6 +322,7 @@ def _fmt(evidence: Dict[str, Any]) -> Dict[str, str]:
                            or "none"),
         "margin_rows": str(margin["rows"]),
         "margin_span": str(margin_span),
+        "margin_broker": str(margin_broker),
         "margin_flat": str(margin_flat),
         "flat_sessions": (", ".join(margin["flat_sessions"]) or "none"),
         "replay_txt": replay_txt,
@@ -368,10 +373,10 @@ def _replacement_map(v: Dict[str, str]) -> List[tuple]:
          f"[FILLED: {v['telemetry_clean']} sessions archived clean; gaps = "
          f"{v['telemetry_gaps']} — from `archive_session(...)`]"),
         ("[FILL from journal `ENTRY_MARGIN`]",
-         f"[FILLED: {v['margin_rows']} entries; NseMarginEngine(SPAN+ELM) "
-         f"={v['margin_span']}, MarginTracker(flat) ={v['margin_flat']}; "
-         f"flat-rate sessions = {v['flat_sessions']} — from journal "
-         f"`ENTRY_MARGIN`]"),
+         f"[FILLED: {v['margin_rows']} entries; UpstoxBasketMargin(broker) "
+         f"={v['margin_broker']}, NseMarginEngine(SPAN+ELM) ={v['margin_span']}, "
+         f"MarginTracker(flat) ={v['margin_flat']}; flat-rate sessions = "
+         f"{v['flat_sessions']} — from journal `ENTRY_MARGIN`]"),
         ("Capture journal + telemetry. [FILL].",
          f"Capture journal + telemetry. {v['drill_txt']}."),
         ("[FILL — ≥1 recorded session re-driven through the same composition "

@@ -131,7 +131,8 @@ def synthetic_session(tmp_path, monkeypatch):
     """Run the LIVE-shaped composition root (REPLAY driver) with the recorder
     over a deterministic synthetic session; finalize the session package.
     Returns (data_root, package_dir)."""
-    monkeypatch.setattr(runner_mod, "_load_span_snapshot", lambda journal=None: None)
+    monkeypatch.setattr(runner_mod, "_load_span_snapshot",
+                        lambda journal=None, **kw: None)
 
     work = tmp_path / "window"
     work.mkdir()
@@ -663,7 +664,8 @@ def test_live_watchdog_writes_real_heartbeat(tmp_path, monkeypatch):
     """F-B4: the LIVE composition root constructs a REAL RuntimeWatchdog and a
     driven tick writes heartbeat.json (not a stub)."""
     from core.execution.watchdog import RuntimeWatchdog
-    monkeypatch.setattr(runner_mod, "_load_span_snapshot", lambda journal=None: None)
+    monkeypatch.setattr(runner_mod, "_load_span_snapshot",
+                        lambda journal=None, **kw: None)
     work = tmp_path / "live"
     work.mkdir()
     DatabaseManager.reset_instance()
@@ -693,3 +695,60 @@ def test_live_watchdog_writes_real_heartbeat(tmp_path, monkeypatch):
     data = json.loads(hb.read_text(encoding="utf-8"))
     assert "timestamp" in data and "bars_processed" in data
     assert data["bars_processed"] >= 1
+
+
+def test_retried_group_audits_as_entered_not_skipped(tmp_path):
+    """2026-09-08: the entry window reopens on a restart, so one group_id
+    carried two ENTRY_SKIPPED rows and then a successful ENTRY_MARGIN. Skips
+    were appended after entries and consumers take the last record per
+    group_id, so the real entry was buried: the structure rendered as
+    entered-with-no-legs ("0 / 0 filled") and counting saw three structures in
+    a session whose declared limit is one."""
+    from scripts.nifty_shield_paper.audit import audit_window
+
+    gid = "762087d7-265d-57b2-b55b-cde116ecc761"
+    journal = tmp_path / "journal.jsonl"
+    rows = [
+        {"timestamp": "2026-09-08T13:01:04", "event_type": "ENTRY_SKIPPED",
+         "severity": "CRITICAL", "metadata": {
+             "group_id": gid, "structure": "bear_call_spread",
+             "reason": "Upstox basket margin unavailable"}},
+        {"timestamp": "2026-09-08T13:03:03", "event_type": "ENTRY_SKIPPED",
+         "severity": "CRITICAL", "metadata": {
+             "group_id": gid, "structure": "bear_call_spread",
+             "reason": "Upstox basket margin unavailable"}},
+        {"timestamp": "2026-09-08T13:18:13", "event_type": "ENTRY_MARGIN",
+         "severity": "INFO", "metadata": {
+             "group_id": gid, "structure": "SPREAD", "session": "2026-09-08",
+             "lots": 1, "lot_size": 65, "margin_total": 36413.39,
+             "engine": "UpstoxBasketMargin",
+             "leg_symbols": ["NIFTY15SEP2623650CE", "NIFTY15SEP2623800CE"]}},
+    ]
+    journal.write_text(chr(10).join(json.dumps(r) for r in rows), encoding="utf-8")
+
+    report = audit_window(str(journal), str(tmp_path / "absent.db"))
+    assert len(report.structures) == 1, "the retried attempts became structures"
+    a = report.structures[0]
+    assert a.status == "entered"
+    assert a.session == "2026-09-08"
+    assert a.leg_symbols == ["NIFTY15SEP2623650CE", "NIFTY15SEP2623800CE"]
+
+
+def test_repeated_skips_with_no_entry_collapse_to_one_structure(tmp_path):
+    """A group that only ever skipped is ONE skipped structure, however many
+    attempts it made — otherwise a restart loop inflates the window count."""
+    from scripts.nifty_shield_paper.audit import audit_window
+
+    gid = "aaaaaaaa-0000-0000-0000-000000000000"
+    journal = tmp_path / "journal.jsonl"
+    rows = [{"timestamp": f"2026-09-08T13:0{i}:00",
+             "event_type": "ENTRY_SKIPPED", "severity": "CRITICAL",
+             "metadata": {"group_id": gid, "structure": "iron_fly",
+                          "session": "2026-09-08", "reason": f"attempt {i}"}}
+            for i in (1, 2, 3)]
+    journal.write_text(chr(10).join(json.dumps(r) for r in rows), encoding="utf-8")
+
+    report = audit_window(str(journal), str(tmp_path / "absent.db"))
+    assert len(report.structures) == 1
+    assert report.structures[0].status == "skipped"
+    assert report.structures[0].reason == "attempt 3"     # final outcome

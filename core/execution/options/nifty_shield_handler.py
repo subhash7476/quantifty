@@ -329,6 +329,24 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
                 reason="Upstox basket margin unavailable", error=str(exc),
             )
             return None
+
+        # margin_clamped_lots floors at 1 lot and returns it even when that lot
+        # does not fit. Unreachable while the flat rate understated 17x; with
+        # real broker figures it is not, so refuse rather than route a
+        # structure over the datasheet §9 budget.
+        if margin_budget > 0 and structure_margin_rs > margin_budget:
+            self._record(
+                EventType.ENTRY_SKIPPED,
+                f"structure entry skipped: {lots} lot(s) needs "
+                f"{structure_margin_rs:.0f} Rs against a {margin_budget:.0f} Rs "
+                f"budget — below the minimum size",
+                severity=Severity.WARNING,
+                group_id=group_id, structure=structure,
+                reason="margin budget exceeded at minimum lots",
+                margin_total=round(structure_margin_rs, 2),
+                margin_budget=round(margin_budget, 2), lots=lots,
+            )
+            return None
         qty = lots * lot_size
 
         # --- route each leg through the standard gate path, at the real mark ---
@@ -519,7 +537,8 @@ class NiftyShieldExitDriver:
 
     def __init__(self, handler: NiftyShieldExecutionHandler,
                  marks_source: Optional[OptionMarksSource] = None,
-                 min_interval_s: float = 0.0):
+                 min_interval_s: float = 0.0,
+                 max_marks_age_s: Optional[float] = None):
         self._handler = handler
         self._marks_source = marks_source or handler._marks_source
         self._exit_managers: Dict[str, NiftyShieldExitManager] = {}
@@ -530,6 +549,13 @@ class NiftyShieldExitDriver:
         # milliseconds of real time and every one must be evaluated.
         self._min_interval_s = float(min_interval_s)
         self._last_run_monotonic: Optional[float] = None
+        # From the 15:29 auction print to the 15:35 hard exit there are no bars,
+        # so a bar arriving no longer proves the feed is alive and the snapshot
+        # is the ONLY input to a TP/SL decision. Deciding on a frozen snapshot
+        # can fire a take-profit at a price that no longer exists; holding
+        # cannot. So a stale feed HOLDS and journals, it never decides.
+        self._max_marks_age_s = max_marks_age_s
+        self._stale_journaled = False
 
     def __call__(self, timestamp: datetime,
                  execution_handler: Optional[Any] = None) -> bool:
@@ -543,6 +569,8 @@ class NiftyShieldExitDriver:
                     and now - self._last_run_monotonic < self._min_interval_s):
                 return False
             self._last_run_monotonic = now
+        if self._marks_are_stale():
+            return False
         symbols = []
         for gid in group_ids:
             group = handler.group_tracker.get_group(gid)
@@ -578,6 +606,43 @@ class NiftyShieldExitDriver:
             if reason is not None:
                 handler.close_group(gid, reason, timestamp, marks)
         return False
+
+    def _marks_are_stale(self) -> bool:
+        """True when the snapshot is too old to price an exit decision on.
+
+        Edge-triggered journaling: the check runs every 15s in LIVE, and a
+        CRITICAL line per tick would bury the event it is meant to surface.
+        A structure held open past its hard exit because the feed died is a
+        journaled condition an operator can act on — a spurious take-profit
+        against a frozen snapshot is a wrong trade nobody sees.
+        """
+        if self._max_marks_age_s is None:
+            return False
+        age = self._marks_source.snapshot_age_s()
+        if age is None or age <= self._max_marks_age_s:
+            if self._stale_journaled:
+                self._handler._record(
+                    EventType.ENTRY_SKIPPED,
+                    "exit evaluation resumed: option marks fresh again",
+                    severity=Severity.WARNING,
+                    reason="marks freshness restored",
+                    snapshot_age_s=round(age, 1) if age is not None else None,
+                )
+                self._stale_journaled = False
+            return False
+        if not self._stale_journaled:
+            self._handler._record(
+                EventType.ENTRY_SKIPPED,
+                f"exit evaluation held: option marks stale by {age:.0f}s "
+                f"(limit {self._max_marks_age_s:.0f}s) — TP/SL/time exits are "
+                f"NOT being evaluated while the chain poller is not publishing",
+                severity=Severity.CRITICAL,
+                reason="option marks stale",
+                snapshot_age_s=round(age, 1),
+                max_marks_age_s=self._max_marks_age_s,
+            )
+            self._stale_journaled = True
+        return True
 
     def _manager_for(self, metadata: Any) -> NiftyShieldExitManager:
         # group.legs[0].metadata is an OrderMetadata; its dict surface is

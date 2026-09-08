@@ -398,6 +398,10 @@ def _live_status() -> Dict[str, Any]:
         # checkpoint it labelled yesterday's structure "1 attempted this
         # session" — a stale count reading as a live one.
         "today": today,
+        # The equity base the datasheet §7/§9 gates are expressed against, so
+        # the dashboard's margin-fit gate reads the real 25% budget instead of
+        # a hardcoded figure.
+        "initial_capital": INITIAL_CAPITAL,
         "market_open": MarketHours.is_market_open(),
         "stop_present": STOP_FILE.exists(),
         "heartbeat": {

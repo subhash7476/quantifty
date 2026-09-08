@@ -20,7 +20,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # 13:00 checkpoint through 13:00 + this many minutes (the DS2-2 publisher is
     # given the same window to compute and publish the 13pm fact). Offline the
     # fact is already present at 13:00, so this is a provable no-op there.
-    "entry_window_minutes": 10,
+    "entry_window_minutes": 30,
     # Hard flatten. 15:35, not 15:15: the structure is managed by its own TP/SL
     # for the whole session and the clock only ends it. 15:15 cut every trade at
     # the cash Category-I close, but this book is F&O — the derivatives segment
