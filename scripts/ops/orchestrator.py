@@ -39,11 +39,31 @@ class ChildSpec:
     pid_path: Optional[Path] = None      # orchestrator-owned liveness
     native_lock: Optional[Path] = None   # child writes its own lock
     new_group: bool = False              # spawn in a new process group (session)
+    status_path: Optional[Path] = None   # child-published heartbeat, asserted below
+    status_max_age_s: float = 120.0      # closed-market cadence is ~60 s
+
+
+def _status_fresh(spec: ChildSpec) -> bool:
+    """Assert a child's published heartbeat, when it publishes one.
+
+    A live PID is not a live child: 19336 was recycled by conhost while the
+    ingestor's own status file sat 17 h stale, and the orchestrator adopted it
+    (2026-09-08). Absent/unreadable status falls back to PID liveness — never
+    spawn a second single-writer on a missing file.
+    """
+    if spec.status_path is None or not spec.status_path.exists():
+        return True
+    try:
+        payload = json.loads(spec.status_path.read_text(encoding="utf-8"))
+        hb = datetime.fromisoformat(payload["last_heartbeat"])
+    except (OSError, ValueError, KeyError):
+        return True
+    return (datetime.now() - hb).total_seconds() <= spec.status_max_age_s
 
 
 def child_alive(spec: ChildSpec) -> bool:
     lock = spec.native_lock or spec.pid_path
-    return bool(lock) and pidfile.lock_alive(lock)
+    return bool(lock) and pidfile.lock_alive(lock) and _status_fresh(spec)
 
 
 def spawn(spec: ChildSpec, *, popen: Callable = subprocess.Popen):
@@ -62,7 +82,8 @@ CHILDREN = {
         pid_path=OPS_DIR / "flask.pid"),
     "ingestor": ChildSpec(
         "ingestor", [PY, str(ROOT / "scripts" / "market_ingestor.py")],
-        pid_path=OPS_DIR / "market_ingestor.pid"),
+        pid_path=OPS_DIR / "market_ingestor.pid",
+        status_path=ROOT / "logs" / "market_ingestor_status.json"),
     "poller": ChildSpec(
         "poller", [PY, str(ROOT / "scripts" / "nifty_shield_paper" / "chain_poller.py")],
         native_lock=ROOT / "data" / "options" / "chain_poller.pid"),
@@ -244,7 +265,7 @@ def stop_child(spec: ChildSpec, proc, *, killer=os.kill, term_wait_s: float = SE
         except Exception as exc:  # noqa: BLE001
             _logger.warning("terminating %s failed: %s", spec.name, exc)
     if spec.pid_path is not None:
-        pidfile.release_lock(spec.pid_path)
+        pidfile.release_lock(spec.pid_path, getattr(proc, "pid", None))
 
 
 class Supervisor:

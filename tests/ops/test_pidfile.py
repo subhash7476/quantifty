@@ -33,3 +33,18 @@ def test_acquire_overwrites_stale_pid(tmp_path):
     pidfile.write_pid(lock, 2_000_000_000)        # dead pid
     assert pidfile.acquire_lock(lock) is True
     assert pidfile.read_pid(lock) == os.getpid()
+
+
+def test_release_lock_drops_a_lock_held_by_another_pid(tmp_path):
+    """Child pidfiles hold the child's pid, not ours — the caller names it."""
+    lock = tmp_path / "child.pid"
+    pidfile.write_pid(lock, 4321)
+    pidfile.release_lock(lock, 4321)
+    assert lock.exists() is False
+
+
+def test_release_lock_keeps_a_lock_held_by_a_different_pid(tmp_path):
+    lock = tmp_path / "child.pid"
+    pidfile.write_pid(lock, 4321)
+    pidfile.release_lock(lock, 9999)
+    assert lock.exists() is True

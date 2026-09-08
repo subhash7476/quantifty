@@ -1,4 +1,6 @@
+import json
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from scripts.ops import orchestrator as orch
@@ -302,3 +304,70 @@ def test_stop_skips_wall_poller(monkeypatch, tmp_path):
     monkeypatch.setattr(orch.pidfile, "read_pid", lambda p: None)
     orch._cmd_stop()
     assert "wall_poller" not in stops
+
+
+class _StoppablePopen(_FakePopen):
+    def terminate(self):
+        self._alive = False
+
+
+def _status(path: Path, age_s: float) -> Path:
+    hb = datetime.now() - timedelta(seconds=age_s)
+    path.write_text(json.dumps({"last_heartbeat": hb.isoformat()}), encoding="utf-8")
+    return path
+
+
+def test_stop_child_removes_the_child_pid_file(tmp_path):
+    """A stopped child must not leave a pidfile the next start can adopt.
+
+    release_lock defaulted to os.getpid(), which never equals the child's pid,
+    so the file always survived (2026-09-08: adopted a recycled PID, then one
+    still exiting).
+    """
+    pidp = tmp_path / "market_ingestor.pid"
+    spec = orch.ChildSpec(name="ingestor", argv=[], pid_path=pidp)
+    proc = _StoppablePopen([])
+    pidfile.write_pid(pidp, proc.pid)
+
+    orch.stop_child(spec, proc)
+
+    assert pidp.exists() is False
+    assert orch.child_alive(spec) is False
+
+
+def test_stop_child_leaves_a_pid_file_owned_by_someone_else(tmp_path):
+    """Only the stopped child's own lock is dropped — never another holder's."""
+    pidp = tmp_path / "market_ingestor.pid"
+    spec = orch.ChildSpec(name="ingestor", argv=[], pid_path=pidp)
+    pidfile.write_pid(pidp, os.getpid())          # a different, live holder
+
+    orch.stop_child(spec, _StoppablePopen([]))    # pid 4321
+
+    assert pidp.exists() is True
+
+
+def test_child_alive_false_when_published_heartbeat_is_stale(tmp_path):
+    """A live PID is not a live child: 19336 was recycled by conhost while the
+    ingestor's own status file sat 17 h stale."""
+    pidp = tmp_path / "market_ingestor.pid"
+    spec = orch.ChildSpec(name="ingestor", argv=[], pid_path=pidp,
+                          status_path=_status(tmp_path / "s.json", 17 * 3600))
+    pidfile.write_pid(pidp, os.getpid())          # PID genuinely alive
+    assert orch.child_alive(spec) is False
+
+
+def test_child_alive_true_when_published_heartbeat_is_fresh(tmp_path):
+    pidp = tmp_path / "market_ingestor.pid"
+    spec = orch.ChildSpec(name="ingestor", argv=[], pid_path=pidp,
+                          status_path=_status(tmp_path / "s.json", 5.0))
+    pidfile.write_pid(pidp, os.getpid())
+    assert orch.child_alive(spec) is True
+
+
+def test_child_alive_falls_back_to_pid_when_status_file_absent(tmp_path):
+    """Never spawn a second single-writer because a status file is missing."""
+    pidp = tmp_path / "market_ingestor.pid"
+    spec = orch.ChildSpec(name="ingestor", argv=[], pid_path=pidp,
+                          status_path=tmp_path / "absent.json")
+    pidfile.write_pid(pidp, os.getpid())
+    assert orch.child_alive(spec) is True

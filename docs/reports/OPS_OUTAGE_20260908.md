@@ -48,6 +48,49 @@ and `gate_status()` — three separate `preflight.build_context()` calls, each a
 DuckDB read against `chain_cache.duckdb` while the poller holds append locks. 60 counted
 iterations ≈ 6 min wall. The code's own `"after ~%ss counted"` wording acknowledges this.
 
+### Second occurrence, 10:03 — same weakness, different trigger
+
+The operator reloaded the orchestrator and it stalled in warm-up again:
+`marks_warm=True vix_warm=False | ingestor_alive=False bar_age=205.5s`.
+
+**Not PID reuse this time.** PID 18332 was genuinely dead, so `child_alive` would have
+returned False and spawned. The pidfile settled it: `spawn()` writes the pidfile immediately
+after `Popen`, yet `market_ingestor.pid` still held **18332 with mtime 09:40:44** — the
+*previous* run's write. So `spawn` was never called, which means `child_alive` returned **True**
+at 10:03:26.
+
+A **shutdown race**: the old ingestor took `SIGINT` at 10:03:08, logged
+`Stopping Market Ingestor Daemon...`, and was still exiting (flushing DuckDB, closing the
+WebSocket) when the new orchestrator checked 18 s later. It adopted a process in the act of
+dying. Note a heartbeat-recency check would *not* have caught this — an 18 s-old heartbeat is
+fresh by any sane threshold.
+
+### R1b — Why both were possible: the pidfile was never cleaned
+
+`stop_child()` ends with `pidfile.release_lock(spec.pid_path)`, and `release_lock` unlinked only
+when `read_pid(path) == os.getpid()`. The file holds the **child's** pid, never the
+orchestrator's, so **it never unlinked**. Every stopped child left its pidfile behind, and the
+next start's outcome was luck: PID dead (fine), recycled (09:26), or still exiting (10:03).
+For non-group children `stop_child` also calls `proc.terminate()` without waiting, so shutdown
+returns while the child is still alive.
+
+### Fixes applied (operator-directed)
+
+1. **`release_lock(path, pid=None)`** — the caller names the pid whose lock to drop;
+   `stop_child` passes the child's. A stopped child no longer leaves an adoptable pidfile.
+   This is what actually closes the shutdown race.
+2. **`ChildSpec.status_path` + `_status_fresh()`** — `child_alive` now asserts the ingestor's
+   published `last_heartbeat` (≤120 s; closed-market cadence is ~60 s) alongside PID liveness.
+   This closes the PID-reuse mode: conhost held 19336 while the status file sat 17 h stale.
+   A missing or unreadable status file falls back to PID liveness — never spawn a second
+   single-writer on a missing file.
+
+Seven tests added (`tests/ops/`): pidfile dropped on stop / another holder's lock preserved;
+stale heartbeat ⇒ not alive; fresh ⇒ alive; absent status ⇒ PID fallback. **203 passed.**
+
+The fixes land on the *next* orchestrator start; the process running from 10:03 carries the old
+code.
+
 ### Fix applied
 Deleted the stale locks (`market_ingestor.pid` was the only harmful one — the rest pointed at
 genuinely dead PIDs). Operator restarted; sequence reached `started` in ~35 s with the
