@@ -402,7 +402,12 @@ def _live_status() -> Dict[str, Any]:
         # the dashboard's margin-fit gate reads the real 25% budget instead of
         # a hardcoded figure.
         "initial_capital": INITIAL_CAPITAL,
-        "market_open": MarketHours.is_market_open(),
+        # Derivatives, not cash: NiftyShield trades index options, which run to
+        # 15:40 post-CAS. is_market_open() defaults to cash_cat1 (15:15 close),
+        # which flipped this False mid-session — and the panel treats
+        # market_open=False as "session expected idle", so a dead session read
+        # as "all healthy" for the last 25 minutes of every trading day.
+        "market_open": MarketHours.is_derivatives_open(),
         "stop_present": STOP_FILE.exists(),
         "heartbeat": {
             "present": bool(hb),

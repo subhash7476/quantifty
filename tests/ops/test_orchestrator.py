@@ -61,7 +61,7 @@ from datetime import datetime
 
 
 def _deps(**over):
-    calls = {"spawned": [], "catchup": 0, "login": 0}
+    calls = {"spawned": [], "catchup": 0, "login": 0, "adopted": []}
 
     def spawn(spec, **kw):
         calls["spawned"].append(spec.name)
@@ -78,8 +78,12 @@ def _deps(**over):
         dispatch_catchup=lambda: calls.__setitem__("catchup", calls["catchup"] + 1),
         stop_present=lambda: False,
         market_open=lambda: True,
+        # The session's gate is the DERIVATIVES segment, not cash — cash closes
+        # at 15:15 post-CAS while the F&O session runs to 15:40.
+        derivatives_open=lambda: True,
         sleep=lambda s: None,
         now=lambda: datetime(2026, 8, 11, 9, 30),
+        adopt=lambda spec: calls["adopted"].append(spec.name),
     )
     base.update(over)
     d = orch.Deps(**base)
@@ -141,11 +145,43 @@ def test_refuses_on_stop_file_before_any_spawn():
     assert calls["spawned"] == []                 # refuse before Flask, no spawns
 
 
-def test_parks_until_market_open_then_starts():
+def test_parks_until_derivatives_open_then_starts():
     opens = iter([False, False, True])            # opens on the 3rd poll
-    deps, calls = _deps(market_open=lambda: next(opens))
+    deps, calls = _deps(derivatives_open=lambda: next(opens))
     assert orch.start_sequence(deps) == "started"
     assert "session" in calls["spawned"]
+
+
+def test_session_is_gated_on_derivatives_not_cash():
+    """2026-09-08: the park read the CASH clock, which closes at 15:15 post-CAS
+    while the F&O session runs to 15:40. Between those the orchestrator parked
+    and silently refused to start the session — so its own 15:35 exit could
+    never fire, and a restart in that window brought up every child EXCEPT the
+    one the stack exists to run."""
+    deps, calls = _deps(market_open=lambda: False,      # cash shut at 15:15
+                        derivatives_open=lambda: True)  # F&O open until 15:40
+    assert orch.start_sequence(deps) == "started"
+    assert "session" in calls["spawned"]
+
+
+def test_park_does_not_end_on_the_cash_close():
+    """The mirror case: cash open, derivatives shut, is not a real market state
+    (derivatives hours are a superset) — but the gate must follow derivatives
+    even so, or it inherits the same bug in the other direction."""
+    deps, calls = _deps(market_open=lambda: True,
+                        derivatives_open=lambda: False)
+    assert orch.start_sequence(deps) == "timeout:market_open"
+    assert "session" not in calls["spawned"]
+
+
+def test_adopted_children_are_registered_for_supervision():
+    """`eod` is already alive, so it is adopted rather than spawned. It must
+    still become supervised — an adopted child was previously invisible to the
+    supervisor and could die unnoticed."""
+    deps, calls = _deps()
+    assert orch.start_sequence(deps) == "started"
+    assert "eod" not in calls["spawned"]
+    assert "eod" in calls["adopted"]
 
 
 # --------------------------------------------------------------------------- #
@@ -371,3 +407,86 @@ def test_child_alive_falls_back_to_pid_when_status_file_absent(tmp_path):
                           status_path=tmp_path / "absent.json")
     pidfile.write_pid(pidp, os.getpid())
     assert orch.child_alive(spec) is True
+
+
+# --------------------------------------------------------------------------- #
+# Supervision gap (2026-09-08): the session stopped mid-window and was never
+# revived, while the supervise loop ran on reporting nothing wrong.
+# --------------------------------------------------------------------------- #
+
+class _DeadProc:
+    """A child that exited cleanly — poll() is 0, not None."""
+    pid = 4321
+
+    def poll(self):
+        return 0
+
+
+def _supervisor(alive, **kw):
+    spawned = []
+
+    def spawn(spec):
+        spawned.append(spec.name)
+        return _FakePopen(spec.argv)
+
+    started = kw.pop("started")
+    sup = orch.Supervisor(started=started, spawn=spawn,
+                          child_alive=lambda spec: alive.get(spec.name, False),
+                          stopper=lambda spec, proc: None, **kw)
+    return sup, spawned
+
+
+def test_adopted_child_that_dies_is_restarted():
+    """The 2026-09-08 hole: tick() iterated only children this process SPAWNED,
+    so an adopted session could exit and never be revived."""
+    started = {}
+    sup, spawned = _supervisor({"session": True}, started=started,
+                               spawn_grace_s=0.0)
+    sup.adopt(orch.CHILDREN["session"])          # adopted: registered, no handle
+    assert "session" in started
+
+    sup.tick()
+    assert spawned == []                          # alive -> untouched
+
+    sup2, spawned2 = _supervisor({"session": False}, started=started,
+                                 spawn_grace_s=0.0)
+    sup2.tick()
+    assert spawned2 == ["session"]                # gone -> revived
+
+
+def test_cleanly_exited_child_is_restarted():
+    """A clean exit leaves poll() == 0. The old test was
+    `proc_dead and not child_alive`, which needed a proc handle to notice —
+    liveness now comes from the child's own lock, which covers both."""
+    started = {"session": _DeadProc()}
+    sup, spawned = _supervisor({"session": False}, started=started,
+                               spawn_grace_s=0.0)
+    sup.tick()
+    assert spawned == ["session"]
+
+
+def test_spawn_grace_prevents_a_respawn_storm():
+    """Liveness is read from a lock the child writes at startup, so a freshly
+    spawned child reads as dead until it does. Without a grace window the
+    supervisor would respawn it every tick."""
+    started = {}
+    sup, spawned = _supervisor({"session": False}, started=started,
+                               spawn_grace_s=300.0)
+    sup.adopt(orch.CHILDREN["session"])
+    sup.tick()
+    assert spawned == ["session"]                 # first revival
+    sup.tick()
+    sup.tick()
+    assert spawned == ["session"]                 # still inside the grace window
+
+
+def test_shutdown_skips_an_adopted_child_with_no_handle():
+    """An adopted, natively-locked child has no pidfile and so no handle;
+    shutdown must skip it rather than raise on None."""
+    stopped = []
+    started = {"poller": None, "session": _DeadProc()}
+    sup = orch.Supervisor(started=started, spawn=lambda spec: None,
+                          child_alive=lambda spec: True,
+                          stopper=lambda spec, proc: stopped.append(spec.name))
+    sup.shutdown()
+    assert stopped == ["session"]
