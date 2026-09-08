@@ -501,17 +501,35 @@ function paintOiRotation() {
 }
 
 /* --------------------------------------------------------------- gate strip */
-function widestSpreadPct(legs) {
+/* NSE option tick. Mirrors options_selection.TICK_SIZE — the guard must read
+   the same here as it decides in the engine, or the strip flags a leg the
+   scanner accepted. */
+const TICK_SIZE = 0.05;
+
+function legSpreadOk(l, maxPct) {
+    const mid = l.mid != null ? l.mid : (l.best_bid + l.best_ask) / 2;
+    if (!mid) return true;
+    return (l.best_ask - l.best_bid) <= Math.max(maxPct * mid, TICK_SIZE);
+}
+
+/* The widest leg BY PERCENTAGE is not the worst leg: at a 0.05 tick a leg
+   priced under Re 1 cannot quote tighter than 5%, so a one-tick book on a
+   deep-OTM wing reads as "10.5%" while being a perfect quote. Report the
+   widest leg that actually FAILS, and fall back to the widest percentage
+   only to show the reading when everything passes. */
+function widestSpreadPct(legs, maxPct) {
     if (!legs || !legs.length) return null;
-    let worst = null;
+    let worst = null, worstFailing = null;
     legs.forEach(l => {
         if (l.best_bid == null || l.best_ask == null) return;
         const mid = l.mid != null ? l.mid : (l.best_bid + l.best_ask) / 2;
         if (!mid) return;
         const s = (l.best_ask - l.best_bid) / mid * 100;
         if (worst === null || s > worst) worst = s;
+        if (maxPct != null && !legSpreadOk(l, maxPct)
+            && (worstFailing === null || s > worstFailing)) worstFailing = s;
     });
-    return worst;
+    return { widest: worst, failing: worstFailing };
 }
 
 function paintGate() {
@@ -523,7 +541,8 @@ function paintGate() {
     const farmRow = state.rows.find(x => x.screen === 'premium_farm');
     const spot = r.underlying_ltp;
     const pinDist = (spot != null && r.pin_strike != null) ? Math.abs(spot - r.pin_strike) / spot : null;
-    const spread = widestSpreadPct(farmRow && farmRow.legs);
+    const sp = widestSpreadPct(farmRow && farmRow.legs, CFG.max_spread_pct);
+    const spread = sp && sp.widest;
 
     const checks = [
         { label: 'GEX regime', reading: r.regime || '--', threshold: 'must contain "Positive"',
@@ -536,9 +555,11 @@ function paintGate() {
           threshold: 'floor ' + n(CFG.iv_rv_min_gap, 1) + ' pt',
           state: gap == null ? 'unknown' : (gap >= CFG.iv_rv_min_gap ? 'pass' : 'fail') },
         { label: 'Quote spread guard',
-          reading: spread != null ? pct(spread, 1) + ' widest leg' : 'no quoted legs',
-          threshold: 'max ' + pct(CFG.max_spread_pct * 100, 0),
-          state: spread == null ? 'unknown' : (spread <= CFG.max_spread_pct * 100 ? 'pass' : 'fail') },
+          reading: spread == null ? 'no quoted legs'
+                 : sp.failing != null ? pct(sp.failing, 1) + ' widest failing leg'
+                 : pct(spread, 1) + ' widest leg (within 1 tick)',
+          threshold: 'max ' + pct(CFG.max_spread_pct * 100, 0) + ' or 1 tick',
+          state: spread == null ? 'unknown' : (sp.failing == null ? 'pass' : 'fail') },
         { label: 'ATM credit (CE + PE)',
           reading: farmRow && farmRow.credit != null ? '₹' + n(farmRow.credit, 1) : 'no farm row',
           threshold: 'must be > 0',
@@ -690,15 +711,20 @@ function checksFor(r) {
         const gap = (reg.atm_iv != null && reg.realized_vol != null) ? reg.atm_iv - reg.realized_vol : r.iv_minus_rv;
         const spot = reg.underlying_ltp;
         const pinDist = (spot != null && reg.pin_strike != null) ? Math.abs(spot - reg.pin_strike) / spot : null;
-        const spread = widestSpreadPct(r.legs);
+        const sp = widestSpreadPct(r.legs, CFG.max_spread_pct);
+        const spread = sp && sp.widest;
         return [
             ['GEX regime', reg.regime || '--', 'must contain "Positive"', (reg.regime || '').includes('Positive')],
             ['Spot inside pin band', pinDist != null ? pct(pinDist * 100, 3) : '--',
                 'band ≤ ' + pct(CFG.pin_band_pct * 100, 1), pinDist != null && pinDist <= CFG.pin_band_pct],
             ['ATM IV − realized vol', n(r.iv_minus_rv != null ? r.iv_minus_rv : gap, 1) + ' pt', 'floor ' + n(CFG.iv_rv_min_gap, 1) + ' pt',
                 (r.iv_minus_rv != null ? r.iv_minus_rv : gap) >= CFG.iv_rv_min_gap],
-            ['Quote spread guard', spread != null ? pct(spread, 1) + ' widest leg' : 'no quoted legs',
-                'max ' + pct(CFG.max_spread_pct * 100, 0), spread != null && spread <= CFG.max_spread_pct * 100],
+            ['Quote spread guard',
+                spread == null ? 'no quoted legs'
+                : sp.failing != null ? pct(sp.failing, 1) + ' widest failing leg'
+                : pct(spread, 1) + ' widest leg (within 1 tick)',
+                'max ' + pct(CFG.max_spread_pct * 100, 0) + ' or 1 tick',
+                spread != null && sp.failing == null],
             ['ATM credit', r.credit != null ? '₹' + n(r.credit, 1) : '--', 'must be > 0', r.credit > 0],
             ['Pin conviction', r.pin_conviction != null ? pct(r.pin_conviction * 100, 1) : '--', 'share of |gamma| at the pin', true]
         ];

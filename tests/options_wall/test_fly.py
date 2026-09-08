@@ -89,3 +89,59 @@ def test_unrealized_pnl_positive_when_cheaper_to_close():
     mids = {(l.strike, l.option_type): l.entry_mid / 2 for l in fly.legs}
     assert unrealized_pnl(fly, mids) > 0
     assert exit_fees(fly, mids, TRADE_DATE) > 0
+
+
+# --------------------------------------------------------------------------- #
+# Tick-aware quote-spread guard (operator finding, 2026-09-08)
+# --------------------------------------------------------------------------- #
+
+def test_one_tick_book_on_a_cheap_wing_is_not_a_wide_spread():
+    """The live 2026-09-08 iron fly: a 23300 PE quoted 0.45/0.50 was rejected at
+    "10.5%" for a ONE-TICK spread, while a 24000 CE at 1.05/1.10 passed at 4.7%
+    for the SAME one tick. A percentage-only guard is unsatisfiable below
+    `tick / max_pct` (Re 1.00 at the 5% default), so it was a price threshold
+    wearing a liquidity guard's clothes -- and it bit the deep-OTM wings, which
+    are a fly's cheapest legs by construction."""
+    from core.analytics.options_selection import spread_ok
+
+    ok, pct = spread_ok(0.45, 0.50, 0.05)
+    assert ok, "a one-tick book is the tightest the exchange can express"
+    assert pct > 0.10                       # ...and still reports as >10%
+
+    ok_rich, pct_rich = spread_ok(1.05, 1.10, 0.05)
+    assert ok_rich and pct_rich < 0.05      # same one tick, passed before too
+
+
+def test_genuinely_wide_books_still_fail():
+    """The floor is ONE tick, not an exemption for cheap options."""
+    from core.analytics.options_selection import spread_ok
+
+    assert not spread_ok(0.45, 0.60, 0.05)[0]     # 3 ticks on a cheap leg
+    assert not spread_ok(100.0, 110.0, 0.05)[0]   # 9.5% on a rich leg
+    assert not spread_ok(0.0, 0.50, 0.05)[0]      # no bid
+
+
+def _quoted_row(strike, ot, bid, ask):
+    r = OptionChainRow(strike=float(strike), option_type=ot,
+                       instrument_key=f"{ot}{strike}", tradingsymbol=f"{ot}{strike}",
+                       expiry="2026-09-15", ltp=(bid + ask) / 2,
+                       underlying_ltp=23650.0)
+    r.best_bid, r.best_ask = bid, ask
+    return r
+
+
+def test_build_iron_fly_accepts_a_one_tick_wing():
+    """End-to-end: the fly the operator saw must now build."""
+    from core.options_wall.fly import build_iron_fly
+
+    chain = [
+        _quoted_row(23650, "CE", 47.15, 47.30),
+        _quoted_row(23650, "PE", 28.50, 28.55),
+        _quoted_row(24000, "CE", 1.05, 1.10),
+        _quoted_row(23300, "PE", 0.45, 0.50),
+    ]
+    fly = build_iron_fly(chain, spot=23650.0, wing_pct=0.015, qty=65,
+                         trade_date=date(2026, 9, 8), max_spread_pct=0.05)
+    assert fly is not None, "the one-tick wing still blocks the structure"
+    assert fly.short_strike == 23650
+    assert {l.strike for l in fly.legs} == {23650, 24000, 23300}

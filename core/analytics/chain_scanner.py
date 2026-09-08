@@ -24,6 +24,7 @@ from typing import List, Optional
 
 from core.data.options_provider import OptionChainRow
 from core.analytics.options_analytics import OptionsStructuralData
+from core.analytics.options_selection import spread_ok as quote_spread_ok
 
 
 @dataclass
@@ -267,7 +268,11 @@ class ChainScanner:
         return ce + pe
 
     def _spread_ok(self, strike, chain, quotes):
-        """Both legs have a quote and their mid spread is inside max_spread_pct."""
+        """Both legs have a quote and a tradeable book (options_selection.spread_ok).
+
+        NOTE this tests the ATM strike only, not the fly's wings — a farm row can
+        emit while `build_iron_fly` still refuses the structure on a wing.
+        """
         cfg = self.config
         for r in chain:
             if r.strike != strike:
@@ -278,8 +283,8 @@ class ChainScanner:
             bid, ask = q.get("best_bid"), q.get("best_ask")
             if not bid or not ask or bid <= 0 or ask <= 0:
                 return False
-            mid = (bid + ask) / 2.0
-            if (ask - bid) / mid > cfg.max_spread_pct:
+            ok, _ = quote_spread_ok(bid, ask, cfg.max_spread_pct)
+            if not ok:
                 return False
         return True
 
