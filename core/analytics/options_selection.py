@@ -35,6 +35,10 @@ MIN_VOLUME_FALLBACK = 1
 # the granularity actually observed in the live chain.
 TICK_SIZE = 0.05
 
+# Slack for the tick comparison — see spread_ok. Far below a paise, so it can
+# only absorb representation error, never a real half-tick.
+_PRICE_EPS = 1e-9
+
 _EOD_ONLY = object()
 
 
@@ -54,13 +58,21 @@ def spread_ok(bid, ask, max_spread_pct, tick_size: float = TICK_SIZE):
 
     So a spread within one tick always passes: it is the tightest book the
     exchange can express, and rejecting it rejects a perfect quote.
+
+    Compared with a tolerance because the tick boundary is exactly where
+    binary floating point misrepresents decimal prices: `0.65 - 0.60` is
+    0.050000000000000044 and `0.85 - 0.80` is 0.04999999999999993, so without
+    it an identical one-tick book passes at one strike and fails at the next.
+    Observed live 2026-09-08 on a 0.60/0.65 wing. Quotes quantize to the tick,
+    so any epsilon far below a paise separates "one tick" from "two".
     """
     if bid is None or ask is None or bid <= 0 or ask <= 0:
         return False, None
     mid = (bid + ask) / 2.0
     spread = ask - bid
     spread_pct = spread / mid
-    return spread <= max(max_spread_pct * mid, tick_size), spread_pct
+    allowance = max(max_spread_pct * mid, tick_size)
+    return spread <= allowance + _PRICE_EPS, spread_pct
 
 
 def screen_candidate(bid, ask, oi, volume, min_oi, min_volume, max_spread_pct):

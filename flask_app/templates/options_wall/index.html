@@ -505,11 +505,16 @@ function paintOiRotation() {
    the same here as it decides in the engine, or the strip flags a leg the
    scanner accepted. */
 const TICK_SIZE = 0.05;
+/* The tick boundary is exactly where binary floating point misrepresents
+   decimal prices (0.65-0.60 = 0.050000000000000044), so compare with slack far
+   below a paise — otherwise the same one-tick book passes at one strike and
+   fails at the next. Mirrors options_selection._PRICE_EPS. */
+const PRICE_EPS = 1e-9;
 
 function legSpreadOk(l, maxPct) {
     const mid = l.mid != null ? l.mid : (l.best_bid + l.best_ask) / 2;
     if (!mid) return true;
-    return (l.best_ask - l.best_bid) <= Math.max(maxPct * mid, TICK_SIZE);
+    return (l.best_ask - l.best_bid) <= Math.max(maxPct * mid, TICK_SIZE) + PRICE_EPS;
 }
 
 /* The widest leg BY PERCENTAGE is not the worst leg: at a 0.05 tick a leg

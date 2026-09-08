@@ -145,3 +145,29 @@ def test_build_iron_fly_accepts_a_one_tick_wing():
     assert fly is not None, "the one-tick wing still blocks the structure"
     assert fly.short_strike == 23650
     assert {l.strike for l in fly.legs} == {23650, 24000, 23300}
+
+
+@pytest.mark.parametrize("bid,ask", [
+    (0.60, 0.65),   # 0.65-0.60 = 0.050000000000000044  -> was FAIL
+    (0.80, 0.85),   # 0.85-0.80 = 0.04999999999999993   -> was PASS
+    (0.45, 0.50),   # 0.50-0.45 = 0.04999999999999999   -> was PASS
+    (1.05, 1.10),
+    (23.45, 23.50),
+])
+def test_every_one_tick_book_passes_regardless_of_strike(bid, ask):
+    """The tick boundary is exactly where binary floating point misrepresents
+    decimal prices, so an identical one-tick book passed at one strike and
+    failed at the next. Seen live 2026-09-08 on a 0.60/0.65 wing, which the
+    guard rejected at "8.0%" while accepting 0.80/0.85 at 6.1% — same one tick,
+    opposite verdicts, decided by representation error."""
+    from core.analytics.options_selection import spread_ok
+
+    ok, _ = spread_ok(bid, ask, 0.05)
+    assert ok, f"one tick ({ask - bid!r}) must not depend on float representation"
+
+
+def test_two_ticks_on_a_cheap_leg_still_fails():
+    """The tolerance absorbs representation error, never a real half-tick."""
+    from core.analytics.options_selection import spread_ok
+
+    assert not spread_ok(0.60, 0.70, 0.05)[0]
