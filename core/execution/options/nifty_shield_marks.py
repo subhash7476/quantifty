@@ -46,6 +46,15 @@ class OptionMarksSource(ABC):
         """Return the current premium for each symbol it can price (subset of
         `symbols`); symbols without a real mark are simply absent."""
 
+    def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
+        """Broker instrument keys for the symbols this source can identify.
+
+        Needed to ask the broker for the structure's basket margin. A source
+        with no broker identity (static test marks) returns {} and the caller
+        treats the margin as unavailable rather than guessing a key.
+        """
+        return {}
+
 
 class StaticMarksSource(OptionMarksSource):
     """A fixed mark table — deterministic, for tests and the REPLAY smoke run."""
@@ -141,3 +150,33 @@ class ChainSnapshotMarksSource(OptionMarksSource):
             con.close()
         return {sym: float(ltp) for sym, ltp in rows
                 if ltp is not None and float(ltp) > 0.0}
+
+    def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
+        """Upstox instrument_key per tradingsymbol, from the latest snapshot.
+
+        Read in its own query against `MAX(snapshot_timestamp)` rather than
+        alongside the marks: a leg's instrument_key is a property of the
+        contract, not of the tick, so a poller write landing between the two
+        reads cannot make the pair disagree the way two price reads could.
+        """
+        if not symbols:
+            return {}
+        con = self._connect()
+        try:
+            latest = self._latest_timestamp(con)
+            if latest is None:
+                return {}
+            placeholders = ", ".join("?" for _ in symbols)
+            try:
+                rows = con.execute(
+                    f"SELECT tradingsymbol, instrument_key FROM {self._table} "
+                    f"WHERE snapshot_timestamp = ? "
+                    f"AND tradingsymbol IN ({placeholders})",
+                    [latest] + list(symbols),
+                ).fetchall()
+            except Exception as exc:
+                raise MarksSourceUnavailable(
+                    f"option-chain cache query failed: {exc}") from exc
+        finally:
+            con.close()
+        return {sym: key for sym, key in rows if key}

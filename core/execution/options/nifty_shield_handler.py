@@ -6,27 +6,34 @@ into the runtime for a PAPER window, WITHOUT touching the frozen strategy:
 - `NiftyShieldExecutionHandler(ExecutionHandler)` — buffers the per-leg
   `SignalEvent`s a structure emits (they share a `group_id`), and on the
   complete leg set: prices the legs against REAL option marks (E7-4), sizes the
-  structure via `final_lots` (declared lots margin-clamped by the
-  `NseMarginEngine` — the sole sizing authority), routes each leg through the
-  standard `process_signal` gate path (so idempotency / risk / greek / margin /
-  fill / ledger all run per leg), registers the assembled OrderGroup, and
-  journals the SPAN+ELM margin evidence (§7.7).
+  structure via `final_lots` (declared lots clamped by the BROKER's basket
+  margin — Upstox `POST /v2/charges/margin`, operator decision 2026-09-08),
+  routes each leg through the standard `process_signal` gate path (so
+  idempotency / risk / greek / margin / fill / ledger all run per leg),
+  registers the assembled OrderGroup, and journals that margin evidence (§7.7).
+  A basket the broker cannot price SKIPS the entry — it never degrades to the
+  local engine, which without a SPAN snapshot understated the 2026-09-07 spread
+  by 17x (Rs 4,619 vs Rs 79,902).
 
   The handler's inherited per-leg `_check_margin_budget` computes F&O margin as
   `quantity x lot_size` (quantity treated as lots). NiftyShield's `quantity` is
   already in units (lots x lot_size), so the subclass overrides the gate for its
-  own strategy to pass `lot_size=1.0` — keeping the SPAN+ELM figure on the real
-  units. The sizing clamp (`final_lots`) enforces the 25% budget pre-entry; the
-  handler gate is the backstop (LOW-2).
+  own strategy to pass `lot_size=1.0` — keeping the engine figure on the real
+  units. That per-leg gate stays on the local engine: it is a backstop that runs
+  after the basket clamp has already sized the structure (LOW-2).
 
 - `NiftyShieldExitDriver` — a `rebalance_hook`-shaped callable that evaluates
-  every open structure once per bar against real marks and closes it on a
-  trigger (TP / SL / time / delta-flatten, D5). Close is close-only: EXIT
+  every open structure against real marks and closes it on a trigger
+  (TP / SL / time / delta-flatten, D5). Driven per bar and, in LIVE, on idle
+  ticks too (throttled): the underlying's 1m bars stop at the 15:29 cash
+  auction print while the options trade to 15:40, so a purely bar-driven exit
+  could never reach the 15:35 hard flatten. Close is close-only: EXIT
   signals per leg routed through the handler — no dynamic hedge (D1).
 """
 from __future__ import annotations
 
 import dataclasses
+import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
@@ -40,9 +47,10 @@ from core.execution.options.nifty_shield_groups import group_type_for
 from core.execution.options.nifty_shield_marks import (
     MarksSourceUnavailable, OptionMarksSource, StaticMarksSource,
 )
-from core.execution.options.nifty_shield_sizing import final_lots
+from core.execution.options.nifty_shield_sizing import (
+    UpstoxMarginUnavailable, final_lots, structure_margin_over_upstox_basket,
+)
 from core.runtime.event_journal import EventType, Severity
-from core.risk.nse_margin_engine import NseMarginEngine
 
 STRATEGY_ID = "nifty_shield_v1"
 
@@ -70,8 +78,18 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
     """ExecutionHandler that owns NiftyShield structures as OrderGroups.
 
     Construction identical to the base handler (the PAPER composition root passes
-    the same kwargs) plus the execution-layer seams: `marks_source` (E7-4) and
-    `strategy_config` (the frozen certified config for sizing/lot size).
+    the same kwargs) plus the execution-layer seams: `marks_source` (E7-4),
+    `strategy_config` (the frozen certified config for sizing/lot size) and
+    `use_broker_margin` (which authority sizes the structure).
+
+    `use_broker_margin` is a COMPOSITION decision, never inferred at runtime.
+    A live window opts in and the entry is sized by the broker's basket margin;
+    an offline path (REPLAY, the smoke run, tests) leaves it False and is sized
+    by the local engine, because there is no broker session to ask and a
+    deterministic replay must not depend on one. Inferring it from whether the
+    marks source happens to carry instrument keys would make "no broker
+    identity" silently mean "size it locally" — the fallback this design
+    removes.
     """
 
     def __init__(
@@ -79,11 +97,13 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         *args,
         marks_source: Optional[OptionMarksSource] = None,
         strategy_config: Optional[Dict[str, Any]] = None,
+        use_broker_margin: bool = False,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self._marks_source = marks_source or StaticMarksSource({})
         self._strategy_cfg = dict(strategy_config or {})
+        self._use_broker_margin = bool(use_broker_margin)
         self._pending: Dict[str, List[SignalEvent]] = {}
         self._closed_groups: Dict[str, str] = {}
 
@@ -279,27 +299,36 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
 
         self.warm_marks(leg_symbols)
 
-        # --- sizing (D4): declared lots margin-clamped by the margin engine ---
+        # --- sizing (D4): declared lots clamped by the BROKER's basket margin --
+        # The clamp prices the whole structure through Upstox rather than
+        # summing per-leg engine margins: it is the figure that carries the
+        # hedge's spread benefit, and it does not collapse to a flat 20%-of-
+        # premium rate when today's SPAN snapshot is missing (which understated
+        # the 2026-09-07 spread by 17x). Operator decision 2026-09-08; see
+        # nifty_shield_sizing for the ADR-011/013 departure this records.
         lot_size = int(self._strategy_cfg.get("lot_size", 75))
         margin_budget = self._margin_budget()
         leg_specs = [{"symbol": s.symbol, "side": s.signal_type.value,
                       "option_type": s.metadata["option_type"]} for s in signals]
 
-        def _structure_margin(lots: int) -> float:
-            # Real-engine convention: get_incremental_margin(symbol, lots, price,
-            # lot_size) prices `lots x lot_size` units (the Stage-1 helper
-            # structure_margin_over_engine passes units-as-lots and is not used
-            # here — see E007 finding).
-            total = 0.0
-            for spec in leg_specs:
-                price = marks.get(spec["symbol"])
-                if price is None:
-                    continue
-                total += self.margin_tracker.get_incremental_margin(
-                    spec["symbol"], lots, price, lot_size=lot_size)
-            return total
-
-        lots = final_lots(signals[0].metadata, _structure_margin, margin_budget)
+        try:
+            _structure_margin = self._structure_margin_fn(
+                leg_specs, leg_symbols, marks, lot_size)
+            lots = final_lots(signals[0].metadata, _structure_margin,
+                              margin_budget)
+            structure_margin_rs = _structure_margin(lots)
+        except UpstoxMarginUnavailable as exc:
+            # Never degrade to the flat-rate engine: that is the understatement
+            # this path removes, and doing it quietly would turn "we could not
+            # ask the broker" into "the structure is cheap".
+            self._record(
+                EventType.ENTRY_SKIPPED,
+                f"structure entry skipped: broker basket margin unavailable: {exc}",
+                severity=Severity.CRITICAL,
+                group_id=group_id, structure=structure,
+                reason="Upstox basket margin unavailable", error=str(exc),
+            )
+            return None
         qty = lots * lot_size
 
         # --- route each leg through the standard gate path, at the real mark ---
@@ -329,9 +358,37 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         # ids) so GroupPnLTracker can price it, under the source's group_id ---
         group = self._register_group(group_id, structure, signals)
         if group is not None:
-            self._journal_margin(group, lots, lot_size, marks,
+            self._journal_margin(group, lots, lot_size, structure_margin_rs,
                                  signals[0].metadata)
         return routed[-1] if routed else None
+
+    def _structure_margin_fn(self, leg_specs, leg_symbols, marks, lot_size):
+        """The margin callable the sizing clamp walks: broker basket, or engine.
+
+        Broker basket (live): one call per lot count for the whole structure, so
+        the figure carries the hedge's spread benefit and does not collapse to a
+        flat rate when today's SPAN snapshot is missing.
+
+        Engine (offline): per-leg incremental margin. Real-engine convention is
+        get_incremental_margin(symbol, lots, price, lot_size) pricing
+        `lots x lot_size` units — the Stage-1 helper structure_margin_over_engine
+        passes units-as-lots and is not used here (E007 finding).
+        """
+        if self._use_broker_margin:
+            keys = self._marks_source.instrument_keys(leg_symbols)
+            return structure_margin_over_upstox_basket(leg_specs, keys, lot_size)
+
+        def margin_at(lots: int) -> float:
+            total = 0.0
+            for spec in leg_specs:
+                price = marks.get(spec["symbol"])
+                if price is None:
+                    continue
+                total += self.margin_tracker.get_incremental_margin(
+                    spec["symbol"], lots, price, lot_size=lot_size)
+            return total
+
+        return margin_at
 
     def _register_group(self, group_id: str, structure: str,
                         signals: List[SignalEvent]) -> Optional[OrderGroup]:
@@ -419,28 +476,15 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             self.logger.exception("journal write failed")
 
     def _journal_margin(self, group: OrderGroup, lots: int, lot_size: int,
-                        marks: Dict[str, float],
-                        leg_metadata: Dict[str, Any]) -> None:
+                        total: float, leg_metadata: Dict[str, Any]) -> None:
         """Journal the entry's margin evidence (§7.7, datasheet §11 open item).
 
-        The figure is NseMarginEngine-computed (SPAN + ELM) when a SPAN snapshot
-        is present, else the flat-rate MarginTracker fallback (noted as such).
+        `total` is the figure the sizing clamp actually used, and `engine` names
+        which authority produced it. `span` / `elm` are None under the broker
+        basket: Upstox does not decompose it, and inventing a split would be
+        worse evidence than admitting there is none.
         """
-        total = 0.0
-        for leg in group.legs:
-            price = marks.get(leg.symbol, 0.0)
-            total += self.margin_tracker.get_incremental_margin(
-                leg.symbol, lots, price, lot_size=lot_size)
         span, elm = None, None
-        if isinstance(self.margin_tracker, NseMarginEngine):
-            # get_incremental_margin = span + elm; elm = rate x lot_size x lots
-            # x price (NseMarginEngine.get_incremental_margin), computed read-only.
-            elm = 0.0
-            for leg in group.legs:
-                price = marks.get(leg.symbol, 0.0)
-                rate = self.margin_tracker._resolve_elm_rate(leg.symbol)
-                elm += rate * lot_size * lots * price
-            span = max(0.0, total - elm)
         now = self.clock.now()
         self._record(
             EventType.ENTRY_MARGIN,
@@ -452,7 +496,8 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             margin_total=round(total, 2),
             span=round(span, 2) if span is not None else None,
             elm=round(elm, 2) if elm is not None else None,
-            engine=type(self.margin_tracker).__name__,
+            engine=("UpstoxBasketMargin" if self._use_broker_margin
+                    else type(self.margin_tracker).__name__),
             session=now.date().isoformat() if now is not None else None,
             leg_symbols=[leg.symbol for leg in group.legs],
             # F2: the declared risk_r is the pinned R base; if the leg metadata
@@ -473,10 +518,18 @@ class NiftyShieldExitDriver:
     """
 
     def __init__(self, handler: NiftyShieldExecutionHandler,
-                 marks_source: Optional[OptionMarksSource] = None):
+                 marks_source: Optional[OptionMarksSource] = None,
+                 min_interval_s: float = 0.0):
         self._handler = handler
         self._marks_source = marks_source or handler._marks_source
         self._exit_managers: Dict[str, NiftyShieldExitManager] = {}
+        # LIVE drives this hook on every idle tick too (poll interval 0.5s) so
+        # the book stays managed after the underlying's last bar; that cadence
+        # would hammer the chain cache, so a live composition passes a floor.
+        # 0.0 (default) leaves REPLAY unthrottled — its bars arrive in
+        # milliseconds of real time and every one must be evaluated.
+        self._min_interval_s = float(min_interval_s)
+        self._last_run_monotonic: Optional[float] = None
 
     def __call__(self, timestamp: datetime,
                  execution_handler: Optional[Any] = None) -> bool:
@@ -484,6 +537,12 @@ class NiftyShieldExitDriver:
         group_ids = handler.open_nifty_shield_groups()
         if not group_ids:
             return False
+        if self._min_interval_s > 0.0:
+            now = time.monotonic()
+            if (self._last_run_monotonic is not None
+                    and now - self._last_run_monotonic < self._min_interval_s):
+                return False
+            self._last_run_monotonic = now
         symbols = []
         for gid in group_ids:
             group = handler.group_tracker.get_group(gid)
@@ -532,7 +591,11 @@ class NiftyShieldExitDriver:
                 "profit_target_pct": exit_md.get("tp_pct", 0.50),
                 "stop_loss_multiplier": exit_md.get("sl_mult", 2.0),
                 "stop_loss_max_loss_frac": exit_md.get("sl_frac", 0.50),
-                "exit_time": {"hour": 15, "minute": 15},
+                # The hard exit is a strategy parameter, not a literal: it moved
+                # to 15:35 so the structure is managed by its own TP/SL for the
+                # whole session instead of being cut at 15:15.
+                "exit_time": dict(self._handler._strategy_cfg.get(
+                    "exit_time", {"hour": 15, "minute": 35})),
                 "max_portfolio_delta": exit_md.get("max_portfolio_delta", 500),
             }
             self._exit_managers[cfg_key] = NiftyShieldExitManager(

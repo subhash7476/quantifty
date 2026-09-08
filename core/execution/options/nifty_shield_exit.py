@@ -6,7 +6,7 @@ via GroupPnLTracker.get_group_unrealized_pnl. Triggers, in priority order:
   1. Take-profit:  group P&L >= tp_pct × credit_received        -> close
   2. Stop:         defined-risk  P&L <= -sl_frac × max_loss     -> close
                    undefined     P&L <= -sl_mult × credit       -> close
-  3. Hard time:    bar time >= exit_time (15:15)                -> close
+  3. Hard time:    bar time >= exit_time (15:35)                -> close
   4. Delta gate:   portfolio |delta| > max_portfolio_delta      -> close (flatten)
 
 The stop has two forms because NiftyShield builds two kinds of structure. A
@@ -39,7 +39,7 @@ class NiftyShieldExitManager:
         self._sl_mult = float(cfg.get("stop_loss_multiplier", 2.0))
         self._sl_frac = float(cfg.get("stop_loss_max_loss_frac", 0.50))
         self._exit_h = int(cfg.get("exit_time", {}).get("hour", 15))
-        self._exit_m = int(cfg.get("exit_time", {}).get("minute", 15))
+        self._exit_m = int(cfg.get("exit_time", {}).get("minute", 35))
         self._max_delta = float(cfg.get("max_portfolio_delta", 500))
 
     def evaluate(self, group_id: UUID, credit_received: float,

@@ -192,11 +192,20 @@ def build_nifty_shield_paper_driver(
         return NiftyShieldExecutionHandler(
             marks_source=marks,
             strategy_config=strategy_config,
+            # LIVE sizes the structure on the broker's basket margin; REPLAY has
+            # no broker session and must stay deterministic, so it sizes on the
+            # local engine (the figure is labelled per entry in ENTRY_MARGIN).
+            use_broker_margin=(mode is Mode.LIVE),
             **kwargs,
         )
 
     def exit_hook_factory(execution):
-        return NiftyShieldExitDriver(execution, marks)
+        # LIVE drives the hook on idle ticks too (0.5s poll); floor the exit
+        # evaluation at 15s so the chain cache is read at a sane cadence.
+        # REPLAY stays unthrottled — every recorded bar must be evaluated.
+        return NiftyShieldExitDriver(
+            execution, marks,
+            min_interval_s=15.0 if mode is Mode.LIVE else 0.0)
 
     def publish_hook_factory(execution):
         return journaled_publish_hook_factory(journal, facts_db_path)(execution)
@@ -228,6 +237,12 @@ def build_nifty_shield_paper_driver(
         clock=clock,
         provider=provider,
         max_bars=max_bars,
+        # The exit manager must keep pricing the book after the underlying's
+        # last 1m bar (the 15:29 cash auction print) so TP/SL and the 15:35
+        # hard exit are reachable while the options themselves still trade.
+        # LIVE only: REPLAY's clock is data-driven, so an idle tick there has
+        # no time to advance to.
+        rebalance_on_idle=(mode is Mode.LIVE),
     )
 
 

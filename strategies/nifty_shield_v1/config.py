@@ -21,7 +21,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # given the same window to compute and publish the 13pm fact). Offline the
     # fact is already present at 13:00, so this is a provable no-op there.
     "entry_window_minutes": 10,
-    "exit_time": {"hour": 15, "minute": 15},
+    # Hard flatten. 15:35, not 15:15: the structure is managed by its own TP/SL
+    # for the whole session and the clock only ends it. 15:15 cut every trade at
+    # the cash Category-I close, but this book is F&O — the derivatives segment
+    # trades to 15:40 (post-CAS, core/market/session_schedule.py) and option
+    # premia keep decaying the entire time. The underlying's 1m bars stop at the
+    # 15:29 auction print, so the exit driver is also driven on idle ticks
+    # (RuntimeConfig.rebalance_on_idle) to make this time reachable.
+    "exit_time": {"hour": 15, "minute": 35},
     "profit_target_pct": 0.50,
     # Defined-risk structures (iron_fly / the two verticals) stop on a fraction
     # of max loss. A credit multiple cannot bound them: loss is capped at

@@ -271,10 +271,22 @@ function paintTabs() {
 
 function selectedSessionDate() {
     if (state.session !== 'latest') return state.session;
+    // 'latest' means TODAY when the window is live, not "the last session that
+    // published a fact". Before today's 13:00 checkpoint the newest fact is
+    // yesterday's, and scoping to it showed yesterday's structure under
+    // "this session" labels.
+    if (state.live && state.live.today) return state.live.today;
     const f = state.window.fact;
     if (f && f.session_date) return f.session_date;
     const sessions = state.window.sessions || [];
     return sessions.length ? sessions[0].session : null;
+}
+
+/* True when the newest published fact is not the session being scoped to —
+   i.e. today's 13:00 fact has not landed yet and the fact card is historical. */
+function factIsStale() {
+    const f = state.window.fact;
+    return !!(f && f.session_date && f.session_date !== selectedSessionDate());
 }
 
 function sessionStructures() {
@@ -397,7 +409,8 @@ function paintHero() {
             'The STOP file at the repo root blocks entry and blocks the orchestrator. Remove it to let the window run.';
     } else if (f) {
         document.getElementById('hero-meta').textContent =
-            '13:00 fact · session ' + f.session_date + ' · ' + f.produced_by + ' · model ' + (f.model_hash || '--');
+            (factIsStale() ? 'last 13:00 fact · session ' : '13:00 fact · session ')
+            + f.session_date + ' · ' + f.produced_by + ' · model ' + (f.model_hash || '--');
         const choppy = f.regime === 'Choppy';
         let title, sub;
         if (f.regime === 'BullTrend') {
@@ -411,7 +424,10 @@ function paintHero() {
         } else {
             title = 'Choppy and cheap. <span style="font-style:italic;color:' + C.amber + '">Short straddle is the 13:00 play.</span>';
         }
-        sub = 'The structure cell below is the frozen selection rule (datasheet §5a) applied to the published fact — display only. What the runner actually attempted is in the journal below.';
+        sub = (factIsStale()
+            ? 'This is the ' + f.session_date + ' fact — today's 13:00 fact has not been published yet, so the play below is the last one on record, not a live call. '
+            : '')
+            + 'The structure cell below is the frozen selection rule (datasheet §5a) applied to the published fact — display only. What the runner actually attempted is in the journal below.';
         document.getElementById('hero-title').innerHTML = title;
         document.getElementById('hero-sub').textContent = sub;
 
@@ -482,7 +498,12 @@ function paintGates() {
     const f = state.window.fact;
     const d = selectedSessionDate();
     const structs = sessionStructures();
-    const lastEntry = effectiveJournal().find(e => e.event_type === 'ENTRY_MARGIN');
+    // Scoped to the selected session: an unscoped find() returns the newest
+    // ENTRY_MARGIN anywhere in the window, so a day with no entry showed the
+    // previous day's margin as if it were today's.
+    const lastEntry = effectiveJournal().find(
+        e => e.event_type === 'ENTRY_MARGIN'
+             && (!d || String(e.timestamp || '').startsWith(d)));
 
     const stopPass = live ? !live.stop_present : null;
     const marksState = (!live || !live.marks || (live.marks.rows || 0) === 0) ? null
@@ -502,9 +523,10 @@ function paintGates() {
           threshold: 'poller snapshot ≤ 60s old', state: marksState },
         { label: 'SPAN snapshot', reading: live && live.span ? (live.span.present ? 'present for today' : 'missing today') : '--',
           threshold: 'nse_fo_span_{date}.parquet', state: spanPass == null ? 'unknown' : (spanPass ? 'pass' : 'fail') },
-        { label: 'VIX skip gate', reading: f && f.vix != null ? n(f.vix, 2) + ' (' + f.vix_source + ')' : 'no 13:00 fact',
-          threshold: 'vix ≤ 20.0 else session skipped', state: vixState },
-        { label: '1 structure / session', reading: structs.length + ' attempted this session',
+        { label: 'VIX skip gate', reading: !f || f.vix == null ? 'no 13:00 fact'
+              : n(f.vix, 2) + (factIsStale() ? ' (' + f.session_date + ' fact)' : ' (' + f.vix_source + ')'),
+          threshold: 'vix ≤ 20.0 else session skipped', state: factIsStale() ? null : vixState },
+        { label: '1 structure / session', reading: structs.length + ' attempted on ' + (d || 'this session'),
           threshold: 'must be ≤ 1 (max 4 legs)', state: structs.length ? (onePer ? 'pass' : 'fail') : 'unknown' },
         { label: 'Margin fit', reading: lastEntry && lastEntry.metadata && lastEntry.metadata.margin_total != null
               ? '₹' + n(lastEntry.metadata.margin_total, 0) + ' vs ₹10,00,000' : 'no entry yet',
@@ -531,8 +553,9 @@ function paintGates() {
     const skipped = structs.filter(s => s.status === 'skipped').length;
     const v = document.getElementById('gate-verdict');
     v.textContent = structs.length
-        ? (entered + ' entered · ' + skipped + ' skipped this session')
-        : 'No structure attempted this session';
+        ? (entered + ' entered · ' + skipped + ' skipped on ' + (d || 'this session'))
+        : (factIsStale() ? 'No structure yet on ' + d + ' — awaiting the 13:00 fact'
+                         : 'No structure attempted on ' + (d || 'this session'));
     v.style.background = entered ? 'rgba(25,122,90,.12)' : 'rgba(201,130,26,.12)';
     v.style.color = entered ? C.green : '#A8703C';
 }

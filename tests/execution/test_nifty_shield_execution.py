@@ -51,7 +51,7 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
         "sl_distance": 100.0,
         "risk_r": 15000.0,
         "exit": {"tp_pct": 0.5, "sl_mult": 2.0, "sl_frac": 0.5,
-                 "hard_exit": "15:15", "max_portfolio_delta": 500},
+                 "hard_exit": "15:35", "max_portfolio_delta": 500},
     }
     md.update(md_over)
     return SignalEvent(strategy_id="nifty_shield_v1", symbol="NIFTY10JAN23" + str(strike) + ot,
@@ -211,17 +211,21 @@ def test_stop_loss_triggers():
     assert reason == "stop_loss"
 
 
-def test_time_exit_triggers_at_1515():
+def test_time_exit_triggers_at_1535_not_1515():
+    """The hard exit is 15:35, so 15:16 — which used to close the structure —
+    must now hold. 15:15 cut every trade at the cash close; this book is F&O
+    and its own TP/SL own the position until the derivatives session ends."""
     legs = assemble_group(_iron_fly_signals(), _UNDERLYING, 2, 75).legs
     entry = {l.symbol: 100.0 for l in legs}
     manager, _ = _manager_with_tracker(legs, entry)
     credit = 100.0 * 75 * 2
-    # Flat marks -> no TP/SL; after 15:15 the hard exit fires.
     flat = _current_prices(legs, {l.symbol: 100.0 for l in legs})
     assert manager.evaluate(UUID(_GROUP_ID), credit, flat,
-                            datetime(2023, 1, 4, 15, 16, 0)) == "time_exit"
+                            datetime(2023, 1, 4, 15, 36, 0)) == "time_exit"
     assert manager.evaluate(UUID(_GROUP_ID), credit, flat,
-                            datetime(2023, 1, 4, 15, 14, 0)) is None
+                            datetime(2023, 1, 4, 15, 16, 0)) is None
+    assert manager.evaluate(UUID(_GROUP_ID), credit, flat,
+                            datetime(2023, 1, 4, 15, 34, 0)) is None
 
 
 def test_delta_flatten_gate_closes_no_hedge():
@@ -339,3 +343,72 @@ def test_certified_nifty_lot_size_is_65():
     from core.execution.options.nifty_shield_gates import DEFAULT_CERTIFIED_CONFIG
     assert DEFAULT_CONFIG["lot_size"] == 65
     assert DEFAULT_CERTIFIED_CONFIG["lot_size"] == DEFAULT_CONFIG["lot_size"]
+
+
+# --------------------------------------------------------------------------- #
+# Broker basket margin as the sizing authority (operator decision 2026-09-08)
+# --------------------------------------------------------------------------- #
+
+def test_basket_margin_sizes_the_whole_structure_in_one_call():
+    """One broker call per lot count, for every leg at once — that is what
+    carries the hedge's spread benefit. A per-leg sum cannot express it."""
+    from core.execution.options.nifty_shield_sizing import (
+        structure_margin_over_upstox_basket)
+    seen = []
+
+    def fake_fetch(legs, product="D"):
+        seen.append((tuple((l["instrument_key"], l["quantity"],
+                            l["transaction_type"]) for l in legs), product))
+        return {"required": 90000.0, "final": 70000.0,
+                "benefit": 20000.0, "error": None}
+
+    legs = [{"symbol": "A", "side": "SELL"}, {"symbol": "B", "side": "BUY"}]
+    keys = {"A": "NSE_FO|1", "B": "NSE_FO|2"}
+    margin_at = structure_margin_over_upstox_basket(
+        legs, keys, 65, fetch=fake_fetch)
+
+    assert margin_at(2) == 70000.0             # the FINAL (post-benefit) figure
+    assert len(seen) == 1
+    basket, product = seen[0]
+    assert basket == (("NSE_FO|1", 130, "SELL"), ("NSE_FO|2", 130, "BUY"))
+    assert product == "D"
+    margin_at(2)                               # memoized — the clamp revisits
+    assert len(seen) == 1
+
+
+def test_basket_margin_refuses_rather_than_degrading():
+    """A broker that cannot price the basket must raise. Falling back to the
+    flat-rate engine is what priced the 2026-09-07 spread at Rs 4,619 against
+    the broker's Rs 79,902 — a clamp that understates 17x cannot gate."""
+    from core.execution.options.nifty_shield_sizing import (
+        UpstoxMarginUnavailable, structure_margin_over_upstox_basket)
+
+    legs = [{"symbol": "A", "side": "SELL"}]
+    with pytest.raises(UpstoxMarginUnavailable):
+        structure_margin_over_upstox_basket(legs, {}, 65)   # no instrument key
+
+    margin_at = structure_margin_over_upstox_basket(
+        legs, {"A": "NSE_FO|1"}, 65,
+        fetch=lambda legs, product="D": {
+            "required": None, "final": None, "benefit": None,
+            "error": "No access token — re-authenticate with Upstox"})
+    with pytest.raises(UpstoxMarginUnavailable, match="access token"):
+        margin_at(1)
+
+
+def test_basket_margin_clamps_lots_down_to_the_budget():
+    """final_lots walks the declared lots down until the BROKER's figure fits."""
+    from core.execution.options.nifty_shield_sizing import (
+        final_lots, structure_margin_over_upstox_basket)
+
+    def fake_fetch(legs, product="D"):
+        lots = legs[0]["quantity"] // 65
+        return {"required": 40000.0 * lots, "final": 36000.0 * lots,
+                "benefit": 4000.0 * lots, "error": None}
+
+    margin_at = structure_margin_over_upstox_basket(
+        [{"symbol": "A", "side": "SELL"}], {"A": "NSE_FO|1"}, 65,
+        fetch=fake_fetch)
+    # declared = max(1, round(4 x 0.5)) = 2 -> Rs 72,000 > budget -> 1 lot.
+    assert final_lots({"base_lots": 4, "regime_mult": 0.5},
+                      margin_at, 50000.0) == 1

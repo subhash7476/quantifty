@@ -57,7 +57,7 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
         "sl_distance": 100.0,
         "risk_r": 15000.0,
         "exit": {"tp_pct": 0.5, "sl_mult": 2.0, "sl_frac": 0.5,
-                 "hard_exit": "15:15", "max_portfolio_delta": 500},
+                 "hard_exit": "15:35", "max_portfolio_delta": 500},
     }
     md.update(md_over)
     return SignalEvent(strategy_id="nifty_shield_v1",
@@ -313,11 +313,42 @@ def test_exit_driver_take_profit_closes(tmp_path, monkeypatch):
     assert handler._closed_groups[GROUP_ID] == "take_profit"
 
 
-def test_exit_driver_time_exit_at_1515(tmp_path, monkeypatch):
+def test_exit_driver_time_exit_at_1535(tmp_path, monkeypatch):
     handler = _enter_iron_fly(tmp_path, monkeypatch)
     driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))
-    # Flat marks -> no TP/SL; at 15:16 the hard time exit fires.
+    # Flat marks -> no TP/SL. 15:16 no longer closes (the old 15:15 exit);
+    # 15:36 does.
     driver(datetime(2023, 1, 4, 15, 16, 0, tzinfo=pytz.UTC))
+    assert not handler._closed_groups
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups.get(GROUP_ID) == "time_exit"
+
+
+def test_exit_driver_throttles_idle_invocations(tmp_path, monkeypatch):
+    """LIVE drives the hook every 0.5s poll so the book stays managed past the
+    underlying's last bar; without a floor that reads the chain cache twice a
+    second. The floor must not swallow the eventual evaluation."""
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()),
+                                  min_interval_s=3600.0)
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups.get(GROUP_ID) == "time_exit"
+
+    handler2 = _enter_iron_fly(tmp_path / "b", monkeypatch)
+    throttled = NiftyShieldExitDriver(handler2, StaticMarksSource(_entry_marks()),
+                                      min_interval_s=3600.0)
+    throttled(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))   # holds
+    throttled(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))   # inside floor
+    assert not handler2._closed_groups
+
+
+def test_exit_driver_unthrottled_by_default(tmp_path, monkeypatch):
+    """REPLAY bars arrive in milliseconds of real time; every one must be
+    evaluated, so the default floor is zero."""
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
     assert handler._closed_groups.get(GROUP_ID) == "time_exit"
 
 
@@ -363,13 +394,13 @@ def test_exit_driver_holds_before_any_trigger(tmp_path, monkeypatch):
     handler = _enter_iron_fly(tmp_path, monkeypatch)
     driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))
     driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
-    assert not handler._closed_groups          # flat marks, before 15:15
+    assert not handler._closed_groups          # flat marks, before 15:35
 
 
 def test_restart_restores_groups_and_exit_driver_closes(tmp_path, monkeypatch):
     """2026-08-20 incident: a restart orphaned the open structure — the
     in-memory OrderGroup registry was lost (orders carried no group_id), so
-    the exit driver saw zero open structures and the 15:15 time-exit never
+    the exit driver saw zero open structures and the hard time-exit never
     fired. The group must be rebuilt from restored orders so a fresh handler
     still closes the structure at the hard exit."""
     journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
@@ -381,7 +412,7 @@ def test_restart_restores_groups_and_exit_driver_closes(tmp_path, monkeypatch):
     assert len(groups) == 1                    # rebuilt from restored orders
 
     driver = NiftyShieldExitDriver(restored, StaticMarksSource(_entry_marks()))
-    driver(datetime(2023, 1, 4, 15, 16, 0, tzinfo=pytz.UTC))
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
     assert restored._closed_groups.get(GROUP_ID) == "time_exit"
     for sym in _entry_marks():
         pos = restored.position_tracker.get_position(sym)
@@ -405,7 +436,7 @@ def test_restored_closed_group_not_reopened_by_new_structure(tmp_path, monkeypat
     journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
     h1 = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
     driver1 = NiftyShieldExitDriver(h1, StaticMarksSource(_entry_marks()))
-    driver1(datetime(2023, 1, 4, 15, 16, 0, tzinfo=pytz.UTC))   # time_exit
+    driver1(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))   # time_exit
     assert h1._closed_groups.get(GROUP_ID) == "time_exit"
 
     restored = _build_handler(tmp_path, monkeypatch, marks=_entry_marks(),

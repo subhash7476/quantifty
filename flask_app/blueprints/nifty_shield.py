@@ -393,6 +393,11 @@ def _live_status() -> Dict[str, Any]:
     poller_age = _iso_age_s(poller_hb.get("last_snapshot"))
     today = datetime.now().strftime("%Y-%m-%d")
     return {
+        # The date the gate strip must scope to. Without it the dashboard falls
+        # back to the latest published FACT's date, so before today's 13:00
+        # checkpoint it labelled yesterday's structure "1 attempted this
+        # session" — a stale count reading as a live one.
+        "today": today,
         "market_open": MarketHours.is_market_open(),
         "stop_present": STOP_FILE.exists(),
         "heartbeat": {

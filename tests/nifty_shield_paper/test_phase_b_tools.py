@@ -138,7 +138,12 @@ def synthetic_session(tmp_path, monkeypatch):
     candle_dir = work / "candles_1m"
     candle_dir.mkdir()
 
-    bars_n = 361
+    # 09:15 + 381 min = 15:36 — the synthetic session must outlast the 15:35
+    # hard exit or the structure never closes and the session is excluded from
+    # the window as "no-closed-structure". (At 361 bars the last bar was 15:15
+    # and the old exit fired exactly on it.) A REPLAY has no idle ticks, so its
+    # recorded bars are the only clock the exit manager gets.
+    bars_n = 382
     nf = _session_frame(seed=1, base=24000.0, bars=bars_n)
     bn = _session_frame(seed=2, base=52000.0, bars=bars_n)
     vix = _stable_vix(bars_n)
@@ -542,7 +547,7 @@ def test_session_telemetry_archived(synthetic_session):
     work, pkg, summary = synthetic_session
     telemetry = json.loads((pkg / "telemetry.json").read_text(encoding="utf-8"))
     assert telemetry["clean"] is True
-    assert telemetry["snapshot"]["bars_processed"] == 361
+    assert telemetry["snapshot"]["bars_processed"] == 382
 
 
 # --------------------------------------------------------------------------- #
