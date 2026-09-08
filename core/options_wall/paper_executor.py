@@ -30,7 +30,7 @@ class PaperConfig:
     entry_start: str = "09:30"
     entry_end: str = "15:00"
     squareoff: str = "15:15"
-    min_dte: int = 1
+    min_dte: int = ScanConfig.min_dte   # single default, shared with the scanner
 
 
 def _hhmm(s: str) -> time:
@@ -57,7 +57,9 @@ class PaperExecutor:
                  scan_config: Optional[ScanConfig] = None,
                  db_path: Path = pers.WALL_RESULTS_DB):
         self.cfg = config or PaperConfig()
-        self.scanner = ChainScanner(scan_config or ScanConfig(wing_pct=self.cfg.wing_pct))
+        self.scanner = ChainScanner(
+            scan_config or ScanConfig(wing_pct=self.cfg.wing_pct,
+                                      min_dte=self.cfg.min_dte))
         self.db_path = db_path
 
     def step(self, underlying, chain, structural, realized_vol, now: datetime) -> Optional[str]:
@@ -68,11 +70,8 @@ class PaperExecutor:
 
         if not (_hhmm(self.cfg.entry_start) <= now.time() <= _hhmm(self.cfg.entry_end)):
             return None
-        dte = (date.fromisoformat(structural.expiry) - now.date()).days
-        if dte < self.cfg.min_dte:
-            return None
-
-        farm = [r for r in self.scanner.scan_chain(chain, structural, realized_vol)
+        farm = [r for r in self.scanner.scan_chain(chain, structural, realized_vol,
+                                                  now=now)
                 if r.screen == "premium_farm"]
         if not farm:
             return None

@@ -168,3 +168,26 @@ def test_sl_does_not_fire_inside_the_band(tmp_path):
     action = ex.step("NSE_INDEX|Nifty 50", _chain_scaled(1.05), _structural(), 1.0,
                      datetime(2026, 8, 14, 11, 0))
     assert action is None
+
+
+def test_opens_on_expiry_day_when_min_dte_is_zero(tmp_path):
+    """DTE 0 is tradeable at the default floor — the fly's own expiry session."""
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb")
+    action = ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), realized_vol=1.0,
+                     now=datetime(2026, 8, 18, 10, 0))   # expiry 2026-08-18 -> DTE 0
+    assert action == "open"
+
+
+def test_min_dte_floor_suppresses_the_farm_row_and_the_trade(tmp_path):
+    """The floor is enforced once, in the scanner: no farm row => no trade.
+
+    Guards the divergence where the wall rendered a premium_farm candidate the
+    executor was structurally forbidden to take (2026-09-08 outage, D1).
+    """
+    cfg = PaperConfig(wing_pct=0.03, min_dte=1)
+    ex = PaperExecutor(cfg, db_path=tmp_path / "r.duckdb")
+    now = datetime(2026, 8, 18, 10, 0)                   # DTE 0, below the floor
+    farm = [r for r in ex.scanner.scan_chain(_chain(), _structural(), 1.0, now=now)
+            if r.screen == "premium_farm"]
+    assert farm == []
+    assert ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, now) is None

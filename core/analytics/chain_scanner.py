@@ -42,6 +42,7 @@ class ScanConfig:
     max_spread_pct: float = 0.05          # skip farm legs whose bid/ask spread exceeds this
     vol_scan_band_pct: float = 0.05       # vol-outlier scan window (|S - strike|/S)
     wing_pct: float = 0.015               # iron-fly wing width as fraction of spot
+    min_dte: int = 0                      # farm floor; 0 admits expiry-day flies
 
 
 @dataclass
@@ -76,6 +77,7 @@ class ChainScanner:
         structural: OptionsStructuralData,
         realized_vol: Optional[float] = None,
         quotes: Optional[dict] = None,
+        now: Optional[datetime] = None,
     ) -> List[ScanResult]:
         """Run all three screens; farm first, each screen internally ranked desc.
 
@@ -88,15 +90,18 @@ class ChainScanner:
             return []
 
         results: List[ScanResult] = []
-        results.extend(self._farm_screen(chain, structural, realized_vol, quotes))
+        results.extend(self._farm_screen(chain, structural, realized_vol, quotes, now))
         results.extend(self._imperfection_screen(chain, structural))
         results.extend(self._laggard_screen(chain, structural))
         return results
 
     # ------------------------------------------------------------------ (a) farm
 
-    def _farm_screen(self, chain, structural, realized_vol, quotes=None):
+    def _farm_screen(self, chain, structural, realized_vol, quotes=None, now=None):
         cfg = self.config
+        dte = self._dte(structural.expiry, (now or datetime.now()).date())
+        if dte is None or dte < cfg.min_dte:
+            return []
         if realized_vol is None:
             return []
         if "Positive" not in (structural.gex.regime or ""):
@@ -329,8 +334,8 @@ class ChainScanner:
         deviations.sort(key=lambda t: t[2], reverse=True)
         return deviations[:10]
 
-    def _dte(self, expiry: str):
+    def _dte(self, expiry: str, today: Optional[date] = None):
         try:
-            return (date.fromisoformat(expiry) - date.today()).days
+            return (date.fromisoformat(expiry) - (today or date.today())).days
         except (TypeError, ValueError):
             return None

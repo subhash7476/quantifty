@@ -20,6 +20,9 @@ from core.analytics.realized_vol import annualized_rv_pct
 from core.data.options_provider import OptionChainRow
 
 
+_NOW = datetime(2026, 8, 14, 10, 0)   # expiry 2026-08-18 -> DTE 4
+
+
 def _row(strike, otype, ltp, iv, key):
     return OptionChainRow(
         strike=strike, option_type=otype, instrument_key=key, tradingsymbol=key,
@@ -50,7 +53,7 @@ def test_farm_emits_single_atm_fly_when_spot_near_pin():
     ]
     # spot 100.4 -> ATM 100; pin argmax gamma at 100 (near spot)
     structural = _structural(100.4, "Positive GEX (Stable)", {100.0: 10, 101.0: 1})
-    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0)
+    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0, now=_NOW)
             if r.screen == "premium_farm"]
     assert len(farm) == 1
     assert farm[0].strike == 100.0            # ATM, not pin-loop
@@ -73,7 +76,7 @@ def test_farm_result_carries_iron_fly_leg_quotes():
         q(102.0, "CE", 0.9, 1.1, "C102"), q(102.0, "PE", 3.9, 4.1, "P102"),
     ]
     structural = _structural(100.0, "Positive GEX (Stable)", {100.0: 10, 102.0: 1})
-    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0)
+    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0, now=_NOW)
             if r.screen == "premium_farm"]
     assert len(farm) == 1
 
@@ -97,7 +100,7 @@ def test_farm_gated_off_when_spot_far_from_pin():
     ]
     # spot 100 but pin at 110 -> |spot-pin|/spot = 0.10 > 0.005 -> no trade
     structural = _structural(100.0, "Positive GEX (Stable)", {100.0: 1, 110.0: 10})
-    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0)
+    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0, now=_NOW)
             if r.screen == "premium_farm"]
     assert farm == []
 
@@ -110,7 +113,7 @@ def test_farm_gate_uses_atm_iv_not_pin_iv():
         _row(101.0, "CE", 5.0, 20.0, "K3"), _row(101.0, "PE", 5.0, 20.0, "K4"),
     ]
     structural = _structural(100.2, "Positive GEX (Stable)", {100.0: 10, 101.0: 9})
-    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0)
+    farm = [r for r in scanner.scan_chain(chain, structural, realized_vol=10.0, now=_NOW)
             if r.screen == "premium_farm"]
     assert farm == []
 
@@ -119,7 +122,7 @@ def test_farm_gated_off_in_negative_gex():
     scanner = ChainScanner()
     chain = [_row(100.0, "CE", 5.0, 20.0, "K1"), _row(100.0, "PE", 5.0, 20.0, "K2")]
     structural = _structural(100.0, "Negative GEX (Volatile)", {100.0: 10})
-    results = scanner.scan_chain(chain, structural, realized_vol=10.0)
+    results = scanner.scan_chain(chain, structural, realized_vol=10.0, now=_NOW)
     assert all(r.screen != "premium_farm" for r in results)
 
 
@@ -127,7 +130,7 @@ def test_farm_requires_iv_rv_gap():
     scanner = ChainScanner(ScanConfig(iv_rv_min_gap=5.0, pin_band_pct=0.01))
     chain = [_row(100.0, "CE", 5.0, 12.0, "K1"), _row(100.0, "PE", 5.0, 12.0, "K2")]
     structural = _structural(100.0, "Positive GEX (Stable)", {100.0: 10})
-    results = scanner.scan_chain(chain, structural, realized_vol=10.0)
+    results = scanner.scan_chain(chain, structural, realized_vol=10.0, now=_NOW)
     assert all(r.screen != "premium_farm" for r in results)  # gap 2.0 < 5.0
 
 
