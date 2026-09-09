@@ -25,6 +25,7 @@ from typing import List, Optional
 from core.data.options_provider import OptionChainRow
 from core.analytics.options_analytics import OptionsStructuralData
 from core.analytics.options_selection import spread_ok as quote_spread_ok
+import core.analytics.wall_metrics as wm
 
 
 @dataclass
@@ -289,19 +290,41 @@ class ChainScanner:
         return True
 
     def _pin_strike(self, structural):
-        dist = structural.gex.gamma_by_strike
-        if not dist:
-            return None
-        return max(dist, key=lambda s: dist[s])
+        """The strike carrying the most unsigned gamma mass — the platform's pin.
+
+        `wall_metrics.pin_candidates` is the primary definition everywhere else
+        (engine._regime_snapshot, the regime river, the dashboard); the signed
+        argmax below is the same fallback `engine.py` uses when mass is absent.
+        This gate previously used that fallback as its definition, which locked
+        NIFTY out of 1,649 of 1,649 snapshots on 2026-09-09 — see
+        docs/reports/strategies/OPTIONS_WALL_PIN_GATE_DEFECT_2026-09-09.md.
+        """
+        gex = structural.gex
+        pin = wm.pin_candidates(gex.gamma_ce_by_strike, gex.gamma_pe_by_strike)["pin"]
+        if pin is not None:
+            return pin
+        dist = gex.gamma_by_strike
+        return max(dist, key=lambda s: dist[s]) if dist else None
 
     def _pin_conviction(self, structural, pin):
-        dist = structural.gex.gamma_by_strike
-        if not dist or pin is None:
+        """Conviction on the same basis as the pin, kept on ScanResult's 0-1 scale.
+
+        `pin_candidates` reports 0-100; `session_regime.pin_conviction` stores that
+        scale while `scan_results.pin_conviction` stores 0-1, and the dashboard
+        renders each accordingly. Changing the basis must not change the unit.
+        """
+        if pin is None:
+            return None
+        gex = structural.gex
+        conviction = wm.pin_candidates(gex.gamma_ce_by_strike,
+                                       gex.gamma_pe_by_strike)["conviction"]
+        if conviction is not None:
+            return conviction / 100.0
+        dist = gex.gamma_by_strike
+        if not dist:
             return None
         total = sum(abs(v) for v in dist.values())
-        if total == 0:
-            return None
-        return abs(dist[pin]) / total
+        return abs(dist[pin]) / total if total else None
 
     def _atm_strike(self, chain, spot):
         return min({r.strike for r in chain}, key=lambda s: abs(s - spot))
