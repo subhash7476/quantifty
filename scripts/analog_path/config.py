@@ -1,9 +1,12 @@
 """Frozen Phase-1A configuration for the intraday analog-path research.
 
 Single source of truth: `config.json` in this directory. This module loads,
-validates, and exposes it. The whole-file SHA-256 of `config.json` is the
-freeze seal cited by INTRADAY_ANALOG_PATH_PROTOCOL.md — edit nothing here or
-in the JSON without a freeze-breaking decision.
+validates, and exposes it. The SHA-256 seal cited by
+INTRADAY_ANALOG_PATH_PROTOCOL.md is computed over the *canonical* JSON form
+(`json.dumps(CONFIG, sort_keys=True)`), not the raw file bytes, so it is
+stable across line-ending normalization and whitespace churn — the seal
+protects the semantic content. Edit nothing here or in the JSON without a
+freeze-breaking decision.
 """
 from __future__ import annotations
 
@@ -15,10 +18,10 @@ from pathlib import Path
 _CFG_PATH = Path(__file__).resolve().with_name("config.json")
 
 with open(_CFG_PATH, "r", encoding="utf-8") as fh:
-    _RAW = fh.read()
+    CONFIG = json.load(fh)
 
-CONFIG = json.loads(_RAW)
-CONFIG_SHA256 = hashlib.sha256(_RAW.encode("utf-8")).hexdigest()
+_CANONICAL = json.dumps(CONFIG, sort_keys=True, separators=(",", ":"))
+CONFIG_SHA256 = hashlib.sha256(_CANONICAL.encode("utf-8")).hexdigest()
 
 INSTRUMENT = CONFIG["instrument"]
 CUTOFF = time(12, 30)
