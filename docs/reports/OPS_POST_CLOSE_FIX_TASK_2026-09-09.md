@@ -270,3 +270,11 @@ mitigation already shipped in the panel; this is the durable half.
 live row on 2026-08-28. Reading the global one reports a fired checkpoint as missing (it
 did, to me, today). Whether the split is intended session-scoped evidence or an unnoticed
 divergence is an open question, not a fix in this batch.
+
+---
+
+**Related, separate track:** the 90% credit floor was checked after the close — see
+`docs/reports/index_research/NIFTY_SHIELD_CREDIT_FLOOR_CALIBRATION_2026-09-09.md`. Verdict: the floor is
+not the problem; the reference it compares against is priced at India VIX flat across every leg,
+which overstates a 6-DTE vertical by ~30%. Fix the vol input first, then calibrate. No strategy
+parameter was changed.

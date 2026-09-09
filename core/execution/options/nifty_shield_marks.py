@@ -48,6 +48,23 @@ class OptionMarksSource(ABC):
         `symbols`); symbols without a real mark are simply absent."""
 
     @abstractmethod
+    def implied_vols(self, symbols: List[str]) -> Dict[str, float]:
+        """Per-symbol implied vol as a DECIMAL (0.1103, not 11.03), from the
+        same snapshot as `marks`.
+
+        The credit gate's reference price needs the vol of the legs it is
+        pricing. It used to be handed India VIX flat across every leg, which
+        overstates a 6-DTE vertical by ~30% — VIX is a 30-day variance-swap
+        strip, not an ATM vol, and one flat number cannot sit on both legs of a
+        spread (`NIFTY_SHIELD_CREDIT_FLOOR_CALIBRATION_2026-09-09.md`).
+
+        ABSTRACT ON PURPOSE, for the reason `instrument_keys` records below: a
+        concrete `return {}` default is inherited silently by wrappers, and the
+        gate would then read as permanently unavailable instead of failing loudly
+        at construction.
+        """
+
+    @abstractmethod
     def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
         """Broker instrument keys for the symbols this source can identify.
 
@@ -77,11 +94,16 @@ class OptionMarksSource(ABC):
 class StaticMarksSource(OptionMarksSource):
     """A fixed mark table — deterministic, for tests and the REPLAY smoke run."""
 
-    def __init__(self, marks: Dict[str, float]):
+    def __init__(self, marks: Dict[str, float],
+                 implied_vols: Optional[Dict[str, float]] = None):
         self._marks = dict(marks)
+        self._ivs = dict(implied_vols or {})
 
     def marks(self, symbols: List[str]) -> Dict[str, float]:
         return {s: self._marks[s] for s in symbols if s in self._marks}
+
+    def implied_vols(self, symbols: List[str]) -> Dict[str, float]:
+        return {s: self._ivs[s] for s in symbols if s in self._ivs}
 
     def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
         return {}                    # no broker identity, stated explicitly
@@ -174,6 +196,36 @@ class ChainSnapshotMarksSource(OptionMarksSource):
             con.close()
         return {sym: float(ltp) for sym, ltp in rows
                 if ltp is not None and float(ltp) > 0.0}
+
+    def implied_vols(self, symbols: List[str]) -> Dict[str, float]:
+        """Per-leg IV from the same snapshot the marks come from.
+
+        The feed publishes IV in PERCENT (11.03); the gate's Black-Scholes wants
+        a decimal, so it is divided here — at the one place that knows the feed's
+        unit — rather than at the call site.
+        """
+        if not symbols:
+            return {}
+        con = self._connect()
+        try:
+            latest = self._latest_timestamp(con)
+            if latest is None:
+                return {}                    # valid cache, no snapshot yet
+            placeholders = ", ".join("?" for _ in symbols)
+            try:
+                rows = con.execute(
+                    f"SELECT tradingsymbol, iv FROM {self._table} "
+                    f"WHERE snapshot_timestamp = ? "
+                    f"AND tradingsymbol IN ({placeholders})",
+                    [latest] + list(symbols),
+                ).fetchall()
+            except Exception as exc:
+                raise MarksSourceUnavailable(
+                    f"option-chain cache query failed: {exc}") from exc
+        finally:
+            con.close()
+        return {sym: float(iv) / 100.0 for sym, iv in rows
+                if iv is not None and float(iv) > 0.0}
 
     def snapshot_age_s(self, now: Optional[datetime] = None) -> Optional[float]:
         """Seconds since the newest snapshot, or None if the cache has none.

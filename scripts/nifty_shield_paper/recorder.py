@@ -127,6 +127,10 @@ class RecordingMarksSource(OptionMarksSource):
     def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
         return self._inner.instrument_keys(symbols)
 
+    def implied_vols(self, symbols: List[str]) -> Dict[str, float]:
+        """Forwarded, NOT recorded — see the limitation on `ReplayMarksSource`."""
+        return self._inner.implied_vols(symbols)
+
     def snapshot_age_s(self, now=None):
         return self._inner.snapshot_age_s(now)
 
@@ -475,6 +479,18 @@ class ReplayMarksSource(OptionMarksSource):
     def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
         """None: a replay never calls a broker, and REPLAY sizes on the local
         engine (`use_broker_margin=False`), so nothing consumes these."""
+        return {}
+
+    def implied_vols(self, symbols: List[str]) -> Dict[str, float]:
+        """KNOWN LIMITATION, stated rather than hidden: the marks log records
+        marks only, so a replay has no per-leg IV and the credit gate therefore
+        reads UNAVAILABLE (journaled as ENTRY_DIAGNOSTIC, never as a skip).
+
+        Consequence: a REPLAY can enter a structure that LIVE refused on credit.
+        Closing it means recording IVs alongside marks in the session log, which
+        the strict call-order divergence check makes a change in its own right —
+        not a silent `{}` dressed up as parity.
+        """
         return {}
 
     def snapshot_age_s(self, now=None):

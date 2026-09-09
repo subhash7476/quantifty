@@ -172,9 +172,12 @@ class NiftyShieldSignalSource(SignalSource):
                 "offset_pts": leg["offset_pts"],
                 "sigma_pts": leg["sigma_pts"],
                 "dte": dte,
-                # Carried for the execution-boundary credit gate: it prices the
-                # same legs at the session's own implied vol and refuses an
-                # entry whose real credit falls short of that reference.
+                # `spot` feeds the execution-boundary credit gate's reference
+                # price. `iv` is India VIX and sizes the sigma strike offsets
+                # ONLY — it is deliberately NOT a leg price input: the gate
+                # prices each leg at that leg's own implied vol from the chain
+                # snapshot, because one flat vol overstated a 6-DTE vertical by
+                # ~30% (NIFTY_SHIELD_CREDIT_FLOOR_CALIBRATION_2026-09-09.md).
                 "spot": float(bar.close),
                 "iv": iv,
                 "exit": {

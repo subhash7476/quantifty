@@ -327,15 +327,20 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             return False
         md = signals[0].metadata
         md = getattr(md, "strategy_metadata", md)
+        # Each leg is priced at ITS OWN implied vol, read from the same chain
+        # snapshot the marks come from. The strategy's `iv` (India VIX) sizes the
+        # strike offsets and is NOT a leg price input — using it here overstated
+        # a 6-DTE vertical by ~30% and made the floor unreachable.
+        ivs = self._marks_source.implied_vols([s.symbol for s in signals])
         legs = [{"symbol": s.symbol, "side": s.signal_type.value,
                  "strike": (getattr(s.metadata, "strategy_metadata", s.metadata)
                             ).get("strike"),
                  "option_type": (getattr(s.metadata, "strategy_metadata",
-                                         s.metadata)).get("option_type")}
+                                         s.metadata)).get("option_type"),
+                 "iv": ivs.get(s.symbol)}
                 for s in signals]
         fair = fair_structure_credit(
             legs, float(md.get("spot") or 0.0), float(md.get("dte") or 0.0),
-            float(md.get("iv") or 0.0),
             float(self._strategy_cfg.get("risk_free_rate", 0.065)))
         actual = marked_structure_credit(legs, marks)
         if fair is None or actual is None or fair <= 0.0:
@@ -344,7 +349,8 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             # operator reads to find lost entries.
             self._record(
                 EventType.ENTRY_DIAGNOSTIC,
-                "credit gate not evaluated: no reference price available",
+                "credit gate not evaluated: no reference price available "
+                f"(per-leg IV present for {len(ivs)}/{len(legs)} legs)",
                 severity=Severity.WARNING,
                 group_id=group_id, structure=structure,
                 reason="credit gate unavailable",
