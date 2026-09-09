@@ -20,5 +20,15 @@ protobuf==7.34.1          # Upstox MarketDataFeedV3 protobuf decoding
 # Messaging / scheduling
 pyzmq==27.1.0
 
+# Modelling — the DayType live path unpickles scikit-learn objects at runtime
+# (core/state/daytype_engine.py), and cluster_day_types.py needs scipy. These
+# were undeclared while being load-bearing: audit Finding E,
+# docs/reports/index_research/REGIME_DETECTION_SPEC_AUDIT_2026-09-09.md.
+# A pickle is version-coupled to the library that wrote it, so these pins are
+# part of the model contract, not a convenience.
+scikit-learn==1.8.0
+scipy==1.17.0
+lightgbm==4.7.0
+
 # Time
 pytz==2026.2

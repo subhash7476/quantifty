@@ -105,5 +105,31 @@
   ],
   "block_a_excluded": false,
   "train_thru": 2023,
-  "version": "v2.0-train_thru2023"
+  "version": "v2.0-train_thru2023",
+  "label_provenance": {
+    "label_source": "data/features/day_type/cluster_labels.csv",
+    "label_fit_span": [
+      2012,
+      2025
+    ],
+    "label_fit_hash": "1935f8e2353eb93ad0bd5db3b9b4a4147e078966664846cd9d85755e4adbd404",
+    "val_year": 2024,
+    "holdout_year": 2025,
+    "val_year_inside_label_fit": true,
+    "holdout_year_inside_label_fit": true,
+    "note": "The KMeans target was fitted over the whole label_fit_span, which contains this model's val and holdout years. Holdout accuracy is therefore measured against labels defined by a fit that saw the holdout year -- an optimism channel, disclosed rather than repaired.",
+    "disclosed_retroactively": "2026-09-09, audit Finding C"
+  },
+  "sklearn_version": "unknown \u2014 model predates version recording",
+  "horizon_disclosure": {
+    "label_horizon": "09:15-15:29 full session",
+    "prediction_made_at": "13:00 checkpoint, from 09:15-13:00 partial features",
+    "consumed_over": "13:00-15:15 (NiftyShield structure lifetime)",
+    "semantics": "directional prior, NOT a same-horizon forecast",
+    "supported_claim": "BullTrend minus BearTrend forward-window return +0.255 pp, bootstrap 95% CI [+0.197, +0.312], n=1606 out-of-sample sessions (scripts/nifty_shield/diagnose_regime_horizon.py)",
+    "not_supported": "The 75-85% checkpoint accuracy is accuracy against the FULL-SESSION KMeans label, not about the 13:00-15:15 window. regime_confidence is confidence in the full-session class, not a probability about the afternoon. No threshold or sizing rule may be derived as if the label described the traded window.",
+    "reference": "docs/reports/index_research/DAYTYPE_HORIZON_DISCLOSURE.md",
+    "resolves": "Finding A, REGIME_DETECTION_SPEC_AUDIT_2026-09-09.md (option b)",
+    "disclosed_retroactively": "2026-09-09"
+  }
 }

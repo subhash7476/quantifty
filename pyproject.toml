@@ -16,7 +16,10 @@ dependencies = [
     "python-dotenv",
     "websockets",
     "protobuf",
-    "pyzmq"
+    "pyzmq",
+    "scikit-learn",
+    "scipy",
+    "lightgbm"
 ]
 
 [tool.pytest.ini_options]
