@@ -38,12 +38,15 @@ outcome.
   ("13 observations", "12-dimensional") are recorded as off-by-one slips and
   overridden by the enumeration.
 - **Timestamp eras (certified):**
-  - *vendor* ≤ 2023-01-31 — end-labelled bars (first bar 09:16 covers
-    09:15–09:16; a bar stamped t closes AT t);
-  - *native* 2023-03-01 → 2026-08-02 — start-labelled bars (first bar 09:15;
-    a bar stamped t opens AT t);
+  - *end-labelled sessions:* first bar 09:16 covers 09:15–09:16; a bar
+    stamped t closes AT t;
+  - *start-labelled sessions:* first bar 09:15; a bar stamped t opens AT t;
   - *cas* ≥ 2026-08-03 — start-labelled; the index 15:29 bar carries the
     closing-auction print.
+- **Operational era rule (AP-D4 resolution, 2026-09-09):** the price rule
+  follows the **observed first-bar stamp** (09:16 → vendor rule, 09:15 →
+  native rule), not the calendar date; date-based provenance is retained as
+  a separate recorded field. This admits the 20 Jan-2023 sessions.
 - **Price at grid time t (frozen):** the last close of a bar whose stamp is
   ≤ t — **except 09:15**, which is the first bar's open (the A-track D3
   opening-print convention, reused verbatim). Consequently P(12:30) is the
@@ -91,7 +94,8 @@ A session is eligible iff ALL of the following hold:
 
 1. the per-date 1m file exists;
 2. the first bar's date equals the session date (no cross-day contamination);
-3. the first bar stamp matches the era standard (vendor `09:16`, else `09:15`);
+3. the first bar stamp matches an observed-labelling standard (09:16 or
+   09:15; anything else excluded);
 4. ≥ 360 bars in the session;
 5. ≥ 195 bars in the morning window 09:15–12:31;
 6. all 14 grid prices constructible with positive prices;
@@ -205,13 +209,14 @@ final classification.
 
 `scripts/analog_path/config.json` canonical-form SHA-256 (JSON semantics,
 line-ending-stable):
-`5e609fcf82a1c044a562c2e47779bb936758041936df31831f70abbcee14251d`
+`cd3d5149244c9ed6c5684153f30bedf4a160184375bdc4bb18d6c73dedc8a81d`
 (recorded 2026-09-09 — any semantic edit to the JSON breaks the seal and
 must be treated as a freeze decision). Code: `scripts/analog_path/` (config,
-data_layer, eligibility, stats, ledger, exp0/exp1 runners). Tests:
-`tests/analog_path/`. Artifacts (git-ignored, reproducible):
-`data/analog_path/` (eligible list, defect register, experiment ledger,
-experiment results).
+data_layer, states, matcher, forecasts, control, nulls, eligibility, stats,
+ledger, exp0/exp1, run_phase1b_train, plot_examples, verify_sample). Tests:
+`tests/analog_path/` (69 passing at Phase 1B). Artifacts (git-ignored,
+reproducible): `data/analog_path/` (eligible list, defect register,
+experiment ledger, experiment results, analogue records, plots).
 
 ## 12. Known data defects absorbed by the frozen rules (register)
 
@@ -226,16 +231,48 @@ experiment results).
   (not synthetic-flagged); the 15:29 bar carries the auction print. The
   frozen close = 15:29 bar close; flat bars inside the excursion window add
   no new extremes.
-- **AP-D4 (open question, operator decision needed before final freeze):**
-  20 sessions in Jan 2023 (2023-01-02..30) are date-classified vendor
-  (A-track boundary ≤ 2023-01-31) but are physically start-labelled (first
-  bar 09:15, like native). The date-based era rule excludes them
-  (`first_bar_stamp_09:15`). TRAIN/HOLDOUT are unaffected; the decision
-  matters only for the SEALED window (865 vs 885 eligible sessions). Either
-  outcome is defensible; the conservative current behaviour (exclude) is
-  certified-consistent. Also note 2026-02-01 and 2026-03-03 carry no 1m
-  file (store holes, recorded).
+- **AP-D4 (RESOLVED 2026-09-09, operator decision):** the 20 Jan-2023
+  sessions are **included**. Era classification follows the OBSERVED
+  first-bar stamp (09:16 → end-labelled/vendor rule; 09:15 →
+  start-labelled/native rule; anything else → excluded), not the calendar
+  date. Tests demonstrate the convention across the transition period
+  (2022-12-30, 2023-01-02, 2023-01-31, 2023-03-02). SEALED eligible count:
+  865 → 885. TRAIN/HOLDOUT unaffected (1,687 / 981).
 - Inherited (A-track certification): vendor-era opening-print discrepancy;
   May 2018 and Feb 2023 permanent holes; 2026-08-24..26 recent lag
   (re-ingestible only through the normal certified process — not a
   prerequisite for this research).
+
+## 13. Phase 1B amendments (operator-authorized 2026-09-09)
+
+1. **Same-return/different-path tolerance frozen at ±10 bp** on the
+   open→12:30 return (config `return_matching_tolerance_pct = 0.10`).
+2. **State C (diagnostic only):** `C(t) = A(t) − (t/13)·A(12:30)` — the
+   linear detrend of State A; first and last elements exactly 0; endpoint
+   magnitude removed. One construction only; Euclidean distance like the
+   primaries. Reported separately, never used to select primary results.
+3. **Both States A and B contain endpoint magnitude** — documented, not
+   treated as pure shape.
+4. **Walk-forward forecasts (frozen):** expanding mean (unconditional),
+   expanding OLS on R (return-only), analogue mean/median. Pool-size rule:
+   a query day requires pool ≥ K, else flagged `pool_too_small` (mechanical,
+   no threshold tuning).
+5. **Similarity quality:** primary measure = nearest distance's percentile
+   in the pair-distance distribution of a deterministic pool sample
+   (S = min(80, pool), seed NULL_SEED + i); the trivial pool-rank percentile
+   is reported for completeness but carries no information (the nearest is
+   always the pool minimum).
+6. **Nulls (frozen):** randomized matching (K random pool days per query,
+   causal sampling; statistic = forecast–realized correlation), block-shift
+   (calendar-month blocks; close horizon), sign-permutation (directional
+   accuracy; close horizon). 1,000 iterations, seed 42, two-sided empirical
+   p-values.
+7. **Return-controlled comparison:** `realized ~ [1, analogue_forecast, R]`
+   with NW SEs + ΔR² vs the R-only model, all 60 cells.
+8. **Control experiment:** ±10 bp matched sets; near/far split at the median
+   State-C distance; min group size 5 (frozen); within-group permutation
+   null.
+
+Phase 1B TRAIN results: `INTRADAY_ANALOG_PATH_TRAIN_REPORT.md` (verdict:
+WEAK; central forecast question NO EVIDENCE; control close-horizon effect
++2.4 bp, permutation p≈2e-5).
