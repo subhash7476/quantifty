@@ -2,9 +2,10 @@
 
 Reads a chain snapshot each cycle, runs the premium-farm screen, and manages at
 most one open iron fly per underlying: open on a qualifying farm signal inside the
-entry window; close on take-profit, stop-loss, a GEX regime flip to Negative, or the
-time stop (session before expiry). P&L is computed directly (fly.py + fees.py); no
-group/broker primitives are reused (spec 2026-08-14 pilot §12.4 deviation, by design).
+entry window; close on take-profit, stop-loss, or the time stop (session before
+expiry). A GEX regime flip to Negative blocks new entries — it is not an exit. P&L
+is computed directly (fly.py + fees.py); no group/broker primitives are reused
+(spec 2026-08-14 pilot §12.4 deviation, by design).
 """
 
 from __future__ import annotations
@@ -66,7 +67,7 @@ class PaperExecutor:
         mids = _mids(chain)
         open_rows = pers.open_trades(underlying, db_path=self.db_path)
         if open_rows:
-            return self._manage(open_rows[0], structural, mids, now)
+            return self._manage(open_rows[0], mids, now)
 
         if not (_hhmm(self.cfg.entry_start) <= now.time() <= _hhmm(self.cfg.entry_end)):
             return None
@@ -84,17 +85,22 @@ class PaperExecutor:
         pers.open_paper_trade(underlying, structural.expiry, fly, now, db_path=self.db_path)
         return "open"
 
-    def _manage(self, row, structural, mids, now) -> Optional[str]:
+    def _manage(self, row, mids, now) -> Optional[str]:
+        """Exits are owned by TP, SL and the time stop. The GEX regime is not consulted.
+
+        A regime flip gates *entry* (`_farm_screen` requires "Positive"); it is
+        deliberately not an exit. The sign of net gamma changes state every 28-93s,
+        so exiting on it costs a full round trip (~Rs212, 75% of it flat brokerage)
+        to act on ~2 points of expected index movement. See
+        docs/reports/strategies/OPTIONS_WALL_SENSEX_CHURN_AUDIT_2026-09-09.md.
+        """
         fly = self._rehydrate(row)
         reason = None
-        if "Negative" in (structural.gex.regime or ""):
-            reason = "regime_flip"
-        else:
-            pnl = unrealized_pnl(fly, mids)
-            if pnl is not None and pnl >= self.cfg.tp_frac * row["net_credit"]:
-                reason = "tp"
-            elif pnl is not None and pnl <= -self.cfg.sl_frac * row["max_loss"]:
-                reason = "sl"
+        pnl = unrealized_pnl(fly, mids)
+        if pnl is not None and pnl >= self.cfg.tp_frac * row["net_credit"]:
+            reason = "tp"
+        elif pnl is not None and pnl <= -self.cfg.sl_frac * row["max_loss"]:
+            reason = "sl"
         dte = (date.fromisoformat(row["expiry"]) - now.date()).days
         if reason is None and dte <= 1 and now.time() >= _hhmm(self.cfg.squareoff):
             reason = "time_stop"
