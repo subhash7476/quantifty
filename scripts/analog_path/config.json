@@ -1,0 +1,49 @@
+{
+  "track": "INTRADAY_ANALOG_PATH",
+  "phase": "1A",
+  "instrument": "NSE_INDEX|Nifty 50",
+  "cutoff_time": "12:30",
+  "grid_times": ["09:15", "09:30", "09:45", "10:00", "10:15", "10:30", "10:45", "11:00", "11:15", "11:30", "11:45", "12:00", "12:15", "12:30"],
+  "price_rule": "last close of bar with stamp <= t; open = first-bar open (A-track D3)",
+  "close_rule": "close of bar stamped 15:30 in vendor era / 15:29 in native and cas eras",
+  "excursion_rule": "bars strictly after the cutoff bar, capped at the close stamp; mfe = max cumulative return, mae = min cumulative return",
+  "era_boundaries": {
+    "vendor_last": "2023-01-31",
+    "native_from": "2023-03-01",
+    "cas_from": "2026-08-03"
+  },
+  "fences": {
+    "train": ["2012-01-01", "2018-12-31"],
+    "holdout": ["2019-01-01", "2022-12-31"],
+    "sealed_start": "2023-01-01"
+  },
+  "horizons": {
+    "h13": "13:00",
+    "h1330": "13:30",
+    "h14": "14:00",
+    "h15": "15:00",
+    "close": "close"
+  },
+  "return_bins_edges_pct": [-100.0, -2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0, 100.0],
+  "k_values": [5, 10, 20, 50],
+  "distance": "euclidean",
+  "representations": ["norm_price_path", "interval_returns"],
+  "eligibility": {
+    "min_bars": 360,
+    "min_morning_bars": 195,
+    "first_bar_standard": {"vendor": "09:16", "native": "09:15", "cas": "09:15"}
+  },
+  "nulls": {
+    "iterations": 1000,
+    "seed": 42
+  },
+  "stats": {
+    "nw_lag": 5,
+    "bootstrap_blocks_days": 5,
+    "bootstrap_iterations": 10000,
+    "bootstrap_seed": 42,
+    "quantiles": [0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99]
+  },
+  "return_matching_tolerance_pct": null,
+  "note_tolerance": "matching tolerance for the same-return/different-path control: DEFERRED - pinned before the control experiment runs, not part of Phase 1A"
+}
