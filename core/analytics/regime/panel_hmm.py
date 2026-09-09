@@ -25,6 +25,7 @@ import numpy as np
 LOG_EMISSION_FLOOR = -100.0
 
 VAR_FLOOR = 1e-6
+XI_BLOCK = 256
 MIN_SEQ_LEN = 2
 
 
@@ -97,6 +98,49 @@ def _backward(log_e: np.ndarray, log_A: np.ndarray) -> np.ndarray:
     return log_beta
 
 
+def _pad(sequences: list[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    """Stack ragged sequences into (n_seq, max_len, n_feat) plus a validity mask."""
+    n, lens = len(sequences), [len(s) for s in sequences]
+    max_len, n_feat = max(lens), sequences[0].shape[1]
+    x = np.zeros((n, max_len, n_feat))
+    mask = np.zeros((n, max_len), dtype=bool)
+    for i, s in enumerate(sequences):
+        x[i, : len(s)] = s
+        mask[i, : len(s)] = True
+    return x, mask
+
+
+def _forward_batch(log_e: np.ndarray, mask: np.ndarray, log_A: np.ndarray,
+                   log_pi: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Forward pass over every sequence at once.
+
+    Past a sequence's own end the previous alpha is carried forward unchanged,
+    so `log_alpha[:, -1]` holds each sequence's final alpha regardless of length
+    and the per-sequence log-likelihood reads straight off it.
+    """
+    n, max_len, k = log_e.shape
+    log_alpha = np.empty((n, max_len, k))
+    log_alpha[:, 0] = log_pi[None, :] + log_e[:, 0]
+    for t in range(1, max_len):
+        step = log_e[:, t] + _logsumexp(log_alpha[:, t - 1][:, :, None]
+                                        + log_A[None, :, :], axis=1)
+        log_alpha[:, t] = np.where(mask[:, t][:, None], step, log_alpha[:, t - 1])
+    return log_alpha, _logsumexp(log_alpha[:, -1], axis=1)
+
+
+def _backward_batch(log_e: np.ndarray, mask: np.ndarray,
+                    log_A: np.ndarray) -> np.ndarray:
+    """Backward pass; beta is zero at and past each sequence's own final row."""
+    n, max_len, k = log_e.shape
+    log_beta = np.zeros((n, max_len, k))
+    for t in range(max_len - 2, -1, -1):
+        step = _logsumexp(log_A[None, :, :]
+                          + (log_e[:, t + 1] + log_beta[:, t + 1])[:, None, :],
+                          axis=2)
+        log_beta[:, t] = np.where(mask[:, t + 1][:, None], step, 0.0)
+    return log_beta
+
+
 def _kmeans(x: np.ndarray, k: int, seed: int, iters: int = 50) -> np.ndarray:
     """Deterministic k-means++ init, used only to seed EM.
 
@@ -154,34 +198,51 @@ def fit_panel(sequences: list[np.ndarray], n_states: int, seed: int = 0,
     A = np.full((n_states, n_states), 1.0 / n_states)
     pi = np.full(n_states, 1.0 / n_states)
 
+    # Sequences are padded into one batch: the recursions still walk time step
+    # by step, but each step handles every sequence at once. Looping per
+    # sequence in Python costs ~30 s per EM iteration on a 500k-row panel, which
+    # is hours per fold.
+    xb, mask = _pad(seqs)
+    flat_x, flat_mask = xb.reshape(-1, n_feat), mask.reshape(-1)
+
     prev, history, converged, it = -np.inf, [], False, 0
     for it in range(1, max_iter + 1):
+        log_A = np.log(np.maximum(A, 1e-300))
+        log_pi = np.log(np.maximum(pi, 1e-300))
+
+        log_e = log_emissions(flat_x, mu, var).reshape(xb.shape[0], xb.shape[1],
+                                                       n_states)
+        log_e = np.where(mask[:, :, None], log_e, 0.0)
+
+        log_alpha, ll = _forward_batch(log_e, mask, log_A, log_pi)
+        log_beta = _backward_batch(log_e, mask, log_A)
+        total = float(ll.sum())
+
+        gamma = np.exp(log_alpha + log_beta - ll[:, None, None])
+        gamma = np.where(mask[:, :, None], gamma, 0.0)
+        gamma /= np.maximum(gamma.sum(axis=2, keepdims=True), 1e-300)
+        gamma = np.where(mask[:, :, None], gamma, 0.0)
+
+        # xi over every sequence and transition; the mask on t+1 drops
+        # transitions running past a sequence's own end. Accumulated in time
+        # blocks because the full (n_seq, max_len, K, K) intermediate is the
+        # largest array in the fit and would spike a few hundred MB on a box
+        # with ~2.6 GB free.
         num_A = np.zeros((n_states, n_states))
-        sum_g = np.zeros(n_states)
-        sum_gx = np.zeros((n_states, n_feat))
-        sum_gxx = np.zeros((n_states, n_feat))
-        pi_acc = np.zeros(n_states)
-        total = 0.0
+        for lo in range(0, xb.shape[1] - 1, XI_BLOCK):
+            hi = min(lo + XI_BLOCK, xb.shape[1] - 1)
+            trans = (log_alpha[:, lo:hi, :, None] + log_A[None, None, :, :]
+                     + (log_e[:, lo + 1:hi + 1, :]
+                        + log_beta[:, lo + 1:hi + 1, :])[:, :, None, :]
+                     - ll[:, None, None, None])
+            num_A += np.where(mask[:, lo + 1:hi + 1, None, None],
+                              np.exp(trans), 0.0).sum(axis=(0, 1))
 
-        log_A, log_pi = np.log(np.maximum(A, 1e-300)), np.log(np.maximum(pi, 1e-300))
-        for s in seqs:
-            log_e = log_emissions(s, mu, var)
-            log_alpha, ll = _forward(log_e, log_A, log_pi)
-            log_beta = _backward(log_e, log_A)
-            total += ll
-
-            gamma = np.exp(log_alpha + log_beta - ll)
-            gamma /= gamma.sum(axis=1, keepdims=True)
-
-            pi_acc += gamma[0]
-            sum_g += gamma.sum(0)
-            sum_gx += gamma.T @ s
-            sum_gxx += gamma.T @ (s * s)
-
-            for t in range(len(s) - 1):
-                xi = (log_alpha[t][:, None] + log_A
-                      + (log_e[t + 1] + log_beta[t + 1])[None, :] - ll)
-                num_A += np.exp(xi)
+        g_flat = gamma.reshape(-1, n_states)
+        pi_acc = gamma[:, 0, :].sum(axis=0)
+        sum_g = g_flat.sum(axis=0)
+        sum_gx = g_flat.T @ flat_x
+        sum_gxx = g_flat.T @ (flat_x * flat_x)
 
         history.append(total)
         A = num_A / np.maximum(num_A.sum(axis=1, keepdims=True), 1e-300)

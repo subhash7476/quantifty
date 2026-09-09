@@ -81,17 +81,27 @@ def fit_normalization(x: np.ndarray, n_sigma: float = WINSOR_SIGMA) -> Normaliza
 
 
 def build_features(frame: pd.DataFrame, gk_floor: float) -> pd.DataFrame:
-    """Raw (un-normalized) features for one stock sequence, ordered by date.
+    """Raw (un-normalized) features from OHLC, ordered by date."""
+    gk = garman_klass(frame["open"].to_numpy(), frame["high"].to_numpy(),
+                      frame["low"].to_numpy(), frame["close"].to_numpy())
+    return features_from_gk(pd.Series(gk, index=frame.index),
+                            frame["close"].astype(float), gk_floor)
 
-    `frame` needs open/high/low/close. Rows inside the warmup carry NaN and are
-    dropped by the caller — never filled, since a filled warmup row is a
-    fabricated observation.
+
+def features_from_gk(gk_s: pd.Series, close: pd.Series,
+                     gk_floor: float) -> pd.DataFrame:
+    """Raw features from a precomputed GK series — the fold path.
+
+    `build_panel.py` already stores GK per row, and the floor is a fit-window
+    quantity that changes per fold, so folds re-floor a stored series rather
+    than recomputing it from OHLC ten times.
+
+    Rows inside the warmup carry NaN and are dropped by the caller — never
+    filled, since a filled warmup row is a fabricated observation.
     """
-    gk = np.maximum(garman_klass(frame["open"].to_numpy(), frame["high"].to_numpy(),
-                                 frame["low"].to_numpy(), frame["close"].to_numpy()),
-                    gk_floor)
-    gk_s = pd.Series(gk, index=frame.index)
-    close = frame["close"].astype(float)
+    close = close.astype(float)
+    gk_s = pd.Series(np.maximum(gk_s.astype(float).to_numpy(), gk_floor),
+                     index=close.index)
 
     baseline = gk_s.rolling(GK_BASELINE_WINDOW, min_periods=GK_BASELINE_WINDOW).median()
     gk_vol_z = np.log(gk_s / baseline)
@@ -110,7 +120,7 @@ def build_features(frame: pd.DataFrame, gk_floor: float) -> pd.DataFrame:
     drift = ret / (daily_sd * np.sqrt(DRIFT_WINDOW)).where(daily_sd > 0)
 
     return pd.DataFrame({"gk_vol_z": gk_vol_z, "gk_ratio_st": gk_ratio_st,
-                         "ker_20": ker, "drift_t": drift}, index=frame.index)
+                         "ker_20": ker, "drift_t": drift}, index=close.index)
 
 
 def forward_realized_vol(gk: np.ndarray, horizon: int = 5) -> np.ndarray:
