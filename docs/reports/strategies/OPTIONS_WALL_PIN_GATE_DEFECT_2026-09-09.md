@@ -208,6 +208,14 @@ Nifty now trades, centred on **23,500 — exactly the pin the dashboard showed a
 That is the fix working. Sensex is unchanged in substance (+₹922 vs +₹953 under (D) alone; it
 enters 9 minutes earlier because the pin gate now admits it from the open).
 
+**The two rows do not carry equal weight.** The Sensex row is fidelity-checked — its entry
+matched live trade 10 to within 1.3 seconds, inside one poll cycle. **The Nifty row has no
+live counterpart to check against**, because the live system took no Nifty trade at all; its
+timestamp, credit and wings rest on the harness being faithful and are **unverified**. The one
+element that *is* independently corroborated is the strike: 23,500 is the same pin §2 measured
+from the production path on all 1,649 snapshots. Read the Nifty row as "the gate now admits,
+and admits at the right strike" — not as a validated trade.
+
 ### ⚠ The consequence to decide before restarting the poller
 
 **The Nifty position has no exit for five days.** The time stop is
@@ -223,10 +231,20 @@ pilot has **never once observed a multi-day hold**. (D) unmasked it and (A) poin
 DTE-6 book.
 
 Concretely, this means unattended overnight and weekend gap exposure on a short-gamma
-structure, where the SL is a mark-based stop that only evaluates while the poller is running.
-Loss is bounded by the fly's structure (max_loss ₹8,939 on today's Nifty entry, against a
-₹13,811 credit), so this is not unbounded risk — but it is a materially different posture from
-anything this pilot has run, and it is worth an explicit decision rather than discovery.
+structure, where the SL is a **mark-based stop that only evaluates while the poller is
+running** — a gap through it is realised at the reopen, not at the stop level.
+
+Risk is bounded — an iron fly cannot lose more than `max_loss` (₹8,939 on today's Nifty entry,
+against a ₹13,811 credit) — but do not read that number as the expected bad outcome. It is the
+hold-to-expiry structural floor; the realistic worst case over a five-day unattended hold is
+the stop firing **late**, on a gap, somewhere between the ₹4,470 trigger (0.5 × max_loss) and
+that ₹8,939 floor. Note also that this position's `max_loss / credit` is **0.65** — the same
+sub-2.0 ratio the 09-07 report identified as making the *old* stop mathematically unreachable.
+The current stop is a fraction of `max_loss`, so it does fire; the ratio is a reminder that
+credit is not a risk measure here.
+
+Bounded is not the same as small, and none of it has been observed in this pilot. It deserves
+an explicit decision rather than discovery.
 
 The lever, if intraday is what is wanted, is the `dte <= 1` condition on the time stop — not
 the pin and not the regime. **Not changed here:** that would be a third behavioural change in
