@@ -87,6 +87,46 @@ def summary(x: np.ndarray) -> dict:
     return out
 
 
+def ols_nw_multi(y: np.ndarray, X: np.ndarray) -> dict:
+    """OLS of y on X (with intercept) with Newey-West standard errors.
+
+    Returns per-regressor beta, NW se, t, p plus overall R2.
+    """
+    y = np.asarray(y, dtype=float)
+    X = np.asarray(X, dtype=float)
+    if X.ndim == 1:
+        X = X[:, None]
+    m = np.isfinite(y) & np.all(np.isfinite(X), axis=1)
+    y, X = y[m], X[m]
+    n = len(y)
+    out = {"n": int(n), "beta": None, "se": None, "t": None, "p": None, "r2": None}
+    if n < X.shape[1] + 5:
+        return out
+    if np.any(np.std(X, axis=0) == 0):
+        return out  # degenerate regressor column (e.g. constant forecast)
+    Xd = np.column_stack([np.ones(n), X])
+    beta, *_ = np.linalg.lstsq(Xd, y, rcond=None)
+    resid = y - Xd @ beta
+    e = Xd * resid[:, None]
+    lag = config.NW_LAG
+    nw = e.T @ e / n
+    for k in range(1, min(lag, n - 1) + 1):
+        w = 1.0 - k / (lag + 1.0)
+        g = (e[k:].T @ e[:-k]) / n
+        nw += w * (g + g.T)
+    xx = Xd.T @ Xd / n
+    cov = np.linalg.inv(xx) @ nw @ np.linalg.inv(xx) / n
+    se = np.sqrt(np.maximum(np.diag(cov), 0.0))
+    t = np.where(se > 0, beta / se, 0.0)
+    out["beta"] = [float(b) for b in beta]
+    out["se"] = [float(s) for s in se]
+    out["t"] = [float(v) for v in t]
+    out["p"] = [float(2 * sps.norm.sf(abs(v))) for v in t]
+    ss_tot = float(np.sum((y - y.mean()) ** 2))
+    out["r2"] = 1.0 - float(np.sum(resid ** 2)) / ss_tot if ss_tot > 0 else None
+    return out
+
+
 def ols_nw(y: np.ndarray, x: np.ndarray) -> dict:
     """OLS of y on x (with intercept) using Newey-West standard errors."""
     y = np.asarray(y, dtype=float)

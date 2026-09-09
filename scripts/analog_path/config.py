@@ -56,6 +56,16 @@ MIN_MORNING_BARS = CONFIG["eligibility"]["min_morning_bars"]
 FIRST_BAR_STANDARD = {k: time.fromisoformat(v)
                       for k, v in CONFIG["eligibility"]["first_bar_standard"].items()}
 
+def labeling_of(stamp: time) -> str | None:
+    """Operational era from the OBSERVED first-bar stamp (operator decision
+    2026-09-09, AP-D4): 09:16 -> end-labelled (vendor price rule); 09:15 ->
+    start-labelled (native price rule); anything else -> None (excluded)."""
+    if stamp == time(9, 16):
+        return "vendor"
+    if stamp == time(9, 15):
+        return "native"
+    return None
+
 NULL_ITERS = CONFIG["nulls"]["iterations"]
 NULL_SEED = CONFIG["nulls"]["seed"]
 
@@ -66,6 +76,11 @@ BOOT_SEED = CONFIG["stats"]["bootstrap_seed"]
 QUANTILES = tuple(CONFIG["stats"]["quantiles"])
 
 TOLERANCE_PCT = CONFIG["return_matching_tolerance_pct"]
+assert TOLERANCE_PCT == 0.10
+
+CONTROL_MIN_GROUP = CONFIG["control"]["min_matched_group"]
+
+STATE_C_NOTE = CONFIG["state_c"]["definition"]
 
 
 def era_of(d: date) -> str:
