@@ -44,6 +44,10 @@ from core.execution.groups.group_pnl import GroupPnLTracker
 from core.execution.handler import ExecutionHandler
 from core.execution.options.nifty_shield_exit import NiftyShieldExitManager
 from core.execution.options.nifty_shield_groups import group_type_for
+from core.execution.options.nifty_shield_wall import shadow_record
+from core.execution.options.nifty_shield_pricing import (
+    fair_structure_credit, marked_structure_credit,
+)
 from core.execution.options.nifty_shield_marks import (
     MarksSourceUnavailable, OptionMarksSource, StaticMarksSource,
 )
@@ -272,6 +276,96 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         signals = self._pending.pop(group_id)
         return self._enter_structure(group_id, structure, signals)
 
+    def _journal_wall_shadow(self, group_id: str, structure: str,
+                             signals: List[SignalEvent]) -> None:
+        """Record what the Options-Wall poller was saying at this entry.
+
+        Observe-only (audit Q4a): changes nothing about the trade. It exists so
+        the two regime reads accumulate paired observations and can eventually
+        be compared on evidence rather than on three sessions of overlap.
+        Never raises — an entry must not be lost to a logging dependency.
+        """
+        try:
+            ts = signals[0].timestamp
+            shorts = [s for s in signals if s.signal_type.value == "SELL"]
+            md = getattr(shorts[0].metadata, "strategy_metadata",
+                         shorts[0].metadata) if shorts else {}
+            ctx = signals[0].context
+            rec = shadow_record(
+                session_date=ts.date().isoformat(), at=ts,
+                daytype_regime=getattr(ctx, "regime_state", None),
+                structure=structure,
+                short_strike=md.get("strike"),
+            )
+            self._record(EventType.ENTRY_DIAGNOSTIC,
+                         "options-wall shadow read (observe-only, no effect on the trade)",
+                         severity=Severity.INFO, group_id=group_id, **rec)
+        except Exception as exc:                              # noqa: BLE001
+            self._record(EventType.ENTRY_DIAGNOSTIC,
+                         f"options-wall shadow read failed: {exc}",
+                         severity=Severity.WARNING, group_id=group_id,
+                         reason="wall shadow unavailable")
+
+    def _credit_gate_rejects(self, group_id: str, structure: str,
+                             signals: List[SignalEvent],
+                             marks: Dict[str, float]) -> bool:
+        """Refuse an entry whose real credit falls short of its reference price.
+
+        Structure selection picks a shape and then took whatever credit the
+        market happened to offer; it never asked whether that credit was good.
+        This compares the marked net premium against Black-Scholes for the same
+        legs at the session's own implied vol and skips the entry below
+        `credit_fair_frac` of it — a pure no-trade filter that fires on stale or
+        badly-spread quotes, never on a view.
+
+        Missing inputs disable the gate rather than block the trade: an entry is
+        the strategy's decision, and a gate that cannot compute its reference
+        has no grounds to overrule it. That is journaled, not silent.
+        """
+        frac = float(self._strategy_cfg.get("credit_fair_frac", 0.0))
+        if frac <= 0.0:
+            return False
+        md = signals[0].metadata
+        md = getattr(md, "strategy_metadata", md)
+        legs = [{"symbol": s.symbol, "side": s.signal_type.value,
+                 "strike": (getattr(s.metadata, "strategy_metadata", s.metadata)
+                            ).get("strike"),
+                 "option_type": (getattr(s.metadata, "strategy_metadata",
+                                         s.metadata)).get("option_type")}
+                for s in signals]
+        fair = fair_structure_credit(
+            legs, float(md.get("spot") or 0.0), float(md.get("dte") or 0.0),
+            float(md.get("iv") or 0.0),
+            float(self._strategy_cfg.get("risk_free_rate", 0.065)))
+        actual = marked_structure_credit(legs, marks)
+        if fair is None or actual is None or fair <= 0.0:
+            # NOT an ENTRY_SKIPPED: nothing was skipped. Using the skip event
+            # for a gate that declined to act would corrupt the one signal an
+            # operator reads to find lost entries.
+            self._record(
+                EventType.ENTRY_DIAGNOSTIC,
+                "credit gate not evaluated: no reference price available",
+                severity=Severity.WARNING,
+                group_id=group_id, structure=structure,
+                reason="credit gate unavailable",
+                fair_credit=fair, marked_credit=actual,
+            )
+            return False
+        if actual < frac * fair:
+            self._record(
+                EventType.ENTRY_SKIPPED,
+                f"structure entry skipped: credit {actual:.2f} is "
+                f"{actual / fair * 100:.0f}% of the {fair:.2f} reference "
+                f"(floor {frac * 100:.0f}%)",
+                severity=Severity.WARNING,
+                group_id=group_id, structure=structure,
+                reason="credit below fair-value floor",
+                fair_credit=round(fair, 2), marked_credit=round(actual, 2),
+                credit_fair_frac=frac,
+            )
+            return True
+        return False
+
     def _enter_structure(self, group_id: str, structure: str,
                          signals: List[SignalEvent]) -> Optional[Any]:
         leg_symbols = [s.symbol for s in signals]
@@ -298,6 +392,11 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             return None
 
         self.warm_marks(leg_symbols)
+
+        if self._credit_gate_rejects(group_id, structure, signals, marks):
+            return None
+
+        self._journal_wall_shadow(group_id, structure, signals)
 
         # --- sizing (D4): declared lots clamped by the BROKER's basket margin --
         # The clamp prices the whole structure through Upstox rather than
@@ -600,9 +699,13 @@ class NiftyShieldExitDriver:
             credit = handler.structure_credit(gid)
             manager = self._manager_for(group.legs[0].metadata)
             portfolio_delta = self._portfolio_delta(marks)
+            md = group.legs[0].metadata
+            md = getattr(md, "strategy_metadata", md)
+            exit_cfg = md.get("exit") or {}
             reason = manager.evaluate(
                 gid, credit, marks, timestamp, portfolio_delta=portfolio_delta,
-                max_loss=handler.structure_max_loss(gid))
+                max_loss=handler.structure_max_loss(gid),
+                available_decay_frac=exit_cfg.get("available_decay_frac"))
             if reason is not None:
                 handler.close_group(gid, reason, timestamp, marks)
         return False
@@ -653,7 +756,7 @@ class NiftyShieldExitDriver:
         if cfg_key not in self._exit_managers:
             exit_md = metadata.get("exit", {})
             cfg = {
-                "profit_target_pct": exit_md.get("tp_pct", 0.50),
+                "profit_target_decay_frac": exit_md.get("tp_decay_frac", 0.50),
                 "stop_loss_multiplier": exit_md.get("sl_mult", 2.0),
                 "stop_loss_max_loss_frac": exit_md.get("sl_frac", 0.50),
                 # The hard exit is a strategy parameter, not a literal: it moved

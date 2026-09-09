@@ -37,9 +37,13 @@ from core.execution.handler import ExecutionConfig, ExecutionMode
 MAX_LEGS_PER_STRUCTURE = 4
 
 DEFAULT_CERTIFIED_CONFIG: Dict[str, Any] = {
+    # vix_skip_above stays an absolute hard risk limit; the structure-selection
+    # gates are percentiles of the trailing India VIX distribution (the absolute
+    # 14/16 levels stopped firing when India VIX compressed). Must track
+    # strategies.nifty_shield_v1.config.
     "vix_skip_above": 20.0,
-    "vix_reduce_above": 16.0,
-    "iron_fly_vix_above": 14.0,
+    "vix_strangle_pctile": 59.0,
+    "vix_iron_fly_pctile": 36.8,
     "max_portfolio_delta": 500,
     "max_lots": 2,
     "lot_size": 65,   # must track strategies.nifty_shield_v1.config

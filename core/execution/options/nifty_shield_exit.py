@@ -3,7 +3,8 @@
 Owns each OrderGroup from fill to close, evaluated per bar against real marks
 via GroupPnLTracker.get_group_unrealized_pnl. Triggers, in priority order:
 
-  1. Take-profit:  group P&L >= tp_pct × credit_received        -> close
+  1. Take-profit:  group P&L >= tp_decay_frac × available_decay
+                                  × credit_received             -> close
   2. Stop:         defined-risk  P&L <= -sl_frac × max_loss     -> close
                    undefined     P&L <= -sl_mult × credit       -> close
   3. Hard time:    bar time >= exit_time (15:35)                -> close
@@ -17,6 +18,15 @@ only 10.5% of defined-risk entries (iron_fly 0 of 56), so the stop was
 arithmetic that could not fire. Straddle and strangle have no structural bound
 and there the credit multiple is the only rule available, so
 `stop_loss_multiplier` is kept for them -- it is not a back-compat shim.
+
+The take-profit denominator is the decay AVAILABLE to the structure over its
+hold, not the credit. `profit_target_pct = 0.50` asked a 4-8 DTE structure to
+shed half its premium in 2.5 hours; ATM value scales ~sqrt(T), so the reachable
+decay is 3.6-7.3% and the target never fired once across the live window --
+`time_exit` was the only exit the strategy had. The source computes the
+available fraction per structure from its own DTE and carries it on the signal
+(`exit.available_decay_frac`), so the threshold self-scales with time to expiry
+instead of being a constant at all.
 
 No dynamic hedge (D1) — the delta gate closes the structure; it never opens a
 hedge leg. Exit decisions live here, never in the strategy (Principle #3).
@@ -35,7 +45,7 @@ class NiftyShieldExitManager:
 
     def __init__(self, group_pnl: GroupPnLTracker, cfg: Dict[str, Any]):
         self._group_pnl = group_pnl
-        self._tp_pct = float(cfg.get("profit_target_pct", 0.50))
+        self._tp_decay_frac = float(cfg.get("profit_target_decay_frac", 0.50))
         self._sl_mult = float(cfg.get("stop_loss_multiplier", 2.0))
         self._sl_frac = float(cfg.get("stop_loss_max_loss_frac", 0.50))
         self._exit_h = int(cfg.get("exit_time", {}).get("hour", 15))
@@ -46,12 +56,19 @@ class NiftyShieldExitManager:
                  current_prices: Dict[str, float],
                  bar_time: Optional[datetime],
                  portfolio_delta: float = 0.0,
-                 max_loss: Optional[float] = None) -> Optional[str]:
+                 max_loss: Optional[float] = None,
+                 available_decay_frac: Optional[float] = None) -> Optional[str]:
         """Return the exit reason to close the group, or None to hold.
 
         credit_received: the group's realized entry premium (execution knows it
         from fills). bar_time None is treated as "pre-time" (never triggers the
         hard exit); portfolio_delta is the Black-76 net portfolio delta.
+
+        available_decay_frac: the fraction of premium this structure's hold can
+        decay with spot unchanged, from its own DTE (carried on the signal).
+        None disables the take-profit rather than substituting a default: a
+        structure whose reachable decay is unknown has no defensible profit
+        threshold, and a fabricated one either never fires or fires at once.
 
         max_loss: the structure's worst-case loss in Rs, or None when it has no
         structural bound -- an undefined structure, or a defined one whose
@@ -61,7 +78,7 @@ class NiftyShieldExitManager:
         """
         pnl = self._group_pnl.get_group_unrealized_pnl(group_id, current_prices)
 
-        if pnl >= self._tp_pct * max(credit_received, 0.0):
+        if self._take_profit_hit(pnl, credit_received, available_decay_frac):
             return "take_profit"
         if self._stop_hit(pnl, credit_received, max_loss):
             return "stop_loss"
@@ -70,6 +87,14 @@ class NiftyShieldExitManager:
         if abs(portfolio_delta) > self._max_delta:
             return "delta_flatten"
         return None
+
+    def _take_profit_hit(self, pnl: float, credit_received: float,
+                         available_decay_frac: Optional[float]) -> bool:
+        if available_decay_frac is None or available_decay_frac <= 0.0:
+            return False
+        threshold = (self._tp_decay_frac * float(available_decay_frac)
+                     * max(credit_received, 0.0))
+        return threshold > 0.0 and pnl >= threshold
 
     def _stop_hit(self, pnl: float, credit_received: float,
                   max_loss: Optional[float]) -> bool:

@@ -175,10 +175,13 @@ def synthetic_session(tmp_path, monkeypatch):
     st = compute_13pm_state(SESSION, nf, bn)
     assert st is not None and st.get("predicted_state") != "Unknown"
     close_at_13 = float(nf.iloc[225]["close"])
-    structure = structures.select_structure(st["predicted_state"], 14.5,
+    # Second argument is now the trailing VIX PERCENTILE, not the level. 45.0
+    # sits between the iron_fly (36.8) and strangle (59.0) gates, reproducing
+    # the iron_fly this fixture built when the gate read an absolute 14.5.
+    structure = structures.select_structure(st["predicted_state"], 45.0,
                                             DEFAULT_CONFIG)
     legs = structures.compute_legs(structure, close_at_13, DEFAULT_CONFIG,
-                                   SESSION)
+                                   SESSION, 0.145)
     marks = StaticMarksSource({
         leg["symbol"]: (100.0 if leg["signal_type"] == "SELL" else 20.0)
         for leg in legs

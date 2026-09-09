@@ -27,7 +27,7 @@ import json
 import math
 import sqlite3
 import time
-from datetime import datetime
+from datetime import datetime, time as time_of_day
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -51,6 +51,13 @@ SPAN_DIR = ROOT / "data" / "span"
 INITIAL_CAPITAL = 1_000_000.0
 MARKS_WARM_MAX_AGE_S = 60.0
 POLLER_WARM_MAX_AGE_S = 60.0
+
+# The DS2-2 pre-signal seam, mirrored from `nifty_shield_paper_runner` so the
+# panel can name the same window the driver actually retries in. Display only.
+CHECKPOINT_TIME = time_of_day(13, 0)
+CHECKPOINT_DEADLINE = time_of_day(13, 30)
+CHECKPOINT_LABEL = "13:00"
+CHECKPOINT_DEADLINE_LABEL = "13:30"
 
 JOURNAL_EVENT_WHITELIST = {
     "STARTUP", "RUNNING", "STOPPED",
@@ -239,6 +246,80 @@ def _journal_tail(limit: int = 60, session: Optional[str] = None) -> List[dict]:
     return out
 
 
+def _checkpoint_status(today: str, now: Optional[datetime] = None) -> Dict[str, Any]:
+    """Answer "did the 13:00 checkpoint fire, and if not why" without a human
+    reading the journal.
+
+    The fact lives in the SESSION-SCOPED store (`session.py` pins
+    `facts_db = data_root / "facts.duckdb"`), NOT the global
+    `data/features/day_type/day_type_facts.duckdb` — reading the global one
+    reports a fired checkpoint as missing.
+    """
+    facts_db = DATA_ROOT / "facts.duckdb"
+    published: Optional[bool] = False
+    if facts_db.exists():
+        try:
+            con = duckdb.connect(str(facts_db), read_only=True)
+            got = con.execute(
+                "SELECT 1 FROM day_type_facts "
+                "WHERE CAST(session_date AS VARCHAR) = ? AND checkpoint = ? LIMIT 1",
+                [today, "13pm"]).fetchone()
+            con.close()
+            published = got is not None
+        except Exception:
+            published = None
+
+    events = _journal_tail(limit=400, session=today)
+
+    def _last(kind: str) -> Optional[dict]:
+        for e in events:                      # _journal_tail is newest-first
+            if e.get("event_type") == kind:
+                return {"timestamp": e.get("timestamp"), "message": e.get("message")}
+        return None
+
+    skip_reason = _last("FACT_PUBLISH_SKIPPED")
+    entry_blocked = _last("ENTRY_SKIPPED")
+    now_t = (now or datetime.now()).time()
+
+    if published is None:
+        state = "unknown"
+        note = ("facts.duckdb could not be read, so the panel cannot tell whether "
+                "today's fact exists. This is a panel-read problem, not a runner problem.")
+    elif published:
+        state = "published"
+        note = ("Today's 13:00 fact is published. Anything that has not happened since "
+                "is an ENTRY decision, not a checkpoint failure — see the entry reason.")
+    elif now_t < CHECKPOINT_TIME:
+        state = "not_due"
+        note = (f"Not due yet. The checkpoint fires on the first bar at or after "
+                f"{CHECKPOINT_LABEL}.")
+    elif now_t <= CHECKPOINT_DEADLINE:
+        state = "pending"
+        note = (f"Inside the retry window ({CHECKPOINT_LABEL}–{CHECKPOINT_DEADLINE_LABEL}). "
+                f"The driver retries on every bar until a fact is ready; a reason below "
+                f"means it tried and was not ready yet.")
+    else:
+        state = "missed"
+        note = (f"The {CHECKPOINT_LABEL}–{CHECKPOINT_DEADLINE_LABEL} retry window closed "
+                f"with no fact for today.")
+        if skip_reason is None:
+            note += (" No reason was journaled, which means the window expired before any "
+                     "bar produced a ready fact — the driver latches the session without "
+                     "calling the publisher, so nothing is recorded "
+                     "(core/runtime/driver.py:732). Check the session was running and bars "
+                     "were flowing across 13:00.")
+    return {
+        "state": state,
+        "checkpoint": CHECKPOINT_LABEL,
+        "deadline": CHECKPOINT_DEADLINE_LABEL,
+        "fact_published_today": published,
+        "facts_db": str(facts_db),
+        "skip_reason": skip_reason,
+        "entry_blocked": entry_blocked,
+        "note": note,
+    }
+
+
 def _latest_fact() -> Optional[dict]:
     facts_db = DATA_ROOT / "facts.duckdb"
     if not facts_db.exists():
@@ -250,6 +331,18 @@ def _latest_fact() -> Optional[dict]:
             "vix_close, vix_at_checkpoint, regime_fact_version, model_hash, "
             "produced_by, trained_on FROM day_type_facts "
             "ORDER BY session_date DESC LIMIT 1").fetchone()
+        # vix_pctile is absent from stores predating the percentile gates; the
+        # panel must still render, so it is queried separately rather than
+        # widening the row and failing the whole read.
+        has_pctile = any(
+            str(c[1]) == "vix_pctile" for c in
+            con.execute("PRAGMA table_info('day_type_facts')").fetchall())
+        vix_pctile = None
+        if has_pctile and row is not None:
+            got = con.execute(
+                "SELECT vix_pctile FROM day_type_facts WHERE session_date = ? "
+                "AND checkpoint = ?", [row[0], row[1]]).fetchone()
+            vix_pctile = None if got is None else got[0]
         con.close()
     except Exception:
         return None
@@ -261,13 +354,15 @@ def _latest_fact() -> Optional[dict]:
     vix_source = "13:00 checkpoint" if vix_at is not None else "EOD close"
     from strategies.nifty_shield_v1.config import DEFAULT_CONFIG
     from strategies.nifty_shield_v1.structures import select_structure
-    structure = select_structure(row[2], vix, DEFAULT_CONFIG)
+    # Structure selection reads the trailing VIX PERCENTILE, not the level.
+    structure = select_structure(row[2], vix_pctile, DEFAULT_CONFIG)
     return {
         "session_date": str(row[0]),
         "checkpoint": row[1],
         "regime": row[2],
         "regime_confidence": row[3],
         "vix": vix,
+        "vix_pctile": vix_pctile,
         "vix_source": vix_source,
         "structure": structure,
         "regime_fact_version": row[6],
@@ -408,6 +503,9 @@ def _live_status() -> Dict[str, Any]:
         # market_open=False as "session expected idle", so a dead session read
         # as "all healthy" for the last 25 minutes of every trading day.
         "market_open": MarketHours.is_derivatives_open(),
+        # "Did the 13:00 checkpoint fire, and if not why" — so the operator does
+        # not have to read the journal to answer it.
+        "checkpoint": _checkpoint_status(today),
         "stop_present": STOP_FILE.exists(),
         "heartbeat": {
             "present": bool(hb),

@@ -50,7 +50,8 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
         "vix_reduce": False,
         "sl_distance": 100.0,
         "risk_r": 15000.0,
-        "exit": {"tp_pct": 0.5, "sl_mult": 2.0, "sl_frac": 0.5,
+        "exit": {"tp_decay_frac": 0.5, "available_decay_frac": 0.0726,
+                 "sl_mult": 2.0, "sl_frac": 0.5,
                  "hard_exit": "15:35", "max_portfolio_delta": 500},
     }
     md.update(md_over)
@@ -194,9 +195,31 @@ def test_take_profit_triggers():
     marks = {l.symbol: (40.0 if l.side.value == "SELL" else 100.0) for l in legs}
     manager, _ = _manager_with_tracker(legs, entry)
     credit = 60.0 * 75 * 2 + 60.0 * 75 * 2            # premium collected per leg
+    # Take-profit is now a fraction of the decay AVAILABLE over the hold, not
+    # of the credit: 0.50 x 0.0726 at 4 DTE. The old 0.50-of-credit threshold
+    # was outside the reachable set and never fired in live trading.
     reason = manager.evaluate(UUID(_GROUP_ID), credit,
-                              _current_prices(legs, marks), _TS)
+                              _current_prices(legs, marks), _TS,
+                              available_decay_frac=0.0726)
     assert reason == "take_profit"
+
+
+def test_take_profit_is_disabled_without_an_available_decay_fraction():
+    """No reachable-decay figure means no defensible profit threshold.
+
+    A structure whose available decay is unknown must not get a fabricated
+    target: a made-up denominator either never fires (the defect this replaces)
+    or fires immediately. Absent the figure the take-profit is simply off, and
+    the stop and hard-time exits still bound the structure.
+    """
+    legs = assemble_group(_iron_fly_signals(), _UNDERLYING, 2, 75).legs
+    entry = {l.symbol: 100.0 for l in legs}
+    marks = {l.symbol: (40.0 if l.side.value == "SELL" else 100.0) for l in legs}
+    manager, _ = _manager_with_tracker(legs, entry)
+    credit = 60.0 * 75 * 2 + 60.0 * 75 * 2
+    assert manager.evaluate(UUID(_GROUP_ID), credit,
+                            _current_prices(legs, marks), _TS,
+                            available_decay_frac=None) is None
 
 
 def test_stop_loss_triggers():

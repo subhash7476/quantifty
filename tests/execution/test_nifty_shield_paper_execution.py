@@ -56,7 +56,8 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
         "vix_reduce": False,
         "sl_distance": 100.0,
         "risk_r": 15000.0,
-        "exit": {"tp_pct": 0.5, "sl_mult": 2.0, "sl_frac": 0.5,
+        "exit": {"tp_decay_frac": 0.5, "available_decay_frac": 0.0726,
+                 "sl_mult": 2.0, "sl_frac": 0.5,
                  "hard_exit": "15:35", "max_portfolio_delta": 500},
     }
     md.update(md_over)

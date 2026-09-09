@@ -143,8 +143,11 @@ def main() -> int:
     assert st is not None and st.get("predicted_state") != "Unknown", \
         "synthetic session produced no 13pm state"
     close_at_13 = float(nf.iloc[225]["close"])
-    structure = structures.select_structure(st["predicted_state"], 14.5, _CFG)
-    legs = structures.compute_legs(structure, close_at_13, _CFG, SESSION)
+    # Second argument is the trailing VIX percentile now, not the level: 45.0
+    # sits between the iron_fly (36.8) and strangle (59.0) gates, reproducing
+    # the structure this smoke built when the gate read an absolute 14.5.
+    structure = structures.select_structure(st["predicted_state"], 45.0, _CFG)
+    legs = structures.compute_legs(structure, close_at_13, _CFG, SESSION, 0.145)
     marks = StaticMarksSource({
         leg["symbol"]: (100.0 if leg["signal_type"] == "SELL" else 20.0)
         for leg in legs
