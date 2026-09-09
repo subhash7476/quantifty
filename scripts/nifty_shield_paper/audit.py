@@ -75,6 +75,18 @@ def _trade_symbols(db_path: str) -> Dict[str, List[str]]:
     return out
 
 
+def is_structure_entry(event: dict) -> bool:
+    """True for an ENTRY_MARGIN row that describes a structure.
+
+    ENTRY_MARGIN also carries session-level notices (the SPAN-downgrade line),
+    which have no structure and therefore no `group_id`. Every consumer keys off
+    that field, so the presence of a group -- not the event type alone -- is what
+    makes a row auditable.
+    """
+    return (event.get("event_type") == EventType.ENTRY_MARGIN.value
+            and bool((event.get("metadata") or {}).get("group_id")))
+
+
 def audit_window(journal_path: str, trades_db_path: str) -> AuditReport:
     events = _read_journal(journal_path)
     report = AuditReport()
@@ -82,8 +94,7 @@ def audit_window(journal_path: str, trades_db_path: str) -> AuditReport:
     report.guard_events = Counter(
         e["event_type"] for e in events if e["event_type"] in GUARD_TYPES)
 
-    entries = [e for e in events
-               if e["event_type"] == EventType.ENTRY_MARGIN.value]
+    entries = [e for e in events if is_structure_entry(e)]
     skips = [e for e in events
              if e["event_type"] == EventType.ENTRY_SKIPPED.value]
     closes = [e for e in events
@@ -111,16 +122,31 @@ def audit_window(journal_path: str, trades_db_path: str) -> AuditReport:
         )
         report.structures.append(audit)
 
+    # A group that skipped and LATER entered was retried, not skipped. Since
+    # the entry window reopens on a restart, one group_id can carry several
+    # ENTRY_SKIPPED rows and then an ENTRY_MARGIN — that happened on
+    # 2026-09-08, when two entry attempts failed and the third succeeded.
+    # Consumers key by group_id and take the last record, so appending the
+    # skips after the entry buried the real entry: the structure rendered as
+    # entered-with-no-legs ("0 / 0 filled") and counting saw three structures
+    # in a session whose limit is one.
+    entered_gids = {a.group_id for a in report.structures}
+    skipped_by_gid: Dict[str, StructureAudit] = {}
     for e in skips:
         md = e["metadata"]
-        report.structures.append(StructureAudit(
-            group_id=str(md.get("group_id")),
+        gid = str(md.get("group_id"))
+        if gid in entered_gids:
+            continue                      # a failed attempt at a group that entered
+        # Last skip wins: it is the group's final outcome for the session.
+        skipped_by_gid[gid] = StructureAudit(
+            group_id=gid,
             session=str(md.get("session")),
             structure=str(md.get("structure")),
             status="skipped",
             reason=str(md.get("reason")),
             leg_symbols=list(md.get("leg_symbols", [])),
-        ))
+        )
+    report.structures.extend(skipped_by_gid.values())
 
     # Every entered structure must have a fill for every leg in the ledger.
     traded = _trade_symbols(trades_db_path)

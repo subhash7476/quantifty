@@ -1,83 +1,23 @@
 # docs/reports — Index
 
-Historical flat archive of platform reports, reviews, specs, and audits (2026). Grouped by program below.
+Organized by research lineage / platform area (2026-09-05 re-org, 426 files).
 
-**Policy (2026-07-04):** this directory is frozen for new *program* work. New programs keep their reports beside their program docs under `docs/implementation/<program>/reports/` (pattern established by the DRA — `docs/implementation/dra/reports/`). One-off platform-wide reports and audits may still land here.
+| Folder | Contents | Count |
+|---|---|---|
+| `carry/` | CARRY_* — signal engine sleeve, TRAIN/HOLDOUT/SEALED, parity, capacity | 45 |
+| `ts_basis/` | TS_BASIS_* incl. DAILY — basis sleeves, sealed, re-auth assessment | 19 |
+| `sleeves/` | IVOL_*, LAG_*, SKEW_*, TREND_*, SLEEVE_*, MULTI_FACTOR_* | 21 |
+| `psb/` | PSB1_*, PSB2_*, C2_* — screening batteries + C2 phase-0 | 56 |
+| `sfb_f1/` | F1_* — stock-futures battery feasibility screen | 16 |
+| `index_research/` | CB_N50_*, RS_MOM_*, NIFTY_*, A_* — pair / breadth / intraday | 45 |
+| `rfa_gate/` | RFA_*, FLOW_RFA, O1_RFA — feasibility gate + remediations | 8 |
+| `substrate_csmp/` | CSMP_* + `csmp_a2_records/` — substrate gates A–E, universe, CA | 35 + records dir |
+| `platform/` | MM*, G1_*, LOOPDRIVER_*, RUNNER_*, MARGIN_*, SPAN_*, MASTER_*, PHASE_* | 97 |
+| `ops_data/` | OPS_*, EOD_*, CAS_*, EQUITY_MISS, DATA_STORE_MAP, ORCHESTRATOR, UPSTOX map | 18 |
+| `strategies/` | NIFTY_SHIELD_*, DAYTYPE_*, OPTIONS_WALL_*, ISD*, MSI_*, MSRP_*, DRA_*, MRLC_*, STAGE_A_*, TRADE_INTELLIGENCE_* | 57 |
+| root | README + SALVAGE, REPO_AUDIT, CAPABILITY_REVIEW, PROJECT_REVIEW, CANONICAL_INSTRUMENT_ARCHITECTURE, SIGNAL_ENGINE_DESIGN, DUPLICATION_AUDIT | 8 |
 
----
+**Policy (2026-07-04, still in force):** this directory is frozen for new *program* work. New programs keep reports beside program docs under `docs/implementation/<program>/reports/`. One-off platform-wide reports may still land here — place under the matching subfolder above.
 
-## Platform foundation, salvage & audits
+**Note:** pre-2026-09-05 references using flat paths (`docs/reports/CARRY_...`) now need the subfolder prefix (e.g. `docs/reports/carry/CARRY_...`).
 
-- `SALVAGE_REPORT.md` — SALVAGE migration record (2026-06-04)
-- `REPO_AUDIT.md`
-- `CAPABILITY_REVIEW.md`
-- `PROJECT_REVIEW_SUMMARY.md`
-- `RUNNER_DEPENDENCY_ANALYSIS.md`
-- `RUNNER_EXTRACTION_BLUEPRINT.md`
-- `PORTFOLIO_STATE_DISCOVERY.md`
-- `FNO_PRODUCT_DISCOVERY.md`
-- `LOOPDRIVER_IMPLEMENTATION_PLAN.md`
-- `PHASE_4C_IMPLEMENTATION_PLAN.md`, `PHASE_4C_WIRING_REVIEW.md`, `PHASE_4C_7_READINESS.md`
-- `PHASE_F_STARTUP_GATE_PLAN.md`
-
-## Instrument master & materialization (MM.4–MM.6)
-
-- `CANONICAL_INSTRUMENT_ARCHITECTURE.md`
-- `MASTER_MATERIALIZATION_POLICY.md`, `MASTER_MATERIALIZATION_READINESS.md`
-- `MM.4_DESIGN_REVIEW.md`, `MM.5_MATERIALIZATION_REPORT.md`, `MM.6_REFRESH_JOB_PLAN.md`
-
-## G1 — execution path restore (waves 1–5)
-
-- `G1_WAVE1_REPORT.md`
-- `G1_WAVE2_IMPLEMENTATION_REPORT.md`, `G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md`
-- `G1_WAVE3_RESTORE_REVIEW.md`, `G1_WAVE3_RESTORE_CLOSEOUT.md`, `G1_WAVE3A_CHARACTERIZATION_REPORT.md`, `G1_WAVE3B_GATE_ORDERING_REVIEW.md`
-- `G1_WAVE4_OPTION_PATH_REVIEW.md`, `G1_WAVE4A1_CHARACTERIZATION_REPORT.md`, `G1_WAVE4A2_O1_IMPLEMENTATION_REPORT.md`, `G1_WAVE4A3_O2_IMPLEMENTATION_REPORT.md`, `G1_WAVE4B_POSITION_IDENTITY_REVIEW.md`, `G1_WAVE4B_POSITION_IMPLEMENTATION_REPORT.md`
-- `G1_WAVE5_CLOSURE_GUARD_REPORT.md`
-- `G1_CLOSEOUT_REPORT.md`
-- `SOLE_IDENTITY_PATH_REVIEW.md`
-
-## MM7 — live wiring & broker contract hardening
-
-- `MM7_LIVE_WIRING_REVIEW.md`, `MM7A_CHARACTERIZATION_REPORT.md`, `MM7B_SIGNALSOURCE_REVIEW.md`, `MM7C_SIGNALSOURCE_CHARACTERIZATION.md`, `MM7D_SYNTHETIC_SOURCE_REVIEW.md`, `MM7D1_SYNTHETIC_WIRING_PROOF.md`, `MM7E_ENTRY_SCRIPT_REVIEW.md`, `MM7E_IMPLEMENTATION_REPORT.md`, `MM7F_BROKER_POSITIONS_ADAPTER_REVIEW.md`, `MM7F_6A_W3_GATE_HARDENING_REPORT.md`, `MM7G_NAMESPACE_CHARACTERIZATION.md`, `MM7H_SHAPE_ADAPTER_REPORT.md`, `MM7I_NAMESPACE_ROUTE_DECISION.md`, `MM7J0_R1_PRECONDITIONS.md`, `MM7J1_UPSTOX_PAYLOAD_VERIFICATION.md`, `MM7J2_INSTRUMENT_TOKEN_PRESERVATION.md`, `MM7K0_BROKER_CONTRACT_HARDENING_CHARACTERIZATION.md`
-- `UPSTOX_CANONICAL_API_MAP.md`
-
-## MM8 — failure escalation
-
-- `MM8_FAILURE_ESCALATION_HARDENING_PLAN.md`, `MM8_IMPLEMENTATION_REPORT.md`
-
-## MM9 — margin & capital infrastructure (incl. SPAN)
-
-- `MM9_MARGIN_CAPITAL_INFRASTRUCTURE_AUDIT.md`, `MM9_IMPLEMENTATION_PLAN.md`, `MM9_0_MARGIN_ENFORCEMENT_ARCHITECTURE_REVIEW.md`, `MM9_1_PRE_IMPLEMENTATION_VALIDATION.md`
-- Implementation specs: `MM9_1_S1`, `MM9_1_S3`, `MM9_1_S4`, `MM9_2_S1`, `MM9_2_S3` (+`_V2`, `_S3_S3`), `MM9_2_S4`, `MM9_3` (+`_S1A`, `_S1B`, `_S2`), `MM9_4_S1`–`MM9_4_S4`, `MM9_5_S1`–`MM9_5_S4` (`*_IMPLEMENTATION_SPEC.md`)
-- SPAN: `MM9_5_S0_SPAN_VALIDATION.md`, `MM9_5_S0_5_EXTERNAL_MARGIN_RECONCILIATION.md`, `MM9_5_S3_FORMULA_VERIFICATION.md`, `MM9_5_ARCHITECTURE_RECONCILIATION.md`, `SPAN_XML_SCHEMA_AND_MM9_MAPPING.md`
-- `MM9_FINAL_ARCHITECTURE_CERTIFICATION.md`
-- `MARGIN_AUTHORITY_ARCHITECTURE_REVIEW.md`
-
-## MM10 — margin composition (SPAN + credits + ELM)
-
-- `MM10_ARCHITECTURE_ROADMAP.md`, `MM10_ARCHITECTURE_REVISION.md`
-- `MM10_1`–`MM10_5` `*_IMPLEMENTATION_SPECIFICATION.md`
-- `MM10_5_ARCHITECTURE_REASSESSMENT.md`, `MM10_5_MARGIN_COMPONENT_VERIFICATION.md`
-
-## MM11 — platform v1.0 certification
-
-- `MM11_ARCHITECTURE_REVIEW_AND_PROPOSAL.md`, `MM11_IMPLEMENTATION_SPECIFICATION.md`, `MM11_REMOVAL_LEDGER.md`, `MM11_7_PLATFORM_V1.0_CERTIFICATION.md`
-
-## MM12 — strategy integration & promotion governance
-
-- `MM12_1_STRATEGY_INTEGRATION_ARCHITECTURE.md`, `MM12_3_GUARDED_SIGNAL_SOURCE_IMPLEMENTATION.md`, `MM12_4_REFERENCE_STRATEGY_ARCHITECTURE.md`, `MM12_4_IMPLEMENTATION_REPORT.md`, `MM12_5_STRATEGY_PROMOTION_PIPELINE_ARCHITECTURE.md`, `MM12_5_IMPLEMENTATION_REPORT.md`
-
-## MSI — Market State Intelligence architecture reviews
-
-Architecture specs live in `docs/architecture/market_state_intelligence/`; these are the review artifacts:
-
-- `MSI_GROUNDING_BRIEF.md`
-- `MSI_001_REVIEW.md` … `MSI_009_REVIEW.md` (per-spec reviews)
-- `MSI_005_ARCHITECTURE_CHALLENGE.md`
-
-## DRA — Daily Regime Analyzer
-
-Program docs and milestone reports live in `docs/implementation/dra/`; these are cross-cutting artifacts:
-
-- `DRA_TECHNICAL_DOSSIER.md` — strategy-development-phase planning dossier
-- `DRA_GOVERNANCE_DOCS_REVIEW.md` — governance documents review (2026-07-04)

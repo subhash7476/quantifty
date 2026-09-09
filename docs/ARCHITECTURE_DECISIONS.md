@@ -1512,3 +1512,9 @@ The following findings from PSB-1 are institutionalized as binding for all futur
 - The frozen-protocol + screening-first architecture (ADR-011/ADR-012's margin-authority split, extended to research validation) is now proven through two consecutive Knowledge programs (CSMP, PSB-1) and a third (PSB-2) in design.
 
 *Ref: docs/reports/PSB1_PHASE0_RESEARCH_RECORD.md; docs/reports/PSB1_PROTOCOL.md; docs/reports/PSB1_C{1..5}_REPORT.md; docs/reports/PSB2_PHASE0_RESEARCH_RECORD.md; docs/reports/PSB1_SUBSTRATE_CERTIFICATION.md; scripts/psb1/contract_arms.py; core/execution/equity/delivery_fees.py.*
+
+---
+
+## Status note (2026-09-05) — post-ADR-024 outcomes recorded outside ADRs (non-ADR)
+
+This file remains current through ADR-024 (2026-07-14). Subsequent program outcomes did **not** create new binding platform ADRs and are recorded in `docs/CHANGELOG_PLATFORM.md` + `docs/PROJECT_STATE.md` (catch-up 2026-09-05) instead: PSB-2 close / C2 retirement (2026-07-17/18), F1 NO-GO (2026-07-20), RFA FLOW ABANDON + v2 contract (2026-07-22), Carry SEALED PASS + production metrics (2026-07-22), TS Basis de-authorization + IVOL SEALED FAIL (2026-07-24), CB-N50 RFA PROCEED → CLOSED, ISD Phase-1 certification, NiftyShield sealed INCONCLUSIVE → PAPER, Options-Wall pilot, CAS adaptation, ops orchestrator. Margin authorities stand at ADR-011/012/013 (`NseMarginEngine` sizes, broker RMS accepts); span components are frozen per CLAUDE.md. Append a numbered ADR here if a future outcome changes a binding platform rule; do not edit the ADRs above.

@@ -1,10 +1,11 @@
 """Options-Wall scan-result persistence.
 
-Three tables in one DuckDB file, all append-only (latest-wins reads):
+Four tables in one DuckDB file; the first three are append-only (latest-wins reads):
 
   scan_results   — one row per ScanResult (the persisted farm list / scan trail)
   session_regime — one row per (trade_date, underlying, ts); the regime river
   oi_baseline    — 09:15 OI per strike, captured once per session (INSERT OR IGNORE)
+  trades         — one row per paper iron fly, updated in place on close
 
 The wall snapshot store (`wall_chain_snapshots.duckdb`) holds raw chains; this
 file holds derived scan output. The poller is the SOLE writer of both stores;
@@ -84,8 +85,6 @@ CREATE TABLE IF NOT EXISTS scan_results (
     reason          VARCHAR,
     legs            VARCHAR
 );
-CREATE INDEX IF NOT EXISTS idx_scan_underlying ON scan_results(underlying);
-CREATE INDEX IF NOT EXISTS idx_scan_ts ON scan_results(ts);
 
 CREATE TABLE IF NOT EXISTS session_regime (
     trade_date        DATE NOT NULL,
@@ -117,7 +116,6 @@ CREATE TABLE IF NOT EXISTS session_regime (
     hedge_ladder      VARCHAR,
     oi_rotation       VARCHAR
 );
-CREATE INDEX IF NOT EXISTS idx_regime_underlying ON session_regime(underlying, trade_date, ts);
 
 CREATE TABLE IF NOT EXISTS oi_baseline (
     underlying  VARCHAR NOT NULL,
@@ -143,8 +141,18 @@ CREATE TABLE IF NOT EXISTS trades (
     return_on_margin DOUBLE, entry_legs VARCHAR, exit_legs VARCHAR,
     PRIMARY KEY (trade_id)
 );
-CREATE INDEX IF NOT EXISTS idx_trades_underlying ON trades(underlying);
 """
+
+# scan_results and session_regime carry no secondary index, and none of these
+# tables gains one. Every write here opens a connection and closes it (the
+# cross-process lock leaves no choice), and each close checkpoints the whole
+# index set: measured at 265 MB per 1,000 checkpoints indexed vs 1.3 MB
+# unindexed. That is why this file reached 836 MB holding 7.9 MB of rows.
+# The primary keys on oi_baseline (INSERT OR IGNORE) and trades (identity) stay
+# — they are load-bearing, and both tables are written a handful of times a
+# session rather than hundreds. Reads are filters over a few thousand rows.
+_STALE_INDEXES = ("idx_scan_underlying", "idx_scan_ts",
+                  "idx_regime_underlying", "idx_trades_underlying")
 
 
 _REGIME_BASE_COLS = ["trade_date", "underlying", "ts", "regime", "net_gamma_total",
@@ -170,11 +178,40 @@ def _regime_dict(row) -> Dict:
     return d
 
 
+def _align_trade_id_sequence(conn: duckdb.DuckDBPyConnection) -> None:
+    """Push wall_trade_id_seq past MAX(trade_id) when a rebuilt store left it behind.
+
+    A store rebuilt by the compaction script keeps its rows but recreates the
+    sequence at START 1, so nextval() collides with an existing primary key and
+    every open is refused. DuckDB 1.4 has no ALTER SEQUENCE ... RESTART, so the
+    sequence is burned forward instead; reading duckdb_sequences() first means an
+    already-aligned sequence is not consumed (no trade_id gaps).
+    """
+    max_id = conn.execute("SELECT COALESCE(MAX(trade_id), 0) FROM trades").fetchone()[0]
+    if not max_id:
+        return
+    row = conn.execute(
+        "SELECT start_value, last_value, increment_by FROM duckdb_sequences() "
+        "WHERE sequence_name = 'wall_trade_id_seq'").fetchone()
+    if row is None:
+        return
+    start, last, step = row
+    nxt = start if last is None else last + step
+    if nxt > max_id:
+        return
+    conn.execute("SELECT nextval('wall_trade_id_seq') FROM range(?)",
+                 [max_id - nxt + 1])
+
+
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute(_SCHEMA)
+    # drop the indexes an older store was created with (see _STALE_INDEXES)
+    for stale in _STALE_INDEXES:
+        conn.execute(f"DROP INDEX IF EXISTS {stale}")
     # migrate a trades table created before these columns existed
     for col in ("return_on_margin DOUBLE", "entry_legs VARCHAR", "exit_legs VARCHAR"):
         conn.execute(f"ALTER TABLE trades ADD COLUMN IF NOT EXISTS {col}")
+    _align_trade_id_sequence(conn)
     # migrate a session_regime table created before spot/gamma columns existed
     for col in ("underlying_ltp DOUBLE", "gamma_by_strike VARCHAR"):
         conn.execute(f"ALTER TABLE session_regime ADD COLUMN IF NOT EXISTS {col}")

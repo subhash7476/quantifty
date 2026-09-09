@@ -1,6 +1,7 @@
 # DRIVER_SPECIFICATION.md
 
 **Status:** SPECIFICATION v1.1 — implementation-complete (MM9.3-S2/S3). Refer to `docs/PROJECT_STATE.md` for current milestone status.
+> **Status note (2026-09-05):** implementation verified present — `core/runtime/driver.py` (956 lines, Phases A–H + H-ZMQ), `core/runtime/` 10 modules. Report references below now live under `docs/reports/platform/` after the 2026-09-05 re-org. Appendix B's "No SPAN margin engine" non-goal is spent — SPAN/MM10 delivered (`NseMarginEngine`, ADR-011/012/013); the spec text itself is unchanged.
 **Owner:** Principal Systems Architect.
 **Governing law:** `docs/PLATFORM_CONSTITUTION.md` v1.0 (Principles 1–5), `docs/ARCHITECTURE_DECISIONS.md` (ADR-001..006 — esp. ADR-006: the LoopDriver is the sole runtime orchestrator).
 **Source material:** `docs/reports/RUNNER_DEPENDENCY_ANALYSIS.md`, `docs/reports/RUNNER_EXTRACTION_BLUEPRINT.md`, `docs/reports/CAPABILITY_REVIEW.md`.

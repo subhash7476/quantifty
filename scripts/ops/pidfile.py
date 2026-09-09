@@ -67,9 +67,16 @@ def acquire_lock(path: Path) -> bool:
     return True
 
 
-def release_lock(path: Path) -> None:
+def release_lock(path: Path, pid: Optional[int] = None) -> None:
+    """Drop the lock when it belongs to `pid` (default: this process).
+
+    Child pidfiles hold the CHILD's pid, so the os.getpid() default never
+    matched and every stopped child left its pidfile behind. A surviving file
+    lets the next start adopt a phantom: a recycled PID (2026-09-08 09:26) or
+    one still exiting from the previous run (2026-09-08 10:03).
+    """
     path = Path(path)
-    if read_pid(path) == os.getpid():
+    if read_pid(path) == (os.getpid() if pid is None else pid):
         try:
             path.unlink()
         except OSError:

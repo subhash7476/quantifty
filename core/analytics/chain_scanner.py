@@ -24,6 +24,7 @@ from typing import List, Optional
 
 from core.data.options_provider import OptionChainRow
 from core.analytics.options_analytics import OptionsStructuralData
+from core.analytics.options_selection import spread_ok as quote_spread_ok
 
 
 @dataclass
@@ -42,6 +43,7 @@ class ScanConfig:
     max_spread_pct: float = 0.05          # skip farm legs whose bid/ask spread exceeds this
     vol_scan_band_pct: float = 0.05       # vol-outlier scan window (|S - strike|/S)
     wing_pct: float = 0.015               # iron-fly wing width as fraction of spot
+    min_dte: int = 0                      # farm floor; 0 admits expiry-day flies
 
 
 @dataclass
@@ -76,6 +78,7 @@ class ChainScanner:
         structural: OptionsStructuralData,
         realized_vol: Optional[float] = None,
         quotes: Optional[dict] = None,
+        now: Optional[datetime] = None,
     ) -> List[ScanResult]:
         """Run all three screens; farm first, each screen internally ranked desc.
 
@@ -88,15 +91,18 @@ class ChainScanner:
             return []
 
         results: List[ScanResult] = []
-        results.extend(self._farm_screen(chain, structural, realized_vol, quotes))
+        results.extend(self._farm_screen(chain, structural, realized_vol, quotes, now))
         results.extend(self._imperfection_screen(chain, structural))
         results.extend(self._laggard_screen(chain, structural))
         return results
 
     # ------------------------------------------------------------------ (a) farm
 
-    def _farm_screen(self, chain, structural, realized_vol, quotes=None):
+    def _farm_screen(self, chain, structural, realized_vol, quotes=None, now=None):
         cfg = self.config
+        dte = self._dte(structural.expiry, (now or datetime.now()).date())
+        if dte is None or dte < cfg.min_dte:
+            return []
         if realized_vol is None:
             return []
         if "Positive" not in (structural.gex.regime or ""):
@@ -262,7 +268,11 @@ class ChainScanner:
         return ce + pe
 
     def _spread_ok(self, strike, chain, quotes):
-        """Both legs have a quote and their mid spread is inside max_spread_pct."""
+        """Both legs have a quote and a tradeable book (options_selection.spread_ok).
+
+        NOTE this tests the ATM strike only, not the fly's wings — a farm row can
+        emit while `build_iron_fly` still refuses the structure on a wing.
+        """
         cfg = self.config
         for r in chain:
             if r.strike != strike:
@@ -273,8 +283,8 @@ class ChainScanner:
             bid, ask = q.get("best_bid"), q.get("best_ask")
             if not bid or not ask or bid <= 0 or ask <= 0:
                 return False
-            mid = (bid + ask) / 2.0
-            if (ask - bid) / mid > cfg.max_spread_pct:
+            ok, _ = quote_spread_ok(bid, ask, cfg.max_spread_pct)
+            if not ok:
                 return False
         return True
 
@@ -329,8 +339,8 @@ class ChainScanner:
         deviations.sort(key=lambda t: t[2], reverse=True)
         return deviations[:10]
 
-    def _dte(self, expiry: str):
+    def _dte(self, expiry: str, today: Optional[date] = None):
         try:
-            return (date.fromisoformat(expiry) - date.today()).days
+            return (date.fromisoformat(expiry) - (today or date.today())).days
         except (TypeError, ValueError):
             return None

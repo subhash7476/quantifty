@@ -99,10 +99,16 @@ CREATE TABLE IF NOT EXISTS option_chain_snapshot (
     lot_size           INTEGER DEFAULT 75,
     underlying_ltp     DOUBLE,
     best_bid           DOUBLE,
-    best_ask           DOUBLE,
-    PRIMARY KEY (snapshot_id)
+    best_ask           DOUBLE
 )
 """
+# No PRIMARY KEY on snapshot_id. A primary key is an ART index like any other,
+# and DuckDB re-serialises every index in the database on each checkpoint — so
+# with a checkpoint per 5 s poll cycle the surrogate key alone kept this store
+# at ~80 MB per 300 cycles after the secondary indexes were removed. snapshot_id
+# is written by the sequence and read by nothing (verified: no query in core,
+# scripts, flask_app or app_facade selects or filters it), so the constraint was
+# pure cost. The column stays; only the index goes.
 
 _INSERT_SQL = """
 INSERT INTO option_chain_snapshot (
@@ -120,14 +126,17 @@ def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     # migrate an existing store created before best_bid/best_ask were added
     conn.execute("ALTER TABLE option_chain_snapshot ADD COLUMN IF NOT EXISTS best_bid DOUBLE")
     conn.execute("ALTER TABLE option_chain_snapshot ADD COLUMN IF NOT EXISTS best_ask DOUBLE")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_wall_underlying "
-                 "ON option_chain_snapshot(underlying_symbol)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_wall_expiry "
-                 "ON option_chain_snapshot(expiry_date)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_wall_strike "
-                 "ON option_chain_snapshot(strike_price)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_wall_timestamp "
-                 "ON option_chain_snapshot(snapshot_timestamp)")
+    # No secondary indexes. DuckDB serialises every index in full on each
+    # checkpoint, and this store checkpoints once per 5 s poll cycle (~2,300 a
+    # session) because the writer must close its connection to release the
+    # cross-process lock. Measured: an indexed table under that write pattern
+    # grew 265 MB per 1,000 checkpoints; the same rows unindexed took 1.3 MB.
+    # That is what made a 20 MB day cost 721 MB on disk.
+    # Both readers (latest_snapshot, snapshot_timestamps) are equality filters
+    # over a single day's rows (<600 k), which DuckDB scans in milliseconds.
+    for stale in ("idx_wall_underlying", "idx_wall_expiry",
+                  "idx_wall_strike", "idx_wall_timestamp"):
+        conn.execute(f"DROP INDEX IF EXISTS {stale}")
 
 
 def append_snapshot(

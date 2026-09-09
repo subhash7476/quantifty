@@ -38,6 +38,15 @@ class Purge:
 
 _SENTINEL = object()
 _TICK_COALESCE_MAX = 500
+# Seconds of ticks to accumulate before touching the DB. Every flush opens a
+# connection and closes it (the cross-process lock leaves no choice), and each
+# close checkpoints the whole table including its primary-key index — measured
+# at 265 MB per 1,000 checkpoints. Draining on the 0.05 s queue timeout meant
+# ~38,000 checkpoints a session, which is how ticks_today.duckdb reached 10 GB
+# holding under 1 MB of rows. At 3 s that is ~7,800 flushes a session.
+# The buffer is bounded by _TICK_COALESCE_MAX regardless, so a burst still
+# flushes early and the queue cannot back up.
+_TICK_FLUSH_INTERVAL_S = 3.0
 
 
 class LiveBufferWriter:
@@ -53,6 +62,9 @@ class LiveBufferWriter:
         self._thread: Optional[threading.Thread] = None
         self._running = False
         self.dropped_frames = 0
+        self._pending: List[TickFrame] = []
+        self._last_flush = 0.0
+        self._last_tick: dict = {}
 
     def start(self):
         if self._running:
@@ -108,7 +120,14 @@ class LiveBufferWriter:
                     saw_sentinel = True
                     break
                 drained.append(cmd)
-            for cmd in self._coalesce_control(drained):
+            control = self._coalesce_control(drained)
+            # An Aggregate builds 1m bars by reading the ticks table, so any
+            # tick still sitting in the interval buffer has to land first —
+            # otherwise a bar closed right on the minute boundary is written
+            # short and INSERT OR IGNORE makes that permanent.
+            if any(isinstance(c, Aggregate) for c in control):
+                self._force_flush()
+            for cmd in control:
                 try:
                     self._dispatch(cmd)
                 except Exception as e:
@@ -121,14 +140,16 @@ class LiveBufferWriter:
             try:
                 first = self._ticks.get(timeout=0.05)
             except queue.Empty:
-                continue
+                first = None
             try:
                 self._coalesce_ticks(first)
             except Exception as e:
                 logger.error(f"LiveBufferWriter tick flush failed: {e}")
 
     def _final_drain(self):
-        pending = []
+        # whatever the interval was still holding must not die with the thread
+        pending = self._pending
+        self._pending = []
         while True:
             try:
                 pending.append(self._ticks.get_nowait())
@@ -160,13 +181,37 @@ class LiveBufferWriter:
         return [c for i, c in enumerate(cmds)
                 if not (isinstance(c, Aggregate) and i != last_agg)]
 
-    def _coalesce_ticks(self, first: TickFrame):
-        frames = [first]
-        while len(frames) < _TICK_COALESCE_MAX:
+    def _force_flush(self):
+        if not self._pending:
+            return
+        frames, self._pending = self._pending, []
+        self._last_flush = time.monotonic()
+        try:
+            self._flush_ticks(frames)
+        except Exception as e:
+            logger.error(f"LiveBufferWriter forced tick flush failed: {e}")
+
+    def _coalesce_ticks(self, first: Optional[TickFrame]):
+        """Accumulate ticks; write only once per _TICK_FLUSH_INTERVAL_S.
+
+        `first` is None when the queue timed out — an idle tick still has to run
+        so a partial batch is not stranded waiting for the next frame to arrive.
+        """
+        if first is not None:
+            self._pending.append(first)
+        while len(self._pending) < _TICK_COALESCE_MAX:
             try:
-                frames.append(self._ticks.get_nowait())
+                self._pending.append(self._ticks.get_nowait())
             except queue.Empty:
                 break
+        if not self._pending:
+            return
+        now = time.monotonic()
+        if (len(self._pending) < _TICK_COALESCE_MAX
+                and now - self._last_flush < _TICK_FLUSH_INTERVAL_S):
+            return
+        frames, self._pending = self._pending, []
+        self._last_flush = now
         self._flush_ticks(frames)
 
     def _dispatch(self, item):
@@ -182,13 +227,36 @@ class LiveBufferWriter:
         rows = []
         for fr in frames:
             rows.extend(self._parse(fr.raw))
+        rows = self._drop_unchanged(rows)
         if not rows:
             return
         with self.db.live_ticks_writer() as conn:
+            # plain INSERT: the table no longer carries a (symbol, timestamp)
+            # key, so a second update inside the same second is kept instead of
+            # being silently dropped (see MARKET_TICKS_SCHEMA).
             conn.executemany(
-                "INSERT OR IGNORE INTO ticks (symbol, timestamp, price, volume) VALUES (?, ?, ?, ?)",
+                "INSERT INTO ticks (symbol, timestamp, price, volume) VALUES (?, ?, ?, ?)",
                 rows,
             )
+
+    def _drop_unchanged(self, rows: List[Tuple]) -> List[Tuple]:
+        """Drop a tick identical to the previous one for that symbol.
+
+        Removing the primary key removed the only thing suppressing repeats, and
+        the feed re-sends the current state on every reconnect (three of them in
+        the 2026-09-04 session). An identical (timestamp, price, volume) carries
+        no new information and would double-count in the aggregator's
+        sum(volume), so it is dropped here rather than by a key that also threw
+        away the genuinely different updates.
+        """
+        out = []
+        for row in rows:
+            symbol = row[0]
+            if self._last_tick.get(symbol) == row[1:]:
+                continue
+            self._last_tick[symbol] = row[1:]
+            out.append(row)
+        return out
 
     def _parse(self, raw: bytes) -> List[Tuple]:
         out = []
@@ -242,7 +310,11 @@ class LiveBufferWriter:
                 )
 
     def _handle_purge(self, cmd: Purge):
-        with self.db.live_ticks_writer() as conn:
-            conn.execute("DELETE FROM ticks WHERE timestamp < ?", [cmd.cutoff])
-        with self.db.live_candles_writer() as conn:
-            conn.execute("DELETE FROM candles WHERE timestamp < ?", [cmd.cutoff])
+        # Rebuild-and-swap rather than DELETE: a DELETE drops the rows but hands
+        # every allocated block to the next session, which is how a buffer
+        # holding one day of data reached 4 GB. rotate_live_buffer verifies the
+        # retained row count before swapping and leaves the original in place if
+        # it would lose anything.
+        kept = self.db.rotate_live_buffer(cmd.cutoff)
+        logger.info("live buffer rotated at %s: %s", cmd.cutoff,
+                    ", ".join(f"{t}={n} kept" for t, n in kept.items()) or "nothing to rotate")

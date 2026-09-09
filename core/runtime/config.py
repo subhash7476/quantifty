@@ -57,6 +57,13 @@ class DriverConfig:
             from the old loop (5.0s).
         require_reconciliation_on_start: startup-gate strictness (section 11.4).
             True by default; set False only as a deliberate operator override.
+        rebalance_on_idle: also invoke the rebalance hook on a no-bar tick, at
+            the clock's current time. Off by default — the hook is a per-bar
+            seam (section 4.1) and a book-level rebalancer must not fire between
+            bars. An options exit-manager needs it: the underlying's 1m bars
+            stop at the cash auction print (15:29) while the F&O segment trades
+            to 15:40, so a bar-driven exit cannot manage a position through the
+            last eleven minutes of its own market.
 
     The config validates only what it can know in isolation: a valid mode, a
     non-empty symbol list, a positive poll interval, and a None-or-positive
@@ -75,6 +82,7 @@ class DriverConfig:
     telemetry_node: str = "trade_loop"
     telemetry_interval_s: float = 5.0
     require_reconciliation_on_start: bool = True
+    rebalance_on_idle: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.mode, Mode):

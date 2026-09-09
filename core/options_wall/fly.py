@@ -36,6 +36,9 @@ class IronFly:
     max_loss: float
 
 
+from core.analytics.options_selection import spread_ok as quote_spread_ok
+
+
 def _bid_ask(row) -> Tuple[Optional[float], Optional[float]]:
     return getattr(row, "best_bid", None), getattr(row, "best_ask", None)
 
@@ -44,8 +47,11 @@ def _spread_ok(row, max_spread_pct: float) -> bool:
     bid, ask = _bid_ask(row)
     if not (bid and ask and bid > 0 and ask > 0):
         return True  # no book -> fall back to ltp; nothing to reject on
-    mid = (bid + ask) / 2.0
-    return (ask - bid) / mid <= max_spread_pct
+    # Tick-aware: a percentage-only test cannot be satisfied by a cheap leg,
+    # and a fly's wings are its cheapest legs by construction. See
+    # options_selection.spread_ok.
+    ok, _ = quote_spread_ok(bid, ask, max_spread_pct)
+    return ok
 
 
 def _nearest_strike(strikes: List[float], target: float) -> float:

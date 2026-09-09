@@ -26,6 +26,13 @@
                 opacity: 0; pointer-events: none; transition: opacity .45s ease; }
     #ow-scrim.on { opacity: 1; pointer-events: auto; }
     .ow-sec-h { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); margin-bottom: 11px; }
+    .wall-health { margin: 0 0 12px; }
+    .wall-health-banner { padding: 10px 14px; border-radius: 11px; font-size: 13px; font-weight: 600;
+                          background: #FDECEA; color: #8A1C12; border: 1px solid #F3B8B0; margin-bottom: 8px; }
+    .wall-health-banner.unknown { background: #F2F2F0; color: #6B6B66; border-color: var(--line); }
+    .wall-health-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .wall-health-chip { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; padding: 4px 10px; border-radius: 999px;
+                        background: #FDECEA; color: #8A1C12; border: 1px solid #F3B8B0; }
 </style>
 {% endblock %}
 
@@ -106,6 +113,13 @@
         </div>
     </div>
 
+    <!-- Poller step health: must render above the gate, so a red strip can
+         never sit below a green gate (2026-09-07 outage). -->
+    <section id="wall-health" class="wall-health" hidden>
+        <div id="wall-health-banner" class="wall-health-banner" hidden></div>
+        <div id="wall-health-chips" class="wall-health-chips"></div>
+    </section>
+
     <!-- Premium farm gate -->
     <div style="border: 1px solid var(--line); border-radius: 14px; background: #FBFAF8; padding: 20px 26px 22px;">
         <div style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 16px;">
@@ -138,16 +152,26 @@
             <span style="font-size: 12px; color: var(--muted);">Auto-opened &amp; managed by the executor. Marks update live from the newest quoted snapshot.</span>
         </div>
         <div style="margin-top: 16px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
-            <div style="display: grid; grid-template-columns: 72px 148px 1fr 64px repeat(3, minmax(0,1fr)) 84px; gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
+            <div style="display: grid; grid-template-columns: 72px 148px 1fr 64px repeat(3, minmax(0,1fr)) 84px 76px; gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
                 <span>Status</span><span>Entered</span><span>Structure</span>
                 <span style="text-align:right;">Qty</span>
                 <span style="text-align:right;">Credit</span>
                 <span style="text-align:right;">Mark</span>
                 <span style="text-align:right;">P&amp;L ₹</span>
                 <span style="text-align:right;">Note</span>
+                <span style="text-align:right;">Action</span>
             </div>
             <div id="trades-body"></div>
         </div>
+    </div>
+
+    <!-- Evidence analytics -->
+    <div class="ow-card" style="padding: 22px 26px 20px;" id="evidence-card">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+            <span class="display" style="font-size: 21px;">Evidence &middot; <span id="evidence-n">0</span> closed</span>
+            <span style="font-size: 12px; color: var(--muted);">Expectancy of closed flies by exit reason, entry regime, and IV−RV band (this index).</span>
+        </div>
+        <div id="evidence-body" style="margin-top: 16px;"></div>
     </div>
 
     <!-- Regime river -->
@@ -477,17 +501,40 @@ function paintOiRotation() {
 }
 
 /* --------------------------------------------------------------- gate strip */
-function widestSpreadPct(legs) {
+/* NSE option tick. Mirrors options_selection.TICK_SIZE — the guard must read
+   the same here as it decides in the engine, or the strip flags a leg the
+   scanner accepted. */
+const TICK_SIZE = 0.05;
+/* The tick boundary is exactly where binary floating point misrepresents
+   decimal prices (0.65-0.60 = 0.050000000000000044), so compare with slack far
+   below a paise — otherwise the same one-tick book passes at one strike and
+   fails at the next. Mirrors options_selection._PRICE_EPS. */
+const PRICE_EPS = 1e-9;
+
+function legSpreadOk(l, maxPct) {
+    const mid = l.mid != null ? l.mid : (l.best_bid + l.best_ask) / 2;
+    if (!mid) return true;
+    return (l.best_ask - l.best_bid) <= Math.max(maxPct * mid, TICK_SIZE) + PRICE_EPS;
+}
+
+/* The widest leg BY PERCENTAGE is not the worst leg: at a 0.05 tick a leg
+   priced under Re 1 cannot quote tighter than 5%, so a one-tick book on a
+   deep-OTM wing reads as "10.5%" while being a perfect quote. Report the
+   widest leg that actually FAILS, and fall back to the widest percentage
+   only to show the reading when everything passes. */
+function widestSpreadPct(legs, maxPct) {
     if (!legs || !legs.length) return null;
-    let worst = null;
+    let worst = null, worstFailing = null;
     legs.forEach(l => {
         if (l.best_bid == null || l.best_ask == null) return;
         const mid = l.mid != null ? l.mid : (l.best_bid + l.best_ask) / 2;
         if (!mid) return;
         const s = (l.best_ask - l.best_bid) / mid * 100;
         if (worst === null || s > worst) worst = s;
+        if (maxPct != null && !legSpreadOk(l, maxPct)
+            && (worstFailing === null || s > worstFailing)) worstFailing = s;
     });
-    return worst;
+    return { widest: worst, failing: worstFailing };
 }
 
 function paintGate() {
@@ -499,7 +546,8 @@ function paintGate() {
     const farmRow = state.rows.find(x => x.screen === 'premium_farm');
     const spot = r.underlying_ltp;
     const pinDist = (spot != null && r.pin_strike != null) ? Math.abs(spot - r.pin_strike) / spot : null;
-    const spread = widestSpreadPct(farmRow && farmRow.legs);
+    const sp = widestSpreadPct(farmRow && farmRow.legs, CFG.max_spread_pct);
+    const spread = sp && sp.widest;
 
     const checks = [
         { label: 'GEX regime', reading: r.regime || '--', threshold: 'must contain "Positive"',
@@ -512,9 +560,11 @@ function paintGate() {
           threshold: 'floor ' + n(CFG.iv_rv_min_gap, 1) + ' pt',
           state: gap == null ? 'unknown' : (gap >= CFG.iv_rv_min_gap ? 'pass' : 'fail') },
         { label: 'Quote spread guard',
-          reading: spread != null ? pct(spread, 1) + ' widest leg' : 'no quoted legs',
-          threshold: 'max ' + pct(CFG.max_spread_pct * 100, 0),
-          state: spread == null ? 'unknown' : (spread <= CFG.max_spread_pct * 100 ? 'pass' : 'fail') },
+          reading: spread == null ? 'no quoted legs'
+                 : sp.failing != null ? pct(sp.failing, 1) + ' widest failing leg'
+                 : pct(spread, 1) + ' widest leg (within 1 tick)',
+          threshold: 'max ' + pct(CFG.max_spread_pct * 100, 0) + ' or 1 tick',
+          state: spread == null ? 'unknown' : (sp.failing == null ? 'pass' : 'fail') },
         { label: 'ATM credit (CE + PE)',
           reading: farmRow && farmRow.credit != null ? '₹' + n(farmRow.credit, 1) : 'no farm row',
           threshold: 'must be > 0',
@@ -666,15 +716,20 @@ function checksFor(r) {
         const gap = (reg.atm_iv != null && reg.realized_vol != null) ? reg.atm_iv - reg.realized_vol : r.iv_minus_rv;
         const spot = reg.underlying_ltp;
         const pinDist = (spot != null && reg.pin_strike != null) ? Math.abs(spot - reg.pin_strike) / spot : null;
-        const spread = widestSpreadPct(r.legs);
+        const sp = widestSpreadPct(r.legs, CFG.max_spread_pct);
+        const spread = sp && sp.widest;
         return [
             ['GEX regime', reg.regime || '--', 'must contain "Positive"', (reg.regime || '').includes('Positive')],
             ['Spot inside pin band', pinDist != null ? pct(pinDist * 100, 3) : '--',
                 'band ≤ ' + pct(CFG.pin_band_pct * 100, 1), pinDist != null && pinDist <= CFG.pin_band_pct],
             ['ATM IV − realized vol', n(r.iv_minus_rv != null ? r.iv_minus_rv : gap, 1) + ' pt', 'floor ' + n(CFG.iv_rv_min_gap, 1) + ' pt',
                 (r.iv_minus_rv != null ? r.iv_minus_rv : gap) >= CFG.iv_rv_min_gap],
-            ['Quote spread guard', spread != null ? pct(spread, 1) + ' widest leg' : 'no quoted legs',
-                'max ' + pct(CFG.max_spread_pct * 100, 0), spread != null && spread <= CFG.max_spread_pct * 100],
+            ['Quote spread guard',
+                spread == null ? 'no quoted legs'
+                : sp.failing != null ? pct(sp.failing, 1) + ' widest failing leg'
+                : pct(spread, 1) + ' widest leg (within 1 tick)',
+                'max ' + pct(CFG.max_spread_pct * 100, 0) + ' or 1 tick',
+                spread != null && sp.failing == null],
             ['ATM credit', r.credit != null ? '₹' + n(r.credit, 1) : '--', 'must be > 0', r.credit > 0],
             ['Pin conviction', r.pin_conviction != null ? pct(r.pin_conviction * 100, 1) : '--', 'share of |gamma| at the pin', true]
         ];
@@ -799,6 +854,8 @@ function openPanel(r) {
 
         legTableHtml(r.legs) +
 
+        (isFly ? '<div id="ow-margin" style="margin-top:28px;"></div>' : '') +
+
         '<div style="margin-top:28px;"><div class="ow-sec-h">Conditions this row passed</div>' +
           '<div style="display:grid;gap:10px;">' + checks + '</div></div>' +
 
@@ -814,6 +871,53 @@ function openPanel(r) {
 
     document.getElementById('ow-panel').classList.add('open');
     document.getElementById('ow-scrim').classList.add('on');
+    if (isFly) loadMargin();
+}
+
+function inr(v) {
+    return v == null ? '--' : '₹' + Number(v).toLocaleString('en-IN',
+        { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+async function loadMargin() {
+    const el = document.getElementById('ow-margin');
+    if (!el) return;
+    el.innerHTML = '<div class="ow-sec-h">Exchange margin (Upstox)</div>' +
+        '<div style="border:1px solid var(--hairline);border-radius:11px;padding:15px 17px;' +
+        'font-size:12.5px;color:var(--muted);">Fetching latest exchange margin…</div>';
+    try {
+        const resp = await fetch('/options/wall/api/margin?index=' + currentIndex);
+        el.innerHTML = renderMargin(await resp.json());
+    } catch (err) {
+        el.innerHTML = renderMargin({ margin: { error: String(err) } });
+    }
+}
+
+function renderMargin(data) {
+    const m = (data && data.margin) || {};
+    const fly = (data && data.fly) || {};
+    const refresh = '<span onclick="loadMargin()" style="cursor:pointer;color:#7A5AF8;' +
+        'font-size:12px;font-weight:500;">↻ Refresh</span>';
+    if (m.error || m.required == null) {
+        return '<div class="ow-sec-h">Exchange margin (Upstox) &nbsp;' + refresh + '</div>' +
+            '<div style="border:1px solid var(--hairline);border-radius:11px;padding:15px 17px;' +
+            'font-size:12.5px;color:var(--muted);">Unavailable' +
+            (m.error ? ' — ' + m.error : '') + '.</div>';
+    }
+    const cards = [
+        ['Req. margin', inr(m.required), C.ink],
+        ['Margin benefit', inr(m.benefit), C.green],
+        ['Final margin', inr(m.final), C.ink]
+    ].map(([k, v, c]) =>
+        '<div style="background:#FBFAF8;padding:13px 15px;"><div class="ow-k">' + k + '</div>' +
+        '<div class="mono" style="font-size:15px;margin-top:5px;color:' + c + '">' + v + '</div></div>').join('');
+    const note = 'ATM iron fly · ' + fly.lots + ' lot' + (fly.lots > 1 ? 's' : '') +
+        ' · ' + fly.qty + ' qty/leg · expiry ' + (fly.expiry || '--');
+    return '<div class="ow-sec-h">Exchange margin (Upstox) &nbsp;' + refresh + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--hairline);' +
+        'border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' + cards + '</div>' +
+        '<div style="font-size:11.5px;color:var(--faint);margin-top:8px;">' + note +
+        ' — broker-reported; NseMarginEngine remains the sizing authority.</div>';
 }
 
 function closePanel() {
@@ -937,7 +1041,7 @@ function tradeRow(t, isOpen) {
         n(l.strike, 0) + ' ' + l.type + ' @' + n(l.entry_mid != null ? l.entry_mid : l.mid, 1) +
         (l.cur_mid != null ? ' <span style="color:var(--muted);">→ ' + n(l.cur_mid, 1) + '</span>' : '') + '</span>').join('');
     return '<div style="padding:12px 16px;border-top:1px solid #F5F2ED;">' +
-      '<div style="display:grid;grid-template-columns:72px 148px 1fr 64px repeat(3,minmax(0,1fr)) 84px;gap:8px;align-items:center;' +
+      '<div style="display:grid;grid-template-columns:72px 148px 1fr 64px repeat(3,minmax(0,1fr)) 84px 76px;gap:8px;align-items:center;' +
         'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;">' +
         '<span style="justify-self:start;font-family:\'Public Sans\',sans-serif;font-size:10px;letter-spacing:.07em;padding:2px 9px;border-radius:999px;background:' +
           (isOpen ? 'rgba(25,122,90,.10);color:' + C.green : '#EFECE6;color:var(--muted)') + ';">' + (isOpen ? 'OPEN' : 'CLOSED') + '</span>' +
@@ -948,6 +1052,11 @@ function tradeRow(t, isOpen) {
         '<span style="text-align:right;">' + money(mark) + '</span>' +
         '<span style="text-align:right;color:' + pnlColor(pnl) + ';">' + money(pnl) + '</span>' +
         '<span style="text-align:right;color:var(--faint);font-size:11px;">' + (isOpen ? 'live' : (t.exit_reason || '')) + '</span>' +
+        '<span style="text-align:right;">' + (isOpen ? ((state.closing && state.closing.has(t.trade_id)) ?
+            '<span style="font-size:10.5px;color:var(--muted);">closing…</span>' :
+            '<button onclick="exitTrade(' + t.trade_id + ')" style="cursor:pointer;font-family:\'Public Sans\',sans-serif;' +
+            'font-size:10.5px;font-weight:600;padding:3px 11px;border-radius:999px;border:1px solid #E4B9AC;' +
+            'background:#FCEFEA;color:#B4472F;">Exit</button>') : '') + '</span>' +
       '</div>' +
       '<div style="margin-top:6px;font-family:\'IBM Plex Mono\',monospace;font-size:10.5px;color:var(--faint);">' + legStr + '</div>' +
     '</div>';
@@ -967,12 +1076,91 @@ function paintTrades() {
     body.innerHTML = open.map(t => tradeRow(t, true)).join('') + closed.map(t => tradeRow(t, false)).join('');
 }
 
+async function exitTrade(tradeId) {
+    if (!confirm('Manually close trade #' + tradeId + '?\n\n' +
+        'This queues the close for the poller (the results DB’s sole writer), ' +
+        'which executes it at the marks of its next poll cycle — within seconds ' +
+        'while the market is open, or at the next market open if it is closed.')) return;
+    try {
+        const resp = await fetch('/options/wall/api/close', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ index: currentIndex, trade_id: tradeId })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+            (state.closing || (state.closing = new Set())).add(tradeId);
+            paintTrades();
+            if (data.market_open === false) {
+                alert('Queued. The market is closed, so the poller will close this ' +
+                    'trade at the next market open (at that cycle’s marks).');
+            }
+        } else {
+            alert('Close failed: ' + (data.error || 'unknown error'));
+        }
+    } catch (err) {
+        alert('Close request failed: ' + err);
+    }
+}
+
+function evAgg(a) {
+    if (!a || !a.n) return '<span style="color:var(--muted);">—</span>';
+    const wr = a.win_rate == null ? '--' : (a.win_rate * 100).toFixed(0) + '%';
+    return a.n + ' · ' + wr + ' · <span style="color:' + pnlColor(a.total_net) + '">' +
+        money(a.total_net) + '</span>';
+}
+
+function evTable(title, groups) {
+    const keys = Object.keys(groups || {});
+    const rows = keys.length ? keys.map(k =>
+        '<div style="display:grid;grid-template-columns:1fr auto;gap:12px;padding:6px 0;' +
+        'border-top:1px solid #F5F2ED;font-size:12px;"><span style="color:var(--muted);">' + k +
+        '</span><span class="mono">' + evAgg(groups[k]) + '</span></div>').join('') :
+        '<div style="padding:6px 0;font-size:12px;color:var(--faint);">—</div>';
+    return '<div><div class="ow-sec-h">' + title + '</div>' + rows + '</div>';
+}
+
+function renderEvidence(s) {
+    document.getElementById('evidence-n').textContent = s ? s.n_closed : 0;
+    const body = document.getElementById('evidence-body');
+    if (!s || !s.n_closed) {
+        body.innerHTML = '<div style="padding:18px;text-align:center;color:var(--muted);font-size:13px;">' +
+            'No closed trades on this index yet. Expectancy accrues as the executor closes flies.</div>';
+        return;
+    }
+    const o = s.overall;
+    const wr = o.win_rate == null ? '--' : (o.win_rate * 100).toFixed(0) + '%';
+    const rom = o.avg_rom == null ? '--' : (o.avg_rom * 100).toFixed(2) + '%';
+    const stat = (k, v, c) => '<div style="background:#FBFAF8;padding:12px 14px;">' +
+        '<div class="ow-k">' + k + '</div><div class="mono" style="font-size:15px;margin-top:4px;color:' +
+        (c || C.ink) + '">' + v + '</div></div>';
+    body.innerHTML =
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;' +
+        'background:var(--hairline);border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' +
+        stat('Win rate', wr, C.ink) + stat('Total net', money(o.total_net), pnlColor(o.total_net)) +
+        stat('Avg net', money(o.avg_net), pnlColor(o.avg_net)) + stat('Avg RoM', rom, C.ink) + '</div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:22px;margin-top:18px;">' +
+        evTable('By exit reason', s.by_exit_reason) +
+        evTable('By GEX regime at entry', s.by_regime) +
+        evTable('By IV−RV band', s.by_iv_band) + '</div>';
+}
+
+async function loadEvidence() {
+    try {
+        const resp = await fetch('/options/wall/api/evidence?index=' + currentIndex);
+        renderEvidence((await resp.json()).summary);
+    } catch (err) {
+        console.error('Failed to load evidence:', err);
+    }
+}
+
 async function loadTrades() {
     try {
         const resp = await fetch('/options/wall/api/trades?index=' + currentIndex);
         const data = await resp.json();
         state.trades = data.trades || [];
         paintTrades();
+        loadEvidence();
     } catch (err) {
         console.error('Failed to load paper trades:', err);
     }
@@ -1003,6 +1191,47 @@ async function triggerRefresh() {
     btn.style.color = C.ink;
 }
 
+/* ------------------------------------------------------------ step health */
+async function refreshWallHealth() {
+    const root = document.getElementById('wall-health');
+    const chips = document.getElementById('wall-health-chips');
+    const banner = document.getElementById('wall-health-banner');
+    let h;
+    try {
+        h = await (await fetch('/options/wall/api/health')).json();
+    } catch (e) { return; }
+
+    if (h.stale) {
+        root.hidden = false;
+        banner.hidden = false;
+        banner.className = 'wall-health-banner unknown';
+        banner.textContent = 'Poller heartbeat is stale — step health unknown.';
+        chips.innerHTML = '';
+        return;
+    }
+
+    const failing = [];
+    for (const [underlying, steps] of Object.entries(h.steps || {})) {
+        for (const [step, rec] of Object.entries(steps)) {
+            if (rec.ok === false) failing.push([underlying, step, rec]);
+        }
+    }
+    if (!failing.length) { root.hidden = true; return; }
+
+    root.hidden = false;
+    chips.innerHTML = failing.map(([u, s, r]) =>
+        `<span class="wall-health-chip">${u} &middot; ${s} &middot; ${r.error_type} &middot; since ${r.since}</span>`
+    ).join('');
+
+    const exec = failing.find(([, s]) => s === 'executor');
+    banner.hidden = !exec;
+    banner.className = 'wall-health-banner';
+    if (exec) {
+        banner.textContent =
+            `Gate passing, executor failing since ${exec[2].since} — no trades will open.`;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     paintTabs();
     loadFarm();
@@ -1011,6 +1240,8 @@ document.addEventListener('DOMContentLoaded', function () {
     setInterval(loadTrades, 7000);      // live paper-trade marks
     setInterval(loadFarm, 10000);       // re-read latest scan + regime band
     setInterval(loadRiver, 60000);
+    refreshWallHealth();
+    setInterval(refreshWallHealth, 5000);
 });
 </script>
 {% endblock %}

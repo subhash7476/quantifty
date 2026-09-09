@@ -393,3 +393,86 @@ def test_build_runner_accepts_new_seams(tmp_path, monkeypatch):
     assert driver._publish_checkpoint_time == dt_time(13, 0)
     assert driver._rebalance_hook is not None
     assert driver.config.is_replay
+
+
+# --------------------------------------------------------------------------- #
+# C2 — a session-level journal line must not take the window page down.
+# 2026-09-07: the SPAN-downgrade notice was journalled as ENTRY_MARGIN, an event
+# whose consumers index metadata["group_id"]. audit_window raised KeyError and
+# /api/window 500'd. Producing an event is not the same as it being readable.
+# --------------------------------------------------------------------------- #
+def test_audit_skips_entry_margin_rows_without_a_group(tmp_path):
+    journal = tmp_path / "j.jsonl"
+    _write_journal(journal, [
+        _margin_event(),
+        {   # session-level line: no structure, therefore no group_id
+            "timestamp": "2026-09-07 13:00:00+05:30",
+            "event_type": EventType.ENTRY_MARGIN.value,
+            "severity": "CRITICAL", "source_component": "nifty_shield_paper_runner",
+            "message": "SPAN snapshot unavailable",
+            "metadata": {"expected_span_date": "2026-09-07", "engine": "MarginTracker"},
+        },
+    ])
+    db = tmp_path / "trades.db"
+    _trades_db(db, [])
+    report = audit_window(str(journal), str(db))
+    assert len(report.structures) == 1          # the real entry, not the notice
+    assert report.structures[0].status == "entered"
+
+
+def test_span_downgrade_notice_is_readable_by_the_audit(tmp_path, monkeypatch):
+    """Producer -> consumer contract: what the runner writes, the audit reads."""
+    import scripts.nifty_shield_paper_runner as runner_mod
+    journal_path = tmp_path / "j.jsonl"
+    journal = RuntimeEventJournal(str(journal_path))
+    monkeypatch.setattr(runner_mod.SpanRepository, "load",
+                        lambda self, d: (_ for _ in ()).throw(
+                            FileNotFoundError("no SPAN snapshot")))
+
+    assert runner_mod._load_span_snapshot(journal) is None
+    lines = [json.loads(l) for l in open(str(journal_path), encoding="utf-8")]
+    notice = [e for e in lines if e["severity"] == "CRITICAL"]
+    assert len(notice) == 1
+    assert notice[0]["metadata"]["engine"] == "MarginTracker"
+
+    db = tmp_path / "trades.db"
+    _trades_db(db, [])
+    report = audit_window(str(journal_path), str(db))   # must not raise
+    assert report.structures == []
+
+
+_SESSION_LEVEL_MARGIN_LINE = {
+    "timestamp": "2026-09-07 13:00:00+05:30",
+    "event_type": EventType.ENTRY_MARGIN.value,
+    "severity": "CRITICAL", "source_component": "nifty_shield_paper_runner",
+    "message": "SPAN snapshot unavailable",
+    "metadata": {"expected_span_date": "2026-09-07", "engine": "MarginTracker"},
+}
+
+
+def test_metrics_report_does_not_count_a_session_level_margin_line(tmp_path):
+    """It also inflated structures_entered, not just raised."""
+    from scripts.nifty_shield_paper.metrics_report import risk_metrics_report
+    journal = tmp_path / "j.jsonl"
+    _write_journal(journal, [_margin_event(), _SESSION_LEVEL_MARGIN_LINE])
+    db = tmp_path / "trades.db"
+    _trades_db(db, [])
+    rep = risk_metrics_report(str(journal), str(db), initial_capital=1_000_000.0)
+    assert rep.structures_entered == 1
+    assert len(rep.per_structure) == 1
+
+
+def test_recover_session_ignores_a_session_level_margin_line(tmp_path):
+    """The backfill maps leg symbols -> group_id; a groupless line must not raise."""
+    import sqlite3
+    from scripts.nifty_shield_paper.recover_session import _backfill_group_ids
+    line = dict(_SESSION_LEVEL_MARGIN_LINE)
+    line["metadata"] = {**line["metadata"], "session": "2026-06-05"}
+    _write_journal(tmp_path / "journal.jsonl", [_margin_event(), line])
+    con = sqlite3.connect(tmp_path / "execution.db")
+    con.execute("CREATE TABLE orders (correlation_id TEXT, symbol TEXT, "
+                "group_id TEXT, strategy_id TEXT, timestamp TEXT)")
+    con.commit()
+    con.close()
+    out = _backfill_group_ids(tmp_path, "2026-06-05")     # must not raise
+    assert isinstance(out, list)

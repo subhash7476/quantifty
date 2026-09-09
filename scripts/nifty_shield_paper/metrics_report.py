@@ -26,7 +26,7 @@ from typing import Dict, List, Optional
 
 from core.runtime.event_journal import EventType
 
-from scripts.nifty_shield_paper.audit import GUARD_TYPES
+from scripts.nifty_shield_paper.audit import GUARD_TYPES, is_structure_entry
 
 
 @dataclass
@@ -100,8 +100,7 @@ def risk_metrics_report(
     report.guard_events = dict(Counter(
         e["event_type"] for e in events if e["event_type"] in GUARD_TYPES))
 
-    entries = [e for e in events
-               if e["event_type"] == EventType.ENTRY_MARGIN.value]
+    entries = [e for e in events if is_structure_entry(e)]
     skips = [e for e in events
              if e["event_type"] == EventType.ENTRY_SKIPPED.value]
     closes = {e["metadata"]["group_id"]

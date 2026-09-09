@@ -56,8 +56,9 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
         "vix_reduce": False,
         "sl_distance": 100.0,
         "risk_r": 15000.0,
-        "exit": {"tp_pct": 0.5, "sl_mult": 2.0, "hard_exit": "15:15",
-                 "max_portfolio_delta": 500},
+        "exit": {"tp_decay_frac": 0.5, "available_decay_frac": 0.0726,
+                 "sl_mult": 2.0, "sl_frac": 0.5,
+                 "hard_exit": "15:35", "max_portfolio_delta": 500},
     }
     md.update(md_over)
     return SignalEvent(strategy_id="nifty_shield_v1",
@@ -126,7 +127,7 @@ def test_gates_config_matches_datasheet_9():
     assert cfg.max_drawdown_limit == pytest.approx(30000.0 / 1_000_000.0)
     assert cfg.max_capital_utilisation == pytest.approx(0.25)
     assert cfg.max_portfolio_delta == 500.0       # declared |Δ| flatten gate
-    assert cfg.max_position_size == 150.0         # 2 lots x 75
+    assert cfg.max_position_size == 130.0         # 2 lots x 65
     assert cfg.max_portfolio_vega > 1e9           # undeclared -> effectively off
     assert cfg.max_gamma_exposure > 1e9
 
@@ -211,7 +212,7 @@ def test_entry_assembles_group_fills_at_marks_and_journals_margin(tmp_path, monk
     for sym, mark in _entry_marks().items():
         pos = handler.position_tracker.get_position(sym)
         assert pos is not None and pos.side.value != "FLAT"
-        assert pos.quantity == 150.0            # 2 lots x 75
+        assert pos.quantity == 130.0            # 2 lots x 65
 
     # Group registered under the source group_id with the right type.
     group = handler.group_tracker.get_group(__import__("uuid").UUID(GROUP_ID))
@@ -221,7 +222,7 @@ def test_entry_assembles_group_fills_at_marks_and_journals_margin(tmp_path, monk
 
     # Structure credit derived from fills (net premium collected).
     credit = handler.structure_credit(group.group_id)
-    assert credit == pytest.approx((100.0 + 100.0 - 20.0 - 20.0) * 150.0)
+    assert credit == pytest.approx((100.0 + 100.0 - 20.0 - 20.0) * 130.0)
 
     # Margin evidence journaled (F).
     events = [json.loads(l) for l in
@@ -296,7 +297,7 @@ def _enter_iron_fly(tmp_path, monkeypatch, journal=None):
 def test_exit_driver_take_profit_closes(tmp_path, monkeypatch):
     journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
     handler = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
-    # Shorts at 40 (profit 60 each), wings flat -> group P&L = 2 x 60 x 150.
+    # Shorts at 40 (profit 60 each), wings flat -> group P&L = 2 x 60 x 130.
     profit_marks = {
         "NIFTY10JAN2318150CE": 40.0,
         "NIFTY10JAN2318150PE": 40.0,
@@ -313,11 +314,96 @@ def test_exit_driver_take_profit_closes(tmp_path, monkeypatch):
     assert handler._closed_groups[GROUP_ID] == "take_profit"
 
 
-def test_exit_driver_time_exit_at_1515(tmp_path, monkeypatch):
+def test_exit_driver_time_exit_at_1535(tmp_path, monkeypatch):
     handler = _enter_iron_fly(tmp_path, monkeypatch)
     driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))
-    # Flat marks -> no TP/SL; at 15:16 the hard time exit fires.
+    # Flat marks -> no TP/SL. 15:16 no longer closes (the old 15:15 exit);
+    # 15:36 does.
     driver(datetime(2023, 1, 4, 15, 16, 0, tzinfo=pytz.UTC))
+    assert not handler._closed_groups
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups.get(GROUP_ID) == "time_exit"
+
+
+def test_exit_driver_throttles_idle_invocations(tmp_path, monkeypatch):
+    """LIVE drives the hook every 0.5s poll so the book stays managed past the
+    underlying's last bar; without a floor that reads the chain cache twice a
+    second. The floor must not swallow the eventual evaluation."""
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()),
+                                  min_interval_s=3600.0)
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups.get(GROUP_ID) == "time_exit"
+
+    handler2 = _enter_iron_fly(tmp_path / "b", monkeypatch)
+    throttled = NiftyShieldExitDriver(handler2, StaticMarksSource(_entry_marks()),
+                                      min_interval_s=3600.0)
+    throttled(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))   # holds
+    throttled(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))   # inside floor
+    assert not handler2._closed_groups
+
+
+def test_exit_driver_unthrottled_by_default(tmp_path, monkeypatch):
+    """REPLAY bars arrive in milliseconds of real time; every one must be
+    evaluated, so the default floor is zero."""
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups.get(GROUP_ID) == "time_exit"
+
+
+class _StaleMarks(StaticMarksSource):
+    """Static marks that report an age — the shape ChainSnapshotMarksSource has."""
+
+    def __init__(self, marks, age_s):
+        super().__init__(marks)
+        self._age_s = age_s
+
+    def snapshot_age_s(self, now=None):
+        return self._age_s
+
+
+def test_exit_driver_holds_and_journals_on_stale_marks(tmp_path, monkeypatch):
+    """Past the 15:29 auction print no bars arrive, so nothing but the snapshot
+    itself says the feed is alive. Deciding TP/SL on a frozen snapshot can fire
+    a take-profit at a price that no longer exists; holding cannot."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
+    driver = NiftyShieldExitDriver(
+        handler, _StaleMarks(_entry_marks(), age_s=300.0), max_marks_age_s=60.0)
+
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
+    assert not handler._closed_groups          # held, not decided
+
+    events = [json.loads(l) for l in
+              (tmp_path / "journal.jsonl").read_text().splitlines() if l.strip()]
+    stale = [e for e in events
+             if (e.get("metadata") or {}).get("reason") == "option marks stale"]
+    assert len(stale) == 1                     # edge-triggered, not per tick
+    assert stale[0]["severity"] == "CRITICAL"
+
+    driver(datetime(2023, 1, 4, 15, 37, 0, tzinfo=pytz.UTC))
+    events = [json.loads(l) for l in
+              (tmp_path / "journal.jsonl").read_text().splitlines() if l.strip()]
+    assert len([e for e in events
+                if (e.get("metadata") or {}).get("reason") == "option marks stale"]) == 1
+
+
+def test_exit_driver_decides_on_fresh_marks(tmp_path, monkeypatch):
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    driver = NiftyShieldExitDriver(
+        handler, _StaleMarks(_entry_marks(), age_s=5.0), max_marks_age_s=60.0)
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups.get(GROUP_ID) == "time_exit"
+
+
+def test_exit_driver_skips_the_freshness_check_without_a_limit(tmp_path, monkeypatch):
+    """REPLAY passes no limit: its snapshots are historical by construction."""
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    driver = NiftyShieldExitDriver(handler,
+                                   _StaleMarks(_entry_marks(), age_s=1e6))
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
     assert handler._closed_groups.get(GROUP_ID) == "time_exit"
 
 
@@ -357,19 +443,19 @@ def test_exit_updates_entry_keyed_trade_ledger(tmp_path, monkeypatch):
     for trade_id, symbol, exit_price, pnl, fees in after:
         assert exit_price == pytest.approx(40.0 if "18150" in symbol else 20.0)
         assert fees > 0.0                      # entry + exit fees accumulated
-        expected = (100.0 - 40.0) * 150.0 if "18150" in symbol else 0.0
+        expected = (100.0 - 40.0) * 130.0 if "18150" in symbol else 0.0
         assert pnl == pytest.approx(expected)
 def test_exit_driver_holds_before_any_trigger(tmp_path, monkeypatch):
     handler = _enter_iron_fly(tmp_path, monkeypatch)
     driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))
     driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
-    assert not handler._closed_groups          # flat marks, before 15:15
+    assert not handler._closed_groups          # flat marks, before 15:35
 
 
 def test_restart_restores_groups_and_exit_driver_closes(tmp_path, monkeypatch):
     """2026-08-20 incident: a restart orphaned the open structure — the
     in-memory OrderGroup registry was lost (orders carried no group_id), so
-    the exit driver saw zero open structures and the 15:15 time-exit never
+    the exit driver saw zero open structures and the hard time-exit never
     fired. The group must be rebuilt from restored orders so a fresh handler
     still closes the structure at the hard exit."""
     journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
@@ -381,7 +467,7 @@ def test_restart_restores_groups_and_exit_driver_closes(tmp_path, monkeypatch):
     assert len(groups) == 1                    # rebuilt from restored orders
 
     driver = NiftyShieldExitDriver(restored, StaticMarksSource(_entry_marks()))
-    driver(datetime(2023, 1, 4, 15, 16, 0, tzinfo=pytz.UTC))
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
     assert restored._closed_groups.get(GROUP_ID) == "time_exit"
     for sym in _entry_marks():
         pos = restored.position_tracker.get_position(sym)
@@ -405,7 +491,7 @@ def test_restored_closed_group_not_reopened_by_new_structure(tmp_path, monkeypat
     journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
     h1 = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
     driver1 = NiftyShieldExitDriver(h1, StaticMarksSource(_entry_marks()))
-    driver1(datetime(2023, 1, 4, 15, 16, 0, tzinfo=pytz.UTC))   # time_exit
+    driver1(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))   # time_exit
     assert h1._closed_groups.get(GROUP_ID) == "time_exit"
 
     restored = _build_handler(tmp_path, monkeypatch, marks=_entry_marks(),
@@ -430,3 +516,213 @@ def test_restored_closed_group_not_reopened_by_new_structure(tmp_path, monkeypat
     for sym in ("NIFTY10JAN2318150PE", "NIFTY10JAN2318150CE"):
         pos = restored.position_tracker.get_position(sym)
         assert pos.side.value == "SHORT"         # the new structure's legs
+
+
+# --------------------------------------------------------------------------- #
+# structure_max_loss — the bound the stop is measured against, from real fills.
+# Coherent fly marks: shorts 60/58, wings 20/18 on a 100-point wing.
+# credit/unit 80 -> max_loss/unit 20; at 2 lots x 65 that is 10,400 / 2,600.
+# --------------------------------------------------------------------------- #
+_COHERENT_FLY = {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0,
+                 "NIFTY10JAN2318250CE": 20.0, "NIFTY10JAN2318050PE": 18.0}
+
+
+def _enter(tmp_path, monkeypatch, signals, marks):
+    handler = _build_handler(tmp_path, monkeypatch, marks=marks)
+    for s in signals:
+        handler.process_signal(s, 24000.0)
+    return handler
+
+
+def test_structure_max_loss_is_wing_width_less_credit(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
+    gid = handler.open_nifty_shield_groups()[0]
+    assert handler.structure_credit(gid) == pytest.approx(10_400.0)
+    assert handler.structure_max_loss(gid) == pytest.approx(2_600.0)
+
+
+def test_structure_max_loss_is_none_for_undefined_structure(tmp_path, monkeypatch):
+    signals = [_leg_signal("short_ce", "CE", 18150, SignalType.SELL,
+                           structure="short_straddle"),
+               _leg_signal("short_pe", "PE", 18150, SignalType.SELL,
+                           structure="short_straddle")]
+    handler = _enter(tmp_path, monkeypatch, signals,
+                     {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0})
+    gid = handler.open_nifty_shield_groups()[0]
+    assert handler.structure_max_loss(gid) is None
+
+
+def test_structure_max_loss_for_a_vertical_spread(tmp_path, monkeypatch):
+    """The majority structure: both legs share an option_type, matched by side."""
+    signals = [_leg_signal("short_pe", "PE", 18150, SignalType.SELL,
+                           structure="bull_put_spread", sl_distance=150.0),
+               _leg_signal("wing_pe", "PE", 18000, SignalType.BUY,
+                           structure="bull_put_spread", sl_distance=150.0)]
+    handler = _enter(tmp_path, monkeypatch, signals,
+                     {"NIFTY10JAN2318150PE": 90.0, "NIFTY10JAN2318000PE": 35.0})
+    gid = handler.open_nifty_shield_groups()[0]
+    assert handler.structure_credit(gid) == pytest.approx(7_150.0)
+    assert handler.structure_max_loss(gid) == pytest.approx(12_350.0)
+
+
+def test_structure_max_loss_is_none_when_a_wing_did_not_fill(tmp_path, monkeypatch):
+    """A fly missing a wing is not defined-risk — no fabricated bound.
+
+    Entry with a mark missing is skipped outright, so the state that reaches the
+    exit driver is a group whose wing leg carries no fill: strip it directly.
+    """
+    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
+    gid = handler.open_nifty_shield_groups()[0]
+    assert handler.structure_max_loss(gid) is not None       # bound exists first
+    wing = next(l for l in handler.group_tracker.get_group(gid).legs
+                if l.side.value == "BUY")
+    handler.order_tracker.get_order(wing.correlation_id).filled_quantity = 0.0
+    assert handler.structure_max_loss(gid) is None
+
+
+def test_exit_driver_stop_closes_on_fraction_of_max_loss(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
+    # CE side breached: short 60 -> 80, wing 20 -> 29. P&L -1,650 vs -1,500.
+    # The old rule needed -24,000 against a structural floor of -3,000.
+    loss_marks = {**_COHERENT_FLY, "NIFTY10JAN2318150CE": 80.0,
+                  "NIFTY10JAN2318250CE": 29.0}
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(loss_marks))
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups[GROUP_ID] == "stop_loss"
+
+
+def test_exit_driver_holds_inside_the_max_loss_band(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
+    hold_marks = {**_COHERENT_FLY, "NIFTY10JAN2318150CE": 72.0,
+                  "NIFTY10JAN2318250CE": 26.0}          # P&L -900, inside band
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(hold_marks))
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    assert GROUP_ID not in handler._closed_groups
+
+
+# --------------------------------------------------------------------------- #
+# The PRODUCTION wiring: handler <- RecordingMarksSource <- real source
+#
+# 2026-09-08: every test above builds the handler on a bare marks source, but a
+# recorded LIVE session (the production configuration) wraps it in
+# RecordingMarksSource. That wrapper forwarded only marks(), so instrument_keys()
+# fell through to an "absent" ABC default and the 13:00 entry skipped with
+# "broker basket margin unavailable" for legs whose keys were in the cache. The
+# bare-source tests all passed. These exercise the wrapped path.
+# --------------------------------------------------------------------------- #
+
+class _KeyedMarks(StaticMarksSource):
+    """A marks source that DOES have broker identity and a clock."""
+
+    def __init__(self, marks, keys, age_s=5.0):
+        super().__init__(marks)
+        self._keys = dict(keys)
+        self._age_s = age_s
+
+    def instrument_keys(self, symbols):
+        return {s: self._keys[s] for s in symbols if s in self._keys}
+
+    def snapshot_age_s(self, now=None):
+        return self._age_s
+
+
+def _keyed_marks():
+    return _KeyedMarks(
+        _entry_marks(),
+        {sym: f"NSE_FO|{i}" for i, sym in enumerate(_entry_marks(), start=1)})
+
+
+def _recorded(marks):
+    from scripts.nifty_shield_paper.recorder import RecordingMarksSource
+
+    class _Sink:
+        def __init__(self): self.calls = []
+        def record_marks(self, symbols, result, error):
+            self.calls.append((tuple(symbols), error))
+
+    return RecordingMarksSource(marks, _Sink())
+
+
+def test_recording_wrapper_forwards_the_whole_marks_interface():
+    """A decorator that forwards only part of its interface answers for the
+    rest. Assert the surface, not one method -- that is what was missed."""
+    inner = _keyed_marks()
+    wrapped = _recorded(inner)
+    syms = list(_entry_marks())
+    assert wrapped.marks(syms) == inner.marks(syms)
+    assert wrapped.instrument_keys(syms) == inner.instrument_keys(syms)
+    assert wrapped.instrument_keys(syms)              # non-empty: the defect
+    assert wrapped.snapshot_age_s() == inner.snapshot_age_s()
+
+
+def test_partial_marks_wrapper_cannot_be_constructed():
+    """The ABC's instrument_keys/snapshot_age_s are abstract precisely so a
+    partial wrapper fails at construction instead of silently reporting
+    'absent' in a live window."""
+    from core.execution.options.nifty_shield_marks import OptionMarksSource
+
+    class _Partial(OptionMarksSource):
+        def marks(self, symbols):
+            return {}
+
+    with pytest.raises(TypeError, match="instrument_keys"):
+        _Partial()
+
+
+def test_broker_margin_entry_through_the_recording_wrapper(tmp_path, monkeypatch):
+    """End-to-end on the PRODUCTION wiring: a broker-margin handler behind the
+    recorder must resolve keys, size, and enter."""
+    import core.execution.options.nifty_shield_sizing as sizing_mod
+    seen = {}
+
+    def fake_fetch(legs, product="D"):
+        seen["legs"] = list(legs)
+        return {"required": 90000.0, "final": 70000.0, "benefit": 20000.0,
+                "error": None}
+
+    monkeypatch.setattr("core.brokers.upstox_margin.fetch_basket_margin",
+                        fake_fetch)
+
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _build_handler(tmp_path, monkeypatch,
+                             marks=_recorded(_keyed_marks()), journal=journal)
+    handler._use_broker_margin = True
+
+    for sig in _iron_fly_signals():
+        handler.process_signal(sig, 100.0)
+
+    assert handler.open_nifty_shield_groups(), "structure did not enter"
+    assert len(seen["legs"]) == 4                 # ONE basket, all four legs
+    assert {l["instrument_key"] for l in seen["legs"]} == {
+        f"NSE_FO|{i}" for i in range(1, 5)}
+
+    events = [json.loads(l) for l in
+              (tmp_path / "journal.jsonl").read_text().splitlines() if l.strip()]
+    margin = [e for e in events if e["event_type"] == "ENTRY_MARGIN"]
+    assert len(margin) == 1
+    assert margin[0]["metadata"]["engine"] == "UpstoxBasketMargin"
+    assert margin[0]["metadata"]["margin_total"] == 70000.0   # the FINAL figure
+    assert not [e for e in events if e["event_type"] == "ENTRY_SKIPPED"]
+
+
+def test_broker_margin_entry_skips_when_the_wrapper_hides_the_keys(tmp_path,
+                                                                   monkeypatch):
+    """The 2026-09-08 failure, pinned: a source with no keys must skip at
+    CRITICAL and never silently size on the local engine."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _build_handler(tmp_path, monkeypatch,
+                             marks=StaticMarksSource(_entry_marks()),
+                             journal=journal)
+    handler._use_broker_margin = True
+
+    for sig in _iron_fly_signals():
+        handler.process_signal(sig, 100.0)
+
+    assert not handler.open_nifty_shield_groups()
+    events = [json.loads(l) for l in
+              (tmp_path / "journal.jsonl").read_text().splitlines() if l.strip()]
+    skips = [e for e in events if e["event_type"] == "ENTRY_SKIPPED"]
+    assert len(skips) == 1
+    assert skips[0]["severity"] == "CRITICAL"
+    assert skips[0]["metadata"]["reason"] == "Upstox basket margin unavailable"
+    assert not [e for e in events if e["event_type"] == "ENTRY_MARGIN"]

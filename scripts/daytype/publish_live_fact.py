@@ -35,6 +35,8 @@ from pathlib import Path
 from typing import Optional
 
 import duckdb
+
+from scripts.daytype import vix_percentile
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -246,17 +248,26 @@ def publish_live(db_path: Path, today: Optional[date] = None) -> dict:
     con.execute(
         "ALTER TABLE day_type_facts ADD COLUMN IF NOT EXISTS vix_at_checkpoint DOUBLE"
     )
+    # Trailing VIX percentile: NiftyShield's structure gates key on where this
+    # session's vol sits in its own recent distribution, not on an absolute
+    # level (the absolute 14/16 gates stopped firing when India VIX compressed).
+    con.execute(
+        "ALTER TABLE day_type_facts ADD COLUMN IF NOT EXISTS vix_pctile DOUBLE"
+    )
+    vix_pct = vix_percentile.percentile(vix_cp, today)
     con.execute(
         "INSERT OR REPLACE INTO day_type_facts "
         "(session_date, checkpoint, regime, regime_confidence, vix_close, "
-        " vix_at_checkpoint, regime_fact_version, model_hash, produced_by, trained_on) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " vix_at_checkpoint, vix_pctile, regime_fact_version, model_hash, "
+        " produced_by, trained_on) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         [today, CHECKPOINT, st["predicted_state"], float(st["confidence"]),
-         None, vix_cp, ver, hash_val, produced_by, TRAINED_ON],
+         None, vix_cp, vix_pct, ver, hash_val, produced_by, TRAINED_ON],
     )
     con.close()
     return {"ready": True, "session": today, "regime": st["predicted_state"],
             "confidence": st["confidence"], "vix_at_checkpoint": vix_cp,
+            "vix_pctile": vix_pct,
             "produced_by": produced_by, "source": source}
 
 

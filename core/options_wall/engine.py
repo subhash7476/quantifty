@@ -236,6 +236,50 @@ def trades_view(name: str) -> List[Dict]:
     return trades
 
 
+def iron_fly_margin_legs(name: str, wing_pct: float = 0.015,
+                         lots: int = 1) -> Optional[Dict]:
+    """The ATM iron-fly legs (with instrument_keys + qty) for a margin lookup.
+
+    Reconstructs the same ATM short-straddle + ±wing_pct wing structure the paper
+    executor would trade, from the newest snapshot of the near-weekly expiry, and
+    resolves each leg's instrument_key + quantity (lots × the contract lot size).
+    Read-only. Returns None if no snapshot or the wings collapse onto the ATM.
+    """
+    from core.options_wall.fly import _nearest_strike
+    sym = UNDERLYINGS[name]
+    provider = OptionsProvider(read_only=True)
+    expiry = provider.get_weekly_expiry(sym)
+    rows = store.latest_snapshot(sym, expiry)
+    if not rows:
+        return None
+    spot = rows[0].underlying_ltp or 0.0
+    strikes = sorted({r.strike for r in rows})
+    if not spot or not strikes:
+        return None
+    atm = _nearest_strike(strikes, spot)
+    call_wing = _nearest_strike(strikes, spot * (1 + wing_pct))
+    put_wing = _nearest_strike(strikes, spot * (1 - wing_pct))
+    if call_wing <= atm or put_wing >= atm:
+        return None
+
+    keys = {(r.strike, r.option_type): r.instrument_key for r in rows}
+    # Authoritative lot size from the master, not the snapshot: a snapshot the
+    # poller wrote before the lot-size fix still carries the stale value.
+    qty = lots * (provider.get_lot_size(name) or rows[0].lot_size or 1)
+    specs = [("SELL", "CE", atm), ("SELL", "PE", atm),
+             ("BUY", "CE", call_wing), ("BUY", "PE", put_wing)]
+    legs = []
+    for side, ot, k in specs:
+        ikey = keys.get((k, ot))
+        if not ikey:
+            return None
+        legs.append({"instrument_key": ikey, "transaction_type": side,
+                     "quantity": qty, "strike": k, "option_type": ot})
+    return {"index": name, "expiry": expiry, "spot": spot, "lots": lots,
+            "qty": qty, "short_strike": atm, "call_wing": call_wing,
+            "put_wing": put_wing, "legs": legs}
+
+
 def scan_and_persist(
     names: Optional[Tuple[str, ...]] = None,
     config: Optional[ScanConfig] = None,

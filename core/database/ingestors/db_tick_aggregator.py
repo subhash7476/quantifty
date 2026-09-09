@@ -63,9 +63,9 @@ class DBTickAggregator:
             rows = ticks_conn.execute(
                 """
                 SELECT date_trunc('minute', timestamp) AS bar_ts,
-                       first(price ORDER BY timestamp ASC) AS op,
+                       first(price ORDER BY timestamp ASC, seq ASC) AS op,
                        max(price) AS hi, min(price) AS lo,
-                       last(price ORDER BY timestamp ASC) AS cl,
+                       last(price ORDER BY timestamp ASC, seq ASC) AS cl,
                        sum(volume) AS vol
                 FROM ticks WHERE symbol=? AND timestamp>=? GROUP BY 1 ORDER BY 1 ASC
                 """,

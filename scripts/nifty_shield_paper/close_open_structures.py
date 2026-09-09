@@ -3,7 +3,7 @@
 Closes every open NiftyShield structure at the latest chain-cache marks,
 through the real composition path: per-leg EXIT signals -> PaperBroker fills ->
 entry-keyed ledger exit update -> STRUCTURE_CLOSE journaled (the same seam the
-15:15 exit driver uses, minus the trigger).
+15:35 exit driver uses, minus the trigger).
 
 Why this exists: the 2026-08-20 structure was orphaned by a restart (the exit
 manager was blind to it) and carried into a new session — violating the F4

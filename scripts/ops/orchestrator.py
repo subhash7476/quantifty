@@ -39,11 +39,31 @@ class ChildSpec:
     pid_path: Optional[Path] = None      # orchestrator-owned liveness
     native_lock: Optional[Path] = None   # child writes its own lock
     new_group: bool = False              # spawn in a new process group (session)
+    status_path: Optional[Path] = None   # child-published heartbeat, asserted below
+    status_max_age_s: float = 120.0      # closed-market cadence is ~60 s
+
+
+def _status_fresh(spec: ChildSpec) -> bool:
+    """Assert a child's published heartbeat, when it publishes one.
+
+    A live PID is not a live child: 19336 was recycled by conhost while the
+    ingestor's own status file sat 17 h stale, and the orchestrator adopted it
+    (2026-09-08). Absent/unreadable status falls back to PID liveness — never
+    spawn a second single-writer on a missing file.
+    """
+    if spec.status_path is None or not spec.status_path.exists():
+        return True
+    try:
+        payload = json.loads(spec.status_path.read_text(encoding="utf-8"))
+        hb = datetime.fromisoformat(payload["last_heartbeat"])
+    except (OSError, ValueError, KeyError):
+        return True
+    return (datetime.now() - hb).total_seconds() <= spec.status_max_age_s
 
 
 def child_alive(spec: ChildSpec) -> bool:
     lock = spec.native_lock or spec.pid_path
-    return bool(lock) and pidfile.lock_alive(lock)
+    return bool(lock) and pidfile.lock_alive(lock) and _status_fresh(spec)
 
 
 def spawn(spec: ChildSpec, *, popen: Callable = subprocess.Popen):
@@ -62,7 +82,8 @@ CHILDREN = {
         pid_path=OPS_DIR / "flask.pid"),
     "ingestor": ChildSpec(
         "ingestor", [PY, str(ROOT / "scripts" / "market_ingestor.py")],
-        pid_path=OPS_DIR / "market_ingestor.pid"),
+        pid_path=OPS_DIR / "market_ingestor.pid",
+        status_path=ROOT / "logs" / "market_ingestor_status.json"),
     "poller": ChildSpec(
         "poller", [PY, str(ROOT / "scripts" / "nifty_shield_paper" / "chain_poller.py")],
         native_lock=ROOT / "data" / "options" / "chain_poller.pid"),
@@ -95,12 +116,20 @@ class Deps:
     dispatch_catchup: Callable[[], None]
     stop_present: Callable[[], bool]
     market_open: Callable[[], bool]
+    # The session trades F&O, which runs to 15:40 post-CAS, while `market_open`
+    # is the CASH segment and closes at 15:15. Parking the session on the cash
+    # clock made its own 15:35 exit unreachable and silently refused to start it
+    # after 15:15 (2026-09-08). Only the session's gate moves — flask, the
+    # ingestor and the poller start before the park and are untouched.
+    derivatives_open: Callable[[], bool]
     sleep: Callable[[float], None]
     now: Callable[[], datetime]
     # Diagnostic only: human string naming the currently-failing BLOCK checks
     # (e.g. "marks_warm: ...; live_vix: ..."). Logged in the warm-up loops so a
     # timeout:warmup names the cold feed instead of failing silently.
     gate_status: Callable[[], str] = lambda: ""
+    # Register an already-running child for supervision (no proc handle).
+    adopt: Callable = lambda spec: None
     # Restart-crashed-children hook, run inside the warm-up/final-gate waits:
     # start_sequence blocks up to warmup_timeout_s, and a child that dies
     # during that window (e.g. the ingestor at startup, 2026-08-21) must be
@@ -109,10 +138,17 @@ class Deps:
 
 
 def _ensure(deps: Deps, name: str) -> None:
-    """Adopt a living child; else spawn it."""
+    """Adopt a living child; else spawn it. Either way it becomes supervised."""
     spec = CHILDREN[name]
     if not deps.child_alive(spec):
         deps.spawn(spec)
+    else:
+        # An ADOPTED child was invisible to the supervisor, which iterated only
+        # what this process spawned. So a session inherited from a previous
+        # orchestrator could exit and never be revived, while the supervise loop
+        # ran on reporting nothing wrong (2026-09-08). Register it with no proc
+        # handle; liveness comes from its lock, which works for both kinds.
+        deps.adopt(spec)
 
 
 def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
@@ -140,14 +176,24 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     _ensure(deps, "ingestor")
     _ensure(deps, "poller")
 
-    # 5a. Park until market open — pre-open the poller idles, so marks CANNOT be
-    #     warm (design §5.1 step 5: PARK until market-open + warm-up). This wait
-    #     can be long (command run pre-open); the safety cap only guards a broken
-    #     clock, it is not a normal exit.
+    # 5a. Park until the SESSION's market is open — pre-open the poller idles, so
+    #     marks CANNOT be warm (design §5.1 step 5: PARK until market-open +
+    #     warm-up). The gate is the DERIVATIVES segment (09:15-15:40 post-CAS),
+    #     not cash (09:15-15:15): everything past this point exists to run an F&O
+    #     session, and gating it on the cash clock made the window unstartable
+    #     for the last 25 minutes of its own trading day. Derivatives hours are a
+    #     superset of cash hours, so this never parks when cash is open.
+    #     This wait can be long (command run pre-open); the safety cap only
+    #     guards a broken clock, it is not a normal exit.
     waited = 0.0
-    while not deps.market_open():
+    while not deps.derivatives_open():
         if waited >= park_timeout_s:
             return "timeout:market_open"
+        # Parked is a state an operator must be able to SEE. A silent multi-hour
+        # park looks identical to a hung start.
+        if waited % 300 == 0:
+            _logger.info("parked — derivatives segment closed (waited ~%.0fs); "
+                         "the session starts when it opens", waited)
         deps.sleep(park_poll_s)
         waited += park_poll_s
 
@@ -244,32 +290,68 @@ def stop_child(spec: ChildSpec, proc, *, killer=os.kill, term_wait_s: float = SE
         except Exception as exc:  # noqa: BLE001
             _logger.warning("terminating %s failed: %s", spec.name, exc)
     if spec.pid_path is not None:
-        pidfile.release_lock(spec.pid_path)
+        pidfile.release_lock(spec.pid_path, getattr(proc, "pid", None))
 
 
 class Supervisor:
     def __init__(self, *, started: dict, spawn=spawn, child_alive=child_alive,
-                 stopper=stop_child, backoff_cap_s: float = 30.0):
+                 stopper=stop_child, backoff_cap_s: float = 30.0,
+                 spawn_grace_s: float = 20.0):
         self._started = started
         self._spawn = spawn
         self._child_alive = child_alive
         self._stopper = stopper
         self._backoff_cap = backoff_cap_s
         self._fails: dict = {}
+        # Liveness is now read from the lock rather than a proc handle, so a
+        # child that has not yet written its lock would read as dead and be
+        # respawned in a loop. Hold off for one grace window after spawning.
+        self._spawn_grace_s = spawn_grace_s
+        self._spawned_at: dict = {}
+
+    def adopt(self, spec: ChildSpec) -> None:
+        """Supervise a child this process did not spawn.
+
+        Resolve a handle from its pidfile where it has one, so shutdown can
+        actually stop it — registering it with a bare None would supervise it
+        but leave it running on Ctrl+C.
+        """
+        if spec.name in self._started:
+            return
+        pid = pidfile.read_pid(spec.pid_path) if spec.pid_path else None
+        self._started[spec.name] = _RemoteProc(pid) if pid else None
 
     def tick(self) -> None:
-        for name, proc in list(self._started.items()):
+        for name in list(self._started):
             spec = CHILDREN[name]
-            proc_dead = proc is not None and proc.poll() is not None
-            if proc_dead and not self._child_alive(spec):
-                self._fails[name] = self._fails.get(name, 0) + 1
-                _logger.error("child %s died — restart #%d", name, self._fails[name])
-                self._started[name] = self._spawn(spec)
+            if self._child_alive(spec):
+                continue
+            # Liveness is the child's LOCK, not our proc handle: an adopted child
+            # has no handle, and a child that exits CLEANLY leaves poll() == 0,
+            # which the old `proc_dead and not alive` test still required a
+            # handle to see. Both are dead the same way and must be revived the
+            # same way.
+            if self._in_spawn_grace(name):
+                continue        # just spawned; its lock may not be written yet
+            self._fails[name] = self._fails.get(name, 0) + 1
+            _logger.error("child %s is not alive — restart #%d", name,
+                          self._fails[name])
+            self._started[name] = self._spawn(spec)
+            self._spawned_at[name] = time.monotonic()
+
+    def _in_spawn_grace(self, name: str) -> bool:
+        at = self._spawned_at.get(name)
+        return at is not None and (time.monotonic() - at) < self._spawn_grace_s
 
     def shutdown(self) -> None:
-        # Session first (longest finalize), then the rest — only what we started.
+        # Session first (longest finalize), then the rest. `_started` now also
+        # holds adopted children; those carry a _RemoteProc built from their
+        # pidfile, or None when they are natively locked and own no pidfile.
         for name in sorted(self._started, key=lambda n: 0 if n == "session" else 1):
-            self._stopper(CHILDREN[name], self._started[name])
+            proc = self._started[name]
+            if proc is None:
+                continue                  # nothing to signal (adopted, no pidfile)
+            self._stopper(CHILDREN[name], proc)
 
 
 CATCHUP_STAMP = OPS_DIR / "last_catchup.json"
@@ -376,6 +458,7 @@ def _live_deps(started: dict) -> Deps:
         dispatch_catchup=_dispatch_catchup,
         stop_present=lambda: (ROOT / "STOP").exists(),
         market_open=lambda: MarketHours.is_market_open(),
+        derivatives_open=lambda: MarketHours.is_derivatives_open(),
         sleep=time.sleep, now=datetime.now,
         gate_status=_gate_status,
     )
@@ -396,6 +479,7 @@ def _cmd_start(dry_run: bool) -> int:
     sup = Supervisor(started=started)
     deps = _live_deps(started)
     deps.supervise = sup.tick
+    deps.adopt = sup.adopt
     try:
         outcome = start_sequence(deps)
         print(f"start sequence: {outcome}")

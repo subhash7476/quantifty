@@ -37,7 +37,7 @@ from core.execution.options.nifty_shield_marks import (
 from core.execution.watchdog import RuntimeWatchdog
 from core.runtime.config import Mode
 from core.runtime.metrics import InMemoryTelemetrySink, TelemetrySink
-from core.runtime.event_journal import RuntimeEventJournal
+from core.runtime.event_journal import EventType, RuntimeEventJournal, Severity
 from core.risk.span.span_freshness import expected_span_date
 from core.risk.span.span_repository import SpanRepository
 from strategies.nifty_shield_v1 import build_signal_source
@@ -51,6 +51,10 @@ ROOT = Path(__file__).resolve().parents[1]
 
 NF_SYMBOL = "NSE_INDEX|Nifty 50"
 CHECKPOINT = time(13, 0)          # 13:00 IST — the DS2-2 pre-signal seam
+# Oldest chain snapshot an exit decision may be priced against, matching the
+# dashboard's marks-warm gate. Past the 15:29 auction print no bars arrive, so
+# nothing else establishes that the feed is still alive.
+MARKS_MAX_AGE_S = 60.0
 # The publisher may retry from 13:00 through this deadline (inclusive) so a live
 # fact that needs a few minutes to gather 13:00 bars still publishes. Matches the
 # strategy's `entry_window_minutes` (the source waits the same window).
@@ -66,14 +70,55 @@ _REPLAY_DEFAULT_START = datetime(2026, 6, 5, 9, 15, 0)
 _logger = logging.getLogger("nifty_shield_paper")
 
 
-def _load_span_snapshot():
-    """Best-effort SPAN snapshot for NseMarginEngine (SPAN+ELM margin evidence).
-    Absent -> flat-rate MarginTracker fallback (journaled as such, §7.7)."""
+def _load_span_snapshot(journal=None, *, broker_margin: bool = False):
+    """SPAN snapshot for NseMarginEngine (SPAN+ELM margin evidence).
+
+    Absent -> flat-rate MarginTracker. What that costs now depends on who sizes:
+
+    - `broker_margin=False` (REPLAY/offline): the flat rate sizes the entry,
+      pricing 20% of premium notional — Rs 4,619 on the 2026-09-07 spread
+      against the broker's Rs 79,902. A real downgrade; CRITICAL.
+    - `broker_margin=True` (LIVE): entries are sized on the broker's basket,
+      so sizing is unaffected. Only the per-leg `_check_margin_budget` backstop
+      and the SPAN/ELM evidence trail degrade. WARNING, not CRITICAL — a
+      CRITICAL that overstates its own consequence trains the operator to skim
+      past the next one.
+
+    A logger warning is not an audit record either way, so journal it.
+    """
     try:
         repo = SpanRepository()
         return repo.load(expected_span_date())
     except Exception as exc:
         _logger.warning("SPAN snapshot unavailable (%s) — flat-rate margin", exc)
+        if journal is not None:
+            try:
+                # STARTUP, not ENTRY_MARGIN: this is a session-level
+                # composition fact with no structure behind it, and every
+                # ENTRY_MARGIN consumer indexes metadata["group_id"].
+                journal.record(
+                    EventType.STARTUP,
+                    ("SPAN snapshot unavailable — entries are sized on the "
+                     "Upstox basket margin, so sizing is unaffected; the "
+                     "per-leg margin backstop falls back to the flat-rate "
+                     "MarginTracker and SPAN/ELM evidence will be absent"
+                     if broker_margin else
+                     "SPAN snapshot unavailable — margin downgraded to the "
+                     "flat-rate MarginTracker (NOT NseMarginEngine); SPAN/ELM "
+                     "evidence will be absent and the margin figure is not the "
+                     "certified SPAN+ELM number"),
+                    severity=(Severity.WARNING if broker_margin
+                              else Severity.CRITICAL),
+                    source_component="nifty_shield_paper_runner",
+                    metadata={"expected_span_date": str(expected_span_date()),
+                              "error": str(exc),
+                              "sizing_engine": ("UpstoxBasketMargin"
+                                                if broker_margin
+                                                else "MarginTracker"),
+                              "engine": "MarginTracker"},
+                )
+            except Exception:
+                _logger.exception("journal write failed for SPAN downgrade")
         return None
 
 
@@ -139,7 +184,8 @@ def build_nifty_shield_paper_driver(
     if check is not None:
         check()
     if span_snapshot is None:
-        span_snapshot = _load_span_snapshot()
+        span_snapshot = _load_span_snapshot(
+            journal, broker_margin=(mode is Mode.LIVE))
     strategy_config = dict(DEFAULT_CONFIG)
 
     source = build_signal_source({"facts_db_path": facts_db_path})
@@ -165,11 +211,23 @@ def build_nifty_shield_paper_driver(
         return NiftyShieldExecutionHandler(
             marks_source=marks,
             strategy_config=strategy_config,
+            # LIVE sizes the structure on the broker's basket margin; REPLAY has
+            # no broker session and must stay deterministic, so it sizes on the
+            # local engine (the figure is labelled per entry in ENTRY_MARGIN).
+            use_broker_margin=(mode is Mode.LIVE),
             **kwargs,
         )
 
     def exit_hook_factory(execution):
-        return NiftyShieldExitDriver(execution, marks)
+        # LIVE drives the hook on idle ticks too (0.5s poll); floor the exit
+        # evaluation at 15s so the chain cache is read at a sane cadence.
+        # REPLAY stays unthrottled — every recorded bar must be evaluated.
+        return NiftyShieldExitDriver(
+            execution, marks,
+            min_interval_s=15.0 if mode is Mode.LIVE else 0.0,
+            # Matches the dashboard's marks-warm threshold. REPLAY passes None:
+            # its snapshots are historical by construction.
+            max_marks_age_s=MARKS_MAX_AGE_S if mode is Mode.LIVE else None)
 
     def publish_hook_factory(execution):
         return journaled_publish_hook_factory(journal, facts_db_path)(execution)
@@ -201,6 +259,12 @@ def build_nifty_shield_paper_driver(
         clock=clock,
         provider=provider,
         max_bars=max_bars,
+        # The exit manager must keep pricing the book after the underlying's
+        # last 1m bar (the 15:29 cash auction print) so TP/SL and the 15:35
+        # hard exit are reachable while the options themselves still trade.
+        # LIVE only: REPLAY's clock is data-driven, so an idle tick there has
+        # no time to advance to.
+        rebalance_on_idle=(mode is Mode.LIVE),
     )
 
 

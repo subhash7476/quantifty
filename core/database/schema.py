@@ -7,15 +7,26 @@ Matches monolithic schemas for smooth migration.
 # MARKET DATA (DuckDB)
 # ─────────────────────────────────────────────────────────────
 
+# Upstox stamps `ltt` to the whole second (verified: all 64,353 rows of a full
+# 2026-09-04 session land on exact seconds), while the feed pushes several
+# updates within one second. The old PRIMARY KEY (symbol, timestamp) plus
+# INSERT OR IGNORE therefore kept the FIRST update of each second and silently
+# discarded the rest — that session held exactly 21,451 rows and 21,451 distinct
+# seconds for each of its three symbols, a 1:1 that is the signature of
+# de-duplication on a whole-second key, not of the feed's real rate.
+# `seq` replaces the key: it makes every tick distinct and, because ties on
+# `timestamp` are otherwise unordered, it is what keeps the aggregator's
+# first()/last() deterministic within a second (see db_tick_aggregator).
 MARKET_TICKS_SCHEMA = """
+CREATE SEQUENCE IF NOT EXISTS tick_seq START 1;
 CREATE TABLE IF NOT EXISTS ticks (
+    seq BIGINT DEFAULT nextval('tick_seq'),
     symbol VARCHAR NOT NULL,
     timestamp TIMESTAMP NOT NULL,
     price DOUBLE NOT NULL,
     volume BIGINT NOT NULL,
     bid DOUBLE,
-    ask DOUBLE,
-    PRIMARY KEY (symbol, timestamp)
+    ask DOUBLE
 );
 """
 

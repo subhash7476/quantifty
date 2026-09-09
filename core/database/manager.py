@@ -290,6 +290,77 @@ class DatabaseManager:
             finally:
                 cc.close()
 
+    def rotate_live_buffer(self, cutoff) -> dict:
+        """Rebuild both live-buffer files keeping only rows at/after `cutoff`.
+
+        Replaces the old `DELETE FROM ... WHERE timestamp < cutoff`. A DELETE
+        reclaims nothing: DuckDB keeps the blocks, so a session that grew the
+        file to 4 GB handed all 4 GB to the next session and grew from there.
+        Rebuilding into a fresh file and swapping it in returns the space, and
+        is cheaper than the DELETE it replaces because the retained row count
+        is tiny.
+
+        Runs on the writer thread between flushes, so no connection is held.
+        """
+        from core.database.schema import MARKET_TICKS_SCHEMA, MARKET_CANDLES_SCHEMA
+        ticks_path, candles_path = self._live_paths()
+        out = {}
+        with self._get_thread_lock('live_buffer'):
+            for path, table, schema in (
+                (ticks_path, 'ticks', MARKET_TICKS_SCHEMA),
+                (candles_path, 'candles', MARKET_CANDLES_SCHEMA),
+            ):
+                if not path.exists():
+                    continue
+                out[table] = self._rotate_one(path, table, schema, cutoff)
+        return out
+
+    def _rotate_one(self, path: Path, table: str, schema: str, cutoff) -> int:
+        tmp = path.with_suffix('.rotate.tmp')
+        for stale in (tmp, Path(str(tmp) + '.wal')):
+            if stale.exists():
+                stale.unlink()
+        conn = duckdb.connect(str(tmp))
+        try:
+            conn.execute(schema)
+            new_cols = [r[1] for r in conn.execute(f'PRAGMA table_info("{table}")').fetchall()]
+            conn.execute(f"ATTACH '{path}' AS old (READ_ONLY)")
+            old_cols = {r[1] for r in conn.execute(
+                f'PRAGMA table_info("old.{table}")').fetchall()}
+            # A store written before a column existed (e.g. ticks.seq) has a
+            # narrower shape; copy the intersection and let the rest default.
+            shared = [c for c in new_cols if c in old_cols]
+            sel = ", ".join(f'"{c}"' for c in shared)
+            kept = conn.execute(
+                f"SELECT count(*) FROM old.{table} WHERE timestamp >= ?", [cutoff]
+            ).fetchone()[0]
+            conn.execute(
+                f"INSERT INTO {table} ({sel}) "
+                f"SELECT {sel} FROM old.{table} WHERE timestamp >= ?",
+                [cutoff],
+            )
+            written = conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
+            conn.execute("DETACH old")
+        finally:
+            conn.close()
+        if written != kept:
+            tmp.unlink(missing_ok=True)
+            raise RuntimeError(
+                f"live-buffer rotation of {table} would lose rows "
+                f"({kept} to keep, {written} written) — original left untouched")
+        # A reader may hold the target for the length of one query; os.replace
+        # fails on Windows while it does.
+        last = None
+        for attempt in range(self._LIVE_RETRIES):
+            try:
+                os.replace(tmp, path)
+                return written
+            except PermissionError as exc:
+                last = exc
+                time.sleep(self._LIVE_RETRY_DELAY_S)
+        tmp.unlink(missing_ok=True)
+        raise last
+
     @contextmanager
     def live_ticks_writer(self):
         self._check_duckdb_write_permission()

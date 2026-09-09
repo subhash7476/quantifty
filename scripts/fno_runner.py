@@ -126,6 +126,7 @@ def build_runner(
     handler_factory: Optional[Callable[..., Any]] = None,
     watchdog_factory: Optional[Callable[[Any], Any]] = None,
     mode: Optional[Mode] = None,
+    rebalance_on_idle: bool = False,
 ) -> LoopDriver:
     """Compose and return a live F&O LoopDriver around the injected source.
 
@@ -298,7 +299,8 @@ def build_runner(
     # through this same root in REPLAY. Default stays LIVE (no behaviour change
     # for existing callers); the caller passes a ReplayClock + mode=Mode.REPLAY.
     mode = mode or Mode.LIVE
-    config = DriverConfig(mode=mode, symbols=list(symbols), max_bars=max_bars)
+    config = DriverConfig(mode=mode, symbols=list(symbols), max_bars=max_bars,
+                          rebalance_on_idle=rebalance_on_idle)
 
     return LoopDriver(
         config,

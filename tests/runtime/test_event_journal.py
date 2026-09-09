@@ -127,9 +127,12 @@ def test_all_event_types_present():
         # E007 (Stage-2 PAPER): additive Stage-2 evidence events.
         "FACT_PUBLISH_SKIPPED", "ENTRY_MARGIN", "ENTRY_SKIPPED",
         "STRUCTURE_CLOSE",
+        # Observe-only evidence around an entry that neither sized nor blocked
+        # it -- kept distinct so ENTRY_MARGIN and ENTRY_SKIPPED stay readable.
+        "ENTRY_DIAGNOSTIC",
     }
     assert {e.value for e in EventType} == expected
-    assert len(EventType) == 24
+    assert len(EventType) == 25
 
 
 def test_default_severity_defined_for_every_event_type():

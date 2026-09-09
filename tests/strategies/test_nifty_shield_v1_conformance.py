@@ -62,7 +62,7 @@ def _materialise_facts_db(tmp_path: Path) -> Path:
     con.execute("""
         CREATE TABLE day_type_facts (
             session_date DATE, checkpoint VARCHAR, regime VARCHAR,
-            regime_confidence DOUBLE, vix_close DOUBLE,
+            regime_confidence DOUBLE, vix_close DOUBLE, vix_pctile DOUBLE,
             regime_fact_version VARCHAR, model_hash VARCHAR,
             produced_by VARCHAR, trained_on VARCHAR
         )
@@ -73,10 +73,11 @@ def _materialise_facts_db(tmp_path: Path) -> Path:
             rows.append((row["session_date"], row["checkpoint"], row["regime"],
                          float(row["regime_confidence"]),
                          float(row["vix_close"]) if row["vix_close"] else None,
+                         float(row["vix_pctile"]) if row.get("vix_pctile") else None,
                          row["regime_fact_version"], row["model_hash"],
                          row["produced_by"], row["trained_on"]))
     con.executemany(
-        "INSERT INTO day_type_facts VALUES (?,?,?,?,?,?,?,?,?)", rows)
+        "INSERT INTO day_type_facts VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
     con.close()
     return db
 
@@ -159,9 +160,19 @@ def test_leg_encoding_and_risk_metadata(facts_db):
                     "sl_distance", "risk_r", "exit"):
             assert key in md, f"missing metadata key {key}"
         assert md["sl_distance"] > 0 and md["risk_r"] > 0
-        assert md["exit"]["tp_pct"] == 0.50
+        # Take-profit is a fraction of the decay available over the hold now,
+        # not of the credit; the source carries both halves so the exit manager
+        # can scale the threshold to this structure's own DTE.
+        assert md["exit"]["tp_decay_frac"] == 0.50
+        assert 0.0 < md["exit"]["available_decay_frac"] < 1.0
+        # sl_mult is the stop for the undefined structures only; the defined
+        # ones stop on sl_frac x max_loss (a credit multiple cannot bound them).
         assert md["exit"]["sl_mult"] == 2.0
-        assert md["exit"]["hard_exit"] == "15:15"
+        assert md["exit"]["sl_frac"] == 0.50
+        # 15:35, from config: the structure is managed by its own TP/SL for
+        # the whole session and the derivatives segment trades past the 15:29
+        # cash auction print.
+        assert md["exit"]["hard_exit"] == "15:35"
         assert s.context is not None
         assert s.context.regime_state in {"BullTrend", "BearTrend", "Choppy"}
         assert s.context.session_type == "PM"

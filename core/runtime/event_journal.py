@@ -95,6 +95,12 @@ class EventType(Enum):
     ENTRY_MARGIN = "ENTRY_MARGIN"
     ENTRY_SKIPPED = "ENTRY_SKIPPED"
     STRUCTURE_CLOSE = "STRUCTURE_CLOSE"
+    # Observe-only evidence recorded around an entry that neither sized it nor
+    # blocked it (the Options-Wall shadow read; a pricing gate that declined to
+    # evaluate). Deliberately NOT ENTRY_MARGIN or ENTRY_SKIPPED: those two are
+    # the lines an operator reads to answer "what sized this?" and "what did we
+    # lose?", and diluting either with diagnostics destroys that signal.
+    ENTRY_DIAGNOSTIC = "ENTRY_DIAGNOSTIC"
 
 
 # Normative default severity per event type (section 15.4). BROKER_ERROR is
@@ -123,6 +129,7 @@ _DEFAULT_SEVERITY: Dict["EventType", "Severity"] = {
     EventType.SIGNAL_CONTRACT_REJECTED: Severity.WARNING,
     EventType.FACT_PUBLISH_SKIPPED: Severity.WARNING,
     EventType.ENTRY_MARGIN: Severity.INFO,
+    EventType.ENTRY_DIAGNOSTIC: Severity.INFO,
     EventType.ENTRY_SKIPPED: Severity.WARNING,
     EventType.STRUCTURE_CLOSE: Severity.INFO,
 }

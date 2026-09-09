@@ -78,8 +78,8 @@ def setup_logger(
     logger.propagate = False
     
     # Create logs directory if it doesn't exist
-    logs_dir = Path("logs")
-    logs_dir.mkdir(exist_ok=True)
+    logs_dir = Path(os.environ.get("NIFTY_LOG_DIR", "logs"))
+    logs_dir.mkdir(parents=True, exist_ok=True)
     
     # Set up file handler with rotation (10MB, 5 backups)
     if log_file is None:

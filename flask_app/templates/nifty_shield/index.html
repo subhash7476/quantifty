@@ -87,6 +87,8 @@
         <div class="ns-card" style="padding: 4px;">
             <div id="fact-band" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));"></div>
         </div>
+
+        <div id="ckpt-strip" class="ns-card" style="padding: 15px 18px 16px; margin-top: 12px;"></div>
     </div>
 
 
@@ -271,10 +273,22 @@ function paintTabs() {
 
 function selectedSessionDate() {
     if (state.session !== 'latest') return state.session;
+    // 'latest' means TODAY when the window is live, not "the last session that
+    // published a fact". Before today's 13:00 checkpoint the newest fact is
+    // yesterday's, and scoping to it showed yesterday's structure under
+    // "this session" labels.
+    if (state.live && state.live.today) return state.live.today;
     const f = state.window.fact;
     if (f && f.session_date) return f.session_date;
     const sessions = state.window.sessions || [];
     return sessions.length ? sessions[0].session : null;
+}
+
+/* True when the newest published fact is not the session being scoped to —
+   i.e. today's 13:00 fact has not landed yet and the fact card is historical. */
+function factIsStale() {
+    const f = state.window.fact;
+    return !!(f && f.session_date && f.session_date !== selectedSessionDate());
 }
 
 function sessionStructures() {
@@ -383,6 +397,52 @@ function paintProcesses() {
 }
 
 /* ---------------------------------------------------------------- hero */
+/* --------------------------------------------- 13:00 checkpoint strip */
+const CKPT_LOOK = {
+    published: ['FIRED',      () => C.green],
+    pending:   ['PENDING',    () => C.amber],
+    not_due:   ['NOT DUE',    () => C.muted],
+    missed:    ['MISSED',     () => C.red],
+    unknown:   ['UNREADABLE', () => C.amber]
+};
+
+function ckptRow(label, item) {
+    return '<div style="display:grid;grid-template-columns:132px 1fr;gap:10px;margin-top:9px;' +
+        'padding-top:9px;border-top:1px solid #F5F2ED;align-items:baseline;">' +
+        '<span class="ns-k">' + label + '</span>' +
+        '<span style="font-size:12px;color:var(--body);text-wrap:pretty;">' + (item.message || '--') +
+        '<span style="color:var(--faint);margin-left:7px;font-size:11px;">' + tShort(item.timestamp) + '</span>' +
+        '</span></div>';
+}
+
+function paintCheckpoint() {
+    const box = document.getElementById('ckpt-strip');
+    if (!box) return;
+    const ck = state.live && state.live.checkpoint;
+    if (!ck) {
+        box.innerHTML = '<div class="ns-note">Checkpoint status unavailable — /api/live returned no ' +
+            'checkpoint block. Templates hot-reload but the blueprint does not; restart Flask to serve it.</div>';
+        return;
+    }
+    const look = CKPT_LOOK[ck.state] || CKPT_LOOK.unknown;
+    const color = look[1]();
+    let html = '<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 14px;">' +
+        '<span class="display" style="font-size:15px;">13:00 checkpoint</span>' +
+        '<span class="mono" style="font-size:11.5px;padding:3px 10px;border-radius:999px;background:' +
+        color + '1F;color:' + color + ';">' + look[0] + '</span>' +
+        '<span style="font-size:11.5px;color:var(--muted);">retry window ' + ck.checkpoint + '–' + ck.deadline + '</span>' +
+        '</div>' +
+        '<div style="font-size:12px;color:var(--body);margin-top:7px;line-height:1.55;text-wrap:pretty;">' +
+        (ck.note || '') + '</div>';
+    if (ck.skip_reason)   html += ckptRow('Publisher said', ck.skip_reason);
+    if (ck.entry_blocked) html += ckptRow('Entry blocked', ck.entry_blocked);
+    if (!ck.skip_reason && !ck.entry_blocked && ck.state === 'published') {
+        html += '<div class="ns-note" style="margin-top:9px;">No entry has been blocked today — ' +
+            'if nothing was entered either, the source proposed nothing.</div>';
+    }
+    box.innerHTML = html;
+}
+
 function paintHero() {
     const f = state.window.fact;
     const live = state.live;
@@ -397,7 +457,8 @@ function paintHero() {
             'The STOP file at the repo root blocks entry and blocks the orchestrator. Remove it to let the window run.';
     } else if (f) {
         document.getElementById('hero-meta').textContent =
-            '13:00 fact · session ' + f.session_date + ' · ' + f.produced_by + ' · model ' + (f.model_hash || '--');
+            (factIsStale() ? 'last 13:00 fact · session ' : '13:00 fact · session ')
+            + f.session_date + ' · ' + f.produced_by + ' · model ' + (f.model_hash || '--');
         const choppy = f.regime === 'Choppy';
         let title, sub;
         if (f.regime === 'BullTrend') {
@@ -411,7 +472,10 @@ function paintHero() {
         } else {
             title = 'Choppy and cheap. <span style="font-style:italic;color:' + C.amber + '">Short straddle is the 13:00 play.</span>';
         }
-        sub = 'The structure cell below is the frozen selection rule (datasheet §5a) applied to the published fact — display only. What the runner actually attempted is in the journal below.';
+        sub = (factIsStale()
+            ? 'This is the ' + f.session_date + ' fact — today’s 13:00 fact has not been published yet, so the play below is the last one on record, not a live call. '
+            : '')
+            + 'The structure cell below is the frozen selection rule (datasheet §5a) applied to the published fact — display only. What the runner actually attempted is in the journal below.';
         document.getElementById('hero-title').innerHTML = title;
         document.getElementById('hero-sub').textContent = sub;
 
@@ -482,7 +546,12 @@ function paintGates() {
     const f = state.window.fact;
     const d = selectedSessionDate();
     const structs = sessionStructures();
-    const lastEntry = effectiveJournal().find(e => e.event_type === 'ENTRY_MARGIN');
+    // Scoped to the selected session: an unscoped find() returns the newest
+    // ENTRY_MARGIN anywhere in the window, so a day with no entry showed the
+    // previous day's margin as if it were today's.
+    const lastEntry = effectiveJournal().find(
+        e => e.event_type === 'ENTRY_MARGIN'
+             && (!d || String(e.timestamp || '').startsWith(d)));
 
     const stopPass = live ? !live.stop_present : null;
     const marksState = (!live || !live.marks || (live.marks.rows || 0) === 0) ? null
@@ -491,9 +560,14 @@ function paintGates() {
     const spanPass = live ? live.span.present : null;
     const vixState = !f || f.vix == null ? null : (f.vix <= 20.0 ? 'pass' : 'fail');
     const onePer = structs.length <= 1;
+    // The real gate is _margin_budget() = 25% of cash (datasheet §7/§9), NOT
+    // the full capital base. Against ₹10,00,000 a genuine budget breach
+    // displayed as a pass — harmless while the flat rate understated 17x,
+    // wrong now that the figure is the broker's.
+    const marginBudget = 0.25 * ((live && live.initial_capital) || 1000000.0);
     const marginState = !lastEntry ? null
         : (lastEntry.metadata && lastEntry.metadata.margin_total != null
-           ? (lastEntry.metadata.margin_total <= 1000000.0 ? 'pass' : 'fail') : null);
+           ? (lastEntry.metadata.margin_total <= marginBudget ? 'pass' : 'fail') : null);
 
     const checks = [
         { label: 'Kill switch (STOP)', reading: live ? (live.stop_present ? 'STOP file present' : 'STOP absent') : '--',
@@ -502,13 +576,14 @@ function paintGates() {
           threshold: 'poller snapshot ≤ 60s old', state: marksState },
         { label: 'SPAN snapshot', reading: live && live.span ? (live.span.present ? 'present for today' : 'missing today') : '--',
           threshold: 'nse_fo_span_{date}.parquet', state: spanPass == null ? 'unknown' : (spanPass ? 'pass' : 'fail') },
-        { label: 'VIX skip gate', reading: f && f.vix != null ? n(f.vix, 2) + ' (' + f.vix_source + ')' : 'no 13:00 fact',
-          threshold: 'vix ≤ 20.0 else session skipped', state: vixState },
-        { label: '1 structure / session', reading: structs.length + ' attempted this session',
+        { label: 'VIX skip gate', reading: !f || f.vix == null ? 'no 13:00 fact'
+              : n(f.vix, 2) + (factIsStale() ? ' (' + f.session_date + ' fact)' : ' (' + f.vix_source + ')'),
+          threshold: 'vix ≤ 20.0 else session skipped', state: factIsStale() ? null : vixState },
+        { label: '1 structure / session', reading: structs.length + ' attempted on ' + (d || 'this session'),
           threshold: 'must be ≤ 1 (max 4 legs)', state: structs.length ? (onePer ? 'pass' : 'fail') : 'unknown' },
         { label: 'Margin fit', reading: lastEntry && lastEntry.metadata && lastEntry.metadata.margin_total != null
-              ? '₹' + n(lastEntry.metadata.margin_total, 0) + ' vs ₹10,00,000' : 'no entry yet',
-          threshold: 'structure margin ≤ capital', state: marginState }
+              ? '₹' + n(lastEntry.metadata.margin_total, 0) + ' vs ₹' + n(marginBudget, 0) : 'no entry yet',
+          threshold: 'structure margin ≤ 25% of capital', state: marginState }
     ];
 
     const strip = document.getElementById('gate-strip');
@@ -531,8 +606,9 @@ function paintGates() {
     const skipped = structs.filter(s => s.status === 'skipped').length;
     const v = document.getElementById('gate-verdict');
     v.textContent = structs.length
-        ? (entered + ' entered · ' + skipped + ' skipped this session')
-        : 'No structure attempted this session';
+        ? (entered + ' entered · ' + skipped + ' skipped on ' + (d || 'this session'))
+        : (factIsStale() ? 'No structure yet on ' + d + ' — awaiting the 13:00 fact'
+                         : 'No structure attempted on ' + (d || 'this session'));
     v.style.background = entered ? 'rgba(25,122,90,.12)' : 'rgba(201,130,26,.12)';
     v.style.color = entered ? C.green : '#A8703C';
 }
@@ -622,23 +698,16 @@ function paintStructs() {
 }
 
 /* ------------------------------------------------------------- slide-over */
+// Signed quantity and average entry come from the server (_leg_position), which
+// scopes the ledger to this session's leg. signed_qty is already in units, so
+// the mark difference is NOT multiplied by lot_size again.
 function legMtm(s, i) {
     const sym = (s.leg_symbols || [])[i];
     const m = state.legMarks && state.legMarks[sym];
     if (!m || m.ltp == null) return null;
-    const fills = (s.fills && s.fills[i]) || [];
-    let signedQty = 0, cost = 0;
-    fills.forEach(t => {
-        const q = Number(t.quantity) || 0;
-        const p = Number(t.price) || 0;
-        const sign = ((t.side || '').toUpperCase() === 'BUY') ? 1 : -1;
-        signedQty += q * sign;
-        cost += p * q * sign;
-    });
-    if (signedQty === 0) return null;
-    const avg = cost / Math.abs(signedQty);
-    const lot = m.lot_size || 75;
-    return (m.ltp - avg) * signedQty * lot;
+    const pos = (s.leg_positions && s.leg_positions[i]) || null;
+    if (!pos || !pos.signed_qty) return null;
+    return (m.ltp - pos.avg_price) * pos.signed_qty;
 }
 
 function legTableHtml(s) {
@@ -760,18 +829,41 @@ function entryMarginHtml(s) {
         e.event_type === 'ENTRY_MARGIN' && e.metadata && e.metadata.group_id === s.group_id);
     if (!ev) return '';
     const md = ev.metadata;
+    // Three engines can price an entry, and SPAN/ELM are absent for two of
+    // them for OPPOSITE reasons — so "not NseMarginEngine" must never be
+    // collapsed to "flat-rate". The broker basket has no SPAN/ELM because
+    // Upstox does not decompose its figure, which is not a downgrade; the
+    // flat-rate MarginTracker has none because it never computed them, which
+    // is. Reading the broker's figure as a fallback restates in the UI exactly
+    // the false claim this margin path was built to remove.
+    const broker = md.engine === 'UpstoxBasketMargin';
+    const flat = md.engine && md.engine !== 'NseMarginEngine' && !broker;
+    const noSpan = broker ? 'n/a — broker basket, not decomposed'
+                 : flat ? 'n/a — flat-rate engine' : '--';
     const rows = [
         ['Engine', md.engine || '--'],
         ['Lots × lot size', (md.lots != null ? md.lots + ' × ' + md.lot_size : '--')],
-        ['SPAN', md.span != null ? '₹' + n(md.span, 0) : '--'],
-        ['ELM', md.elm != null ? '₹' + n(md.elm, 0) : '--'],
+        ['SPAN', md.span != null ? '₹' + n(md.span, 0) : noSpan],
+        ['ELM', md.elm != null ? '₹' + n(md.elm, 0) : noSpan],
         ['Margin total', md.margin_total != null ? '₹' + n(md.margin_total, 0) : '--'],
         ['Declared risk R', md.risk_r != null ? '₹' + n(md.risk_r, 0) : '--'],
     ].map(([k, v]) =>
         '<div style="display:flex;justify-content:space-between;gap:14px;padding:10px 15px;border-top:1px solid #F5F2ED;font-size:12.5px;">' +
         '<span style="color:var(--muted);">' + k + '</span><span class="mono">' + v + '</span></div>').join('');
+    const warn = flat
+        ? '<div style="padding:10px 15px;border-top:1px solid #F5F2ED;font-size:11.5px;line-height:1.5;color:#A8703C;' +
+          'background:rgba(201,130,26,.07);">No SPAN snapshot was loaded, so margin fell back to the flat-rate ' +
+          'MarginTracker (20% of premium notional). ADR-011 makes NseMarginEngine the sole margin authority in ' +
+          'every mode — this figure is not the certified SPAN+ELM number and understates the broker figure.</div>'
+        : broker
+        ? '<div style="padding:10px 15px;border-top:1px solid #F5F2ED;font-size:11.5px;line-height:1.5;color:var(--muted);' +
+          'background:rgba(25,122,90,.06);">Sized on the broker’s own basket margin for the whole structure ' +
+          '(Upstox <span class="mono">/charges/margin</span>), net of the spread benefit a hedged book earns. ' +
+          'Upstox does not decompose it, so SPAN/ELM are genuinely absent rather than missing — this is the ' +
+          'figure the sizing clamp used, not an estimate of it.</div>'
+        : '';
     return '<div style="margin-top:28px;"><div class="ns-sec-h">Entry margin evidence (journal)</div>' +
-        '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' + rows + '</div></div>';
+        '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' + rows + warn + '</div></div>';
 }
 
 function openPanel(s) {
@@ -986,6 +1078,7 @@ async function loadLive() {
         paintLive();
         paintMarksHeader();
         paintHero();
+        paintCheckpoint();
         paintGates();
     } catch (err) {
         console.error('Failed to load live status:', err);

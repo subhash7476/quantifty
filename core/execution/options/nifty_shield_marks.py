@@ -29,7 +29,8 @@ from __future__ import annotations
 
 import time
 from abc import ABC, abstractmethod
-from typing import Dict, List
+from datetime import datetime
+from typing import Dict, List, Optional
 
 import duckdb
 
@@ -46,6 +47,32 @@ class OptionMarksSource(ABC):
         """Return the current premium for each symbol it can price (subset of
         `symbols`); symbols without a real mark are simply absent."""
 
+    @abstractmethod
+    def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
+        """Broker instrument keys for the symbols this source can identify.
+
+        Needed to ask the broker for the structure's basket margin; a source
+        with no broker identity returns {}, and the caller then treats the
+        margin as unavailable rather than guessing a key.
+
+        ABSTRACT ON PURPOSE. This began as a concrete `return {}` default, and
+        `RecordingMarksSource` — the wrapper every recorded LIVE session runs
+        through — inherited it instead of forwarding. The live window then
+        reported no keys for legs whose keys were sitting in the cache, and
+        skipped its 13:00 entry as "broker basket margin unavailable"
+        (2026-09-08, entry lost). A default that means "absent" lets a
+        partial decorator answer on behalf of a source that has the data.
+        Abstract turns that into a TypeError the moment the class is
+        constructed, which is a startup crash instead of a missed trade.
+        """
+
+    @abstractmethod
+    def snapshot_age_s(self, now: Optional[datetime] = None) -> Optional[float]:
+        """Seconds since this source's newest data, or None if it has no clock.
+
+        Abstract for the same reason as `instrument_keys` — see there.
+        """
+
 
 class StaticMarksSource(OptionMarksSource):
     """A fixed mark table — deterministic, for tests and the REPLAY smoke run."""
@@ -55,6 +82,12 @@ class StaticMarksSource(OptionMarksSource):
 
     def marks(self, symbols: List[str]) -> Dict[str, float]:
         return {s: self._marks[s] for s in symbols if s in self._marks}
+
+    def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
+        return {}                    # no broker identity, stated explicitly
+
+    def snapshot_age_s(self, now: Optional[datetime] = None) -> Optional[float]:
+        return None                  # no clock, stated explicitly
 
 
 class ChainSnapshotMarksSource(OptionMarksSource):
@@ -141,3 +174,50 @@ class ChainSnapshotMarksSource(OptionMarksSource):
             con.close()
         return {sym: float(ltp) for sym, ltp in rows
                 if ltp is not None and float(ltp) > 0.0}
+
+    def snapshot_age_s(self, now: Optional[datetime] = None) -> Optional[float]:
+        """Seconds since the newest snapshot, or None if the cache has none.
+
+        The exit manager needs this from 15:29 to 15:35: the underlying stops
+        printing at the auction, so bars no longer prove the feed is alive and
+        the snapshot becomes the SOLE input to a TP/SL decision. A stalled
+        poller would otherwise be priced as a flat market.
+        """
+        con = self._connect()
+        try:
+            latest = self._latest_timestamp(con)
+        finally:
+            con.close()
+        if latest is None:
+            return None
+        return (now or datetime.now()).timestamp() - latest.timestamp()
+
+    def instrument_keys(self, symbols: List[str]) -> Dict[str, str]:
+        """Upstox instrument_key per tradingsymbol, from the latest snapshot.
+
+        Read in its own query against `MAX(snapshot_timestamp)` rather than
+        alongside the marks: a leg's instrument_key is a property of the
+        contract, not of the tick, so a poller write landing between the two
+        reads cannot make the pair disagree the way two price reads could.
+        """
+        if not symbols:
+            return {}
+        con = self._connect()
+        try:
+            latest = self._latest_timestamp(con)
+            if latest is None:
+                return {}
+            placeholders = ", ".join("?" for _ in symbols)
+            try:
+                rows = con.execute(
+                    f"SELECT tradingsymbol, instrument_key FROM {self._table} "
+                    f"WHERE snapshot_timestamp = ? "
+                    f"AND tradingsymbol IN ({placeholders})",
+                    [latest] + list(symbols),
+                ).fetchall()
+            except Exception as exc:
+                raise MarksSourceUnavailable(
+                    f"option-chain cache query failed: {exc}") from exc
+        finally:
+            con.close()
+        return {sym: key for sym, key in rows if key}

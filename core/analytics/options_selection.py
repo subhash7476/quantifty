@@ -31,19 +31,59 @@ MAX_SPREAD_PCT = 0.05
 STRIKE_BAND = 3
 MIN_VOLUME_FALLBACK = 1
 
+# NSE option tick. The dominant tick in the F&O master (696,578 CE/PE rows) and
+# the granularity actually observed in the live chain.
+TICK_SIZE = 0.05
+
+# Slack for the tick comparison — see spread_ok. Far below a paise, so it can
+# only absorb representation error, never a real half-tick.
+_PRICE_EPS = 1e-9
+
 _EOD_ONLY = object()
 
 
-def screen_candidate(bid, ask, oi, volume, min_oi, min_volume, max_spread_pct):
+def spread_ok(bid, ask, max_spread_pct, tick_size: float = TICK_SIZE):
+    """Is this book tight enough to trade? Returns (ok, spread_pct).
+
+    A percentage-only test is unsatisfiable on cheap contracts, because the
+    tick puts a floor under the percentage: at a 0.05 tick, the TIGHTEST
+    possible quote is `0.05 / mid`, so nothing priced under
+    `tick / max_spread_pct` can ever pass. At the 5% default that is Re 1.00 —
+    every option quoted below a rupee failed the guard no matter how good its
+    book. Observed 2026-09-08: an iron fly's 23300 PE at 0.45/0.50 was rejected
+    at "10.5%" for a ONE-TICK spread, while the 24000 CE at 1.05/1.10 passed at
+    4.7% for the same one tick. That is not a liquidity measurement, it is a
+    price threshold in disguise — and it fell hardest on the deep-OTM wings,
+    which are the cheapest legs of the structure by construction.
+
+    So a spread within one tick always passes: it is the tightest book the
+    exchange can express, and rejecting it rejects a perfect quote.
+
+    Compared with a tolerance because the tick boundary is exactly where
+    binary floating point misrepresents decimal prices: `0.65 - 0.60` is
+    0.050000000000000044 and `0.85 - 0.80` is 0.04999999999999993, so without
+    it an identical one-tick book passes at one strike and fails at the next.
+    Observed live 2026-09-08 on a 0.60/0.65 wing. Quotes quantize to the tick,
+    so any epsilon far below a paise separates "one tick" from "two".
+    """
     if bid is None or ask is None or bid <= 0 or ask <= 0:
-        return False, None, "no quote"
+        return False, None
     mid = (bid + ask) / 2.0
-    spread_pct = (ask - bid) / mid
+    spread = ask - bid
+    spread_pct = spread / mid
+    allowance = max(max_spread_pct * mid, tick_size)
+    return spread <= allowance + _PRICE_EPS, spread_pct
+
+
+def screen_candidate(bid, ask, oi, volume, min_oi, min_volume, max_spread_pct):
+    ok, spread_pct = spread_ok(bid, ask, max_spread_pct)
+    if spread_pct is None:
+        return False, None, "no quote"
     if oi is None or oi < min_oi:
         return False, spread_pct, f"OI {oi} < {min_oi}"
     if volume is None or volume < min_volume:
         return False, spread_pct, f"vol {volume} < {min_volume}"
-    if spread_pct > max_spread_pct:
+    if not ok:
         return False, spread_pct, f"spread {spread_pct:.1%} > {max_spread_pct:.0%}"
     return True, spread_pct, None
 

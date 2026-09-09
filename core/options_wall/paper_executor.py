@@ -25,12 +25,12 @@ from core.options_wall.fly import (FlyLeg, IronFly, build_iron_fly, exit_fees,
 class PaperConfig:
     wing_pct: float = 0.015
     lots: int = 1          # qty = lots × the contract's lot_size (per-index, not hardcoded)
-    tp_frac: float = 0.5
-    sl_mult: float = 2.0
+    tp_frac: float = 0.25       # of net credit
+    sl_frac: float = 0.5        # of max_loss, NOT of credit: a fly cannot lose a multiple of its own credit
     entry_start: str = "09:30"
     entry_end: str = "15:00"
     squareoff: str = "15:15"
-    min_dte: int = 1
+    min_dte: int = ScanConfig.min_dte   # single default, shared with the scanner
 
 
 def _hhmm(s: str) -> time:
@@ -57,7 +57,9 @@ class PaperExecutor:
                  scan_config: Optional[ScanConfig] = None,
                  db_path: Path = pers.WALL_RESULTS_DB):
         self.cfg = config or PaperConfig()
-        self.scanner = ChainScanner(scan_config or ScanConfig(wing_pct=self.cfg.wing_pct))
+        self.scanner = ChainScanner(
+            scan_config or ScanConfig(wing_pct=self.cfg.wing_pct,
+                                      min_dte=self.cfg.min_dte))
         self.db_path = db_path
 
     def step(self, underlying, chain, structural, realized_vol, now: datetime) -> Optional[str]:
@@ -68,11 +70,8 @@ class PaperExecutor:
 
         if not (_hhmm(self.cfg.entry_start) <= now.time() <= _hhmm(self.cfg.entry_end)):
             return None
-        dte = (date.fromisoformat(structural.expiry) - now.date()).days
-        if dte < self.cfg.min_dte:
-            return None
-
-        farm = [r for r in self.scanner.scan_chain(chain, structural, realized_vol)
+        farm = [r for r in self.scanner.scan_chain(chain, structural, realized_vol,
+                                                  now=now)
                 if r.screen == "premium_farm"]
         if not farm:
             return None
@@ -94,14 +93,29 @@ class PaperExecutor:
             pnl = unrealized_pnl(fly, mids)
             if pnl is not None and pnl >= self.cfg.tp_frac * row["net_credit"]:
                 reason = "tp"
-            elif pnl is not None and pnl <= -self.cfg.sl_mult * row["net_credit"]:
+            elif pnl is not None and pnl <= -self.cfg.sl_frac * row["max_loss"]:
                 reason = "sl"
         dte = (date.fromisoformat(row["expiry"]) - now.date()).days
         if reason is None and dte <= 1 and now.time() >= _hhmm(self.cfg.squareoff):
             reason = "time_stop"
         if reason is None:
             return None
+        return self._close(row, fly, mids, now, reason)
 
+    def manual_close(self, underlying, trade_id, chain, now: datetime) -> Optional[str]:
+        """Force-close one open trade at current marks (operator-requested).
+
+        Bypasses the rule checks in `_manage` — a manual exit always closes,
+        regardless of TP/SL/regime/time-stop. Returns "manual" on success, or
+        None if the trade isn't open here or any leg is unquoted this cycle.
+        """
+        row = next((t for t in pers.open_trades(underlying, db_path=self.db_path)
+                    if t["trade_id"] == trade_id), None)
+        if row is None:
+            return None
+        return self._close(row, self._rehydrate(row), _mids(chain), now, "manual")
+
+    def _close(self, row, fly, mids, now, reason) -> Optional[str]:
         cost = mark_to_close(fly, mids)
         efees = exit_fees(fly, mids, now.date())
         if cost is None or efees is None:

@@ -39,7 +39,12 @@ def test_poll_cycle_appends_and_heartbeats(tmp_path):
         "NSE_INDEX|Nifty Bank": rows,
     })
 
-    poller = WallPoller(heartbeat_path=heartbeat, pid_path=pid, snapshot_db_path=db)
+    # results_db_path MUST be pinned to a temp file: _poll_cycle writes
+    # scan_results / session_regime / baseline / trades, and without this it
+    # defaults to the live WALL_RESULTS_DB — running the suite would pollute the
+    # production dashboard with this synthetic spot=100 chain.
+    poller = WallPoller(heartbeat_path=heartbeat, pid_path=pid, snapshot_db_path=db,
+                        results_db_path=tmp_path / "results.duckdb")
     poller._poll_cycle(provider)
 
     assert len(store.latest_snapshot("NSE_INDEX|Nifty 50", "2026-08-18", db_path=db)) == 2

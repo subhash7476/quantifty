@@ -125,7 +125,7 @@ def migrate():
             with db_manager.historical_writer(exchange, 'ticks', dt=dt_val) as hist_conn:
                 hist_conn.execute(schema.MARKET_TICKS_SCHEMA)
                 hist_conn.execute("""
-                    INSERT OR IGNORE INTO ticks (symbol, timestamp, price, volume, bid, ask)
+                    INSERT INTO ticks (symbol, timestamp, price, volume, bid, ask)
                     SELECT symbol, timestamp, price, CAST(volume AS BIGINT), NULL as bid, NULL as ask FROM df
                 """)
                 print(f"  Migrated {len(df)} Ticks for {dt_val}")

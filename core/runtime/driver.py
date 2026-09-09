@@ -646,6 +646,7 @@ class LoopDriver:
                 # every cause is caught (drawdown/broker/limit and stale-data).
                 self._check_kill_switch()
                 if not advanced:
+                    self._drive_idle_rebalance()
                     if self._is_exhausted():
                         break
                     # Live: no new bar yet — wait one poll interval (§7.3).
@@ -664,6 +665,25 @@ class LoopDriver:
                     self._publisher.close()
                 except Exception as exc:  # publishing must never break shutdown
                     self._logger.error("Telemetry publisher close failed: %s", exc)
+
+    def _drive_idle_rebalance(self) -> None:
+        """Invoke the rebalance hook on a no-bar tick, at the clock's own time.
+
+        Opt-in (`rebalance_on_idle`): the hook is a per-bar seam, so a book-level
+        rebalancer must never see a between-bars invocation. An options exit
+        manager must: the underlying index stops printing at the cash auction
+        (15:29) while its options trade to 15:40, so without this the last
+        eleven minutes of the F&O session are unmanaged. The hook throttles
+        itself — this fires every poll interval.
+
+        Not wrapped: the bar-driven call at §4.1 is not either, and F3 requires
+        a marks-cache outage to stop the loop loudly rather than be logged away.
+        """
+        if not self._config.rebalance_on_idle:
+            return
+        if self._rebalance_hook is None or self._execution is None:
+            return
+        self._rebalance_hook(self._clock.now(), self._execution)
 
     def _tick(self) -> bool:
         """
