@@ -158,16 +158,98 @@ session.** The two should not be evaluated in the same window.
 
 ---
 
-## 6. Caveats
+## 6. Resolution — (A) applied 2026-09-09
+
+Operator directed the fix now rather than after a session of (D). Recorded because it matters
+for reading the evidence: **(D) and (A) land in the same window, so the next session's results
+cannot attribute an outcome to one or the other.** They are separate commits (`15258d7`,
+`c8557f0`) and independently revertible.
+
+`core/analytics/chain_scanner.py`:
+
+```diff
+     def _pin_strike(self, structural):
+-        dist = structural.gex.gamma_by_strike
+-        if not dist:
+-            return None
+-        return max(dist, key=lambda s: dist[s])
++        gex = structural.gex
++        pin = wm.pin_candidates(gex.gamma_ce_by_strike, gex.gamma_pe_by_strike)["pin"]
++        if pin is not None:
++            return pin
++        dist = gex.gamma_by_strike
++        return max(dist, key=lambda s: dist[s]) if dist else None
+```
+
+`_pin_conviction` switches to the same basis. **It keeps ScanResult's 0–1 unit** by dividing
+`pin_candidates`' 0–100 conviction by 100 — `session_regime.pin_conviction` stores 0–100 and
+`scan_results.pin_conviction` stores 0–1 (measured: 38.06–86.64 vs 0.070–0.276), and
+`index.html` renders each accordingly (line 315 `/100` vs line 637 `×100`). Changing the basis
+must not change the unit, or every historical farm row renders wrong. **That dual scale is a
+pre-existing hazard and is deliberately left alone here** — normalising it is a schema + UI
+change, not part of this defect.
+
+Six tests, written before the change and confirmed failing (`tests/analytics/test_chain_scanner.py`):
+pin uses unsigned mass; falls back to the signed argmax when mass is absent; `None` with no
+gamma; the farm screen admits the 2026-09-09 Nifty shape; conviction is mass-based and stays a
+fraction. `tests/analytics/` + `tests/options_wall/` + `tests/data/`: **196 passed.**
+
+### Replay of 2026-09-09 under (D) + (A)
+
+| | NIFTY | SENSEX |
+|---|---|---|
+| Expiry / DTE | 2026-09-15 / **6** | 2026-09-10 / 1 |
+| Trades opened | 1 | 1 |
+| Entry | 09:30:09, short **23,500** | 09:30:27, short 75,100 |
+| Exit | **none — still open at session end** | 15:15 `time_stop` |
+| Net | — | **+₹922** |
+
+Nifty now trades, centred on **23,500 — exactly the pin the dashboard showed all session.**
+That is the fix working. Sensex is unchanged in substance (+₹922 vs +₹953 under (D) alone; it
+enters 9 minutes earlier because the pin gate now admits it from the open).
+
+### ⚠ The consequence to decide before restarting the poller
+
+**The Nifty position has no exit for five days.** The time stop is
+`dte <= 1 and now >= 15:15`; at DTE 6 it cannot fire until **2026-09-14 15:15**. So a fly
+opened today is held through 09-10, 11, 12 **and the weekend**, unless TP (25% of credit) or
+SL (50% of max_loss) fires. There is no EOD square-off anywhere in the stack — the only other
+close path is an operator-filed close request (`core/options_wall/commands.py`).
+
+This is **designed behaviour, not a new defect**: `dte <= 1` was always a hold-to-expiry rule,
+and `TP_NEVER_FIRES_2026-09-07` §"When is 50% reachable" deliberately kept it. What changed is
+that it was never *reachable* before — `regime_flip` closed everything within minutes, so the
+pilot has **never once observed a multi-day hold**. (D) unmasked it and (A) points it at a
+DTE-6 book.
+
+Concretely, this means unattended overnight and weekend gap exposure on a short-gamma
+structure, where the SL is a mark-based stop that only evaluates while the poller is running.
+Loss is bounded by the fly's structure (max_loss ₹8,939 on today's Nifty entry, against a
+₹13,811 credit), so this is not unbounded risk — but it is a materially different posture from
+anything this pilot has run, and it is worth an explicit decision rather than discovery.
+
+The lever, if intraday is what is wanted, is the `dte <= 1` condition on the time stop — not
+the pin and not the regime. **Not changed here:** that would be a third behavioural change in
+one window, and it is a design question (is this an intraday premium farm or a hold-to-expiry
+one?), not a bug.
+
+---
+
+## 7. Caveats
 
 - Four sessions, two indices, front expiry only. The §3 table samples every 10th snapshot.
 - §1 is a full-session replay (all 1,649 snapshots) and reproduces the live outcome exactly
   (0 farm rows), so the "0 / 1,649" figure is not a sampling artifact.
 - No claim is made that arming Nifty would have been *profitable* today — only that the gate
   excluding it is not measuring what it purports to measure.
-- The replay reconstructs `realized_vol` as a session constant (5.44) rather than recomputing
-  it per cycle. This cannot change the conclusion: the IV−RV gate passed 1,649/1,649 with
-  margin, and the pin gate failed 1,649/1,649 independently of RV.
+- The replay reconstructs `realized_vol` as a session constant (5.44 Nifty / 7.06 Sensex)
+  rather than recomputing it per cycle. This cannot change the §1 conclusion: the IV−RV gate
+  passed 1,649/1,649 with margin, and the pin gate failed 1,649/1,649 independently of RV.
+- §6's replay is **one in-sample session, and the same session that motivated both changes.**
+  It shows the fixes do what they were designed to do; it is not evidence of edge. Nifty's
+  trade never closed, so it has no P&L at all — treat the blank as a blank, not a zero.
+- **(D) and (A) now share an observation window.** Neither can be attributed separately from
+  forward results. This was the operator's call, made knowingly.
 
 ## Reproduction
 
