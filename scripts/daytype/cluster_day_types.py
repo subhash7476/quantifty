@@ -25,6 +25,9 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -301,6 +304,55 @@ def centroid_interpretation(profile: pd.DataFrame, global_means: pd.Series, glob
     return (profile - global_means) / (global_stds + 1e-10)
 
 
+# ── Fit persistence ───────────────────────────────────────────────────────────
+
+def save_fit_artifacts(path: Path, scaler, pca, kmeans, feature_names: list[str],
+                       n_components: int, k_best: int, pca_threshold: float,
+                       vol_weight: float) -> str:
+    """Persist the fit as plain arrays, and return its SHA-256.
+
+    Audit Finding B (REGIME_DETECTION_SPEC_AUDIT_2026-09-09.md): this pipeline
+    produced the classifier's training target but persisted only the labels, so
+    the target definition could be re-derived solely by re-running the whole
+    pipeline and hoping data and library versions had not moved.
+
+    JSON of plain arrays, never a pickle. A pickle is version-coupled to the
+    library that wrote it, and the hash would cover the pickle bytes rather than
+    the numbers -- the same defect this repo's live DayType path already carries
+    with its sklearn model files.
+    """
+    try:
+        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT,
+                                capture_output=True, text=True,
+                                check=True).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        commit = "unknown"
+
+    payload = {
+        "feature_names": list(feature_names),
+        "scaler_mean": scaler.mean_.tolist(),
+        "scaler_scale": scaler.scale_.tolist(),
+        "pca_mean": pca.mean_.tolist(),
+        "pca_components": pca.components_[:n_components].tolist(),
+        "pca_explained_variance_ratio":
+            pca.explained_variance_ratio_[:n_components].tolist(),
+        "n_components": int(n_components),
+        "kmeans_centers": kmeans.cluster_centers_.tolist(),
+        "k": int(k_best),
+        "pca_threshold": float(pca_threshold),
+        "vol_weight": float(vol_weight),
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+
+    import sklearn
+    meta = {**payload, "fit_hash": digest, "git_commit": commit,
+            "sklearn_version": sklearn.__version__}
+    path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    return digest
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -455,6 +507,13 @@ def main():
     profile.to_csv(centroid_path)
     print(f"     Centroids saved: {centroid_path}")
 
+    # Fit artifacts — the scaler, PCA and KMeans that produced these labels.
+    fit_path = OUTPUT_DIR / "cluster_fit.json"
+    fit_hash = save_fit_artifacts(
+        fit_path, scaler, pca, k_results[k_best]['model'], feature_names,
+        n_components, k_best, args.pca_threshold, vol_weight)
+    print(f"     Fit saved:       {fit_path}  (sha256 {fit_hash[:12]})")
+
     # Summary text
     summary_lines = [
         "=" * 60,
@@ -469,6 +528,7 @@ def main():
         f"Calinski-Harabasz: {k_results[k_best]['ch']:.1f}",
         f"Min cluster size: {k_results[k_best]['min_pct']:.1%}",
         f"Seed stability (ARI): {ari_mean:.3f}",
+        f"Fit hash: {fit_hash}",
         "",
         "Cluster sizes:",
     ]
