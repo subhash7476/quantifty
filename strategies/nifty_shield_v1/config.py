@@ -4,6 +4,19 @@ The strategy-parameter dict mirrors the datasheet §3 proposed certified dict
 (the `config_hash` is computed over this frozen form, excluding the runtime
 seam `facts_db_path`). `build_signal_source` merges a caller config over
 DEFAULT_CONFIG.
+
+**Scale-invariance (2026-09-08).** The 2026-09-08 audit found every trading
+decision in this strategy was made by an absolute constant chosen once and never
+re-validated: VIX gates that stopped firing when India VIX compressed, wings
+fixed in index points while 1 sigma to expiry ranged 189-448 points, and a
+profit target set as a fraction of credit that was an order of magnitude outside
+what a 2.5-hour hold can decay. Those constants are replaced here by
+scale-invariant equivalents — percentiles, sigma fractions, and a fraction of
+modelled available decay. Each replacement is the legacy constant mapped onto
+its own historical equivalent in the new unit, so design intent is preserved and
+nothing is fitted to observed P&L; the derivation is
+`scripts/nifty_shield/derive_anchoring_params.py` and
+`docs/reports/index_research/NIFTY_SHIELD_ANCHORING_DERIVATION.md`.
 """
 from __future__ import annotations
 
@@ -12,6 +25,11 @@ import json
 from typing import Any, Dict
 
 STRATEGY_ID = "nifty_shield_v1"
+
+# Provenance of the derived anchoring parameters below. Refreshing them means
+# re-running the derivation script and moving this date with the values.
+ANCHORING_DERIVED_ON = "2026-09-08"
+ANCHORING_SUBSTRATE = "Nifty 50 + India VIX daily closes, 2014-05-14..2026-09-07 (3,040 sessions)"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "underlying": "NSE_INDEX|Nifty 50",
@@ -29,7 +47,25 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # 15:29 auction print, so the exit driver is also driven on idle ticks
     # (RuntimeConfig.rebalance_on_idle) to make this time reachable.
     "exit_time": {"hour": 15, "minute": 35},
-    "profit_target_pct": 0.50,
+
+    # --- Profit target ---------------------------------------------------
+    # A fraction of the decay actually AVAILABLE to this structure, not of the
+    # credit. ATM premium scales ~sqrt(T), so a hold of h market-hours out of T
+    # leaves sqrt((T-h)/T) and the reachable decay with spot unchanged is
+    # 1 - sqrt((T-h)/T) — 3.6% at 8 DTE, 7.3% at 4 DTE, 15.2% at 2 DTE. The old
+    # `profit_target_pct = 0.50` asked for half the credit, which is outside
+    # that set by an order of magnitude: it never fired once, so `time_exit`
+    # was the only exit the strategy had. The 0.50 is kept and the denominator
+    # corrected — "half of what is there" applied to a quantity that exists.
+    # The available fraction is computed per structure at entry from its own
+    # DTE and carried on the signal, so this is not a threshold in credit terms
+    # at all; it self-scales with time to expiry.
+    "profit_target_decay_frac": 0.50,
+    # Market hours in a session, and the modelled hold from the 13:00 entry to
+    # the close. Used only to compute available decay.
+    "session_hours": 6.25,
+    "hold_hours": 2.5,
+
     # Defined-risk structures (iron_fly / the two verticals) stop on a fraction
     # of max loss. A credit multiple cannot bound them: loss is capped at
     # wing_width x qty - credit, so -stop_loss_multiplier x credit is reachable
@@ -50,16 +86,48 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # instrument layer at the execution boundary (ADR-016) -- see the report.
     "lot_size": 65,
     "regime_sizing": {"Choppy": 1.0, "BullTrend": 0.5, "BearTrend": 0.5},
+
+    # --- Volatility gates ------------------------------------------------
+    # `vix_skip_above` stays an ABSOLUTE level on purpose. It is a hard risk
+    # limit ("do not trade this book when vol is outright high"), not a read on
+    # how unusual today's vol is, and a percentile form would happily authorise
+    # trading at VIX 40 in a period whose trailing window was also high.
     "vix_skip_above": 20.0,
-    "vix_reduce_above": 16.0,
-    "iron_fly_vix_above": 14.0,
-    "wing_offset_pts": 100,
-    "directional_wing_pts": 150,
-    "strangle_otm_pts": 50,
+    # The structure-selection gates ARE regime-relative reads, and are keyed to
+    # the trailing India VIX distribution. Legacy 16.0 -> 59.0th percentile and
+    # 14.0 -> 36.8th percentile (median trailing percentile those levels have
+    # historically occupied). Evaluated against the trailing window at entry,
+    # so they cannot silently expire the way the absolute levels did: VIX 14 sat
+    # at the 19.6th percentile in some eras and the 44.0th in others.
+    "vix_strangle_pctile": 59.0,
+    "vix_iron_fly_pctile": 36.8,
+    "vix_pctile_lookback_sessions": 756,
+
+    # --- Strike geometry -------------------------------------------------
+    # Offsets are fractions of 1 sigma to expiry (spot x IV x sqrt(T)), not
+    # fixed index points. The audit measured 1 sigma ranging 189-448 points
+    # across eight trades while the wing stayed at 150 — the same nominal
+    # structure was 0.79 sigma wide one day and 0.34 sigma the next. Fractions
+    # are the legacy point offsets mapped to the sigma they have historically
+    # represented: 150 -> 0.541, 100 -> 0.361, 50 -> 0.180.
+    "directional_wing_sigma_frac": 0.541,
+    "wing_sigma_frac": 0.361,
+    "strangle_otm_sigma_frac": 0.180,
     "expiry_days_min": 2,
     "strike_step": 50,
     "risk_free_rate": 0.065,
     "iv_default": 0.14,
+
+    # --- Entry pricing quality ------------------------------------------
+    # Structure selection chooses a shape; it never asked whether the credit on
+    # offer was worth taking. An entry is skipped when the real credit from
+    # marks falls below this fraction of the Black-Scholes credit for the same
+    # legs at the session's own implied vol. A pure no-trade filter: it can only
+    # reduce activity, and it fires on stale or badly-spread quotes rather than
+    # on a view. Set from what a fairly-priced structure should collect, not
+    # from any observed outcome.
+    "credit_fair_frac": 0.90,
+
     # Undefined-risk (straddle/strangle) per-signal risk declaration: a stated
     # stress distance in index points (datasheet §7a philosophy; proposed value,
     # a freeze input for the datasheet §3/§7 grant).

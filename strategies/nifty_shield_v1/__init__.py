@@ -17,12 +17,13 @@ def build_signal_source(config: Dict[str, Any] = None) -> NiftyShieldSignalSourc
 
     Args:
         config: optional dict merged over DEFAULT_CONFIG. Recognised keys:
-            underlying, entry_checkpoint, exit_time, profit_target_pct,
+            underlying, entry_checkpoint, exit_time, profit_target_decay_frac,
             stop_loss_max_loss_frac, stop_loss_multiplier,
             delta_adjustment_threshold,
             max_portfolio_delta, max_lots, lot_size, regime_sizing,
-            vix_skip_above, vix_reduce_above, iron_fly_vix_above,
-            wing_offset_pts, directional_wing_pts, strangle_otm_pts,
+            vix_skip_above, vix_strangle_pctile, vix_iron_fly_pctile,
+            wing_sigma_frac, directional_wing_sigma_frac,
+            strangle_otm_sigma_frac,
             expiry_days_min, strike_step, risk_free_rate, iv_default,
             undefined_risk_stress_pts, facts_db_path (runtime seam).
     """

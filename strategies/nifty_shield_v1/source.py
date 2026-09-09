@@ -10,6 +10,18 @@ flag is source-internal shadow state, explicitly allowed).
 
 Only `core.events` + `core.runtime.signal_source` are imported (ADR-016);
 the regime fact is the model boundary (D2) — the DayType model never runs here.
+
+HORIZON (audit Finding A, resolved by disclosure): the regime label this reads is
+a **full-session** (09:15-15:29) KMeans cluster, predicted at 13:00 from partial
+features, and consumed over 13:00-15:15. It is a **directional prior**, not a
+same-horizon forecast. What the evidence supports is a BullTrend-minus-BearTrend
+forward-window separation of +0.255 pp (95% CI [+0.197, +0.312], n=1606 OOS
+sessions). The trainer's 75-85% checkpoint accuracy is accuracy against the
+full-session label and says nothing directly about the traded window, and
+`regime_confidence` is confidence in the full-session class rather than a
+probability about the afternoon. Do not derive a threshold or sizing rule as if
+the label described 13:00-15:15.
+See docs/reports/index_research/DAYTYPE_HORIZON_DISCLOSURE.md
 """
 from __future__ import annotations
 
@@ -100,17 +112,31 @@ class NiftyShieldSignalSource(SignalSource):
         regime = fact["regime"]
         conf = float(fact["regime_confidence"])
         vix = fact.get("vix_at_checkpoint") or fact.get("vix_close")
-        structure = structures.select_structure(regime, vix, self._cfg)
+        # Structure selection reads the trailing VIX PERCENTILE, not the level:
+        # the absolute 14/16 gates never fired across the live window and made
+        # iron_fly / short_strangle unreachable. A store predating the column
+        # yields None, which select_structure resolves to the calmest branch.
+        vix_pctile = fact.get("vix_pctile")
+        structure = structures.select_structure(regime, vix_pctile, self._cfg)
+        # Annualised decimal IV for the sigma scale the strikes are anchored to.
+        iv = (float(vix) / 100.0) if vix else float(
+            self._cfg.get("iv_default", 0.14))
 
         base_lots = int(self._cfg.get("max_lots", 2))
         regime_mult = float(self._cfg.get("regime_sizing", {}).get(regime, 0.5))
         vix_reduce = (
-            vix is not None
-            and vix > float(self._cfg.get("vix_reduce_above", 16.0))
+            vix_pctile is not None
+            and float(vix_pctile) > float(
+                self._cfg.get("vix_strangle_pctile", 59.0))
             and structure not in ("short_strangle",)
         )
 
-        sl_distance, risk_r = self._risk_declaration(structure, base_lots)
+        legs = structures.compute_legs(structure, float(bar.close), self._cfg,
+                                       self._session_date, iv)
+        sl_distance, risk_r = self._risk_declaration(structure, base_lots, legs)
+        dte = max((date.fromisoformat(legs[0]["expiry"])
+                   - self._session_date).days, 1)
+        avail_decay = structures.available_decay_frac(dte, self._cfg)
         group_id = str(uuid.uuid5(
             _GROUP_NS, f"{STRATEGY_ID}:{self._session_date}:{structure}"))
 
@@ -129,8 +155,6 @@ class NiftyShieldSignalSource(SignalSource):
             risk_r=risk_r,
         )
 
-        legs = structures.compute_legs(structure, float(bar.close), self._cfg,
-                                       self._session_date)
         signals = []
         for leg in legs:
             metadata = {
@@ -145,12 +169,29 @@ class NiftyShieldSignalSource(SignalSource):
                 "vix_reduce": vix_reduce,
                 "sl_distance": sl_distance,
                 "risk_r": risk_r,
+                "offset_pts": leg["offset_pts"],
+                "sigma_pts": leg["sigma_pts"],
+                "dte": dte,
+                # Carried for the execution-boundary credit gate: it prices the
+                # same legs at the session's own implied vol and refuses an
+                # entry whose real credit falls short of that reference.
+                "spot": float(bar.close),
+                "iv": iv,
                 "exit": {
-                    "tp_pct": float(self._cfg.get("profit_target_pct", 0.50)),
+                    # Take-profit is a fraction of the decay AVAILABLE to this
+                    # structure over the hold, not of the credit -- see config.
+                    "tp_decay_frac": float(
+                        self._cfg.get("profit_target_decay_frac", 0.50)),
+                    "available_decay_frac": avail_decay,
                     "sl_mult": float(self._cfg.get("stop_loss_multiplier", 2.0)),
                     "sl_frac": float(
                         self._cfg.get("stop_loss_max_loss_frac", 0.50)),
-                    "hard_exit": "15:35",
+                    # Derived from config, not a literal: the exit manager
+                    # reads `exit_time` and a hardcoded string here could
+                    # advertise a flatten time the driver does not honour.
+                    "hard_exit": "%02d:%02d" % (
+                        int(self._cfg.get("exit_time", {}).get("hour", 15)),
+                        int(self._cfg.get("exit_time", {}).get("minute", 35))),
                     "max_portfolio_delta": float(
                         self._cfg.get("max_portfolio_delta", 500)),
                 },
@@ -167,18 +208,21 @@ class NiftyShieldSignalSource(SignalSource):
             ))
         return signals
 
-    def _risk_declaration(self, structure: str, base_lots: int):
+    def _risk_declaration(self, structure: str, base_lots: int,
+                          legs: List[Dict[str, Any]]):
         """Structure-derived sl_distance (points) + risk_r (Rs at declared lots).
 
-        Defined structures: wing width is the worst-case loss distance.
+        Defined structures: the wing width actually struck is the worst-case
+        loss distance -- read off the computed legs, because that width is now
+        sigma-anchored and differs session to session rather than being the
+        fixed constant it used to be.
         Undefined (straddle/strangle): a stated stress distance (§7a view).
         """
         lot_size = int(self._cfg.get("lot_size", 75))
-        defined = {
-            "bull_put_spread": int(self._cfg.get("directional_wing_pts", 150)),
-            "bear_call_spread": int(self._cfg.get("directional_wing_pts", 150)),
-            "iron_fly": int(self._cfg.get("wing_offset_pts", 100)),
-        }
-        sl_distance = defined.get(structure, int(self._cfg.get("undefined_risk_stress_pts", 200)))
+        if structure in ("bull_put_spread", "bear_call_spread", "iron_fly"):
+            sl_distance = float(legs[0]["offset_pts"])
+        else:
+            sl_distance = float(
+                self._cfg.get("undefined_risk_stress_pts", 200))
         risk_r = float(sl_distance * lot_size * base_lots)
         return float(sl_distance), risk_r

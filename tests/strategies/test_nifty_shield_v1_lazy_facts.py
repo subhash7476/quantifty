@@ -32,7 +32,8 @@ def _bar(hour: int, minute: int) -> OHLCVBar:
                     close=24000.0, volume=0.0)
 
 
-def _make_facts_db(path: Path, rows, with_checkpoint_col: bool = True) -> None:
+def _make_facts_db(path: Path, rows, with_checkpoint_col: bool = True,
+                   with_pctile_col: bool = True) -> None:
     """Write (drop-and-recreate) a day_type_facts table; each row is a dict."""
     con = duckdb.connect(str(path))
     cols = ["session_date", "checkpoint", "regime", "regime_confidence",
@@ -40,6 +41,8 @@ def _make_facts_db(path: Path, rows, with_checkpoint_col: bool = True) -> None:
             "produced_by", "trained_on"]
     if with_checkpoint_col:
         cols.append("vix_at_checkpoint")
+    if with_pctile_col:
+        cols.append("vix_pctile")
     con.execute("DROP TABLE IF EXISTS day_type_facts")
     con.execute("CREATE TABLE day_type_facts ("
                 + ", ".join(f"{c} VARCHAR" for c in cols) + ")")
@@ -52,7 +55,8 @@ def _make_facts_db(path: Path, rows, with_checkpoint_col: bool = True) -> None:
 
 
 def _fact_row(regime="Choppy", conf=0.70, vix_close=15.0,
-              vix_at_checkpoint=None, session="2026-06-05"):
+              vix_at_checkpoint=None, session="2026-06-05",
+              vix_pctile=None):
     row = {
         "session_date": session, "checkpoint": "13pm", "regime": regime,
         "regime_confidence": conf, "vix_close": vix_close,
@@ -62,6 +66,8 @@ def _fact_row(regime="Choppy", conf=0.70, vix_close=15.0,
     }
     if vix_at_checkpoint is not None:
         row["vix_at_checkpoint"] = vix_at_checkpoint
+    if vix_pctile is not None:
+        row["vix_pctile"] = vix_pctile
     return row
 
 
@@ -121,11 +127,18 @@ def test_entry_waits_within_window_for_late_fact(tmp_path):
 
 
 def test_entry_latches_after_window_expiry(tmp_path):
-    # Fact never arrives in time: after the 10-min window the session is latched
+    # Fact never arrives in time: once the window closes the session is latched
     # and a fact arriving later cannot fire.
+    #
+    # The window length is pinned in the test config rather than inherited from
+    # DEFAULT_CONFIG. This test previously hardcoded 10 minutes against the
+    # default; when the operator widened `entry_window_minutes` to 30 the test
+    # kept asserting the old boundary and had been failing since. What is under
+    # test is the latch, not the production window length.
     db = tmp_path / "facts.duckdb"
     _make_facts_db(db, [])
-    source = build_signal_source({"facts_db_path": str(db)})
+    source = build_signal_source({"facts_db_path": str(db),
+                                  "entry_window_minutes": 10})
     source.on_start()
     assert source.on_bar(_bar(13, 0)) == []
     assert source.on_bar(_bar(13, 10)) == []       # window end is inclusive
@@ -164,13 +177,13 @@ def test_falls_back_to_vix_close_without_checkpoint_column(tmp_path):
     assert out[0]                                  # 15 < 20 -> entry
 
 
-def test_vix_at_checkpoint_above_reduce_still_emits_with_flag(tmp_path):
-    # 16 < vix_reduce_above threshold crossing: vix_at_checkpoint=17 on a
-    # strangle structure still emits (vix_reduce is non-strangle only) — the
-    # checkpoint VIX flows into structure selection and vix_reduce metadata.
+def test_vix_pctile_above_strangle_gate_still_emits_with_flag(tmp_path):
+    # Structure selection keys on the trailing VIX PERCENTILE now, not the
+    # level. A percentile above vix_strangle_pctile (59.0) selects the strangle
+    # and still emits — vix_reduce is non-strangle only.
     db = tmp_path / "facts.duckdb"
     _make_facts_db(db, [_fact_row(regime="Choppy", vix_close=17.0,
-                                  vix_at_checkpoint=17.0)])
+                                  vix_at_checkpoint=17.0, vix_pctile=72.0)])
     out = _drive(build_signal_source({"facts_db_path": str(db)}), [_bar(13, 0)])
     assert out[0]
     assert out[0][0].metadata["structure"] == "short_strangle"
