@@ -344,9 +344,15 @@ All 1,655 SENSEX snapshots re-run through the real `PaperExecutor` against a tem
 | Median hold | 166 s | **20,147 s (5.6 h)** |
 | Exit | 19 × `regime_flip` | **1 × `time_stop`** |
 
-Entered 09:39:12 — the *same instant* as the real trade 10 — short 75,100, wings 76,300 /
-74,000, held to the 15:15 square-off. RoM +6.70%. Swing versus what actually happened:
-**+₹3,871.**
+Entered 09:39:12 — short 75,100, wings 76,300 / 74,000, held to the 15:15 square-off. RoM
++6.70%. Swing versus what actually happened: **+₹3,871.**
+
+**Harness fidelity check:** the replay's entry fired at `09:39:12.642824` against live trade
+10's `09:39:13.897161` — **1.3 seconds apart, inside one poll cycle (~13.7s)**, on the same
+strike and wings. That agreement is the evidence the replay reproduces production, and it is
+what licenses reading the table above. (The replay feeds `realized_vol` as a session constant
+7.06 where the poller recomputes it per cycle; this cannot move either end — the IV−RV gate
+passed with a 7.58 median gap, far from its 2.0 floor, and the time-stop exit is time-only.)
 
 **This is a sanity check, not evidence of edge.** It is one session, and it is the same
 session that motivated the change — necessarily favourable. What it establishes is narrow and
@@ -354,8 +360,19 @@ worth having: the change does what it was designed to do (one position, held, ex
 rule), and the gross was never the problem. Whether short premium on SENSEX pays needs forward
 sessions, not this replay.
 
-**Deployment:** the running poller holds `PaperConfig` and the executor in memory. The new
-behaviour applies only after a poller restart. Confirm no open trade is orphaned at restart.
+**Deployment — required:** the running poller holds `PaperConfig` and the executor in memory.
+**(D) does not take effect until the poller is restarted.** Confirm no open trade is orphaned
+at restart.
+
+**One failure mode is now longer-lived, and is not covered by prior measurement.**
+`unrealized_pnl` returns `None` when any of the four legs is unquoted, and TP and SL are both
+silently skipped for that cycle. The *set* of reachable exits is unchanged by (D) — a `None`
+P&L fell through to the time-stop check before as it does now, and `_close` always required
+quotes — but the *exposure window* is not: a position that lived ~166s now lives ~5.6h, so the
+interval over which a quote gap can leave TP/SL inert is ~120× longer. `TP_NEVER_FIRES`
+measured 0% blind cycles over 545–672-snapshot windows; a held position spans ~1,470, which is
+past the measured range. Not a defect today — an extrapolation to watch, measurable from
+`wall_chain_snapshots` if a held position ever exits somewhere unexpected.
 
 ### Deliberately not done
 

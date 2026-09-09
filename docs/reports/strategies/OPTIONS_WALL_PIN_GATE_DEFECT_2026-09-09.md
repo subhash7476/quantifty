@@ -135,6 +135,14 @@ use. This is a **consistency fix, not a tuning change** — it does not invent a
 it adopts the one the system already treats as authoritative. Keep the signed argmax as the
 same fallback the engine uses when `pin_candidates` returns `None`.
 
+  **Scope warning for whoever implements this: it is not a one-line change.**
+  `ChainScanner._pin_conviction` (`chain_scanner.py:297`) computes its own conviction from
+  `gamma_by_strike` — the same signed series — while `pin_candidates` already returns
+  `conviction` and `margin` off the unsigned mass. Switching the pin without switching the
+  conviction leaves the screen ranking on one basis and gating on another, which is how this
+  defect arose in the first place. Whether the two conviction numbers currently disagree the
+  way the two pins do is **unmeasured** — check it as part of the change, not after.
+
 **B. Leave it, and widen `pin_band_pct` instead.** Rejected on the evidence: today's entry-gate
 pin sat 0.79% from spot with spot never within 200 points of it, so the band would have to
 widen past 0.8% to admit anything — and at that width it stops being a pin-proximity test at
