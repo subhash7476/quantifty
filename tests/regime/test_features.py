@@ -11,8 +11,8 @@ import pandas as pd
 import pytest
 
 from core.analytics.regime.features import (
-    FEATURE_NAMES, build_features, fit_normalization, forward_realized_vol,
-    garman_klass, gk_floor_value, trailing_tercile_cuts,
+    ALL_FEATURES, FEATURE_SETS, build_features, fit_normalization,
+    forward_realized_vol, garman_klass, gk_floor_value, trailing_tercile_cuts,
 )
 
 
@@ -46,9 +46,16 @@ def test_gk_floor_uses_only_non_zero_values():
     assert gk_floor_value(gk, percentile=50.0) == pytest.approx(2e-6)
 
 
+def test_variant_feature_sets_are_subsets_of_the_computed_columns():
+    for name, cols in FEATURE_SETS.items():
+        assert set(cols) <= set(ALL_FEATURES), name
+    assert "drift_t" not in FEATURE_SETS["B"], "Variant B must carry no signed feature"
+    assert "ker_20" not in FEATURE_SETS["B"], "Variant B must carry no trend-shape feature"
+
+
 def test_features_are_nan_through_warmup_and_finite_after():
     f = build_features(make_frame(), gk_floor=1e-9)
-    assert list(f.columns) == list(FEATURE_NAMES)
+    assert list(f.columns) == list(ALL_FEATURES)
     assert f.iloc[:251].isna().any(axis=1).all()
     assert f.iloc[300:].notna().all(axis=1).all()
 

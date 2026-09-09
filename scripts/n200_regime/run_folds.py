@@ -36,14 +36,19 @@ import sys  # noqa: E402
 sys.path.insert(0, str(ROOT))
 
 from core.analytics.regime.features import (  # noqa: E402
-    FEATURE_NAMES, features_from_gk, fit_normalization, gk_floor_value,
+    FEATURE_SETS, features_from_gk, fit_normalization, gk_floor_value,
 )
 from core.analytics.regime.panel_hmm import fit_panel, filter_sequence  # noqa: E402
 
 PANEL = ROOT / "data" / "features" / "n200_regime" / "panel.duckdb"
 OUT_DIR = ROOT / "data" / "features" / "n200_regime"
-OUT = OUT_DIR / "regime_panel.duckdb"
-PARAM_DIR = OUT_DIR / "params"
+
+
+def variant_paths(variant: str) -> tuple[Path, Path]:
+    """Variant B writes to its own paths so Variant A's artifacts are never
+    overwritten and the two remain comparable (variant-B spec §3)."""
+    suffix = "" if variant == "A" else f"_{variant.lower()}"
+    return OUT_DIR / f"regime_panel{suffix}.duckdb", OUT_DIR / f"params{suffix}"
 
 FOLD_YEARS = list(range(2017, 2027))
 N_STATES = 3
@@ -98,14 +103,16 @@ def build_fold_features(df: pd.DataFrame, floors: dict,
     return pd.concat(parts).reindex(df.index)
 
 
-def run_fold(df: pd.DataFrame, year: int) -> tuple[pd.DataFrame, dict]:
+def run_fold(df: pd.DataFrame, year: int,
+              variant: str = "A") -> tuple[pd.DataFrame, dict]:
+    feature_names = list(FEATURE_SETS[variant])
     fit_end = pd.Timestamp(year - 1, 12, 31)
     year_start, year_end = pd.Timestamp(year, 1, 1), pd.Timestamp(year, 12, 31)
 
     floors, pooled = entity_floors(df, fit_end)
     feats = build_fold_features(df, floors, pooled)
 
-    usable = df["in_universe"] & feats[list(FEATURE_NAMES)].notna().all(axis=1)
+    usable = df["in_universe"] & feats[feature_names].notna().all(axis=1)
     long_enough = df.loc[usable, "seq_id"].value_counts()
     keep_seqs = set(long_enough[long_enough >= MIN_SEQ_SESSIONS].index)
     usable &= df["seq_id"].isin(keep_seqs)
@@ -114,9 +121,9 @@ def run_fold(df: pd.DataFrame, year: int) -> tuple[pd.DataFrame, dict]:
     if not fit_mask.any():
         raise RuntimeError(f"fold {year}: empty fit window")
 
-    norm = fit_normalization(feats.loc[fit_mask, list(FEATURE_NAMES)].to_numpy())
+    norm = fit_normalization(feats.loc[fit_mask, feature_names].to_numpy())
 
-    fit_seqs = [norm.apply(g[list(FEATURE_NAMES)].to_numpy())
+    fit_seqs = [norm.apply(g[feature_names].to_numpy())
                 for _, g in feats.loc[fit_mask].groupby(
                     df.loc[fit_mask, "seq_id"], observed=True)]
     fit_seqs = [s for s in fit_seqs if len(s) >= 2]
@@ -134,7 +141,7 @@ def run_fold(df: pd.DataFrame, year: int) -> tuple[pd.DataFrame, dict]:
         if seq_id not in has_year:
             continue
         sub = df.loc[idx].sort_values("trade_date")
-        x = norm.apply(feats.loc[sub.index, list(FEATURE_NAMES)].to_numpy())
+        x = norm.apply(feats.loc[sub.index, feature_names].to_numpy())
         if len(x) < 2:
             continue
         probs, entropy, states = filter_sequence(model, x)
@@ -157,7 +164,8 @@ def run_fold(df: pd.DataFrame, year: int) -> tuple[pd.DataFrame, dict]:
     params = {
         **model.to_dict(),
         "fold_year": year,
-        "feature_names": list(FEATURE_NAMES),
+        "variant": variant,
+        "feature_names": feature_names,
         "normalization": norm.to_dict(),
         "gk_floor_pooled": pooled,
         "gk_floor_entities": len(floors),
@@ -176,9 +184,13 @@ def run_fold(df: pd.DataFrame, year: int) -> tuple[pd.DataFrame, dict]:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Run expanding-window regime folds")
     ap.add_argument("--folds", type=int, nargs="*", default=FOLD_YEARS)
+    ap.add_argument("--variant", choices=sorted(FEATURE_SETS), default="A")
     args = ap.parse_args()
 
-    PARAM_DIR.mkdir(parents=True, exist_ok=True)
+    out_db, param_dir = variant_paths(args.variant)
+    param_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Variant {args.variant}: features "
+          f"{', '.join(FEATURE_SETS[args.variant])}")
     print("Loading base panel...")
     df = load_panel()
     print(f"  {len(df):,} rows, {df['entity'].nunique()} entities")
@@ -186,8 +198,8 @@ def main() -> int:
     frames = []
     for year in args.folds:
         print(f"\n[fold {year}] fitting on data through {year - 1}-12-31 ...")
-        panel, params = run_fold(df, year)
-        (PARAM_DIR / f"fold_{year}.json").write_text(
+        panel, params = run_fold(df, year, args.variant)
+        (param_dir / f"fold_{year}.json").write_text(
             json.dumps(params, indent=2), encoding="utf-8")
         frames.append(panel)
         A = np.asarray(params["A"])
@@ -201,14 +213,14 @@ def main() -> int:
                   f"{(panel['state'] == s).mean():.2f}" for s in range(N_STATES)))
 
     all_panel = pd.concat(frames, ignore_index=True)
-    OUT.unlink(missing_ok=True)
-    con = duckdb.connect(str(OUT))
+    out_db.unlink(missing_ok=True)
+    con = duckdb.connect(str(out_db))
     con.execute("CREATE TABLE regime_panel AS SELECT * FROM all_panel")
     con.execute("CREATE INDEX rp_ent ON regime_panel (entity, trade_date)")
     con.close()
 
-    print(f"\n{len(all_panel):,} rows written to {OUT}")
-    print(f"params -> {PARAM_DIR}")
+    print(f"\n{len(all_panel):,} rows written to {out_db}")
+    print(f"params -> {param_dir}")
     return 0
 
 

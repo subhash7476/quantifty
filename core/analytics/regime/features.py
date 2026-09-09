@@ -18,12 +18,22 @@ import pandas as pd
 GK_BASELINE_WINDOW = 252
 GK_SHORT_WINDOW = 5
 GK_LONG_WINDOW = 60
+GK_MED_SHORT_WINDOW = 20
+GK_MED_LONG_WINDOW = 252
 KER_WINDOW = 20
 DRIFT_WINDOW = 20
 WINSOR_SIGMA = 3.0
 GK_FLOOR_PERCENTILE = 1.0
 
-FEATURE_NAMES = ("gk_vol_z", "gk_ratio_st", "ker_20", "drift_t")
+# Variant A (parent spec §5) and Variant B (volatility-only, variant-B spec §2).
+# `features_from_gk` computes every column; a variant selects its own subset, so
+# the two constructs share one tested feature implementation.
+FEATURE_SETS = {
+    "A": ("gk_vol_z", "gk_ratio_st", "ker_20", "drift_t"),
+    "B": ("gk_vol_z", "gk_ratio_st", "gk_ratio_med"),
+}
+FEATURE_NAMES = FEATURE_SETS["A"]
+ALL_FEATURES = ("gk_vol_z", "gk_ratio_st", "gk_ratio_med", "ker_20", "drift_t")
 
 _LN2_TERM = 2.0 * np.log(2.0) - 1.0
 
@@ -110,6 +120,10 @@ def features_from_gk(gk_s: pd.Series, close: pd.Series,
     long = gk_s.rolling(GK_LONG_WINDOW, min_periods=GK_LONG_WINDOW).mean()
     gk_ratio_st = np.log(short / long)
 
+    med_s = gk_s.rolling(GK_MED_SHORT_WINDOW, min_periods=GK_MED_SHORT_WINDOW).mean()
+    med_l = gk_s.rolling(GK_MED_LONG_WINDOW, min_periods=GK_MED_LONG_WINDOW).mean()
+    gk_ratio_med = np.log(med_s / med_l)
+
     net = (close - close.shift(KER_WINDOW)).abs()
     path = close.diff().abs().rolling(KER_WINDOW, min_periods=KER_WINDOW).sum()
     ker = net / path.where(path > 0)
@@ -120,7 +134,8 @@ def features_from_gk(gk_s: pd.Series, close: pd.Series,
     drift = ret / (daily_sd * np.sqrt(DRIFT_WINDOW)).where(daily_sd > 0)
 
     return pd.DataFrame({"gk_vol_z": gk_vol_z, "gk_ratio_st": gk_ratio_st,
-                         "ker_20": ker, "drift_t": drift}, index=close.index)
+                         "gk_ratio_med": gk_ratio_med, "ker_20": ker,
+                         "drift_t": drift}, index=close.index)
 
 
 def forward_realized_vol(gk: np.ndarray, horizon: int = 5) -> np.ndarray:
