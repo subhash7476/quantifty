@@ -95,5 +95,20 @@
   ],
   "block_a_excluded": true,
   "train_thru": 2023,
-  "version": "v2.0-train_thru2023"
+  "version": "v2.0-train_thru2023",
+  "label_provenance": {
+    "label_source": "data/features/day_type/cluster_labels.csv",
+    "label_fit_span": [
+      2012,
+      2025
+    ],
+    "label_fit_hash": "1935f8e2353eb93ad0bd5db3b9b4a4147e078966664846cd9d85755e4adbd404",
+    "val_year": 2024,
+    "holdout_year": 2025,
+    "val_year_inside_label_fit": true,
+    "holdout_year_inside_label_fit": true,
+    "note": "The KMeans target was fitted over the whole label_fit_span, which contains this model's val and holdout years. Holdout accuracy is therefore measured against labels defined by a fit that saw the holdout year -- an optimism channel, disclosed rather than repaired.",
+    "disclosed_retroactively": "2026-09-09, audit Finding C"
+  },
+  "sklearn_version": "unknown \u2014 model predates version recording"
 }

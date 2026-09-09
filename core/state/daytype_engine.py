@@ -177,6 +177,28 @@ class DayTypeEngine:
 
     # ── Model loading ──────────────────────────────────────────────────────────
 
+    @staticmethod
+    def _check_sklearn_version(dir_name: str, meta: dict) -> None:
+        """Warn when the running scikit-learn differs from the one that trained.
+
+        These artifacts are pickles, so they are coupled to the library that
+        wrote them, and `model_hash` covers the pickle bytes rather than the
+        unpickling library -- a clean environment rebuild can change what the
+        live 13:00 fact says without moving any value the provenance triple
+        tracks (audit Finding E). Models trained before version recording carry
+        no field and are skipped rather than guessed at.
+        """
+        recorded = meta.get("sklearn_version")
+        if not recorded or not recorded[0].isdigit():
+            return
+        import sklearn
+        if sklearn.__version__ != recorded:
+            logger.warning(
+                "MODEL VERSION SKEW: '%s' was trained under scikit-learn %s but "
+                "is being unpickled under %s. Predictions are not guaranteed "
+                "identical; re-train or pin the declared version.",
+                dir_name, recorded, sklearn.__version__)
+
     def _load_models(self) -> None:
         for cp in CHECKPOINT_BARS:
             # Use production override if defined (e.g. logistic_13pm_prod for 13pm)
@@ -195,6 +217,7 @@ class DayTypeEngine:
             self._models[cp] = (model, scaler, meta)
             logger.info(f"Loaded model '{dir_name}' for checkpoint {cp} "
                         f"(block_a_excluded={meta.get('block_a_excluded', False)})")
+            self._check_sklearn_version(dir_name, meta)
 
         if not self._models:
             raise RuntimeError(

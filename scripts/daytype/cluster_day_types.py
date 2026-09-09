@@ -250,20 +250,30 @@ def hungarian_match(centroids_a: np.ndarray, centroids_b: np.ndarray) -> float:
     return float(matched_sim.mean())
 
 
-def subperiod_stability(X_pca: np.ndarray, df_clean: pd.DataFrame, k: int) -> float:
+SUBPERIOD_SPLIT_YEAR = 2020
+
+
+def subperiod_stability(X_pca: np.ndarray, df_clean: pd.DataFrame,
+                        k: int) -> tuple[float, str]:
+    """Fit KMeans separately on each half of the panel and compare centroids.
+
+    Returns (similarity, label) where the label is derived from the data rather
+    than written by hand: the previous version's docstring and console line both
+    said "2023-24 vs 2025-26" while the masks were <= 2020 and >= 2021, so the
+    number was reported as a period it had never tested (audit Finding D).
     """
-    Fit KMeans on early (2023-24) and late (2025-26) subperiods separately.
-    Compute centroid similarity via Hungarian matching.
-    """
-    early_mask = (df_clean.index.year <= 2020)
-    late_mask  = (df_clean.index.year >= 2021)
+    early_mask = (df_clean.index.year <= SUBPERIOD_SPLIT_YEAR)
+    late_mask  = (df_clean.index.year > SUBPERIOD_SPLIT_YEAR)
+    years = df_clean.index.year
+    label = (f"{years.min()}-{SUBPERIOD_SPLIT_YEAR} vs "
+             f"{SUBPERIOD_SPLIT_YEAR + 1}-{years.max()}")
 
     if early_mask.sum() < k or late_mask.sum() < k:
-        return np.nan
+        return np.nan, label
 
     km_early = KMeans(n_clusters=k, n_init=20, random_state=42).fit(X_pca[early_mask])
     km_late  = KMeans(n_clusters=k, n_init=20, random_state=42).fit(X_pca[late_mask])
-    return hungarian_match(km_early.cluster_centers_, km_late.cluster_centers_)
+    return hungarian_match(km_early.cluster_centers_, km_late.cluster_centers_), label
 
 
 # ── Post-cluster diagnostics ──────────────────────────────────────────────────
@@ -306,6 +316,8 @@ def centroid_interpretation(profile: pd.DataFrame, global_means: pd.Series, glob
 
 # ── Fit persistence ───────────────────────────────────────────────────────────
 
+HASH_PRECISION = 12
+
 def save_fit_artifacts(path: Path, scaler, pca, kmeans, feature_names: list[str],
                        n_components: int, k_best: int, pca_threshold: float,
                        vol_weight: float) -> str:
@@ -342,13 +354,22 @@ def save_fit_artifacts(path: Path, scaler, pca, kmeans, feature_names: list[str]
         "pca_threshold": float(pca_threshold),
         "vol_weight": float(vol_weight),
     }
+    # Hash rounded values. KMeans accumulates in parallel, so cluster centres
+    # differ by ~4e-16 between consecutive runs on identical input while every
+    # other array is bit-identical and the labels do not move at all. Hashing raw
+    # floats therefore produces a new digest every run, which makes the hash
+    # useless as a provenance anchor. HASH_PRECISION sits far above that noise
+    # and far below any change that could matter.
+    rounded = {k: (np.round(v, HASH_PRECISION).tolist()
+                   if isinstance(v, list) and k != "feature_names" else v)
+               for k, v in payload.items()}
     digest = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+        json.dumps(rounded, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
 
     import sklearn
-    meta = {**payload, "fit_hash": digest, "git_commit": commit,
-            "sklearn_version": sklearn.__version__}
+    meta = {**payload, "fit_hash": digest, "hash_precision": HASH_PRECISION,
+            "git_commit": commit, "sklearn_version": sklearn.__version__}
     path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
     return digest
 
@@ -447,9 +468,9 @@ def main():
     print(f"    Seed stability (mean ARI over 10 seeds): {ari_mean:.3f}", end="")
     print(" [PASS]" if ari_mean >= 0.60 else " [WEAK - consider simpler k]")
 
-    subp_sim = subperiod_stability(X_pca, df_clean, k_best)
+    subp_sim, subp_label = subperiod_stability(X_pca, df_clean, k_best)
     if not np.isnan(subp_sim):
-        print(f"    Subperiod centroid similarity (2023-24 vs 2025-26): {subp_sim:.3f}", end="")
+        print(f"    Subperiod centroid similarity ({subp_label}): {subp_sim:.3f}", end="")
         print(" [STABLE]" if subp_sim >= 0.70 else " [DRIFTING]")
     else:
         print("    Subperiod stability: insufficient data in one period")
@@ -529,6 +550,8 @@ def main():
         f"Min cluster size: {k_results[k_best]['min_pct']:.1%}",
         f"Seed stability (ARI): {ari_mean:.3f}",
         f"Fit hash: {fit_hash}",
+        f"Subperiod centroid similarity ({subp_label}): "
+        + ("n/a" if np.isnan(subp_sim) else f"{subp_sim:.3f}"),
         "",
         "Cluster sizes:",
     ]

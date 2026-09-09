@@ -268,6 +268,44 @@ def print_logistic_coefficients(model: LogisticRegression,
 
 # ── Persistence ───────────────────────────────────────────────────────────────
 
+LABEL_SOURCE = "data/features/day_type/cluster_labels.csv"
+LABEL_FIT_SPAN = (2012, 2025)   # cluster_day_types.load_features(): range(2012, 2026)
+
+
+def label_provenance(train_thru: int) -> dict:
+    """Disclose the label-fit / evaluation overlap (audit Finding C).
+
+    The target is a KMeans partition fitted over the whole 2012-2025 panel, while
+    the classifier splits train <= train_thru, val train_thru+1, holdout
+    train_thru+2. Both evaluation years sit inside the label fit, so holdout
+    accuracy is measured against labels defined by an unsupervised fit that saw
+    the holdout year. That is tolerable for a taxonomy -- the label describes,
+    it does not forecast -- but it is an optimism channel and it was previously
+    undisclosed in the model metadata.
+    """
+    lo, hi = LABEL_FIT_SPAN
+    val_year, hold_year = train_thru + 1, train_thru + 2
+    fit_path = ROOT / "data" / "features" / "day_type" / "cluster_fit.json"
+    fit_hash = None
+    if fit_path.exists():
+        fit_hash = json.loads(fit_path.read_text(encoding="utf-8")).get("fit_hash")
+    return {
+        "label_source": LABEL_SOURCE,
+        "label_fit_span": [lo, hi],
+        "label_fit_hash": fit_hash,
+        "val_year": val_year,
+        "holdout_year": hold_year,
+        "val_year_inside_label_fit": lo <= val_year <= hi,
+        "holdout_year_inside_label_fit": lo <= hold_year <= hi,
+        "note": (
+            "The KMeans target was fitted over the whole label_fit_span, which "
+            "contains this model's val and holdout years. Holdout accuracy is "
+            "therefore measured against labels defined by a fit that saw the "
+            "holdout year -- an optimism channel, disclosed rather than repaired."
+        ),
+    }
+
+
 def save_model_artifacts(cp: str, model_name: str, model, scaler: StandardScaler,
                          feature_names: list[str], results: list[dict],
                          override_dir_name: str | None = None,
@@ -290,8 +328,12 @@ def save_model_artifacts(cp: str, model_name: str, model, scaler: StandardScaler
         pickle.dump(scaler, f)
 
     # Save metadata
+    import sklearn
+
     meta = {
         'checkpoint':       cp,
+        'sklearn_version':  sklearn.__version__,
+        'label_provenance': label_provenance(train_thru),
         'model':            model_name,
         'feature_names':    feature_names,
         'cluster_names':    CLUSTER_NAMES,
