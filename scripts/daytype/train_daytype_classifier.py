@@ -268,6 +268,20 @@ def print_logistic_coefficients(model: LogisticRegression,
 
 # ── Persistence ───────────────────────────────────────────────────────────────
 
+# The label is a FULL-SESSION cluster; the 13:00 prediction is consumed over
+# 13:00-15:15. Audit Finding A, resolved by disclosure rather than re-labelling:
+# docs/reports/index_research/DAYTYPE_HORIZON_DISCLOSURE.md
+HORIZON_DISCLOSURE = {
+    "label_horizon": "09:15-15:29 full session",
+    "prediction_made_at": "13:00 checkpoint, from 09:15-13:00 partial features",
+    "consumed_over": "13:00-15:15 (NiftyShield structure lifetime)",
+    "semantics": "directional prior, NOT a same-horizon forecast",
+    "supported_claim": "BullTrend minus BearTrend forward-window return +0.255 pp, bootstrap 95% CI [+0.197, +0.312], n=1606 out-of-sample sessions (scripts/nifty_shield/diagnose_regime_horizon.py)",
+    "not_supported": "The 75-85% checkpoint accuracy is accuracy against the FULL-SESSION KMeans label, not about the 13:00-15:15 window. regime_confidence is confidence in the full-session class, not a probability about the afternoon. No threshold or sizing rule may be derived as if the label described the traded window.",
+    "reference": "docs/reports/index_research/DAYTYPE_HORIZON_DISCLOSURE.md",
+    "resolves": "Finding A, REGIME_DETECTION_SPEC_AUDIT_2026-09-09.md (option b)"
+}
+
 LABEL_SOURCE = "data/features/day_type/cluster_labels.csv"
 LABEL_FIT_SPAN = (2012, 2025)   # cluster_day_types.load_features(): range(2012, 2026)
 
@@ -334,6 +348,7 @@ def save_model_artifacts(cp: str, model_name: str, model, scaler: StandardScaler
         'checkpoint':       cp,
         'sklearn_version':  sklearn.__version__,
         'label_provenance': label_provenance(train_thru),
+        'horizon_disclosure': HORIZON_DISCLOSURE,
         'model':            model_name,
         'feature_names':    feature_names,
         'cluster_names':    CLUSTER_NAMES,
