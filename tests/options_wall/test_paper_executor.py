@@ -108,7 +108,7 @@ def test_time_stop_fires_during_a_negative_regime(tmp_path):
     ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 17, 10, 0))
     action = ex.step("NSE_INDEX|Nifty 50", _chain(),
                      _structural(regime="Negative GEX (Volatile)"), 1.0,
-                     datetime(2026, 8, 17, 15, 30))
+                     datetime(2026, 8, 17, 15, 35))
     assert action == "time_stop"
 
 
@@ -116,9 +116,9 @@ def test_time_stop_squares_off(tmp_path):
     db = tmp_path / "r.duckdb"
     ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
     ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 17, 10, 0))
-    # expiry 2026-08-18 (Tue) -> DTE 1 on Mon; 15:30 is the squareoff
+    # expiry 2026-08-18 (Tue) -> DTE 1 on Mon; 15:35 is the squareoff
     action = ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
-                     datetime(2026, 8, 17, 15, 30))
+                     datetime(2026, 8, 17, 15, 35))
     assert action == "time_stop"
 
 
@@ -253,7 +253,7 @@ def test_squareoff_default_is_inside_the_derivatives_session():
     from core.market.session_schedule import session_window
     start, end = session_window("derivatives", date(2026, 9, 10))
     cfg = _hhmm(PaperConfig().squareoff)
-    assert cfg == time(15, 30)
+    assert cfg == time(15, 35)
     assert start < cfg < end
 
 
@@ -281,6 +281,25 @@ def test_squareoff_is_clamped_inside_the_derivatives_close(tmp_path):
 
 def test_squareoff_respects_the_pre_cas_schedule():
     """Before CAS the derivatives segment ended 15:30, so the bound moves with the era."""
-    ex = PaperExecutor(PaperConfig(wing_pct=0.03, squareoff="15:30"))
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03, squareoff="15:35"))
     assert ex._squareoff_time(date(2026, 7, 1)) == time(15, 28)
-    assert ex._squareoff_time(date(2026, 9, 10)) == time(15, 30)
+    assert ex._squareoff_time(date(2026, 9, 10)) == time(15, 35)
+
+
+def test_expiry_day_exit_survives_to_the_settlement_convergence():
+    """DTE-0 resolution happens INSIDE the auction window, not before it.
+
+    2026-09-10 SENSEX trade 31 (short 74,900): gross ran -Rs3,387 at 15:16, then
+    the CAS auction repriced it to +Rs1,876 by 15:20:50 (TP) and +Rs5,049 by
+    15:32 as both shorts collapsed to 2.88 / 0.12 at settlement. A 15:15 stop
+    exits at the worst point of the day, immediately before the convergence the
+    whole structure is short. See
+    OPTIONS_WALL_CAS_AUCTION_WINDOW_ANALYSIS_2026-09-10.md addendum 2.
+    """
+    from core.market.session_schedule import session_window
+    _, end = session_window("derivatives", date(2026, 9, 10))
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03))
+    so = ex._squareoff_time(date(2026, 9, 10))
+    assert so == time(15, 35)
+    assert so > time(15, 30)      # past where the 09-10 convergence completed
+    assert so < end               # still inside the derivatives segment

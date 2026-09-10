@@ -31,7 +31,7 @@ class PaperConfig:
     sl_frac: float = 0.5        # of max_loss, NOT of credit: a fly cannot lose a multiple of its own credit
     entry_start: str = "09:30"
     entry_end: str = "15:00"
-    squareoff: str = "15:30"    # bounded by the derivatives segment; see _squareoff_time
+    squareoff: str = "15:35"    # bounded by the derivatives segment; see _squareoff_time
     min_dte: int = ScanConfig.min_dte   # single default, shared with the scanner
 
 

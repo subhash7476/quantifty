@@ -304,3 +304,112 @@ Today's realised SENSEX book: trade 30 **+₹1,923.43** (`tp` at 12:23:55 — th
 in the pilot's history) and trade 31 **−₹2,495.21** (`manual` at 15:03:40), netting
 **−₹571.78**. Trade 31 was a DTE-0 entry at 12:24 that ran into the same expiry-day gamma this
 addendum measures.
+
+---
+
+# Addendum 2 — the expiry-day case, measured on a real position (and a correction)
+
+Addendum 1 concluded DTE 0 was negative (−₹388 to 15:30, n=1) from a **synthetic** fly built at
+the 15:15 ATM. **That conclusion was an artifact and is withdrawn.** Trade 31 — a real position
+on the same session — says the opposite, decisively.
+
+## 1. Why the synthetic result was wrong
+
+The synthetic fly was centred on **74,600**, the nearest strike to the 15:15 `underlying_ltp`
+of **74,629.50**. But that print was **frozen** — the defect Addendum 1 itself documents.
+SENSEX settled at roughly **74,900** (74,900 CE 2.88 / PE 0.12 at 15:32).
+
+So the synthetic fly was built ~300 points away from where the index actually was, *because the
+stale reference put it there*. It then lost, exactly as a fly centred 300 points off should.
+**It measured the spot-freeze defect, not expiry-day economics.** The strategy does not build
+flies off a frozen print — entries close at 15:00, while spot is still live.
+
+This is the same defect biting twice: once in production (anything spot-keyed after 15:15) and
+once in my own analysis of it.
+
+## 2. What the real position did
+
+Trade 31: short 74,900 CE + PE, wings 76,000 / 73,700, qty 20, credit ₹5,106.50, entered 12:24.
+Marked from the snapshot store:
+
+| time | short CE | short PE | fly cost | gross P&L |
+|---|--:|--:|--:|--:|
+| 15:00:17 | 50.67 | 306.95 | 6,961 | −1,854 |
+| **15:03:22 — closed manually** | 39.62 | 345.38 | 7,501 | **−2,394** |
+| 15:14:32 | 37.70 | 386.77 | 8,274 | −3,168 |
+| **15:16:10 — worst of the day** | 34.50 | 402.35 | 8,493 | **−3,387** |
+| 15:20:31 | 111.12 | 91.53 | 3,918 | +1,188 |
+| **15:20:50** | — | — | — | **TP FIRES +1,876** |
+| 15:26:04 | 38.95 | 61.22 | 1,954 | +3,152 |
+| 15:29:52 | 4.12 | 0.80 | 92 | +5,014 |
+| 15:32:26 | **2.88** | **0.12** | **57** | **+5,049** |
+
+- **TP would have fired at 15:20:50** at gross +₹1,876 → net ≈ **+₹1,673**, against the actual
+  **−₹2,495**. A swing of roughly **₹4,168**.
+- **SL never came close.** Worst point −₹3,387 against a −₹9,447 threshold (0.5 × max_loss
+  ₹18,894). The stop had ₹6,000 of headroom at the worst moment of the day.
+- Held to 15:32 the fly was worth ₹57 against a ₹5,107 credit — **98.9% of the credit
+  captured** as both shorts collapsed into settlement.
+
+**The 15:15 stop exits at the worst point of the expiry session — minutes before the
+convergence the structure is short.** The position was at its maximum drawdown at 15:16 and at
+its maximum profit fourteen minutes later.
+
+## 3. The operator's structural argument, and its limit
+
+> *"either of 2 things will happen either TP or SL hit"*
+
+**This is structurally correct at DTE 0, and it is the strongest argument in this whole
+analysis.** At settlement a short ATM fly is worth `min(|S − K|, wing width)` — so it resolves
+to one extreme or the other. There is no third outcome to wait for. The 15:15 stop is the only
+thing preventing the position from reaching a decided state, and it forces the exit at the
+point of maximum time value remaining — i.e. maximum cost to close.
+
+Two honest limits on it:
+
+- **Which extreme is not guaranteed.** Trade 31 won because SENSEX pinned at its short strike.
+  Had it settled at 75,400 the short CE would have carried 500 of intrinsic and the fly would
+  have run to its stop. The entry gate's pin-proximity screen selects *for* pinning, which is
+  why the structure is coherent — but "TP or SL" is a statement about *resolution*, not about
+  *direction*.
+- **The stop is less reliable in this window.** Gross moved from −₹2,959 to +₹1,188 in 80
+  seconds, and the marks bounce (+634 at 15:22, +1,879 at 15:23). A move in the losing
+  direction could clear the SL threshold between polls. Loss stays bounded by `max_loss` — the
+  fly's wings, not the stop, are the real floor — but do not expect the stop to fill at its
+  level on expiry day.
+
+**Net: the change converts expiry-day from "exit at maximum time value, at the worst moment"
+into "hold to a decided outcome, with a bounded loss."** That is a better trade, and it is also
+a higher-variance one. Both are true.
+
+## 4. Change applied
+
+`squareoff: "15:30"` → **`"15:35"`**, still bounded by `session_window("derivatives", d)` less
+`EXIT_BUFFER_MIN`. 15:35 sits past where the 09-10 convergence completed (~15:29–15:30) and
+clear of the 15:39–15:40 spread blow-out.
+
+**Cost of 15:35 over 15:30 on the DTE≥1 evidence:** Addendum 1 found 15:30 had the better tail
+(−79 vs −520 at 15:35, n=9). That trade-off is accepted deliberately — the DTE-0 case is worth
+more than the DTE≥1 tail is worth, and 15:35 serves both. Revisit if the DTE≥1 tail shows up
+in forward sessions.
+
+Tests: 181 pass, including one pinning the expiry-day rationale.
+
+## 5. The separate defect that actually cost the money today
+
+Trade 31 was closed manually at 15:03 **because the panel showed an active `Premium farm`
+signal and the operator expected to re-enter** — but `entry_end` is 15:00, so no re-entry was
+possible. The close was made on information the system presented without its governing
+constraint.
+
+**This is a known, unfixed defect.** `OPTIONS_WALL_SECOND_FLY_AND_NIFTY_NON_ENTRY_2026-09-08.md`
+closed with exactly this open item: *"The farm list gives no visual indication of why a row is
+not tradeable (window closed / position already open)."* Two days later it cost ₹4,168 in a
+real decision.
+
+The fix is in the dashboard, not the executor: a farm row must carry its tradeability state —
+`entry window closed`, `position already open on this underlying`, or `tradeable`. A screen
+pass is not an entry signal, and the panel currently renders them identically.
+
+**Recommend fixing this before the next expiry.** It is cheap, it is already diagnosed, and on
+today's evidence it is more expensive than anything the square-off change addresses.
