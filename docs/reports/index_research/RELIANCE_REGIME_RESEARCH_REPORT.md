@@ -127,3 +127,82 @@ intraday timing of the *entry/exit within* the trend days (the sma_50 IC is
 strongest of all — the fee wall, not the signal, is what kills it); or a
 proper economic study of `sma_200` long-only with real turnover. Both are
 new decisions, not continuations of this report.
+
+---
+
+# Follow-up studies (2026-09-10)
+
+## Study 1 — Intraday entry/exit timing for the long-only sma_200 book
+
+**Data:** vendor 1m store (`1m_vendor/reliance.duckdb`, 2,605 sessions
+2015-02-02 → 2025-08-06; start-labelled, volume populated, zero dups).
+**Provenance seam found and resolved:** the vendor price *level* differs
+from the repo's CA-adjusted daily series by a smooth ~5% pre-2024 factor
+(different corporate-action lineage — both bonuses plus an accumulating
+dividend adjustment; daily/vendor close ratio drifts 0.93 → 1.00). Every
+vendor day is **rescaled by its own same-day close ratio**, aligning the
+level to the daily series while preserving the intraday shape exactly
+(`scripts/reliance_regime/intraday.py`, tested).
+
+**Book:** 69 sma_200 round trips 2010–2026; 38 inside the vendor window.
+Entry variants on the day after the entry signal (E+1): open, first-30-min
+TWAP, VWAP, dip limit (open − 0.5×prior range, else close), and the
+infeasible day-low bound; exit variants: signal close (baseline) vs
+next-day open. Era-accurate delivery fees on every leg.
+
+| entry / exit | gross/trade | net/trade | ann net | win rate |
+|---|---:|---:|---:|---:|
+| **close_E / close_X (baseline)** | +4.59% | +4.36% | **+15.6%** | 0.26 |
+| open_E1 / close_X | +4.18% | +3.95% | +14.2% | 0.24 |
+| twap30_E1 / close_X | +4.17% | +3.94% | +14.1% | 0.26 |
+| vwap_E1 / close_X | +3.97% | +3.74% | +13.4% | 0.29 |
+| dip_E1 / close_X | +4.05% | +3.82% | +13.7% | 0.32 |
+| low_E1 / close_X (infeasible) | +5.30% | +5.07% | +18.2% | 0.47 |
+| close_E / open_X1 | +4.76% | +4.53% | +16.2% | 0.32 |
+
+**Finding: intraday timing does NOT improve the book.** Every executable
+next-day entry variant is *worse* than buying at the signal close — the
+E→E+1 overnight move is positive on trend days (waiting costs ~1.2–2.2% ann).
+Even perfect foreknowledge of the entry day's low (the infeasible bound)
+adds only +2.6% ann, and no executable rule captures any of it. The one
+small improvement is on the exit side: exiting at the open of the day after
+the exit signal gains ~0.6% ann (+16.2% vs +15.6%) — the exit-day overnight
+gap also trends. The close-to-close convention used in the main research
+was already the right execution.
+
+## Study 2 — Economic study of long-only sma_200 (full 2010–2026 panel)
+
+**Cost ladder** (per-leg cost in bp; ~8 round trips/yr, low turnover):
+
+| per-leg | 0bp | 2bp | 5bp | 10bp (STT reality) | 15bp | 20bp | 25bp |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| ann net | +6.4% | +6.2% | +6.0% | **+5.5%** | +5.1% | +4.7% | +4.3% |
+| Sharpe | 0.32 | 0.31 | 0.30 | 0.28 | 0.26 | 0.24 | 0.22 |
+| maxDD | −41% | −42% | −43% | −45% | −47% | −49% | −51% |
+
+Cost sensitivity is ~0.85%/yr per 10 bp/leg — **fees are not the binding
+constraint** (unlike the daily-continuation signals at 19+ trades/yr). The
+binding constraint is the signal itself.
+
+**Yearly net (≈10.5 bp/leg):** 2010–2016 mostly flat (−10% to −3% with
+0.10–0.81 participation; RELIANCE was range-bound), then the trend era
+**2017–2021**: +55%, +24%, +21%, +29%, +7%; then **2022 −10%, 2023 −1.3%
+(33% participation), 2024 +10.6%, 2025 +14.8%, 2026 −25.4% (13%
+participation — caught in the drawdown)**.
+
+**Verdict of the economics:** over the full span the book nets +5.4%/yr vs
+buy-and-hold gross +13.1% (**excess −7.7%**) — trend timing *gave up* half
+the stock's return to sit flat, its drawdown protection is modest (−45% vs
+−40%), and the bootstrap CI of the daily mean ([−0.01%, +0.06%]) **includes
+zero**: the full-span edge is not statistically distinguishable from zero.
+The +15.6% ann net in Study 1's vendor window is the 2015–2025 trend-era
+subsample, not the whole history.
+
+**Combined conclusion:** intraday timing cannot rescue the sma_200 book,
+and the sma_200 book itself is economically fragile — its entire net
+advantage is the 2017–2021 trend era, and on the full 2010–2026 record it
+underperforms simply holding RELIANCE. For a single name, the regime here
+is the stock's own trend; both follow-up paths the report offered have now
+been walked and neither changes the verdict of the main research:
+**direction is weakly predictable (continuation), but no delivery-equity
+expression of it is robustly profitable.**
