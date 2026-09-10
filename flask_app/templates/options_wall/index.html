@@ -1132,8 +1132,10 @@ function legQuoteTable(t, isOpen) {
         const exitMid = l.exit_mid != null ? l.exit_mid : l.mid;
         const cells = isOpen
             ? [n(l.bid, 2), n(l.ask, 2), n(l.cur_mid, 2), n(l.iv, 2), n(l.delta, 3)]
+            // Sign is the price move; colour is this leg's P&L contribution — a
+            // short leg gains as it cheapens, a long wing loses.
             : [n(exitMid, 2), (ref != null && exitMid != null)
-                  ? '<span style="color:' + (exitMid < ref ? C.green : C.red) + ';">' +
+                  ? '<span style="color:' + (((l.side === 'SELL') === (exitMid < ref)) ? C.green : C.red) + ';">' +
                     (exitMid < ref ? '−' : '+') + n(Math.abs(exitMid - ref), 2) + '</span>' : '--'];
         return '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;padding:9px 15px;border-top:1px solid #F5F2ED;' +
             'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:center;">' +
@@ -1159,7 +1161,7 @@ function contextHtml(ctx) {
     const regimePart = r ? (
         kvRow('Regime', '<span style="color:' + regimeColor(r.regime) + ';">' + (r.regime || '--') + '</span>') +
         kvRow('Spot at entry', n(r.underlying_ltp, 2)) +
-        kvRow('Pin strike', n(r.pin_strike, 0) + (r.pin_conviction != null ? '  ·  ' + pct(r.pin_conviction * 100, 1) + ' conviction' : '')) +
+        kvRow('Pin strike', n(r.pin_strike, 0) + (r.pin_conviction != null ? '  ·  ' + n(r.pin_conviction, 0) + ' / 100 · ' + convBand(r.pin_conviction) : '')) +
         kvRow('Walls (put / call)', n(r.put_wall, 0) + ' / ' + n(r.call_wall, 0)) +
         kvRow('Net GEX', cr(r.net_gex_cr)) +
         kvRow('ATM IV / RV', n(r.atm_iv, 2) + ' / ' + n(r.realized_vol, 2) +
