@@ -30,12 +30,14 @@ def _row(strike, otype, ltp, iv, key):
     )
 
 
-def _structural(spot, regime, gamma_by_strike, zero_gamma=None):
+def _structural(spot, regime, gamma_by_strike, zero_gamma=None,
+                ce_mass=None, pe_mass=None):
     pcr = PCRResult(pcr=1.0, total_ce_oi=100, total_pe_oi=100)
     gex = GEXResult(
         net_gamma_total=sum(gamma_by_strike.values()),
         net_gamma_ce=1.0, net_gamma_pe=1.0,
         gamma_by_strike=gamma_by_strike, zero_gamma_level=zero_gamma, regime=regime,
+        gamma_ce_by_strike=ce_mass or {}, gamma_pe_by_strike=pe_mass or {},
     )
     return OptionsStructuralData(
         underlying="NSE_INDEX|Nifty 50", underlying_ltp=spot, expiry="2026-08-18",
@@ -170,3 +172,69 @@ def test_rv_noisier_is_higher():
     calm = annualized_rv_pct([[100.0, 100.1, 100.0, 100.1]])
     wild = annualized_rv_pct([[100.0, 101.0, 100.0, 101.0]])
     assert wild > calm > 0
+
+
+# --- pin definition (2026-09-09 pin-gate defect) ----------------------------
+
+def _pin_case(spot):
+    """Mass concentrates at 100 (near spot); signed exposure peaks at 110 (far).
+
+    This is the 2026-09-09 Nifty shape: the dashboard pinned 23,500 (0.11% from
+    spot) while the entry gate's signed argmax sat at 23,700 (0.79%), locking the
+    index out on 1,649 of 1,649 snapshots.
+    """
+    return _structural(
+        spot, "Positive GEX (Stable)",
+        gamma_by_strike={100.0: -8.0, 110.0: 3.0},   # signed argmax -> 110
+        ce_mass={100.0: 12.0, 110.0: 2.0},           # unsigned mass  -> 100
+        pe_mass={100.0: 10.0, 110.0: 1.0},
+    )
+
+
+def test_pin_uses_unsigned_gamma_mass_not_signed_exposure():
+    """The entry gate must test the same pin the dashboard and engine already use.
+
+    `wall_metrics.pin_candidates` (unsigned mass) is the platform's primary pin;
+    `engine._regime_snapshot` reaches for the signed argmax only as a fallback.
+    """
+    scanner = ChainScanner()
+    assert scanner._pin_strike(_pin_case(100.0)) == 100.0
+
+
+def test_pin_falls_back_to_signed_argmax_when_mass_is_absent():
+    """Mirrors engine.py: the signed argmax is the fallback, not the definition."""
+    scanner = ChainScanner()
+    st = _structural(100.0, "Positive GEX (Stable)", {100.0: 1.0, 110.0: 10.0})
+    assert scanner._pin_strike(st) == 110.0
+
+
+def test_pin_is_none_when_there_is_no_gamma_at_all():
+    assert ChainScanner()._pin_strike(_structural(100.0, "Positive GEX (Stable)", {})) is None
+
+
+def test_farm_admits_a_chain_pinned_near_spot_by_mass():
+    """The Nifty lockout: every other gate passed; only the pin gate failed."""
+    scanner = ChainScanner(ScanConfig(iv_rv_min_gap=2.0, pin_band_pct=0.005))
+    chain = [
+        _row(100.0, "CE", 5.0, 15.0, "K1"), _row(100.0, "PE", 5.0, 15.0, "K2"),
+        _row(110.0, "CE", 1.0, 15.0, "K3"), _row(110.0, "PE", 1.0, 15.0, "K4"),
+    ]
+    farm = [r for r in scanner.scan_chain(chain, _pin_case(100.0), realized_vol=10.0,
+                                          now=_NOW) if r.screen == "premium_farm"]
+    assert len(farm) == 1
+    assert farm[0].strike == 100.0
+
+
+def test_pin_conviction_is_computed_on_the_mass_basis_and_stays_a_fraction():
+    """Conviction must share the pin's basis, and keep ScanResult's 0-1 unit.
+
+    `session_regime.pin_conviction` is 0-100 and `scan_results.pin_conviction` is
+    0-1; the dashboard renders each accordingly (index.html:315 vs :637). Changing
+    the basis must not change the unit.
+    """
+    scanner = ChainScanner()
+    st = _pin_case(100.0)
+    conv = scanner._pin_conviction(st, scanner._pin_strike(st))
+    assert 0.0 < conv <= 1.0
+    # 110 scores (2+1)/(12+10) = 13.6% of the leader -> conviction 1 - 0.136
+    assert abs(conv - 0.8636) < 0.01

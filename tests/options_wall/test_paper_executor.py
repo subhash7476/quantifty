@@ -54,14 +54,62 @@ def test_does_not_open_outside_entry_window(tmp_path):
     assert action is None
 
 
-def test_regime_flip_closes_open_position(tmp_path):
+def test_regime_flip_does_not_close_an_open_position(tmp_path):
+    """A GEX sign flip is a no-new-entry condition, not an exit.
+
+    The regime sign is the entry gate read backwards, and it changes state every
+    28-93s (2026-09-09 SENSEX: 55 flips, 19 round trips, -Rs2,918 net on +Rs1,125
+    gross). Exiting on it costs a full round trip to act on ~2 points of expected
+    index movement. TP/SL/time-stop own exits.
+    """
     db = tmp_path / "r.duckdb"
     ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
     ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
     action = ex.step("NSE_INDEX|Nifty 50", _chain(),
                      _structural(regime="Negative GEX (Volatile)"), 1.0,
                      datetime(2026, 8, 14, 11, 0))
-    assert action == "regime_flip"
+    assert action is None
+
+
+def test_negative_regime_still_blocks_a_new_entry(tmp_path):
+    """The no-new-entry half of the rule is preserved — it lives in the farm screen."""
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb")
+    action = ex.step("NSE_INDEX|Nifty 50", _chain(),
+                     _structural(regime="Negative GEX (Volatile)"), 1.0,
+                     datetime(2026, 8, 14, 10, 0))
+    assert action is None
+
+
+def test_tp_fires_during_a_negative_regime(tmp_path):
+    """What the change buys: the regime flip no longer preempts the profit target."""
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
+    action = ex.step("NSE_INDEX|Nifty 50", _chain_scaled(0.70),
+                     _structural(regime="Negative GEX (Volatile)"), 1.0,
+                     datetime(2026, 8, 14, 11, 0))
+    assert action == "tp"
+
+
+def test_sl_fires_during_a_negative_regime(tmp_path):
+    """The stop is the downside bound once the regime exit is gone."""
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
+    action = ex.step("NSE_INDEX|Nifty 50", _chain_scaled(1.15),
+                     _structural(regime="Negative GEX (Volatile)"), 1.0,
+                     datetime(2026, 8, 14, 11, 0))
+    assert action == "sl"
+
+
+def test_time_stop_fires_during_a_negative_regime(tmp_path):
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 17, 10, 0))
+    action = ex.step("NSE_INDEX|Nifty 50", _chain(),
+                     _structural(regime="Negative GEX (Volatile)"), 1.0,
+                     datetime(2026, 8, 17, 15, 15))
+    assert action == "time_stop"
 
 
 def test_time_stop_squares_off(tmp_path):
