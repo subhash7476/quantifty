@@ -154,23 +154,105 @@ Stop-Process -Id 20012 -Force; Start-Sleep -Seconds 3; Get-Process -Id 20012 -Er
 An empty result from the last command means it is gone. There are no open
 positions today, so a session restart risks nothing beyond the journal seam.
 
-## 6. Follow-up (not fixed here)
+## 6. How the stale rows got there — VERIFIED (was a hypothesis)
 
-1. **The three stale rows should not be in the buffer at all.** The rotation was
-   submitted at 08:45:46 today (`EOD purge: live buffer cleared of rows before
-   2026-09-10`) — one second after the WebSocket connected at 08:45:46.
-   *Hypothesis, unverified:* the WS connect delivers a last-known-LTP snapshot
-   per subscribed symbol carrying the previous session's exchange timestamp, and
-   the aggregator writes those **after** the rotation completes. Consistent with
-   the evidence — exactly the 3 index symbols, `O=H=L=C`, `volume=0`,
-   `is_synthetic=False` (so not the `RecoverBars` path, which stamps TRUE).
-   Fixing the ordering is a `market_ingestor` / writer-worker change, tracked
-   with the F3/F4/F1 redesign.
+The 2026-09-10 09:00 hypothesis in the first revision of this report is now
+confirmed from the code path, and the earlier apparent contradiction (no stale
+rows in `ticks_today.duckdb`) is explained: the ingestor was **restarted at
+13:48 and 14:04**, and each startup purge removed them.
+
+**The tick timestamp is the exchange's last-traded time, not the arrival time.**
+`LiveBufferWriter._parse` (`core/database/ingestors/live_buffer_writer.py`):
+
+```python
+ts = datetime.fromtimestamp(ltt_ms / 1000.0, tz=IST).replace(tzinfo=None)
+```
+
+`ltt` is `ltpc.ltt` from the Upstox feed. `DBTickAggregator._aggregate_one` then
+buckets on exactly that value:
+
+```sql
+SELECT date_trunc('minute', timestamp) AS bar_ts ... FROM ticks
+```
+
+So **a tick whose `ltt` is yesterday produces a candle stamped yesterday**, no
+matter when it arrives.
+
+### Today's sequence
+
+| time | event |
+|---|---|
+| 08:45:46.116 | WebSocket ingestor started |
+| 08:45:46.123 | `Purge` **queued**; writer rotates ticks + candles (cutoff 2026-09-10) |
+| ~08:45:47 | Feed sends current state per subscribed symbol. For the three indices the last dissemination was **2026-09-09 16:00**, so `ltt` = yesterday — the index feed does not start today's session until 09:00 |
+| next flush | those ticks land in `ticks` stamped `2026-09-09 16:00` |
+| next `Aggregate` | `date_trunc('minute')` → three candles at **2026-09-09 16:00** |
+| 13:48 / 14:04 | ingestor restarts → purge removes the stale ticks *and* candles |
+
+The purge is **queued, not synchronous** — `_purge_stale_live_buffer` calls
+`writer.submit(Purge(cutoff))` and logs immediately. It is a one-shot at
+startup (`_last_cleanup_date` blocks a same-day repeat), so anything the feed
+writes *after* it survives until the next day's purge. That is the whole
+mechanism: **the purge is not wrong, it is simply first.**
+
+`is_synthetic=False` on those rows is also correct-by-design, not a bug:
+`is_carry_forward()` is `NSE_EQ|`-only on purpose (indices carry `volume=0` on
+every bar, so the predicate would mark real index closes as fabricated). It
+therefore cannot flag an index carry-forward, which is exactly what these were.
+
+Why only the three indices: they are the symbols whose feed carries a non-zero
+LTP with a stale `ltt` at 08:45 pre-open. Equity/F&O ticks with `ltp == 0` are
+dropped in `_parse`.
+
+### What `candles_today.duckdb` is for
+
+**It is the live session's working store, and it is *not* the source of the
+permanent history.**
+
+- **Written by:** `DBTickAggregator` (WS ticks → 1m bars, ~1.5 s cadence),
+  `RecoverBars` (gap backfill, `is_synthetic=TRUE`), and
+  `fetch_upstox_historical.insert_all_candles_to_db` (any row dated >= today).
+- **Read by:** `MarketDataQuery.get_ohlcv` / `get_latest_bar` — which is how
+  **`LiveDuckDBMarketDataProvider` feeds the LoopDriver its bars**, and how the
+  Flask/options facade serves live prices; the DayType 13:00 publisher
+  (fallback source); the evidence recorder; and `ops/preflight.py` (VIX
+  freshness).
+- **Promotion to permanent storage: none.** `data/market_data/nse/candles/1m/
+  {date}.duckdb` is written by `download_all_data.py` →
+  `fetch_upstox_historical.py`, which **re-fetches the session from the Upstox
+  API** post-close (`persist-today` is gated on `_session_closed()`). Nothing
+  copies live-buffer rows into the per-day store. The buffer is genuinely
+  disposable — rotated to near-empty each morning — which is why a stale row in
+  it is a *runtime* hazard only and never contaminates history.
+
+### Residual risk in the same class (not fixed, not observed)
+
+`MarketDataQuery.get_ohlcv` applies no session-date filter to the live buffer,
+and `LiveDuckDBMarketDataProvider` warms up with `lookback_bars=100`. Early in a
+session — before 100 of today's bars exist — a stale prior-session row is
+inside that window. It did **not** bite today (the journal shows bars ticking
+13:01 → 13:31 at correct times), and `get_latest_bar`'s
+`ORDER BY timestamp DESC LIMIT 1` can never pick a stale row over a newer one.
+Flagging it as the one remaining reader that could see one.
+
+## 7. Follow-ups (not fixed here)
+
+1. **Order the startup purge after the first feed flush, or re-run it once the
+   session's own bars start.** The purge is correct but races the connect
+   snapshot. Simplest durable option: make the rotation drop rows outside the
+   *current* session window rather than "before today", so a stale-`ltt` row
+   written seconds later is still excluded. This belongs with the writer-worker
+   redesign (F3/F4/F1), not as a spot fix.
 2. **`_purge_stale_live_buffer` logs success on `submit()`, not on completion.**
-   `"EOD purge: live buffer cleared"` is printed the moment the command is queued.
+   `"EOD purge: live buffer cleared"` prints the moment the command is queued.
    The rotation's own result line (`live buffer rotated at ...: candles=N kept`)
    comes from `core.database.ingestors.live_buffer_writer`, whose logger has no
-   handler and does not reach `logs/market_ingestor.log` — so **the rotation's
-   actual outcome is invisible in the logs.** This is the repo's own
-   "a value that is printed but never asserted is documentation, not a control"
-   pitfall. The purge log line should move to the completion callback.
+   handler and never reaches `logs/market_ingestor.log` — so **the rotation's
+   actual outcome is invisible.** This is the repo's own "a value that is
+   printed but never asserted is documentation, not a control" pitfall. Move the
+   log line to the completion path.
+3. **Observed once, not chased:** a native `Fatal Python error: Aborted` in
+   `core/execution/portfolio/trade_recorder.py:180 _insert_entry` during one
+   full-directory `tests/nifty_shield_paper` run. The same suite passed 52/52
+   before and 53/53 after, and the file passes in isolation — flaky, and the
+   live stack was writing stores concurrently at the time.
