@@ -23,6 +23,7 @@ from flask import Blueprint, jsonify, render_template, request
 
 from core.database.utils.market_hours import MarketHours
 from core.options_wall import persistence
+from core.options_wall.tradeability import tradeability
 from core.options_wall.engine import UNDERLYINGS
 from core.options_wall.health import WALL_HEARTBEAT_PATH
 from flask_app.middleware import login_required
@@ -50,6 +51,14 @@ def api_farm():
     ts, rows = persistence.latest_scan_results(sym)
     river = persistence.regime_river(sym, 1)
     regime = river[-1] if river else None
+
+    # A row is a screen pass, not an entry signal — say which, per row.
+    has_open = bool(persistence.open_trades(sym))
+    deriv_open = MarketHours.is_derivatives_open()
+    now = datetime.now()
+    for r in rows:
+        r["tradeability"] = tradeability(r, now, has_open, deriv_open)
+
     return jsonify({
         "index": index,
         "ts": ts.isoformat() if ts else None,
