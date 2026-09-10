@@ -79,9 +79,10 @@ def test_open_trade_marks_computes_unrealized_pnl():
             '{"side":"BUY","type":"CE","strike":110,"mid":0.0},'
             '{"side":"BUY","type":"PE","strike":90,"mid":0.0}]'),
     }
-    mids = {(100, "CE"): 55.0, (100, "PE"): 30.0, (110, "CE"): 5.0, (90, "PE"): 4.0}
+    quotes = {(100, "CE"): {"mid": 55.0}, (100, "PE"): {"mid": 30.0},
+              (110, "CE"): {"mid": 5.0}, (90, "PE"): {"mid": 4.0}}
     # cost to close = (55 + 30) short - (5 + 4) wings = 76/unit × 2 = 152
-    mark, unrealized, legs = _open_trade_marks(trade, mids)
+    mark, unrealized, legs = _open_trade_marks(trade, quotes)
     assert mark == 152.0
     assert unrealized == 48.0                                # 200 credit - 152 mark
     assert legs[0]["cur_mid"] == 55.0

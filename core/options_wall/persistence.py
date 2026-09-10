@@ -344,6 +344,31 @@ def latest_regime(
     return _regime_dict(row)
 
 
+def regime_at(
+    underlying: str,
+    ts: datetime,
+    db_path: Path = WALL_RESULTS_DB,
+) -> Optional[Dict]:
+    """The session_regime cycle in force at `ts` — at or nearest before it.
+
+    Scoped to `ts`'s own trade date: a trade's entry context is the state of
+    that session, never yesterday's close. Returns None when the session wrote
+    no cycle before `ts`.
+    """
+    if not db_path.exists():
+        return None
+    conn = _connect_ro(db_path)
+    try:
+        row = conn.execute(
+            f"SELECT {_REGIME_SELECT} FROM session_regime WHERE underlying = ? "
+            "AND trade_date = ? AND ts <= ? ORDER BY ts DESC LIMIT 1",
+            [underlying, ts.date(), ts],
+        ).fetchone()
+    finally:
+        conn.close()
+    return _regime_dict(row) if row else None
+
+
 _SCAN_COLS = ["ts", "underlying", "expiry", "strike", "option_type", "screen",
               "structure", "regime", "score", "credit", "iv_minus_rv",
               "pin_conviction", "reason", "legs"]
@@ -378,6 +403,37 @@ def latest_scan_results(
     finally:
         conn.close()
     return ts, [_scan_dict(r) for r in rows]
+
+
+def signal_at(
+    underlying: str,
+    ts: datetime,
+    db_path: Path = WALL_RESULTS_DB,
+) -> List[Dict]:
+    """The scan cycle the executor acted on at `ts` — at or nearest before it.
+
+    Returns every row of that one cycle, best score first, scoped to `ts`'s own
+    trade date. Empty when the session scanned nothing before `ts`.
+    """
+    if not db_path.exists():
+        return []
+    conn = _connect_ro(db_path)
+    try:
+        cycle = conn.execute(
+            "SELECT MAX(ts) FROM scan_results WHERE underlying = ? "
+            "AND ts <= ? AND CAST(ts AS DATE) = ?",
+            [underlying, ts, ts.date()],
+        ).fetchone()[0]
+        if cycle is None:
+            return []
+        rows = conn.execute(
+            "SELECT * FROM scan_results WHERE underlying = ? AND ts = ? "
+            "ORDER BY score DESC",
+            [underlying, cycle],
+        ).fetchall()
+    finally:
+        conn.close()
+    return [_scan_dict(r) for r in rows]
 
 
 _TRADE_COLS = ["trade_id", "underlying", "expiry", "entry_ts", "short_strike",

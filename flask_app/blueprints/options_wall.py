@@ -9,6 +9,7 @@ Endpoints
 GET  /options/wall/               render page
 GET  /options/wall/api/farm       latest scan_results + current regime
 GET  /options/wall/api/trades     open + closed paper flies with live marks
+GET  /options/wall/api/trade/<id>/context   regime + scan cycle at entry
 GET  /options/wall/api/regime     regime river (latest per trade_date)
 GET  /options/wall/api/health     poller step health from the heartbeat file
 """
@@ -20,6 +21,7 @@ from datetime import datetime
 
 from flask import Blueprint, jsonify, render_template, request
 
+from core.database.utils.market_hours import MarketHours
 from core.options_wall import persistence
 from core.options_wall.engine import UNDERLYINGS
 from core.options_wall.health import WALL_HEARTBEAT_PATH
@@ -61,12 +63,30 @@ def api_farm():
 def api_trades():
     index = request.args.get("index", "NIFTY").upper()
     from core.options_wall.engine import trades_view
-    rows = trades_view(index)
+    rows, quote_ts = trades_view(index)
     for r in rows:
         for k in ("entry_ts", "exit_ts"):
             if r.get(k) is not None:
                 r[k] = r[k].isoformat()
-    return jsonify({"index": index, "trades": rows})
+    return jsonify({"index": index, "trades": rows,
+                    "quote_ts": quote_ts.isoformat() if quote_ts else None,
+                    "derivatives_open": MarketHours.is_derivatives_open()})
+
+
+@options_wall_bp.route("/api/trade/<int:trade_id>/context")
+@login_required
+def api_trade_context(trade_id: int):
+    """Entry context for one trade: the regime + scan cycle it was opened on.
+
+    Immutable once the trade is open, so the dashboard fetches it once when the
+    detail panel opens rather than on the live trades poll. Read-only.
+    """
+    index = request.args.get("index", "NIFTY").upper()
+    from core.options_wall.engine import trade_context
+    ctx = trade_context(index, trade_id)
+    if ctx is None:
+        return jsonify({"error": "no such trade"}), 404
+    return jsonify(ctx)
 
 
 @options_wall_bp.route("/api/margin")
@@ -124,7 +144,6 @@ def api_close():
     if int(trade_id) not in open_ids:
         return jsonify({"ok": False, "error": "not an open trade"}), 404
     from core.options_wall import commands
-    from core.database.utils.market_hours import MarketHours
     commands.request_close(int(trade_id), index)
     return jsonify({"ok": True, "queued": True, "trade_id": int(trade_id),
                     "market_open": MarketHours.is_derivatives_open()})

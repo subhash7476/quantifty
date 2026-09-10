@@ -234,7 +234,8 @@ const CAVEATS = {
 };
 
 let currentIndex = 'NIFTY';
-let state = { rows: [], regime: null, ts: null, river: [], screen: 'All', sort: 'Score', open: null, riverFull: false, scanning: false };
+let state = { rows: [], regime: null, ts: null, river: [], screen: 'All', sort: 'Score', open: null, riverFull: false, scanning: false,
+              trades: [], quoteTs: null, derivativesOpen: null, panelTradeId: null, contextCache: {} };
 
 /* ---------------------------------------------------------------- helpers */
 function n(v, d) {
@@ -922,6 +923,7 @@ function renderMargin(data) {
 
 function closePanel() {
     state.open = null;
+    state.panelTradeId = null;
     document.getElementById('ow-panel').classList.remove('open');
     document.getElementById('ow-scrim').classList.remove('on');
 }
@@ -1040,7 +1042,9 @@ function tradeRow(t, isOpen) {
         '<span style="margin-right:14px;white-space:nowrap;">' + (l.side === 'SELL' ? '−' : '+') + ' ' +
         n(l.strike, 0) + ' ' + l.type + ' @' + n(l.entry_mid != null ? l.entry_mid : l.mid, 1) +
         (l.cur_mid != null ? ' <span style="color:var(--muted);">→ ' + n(l.cur_mid, 1) + '</span>' : '') + '</span>').join('');
-    return '<div style="padding:12px 16px;border-top:1px solid #F5F2ED;">' +
+    return '<div onclick="openTradePanel(' + t.trade_id + ')" title="Open trade detail" ' +
+      'style="padding:12px 16px;border-top:1px solid #F5F2ED;cursor:pointer;" ' +
+      'onmouseover="this.style.background=&quot;#FCFBF9&quot;" onmouseout="this.style.background=&quot;&quot;">' +
       '<div style="display:grid;grid-template-columns:72px 148px 1fr 64px repeat(3,minmax(0,1fr)) 84px 76px;gap:8px;align-items:center;' +
         'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;">' +
         '<span style="justify-self:start;font-family:\'Public Sans\',sans-serif;font-size:10px;letter-spacing:.07em;padding:2px 9px;border-radius:999px;background:' +
@@ -1054,7 +1058,7 @@ function tradeRow(t, isOpen) {
         '<span style="text-align:right;color:var(--faint);font-size:11px;">' + (isOpen ? 'live' : (t.exit_reason || '')) + '</span>' +
         '<span style="text-align:right;">' + (isOpen ? ((state.closing && state.closing.has(t.trade_id)) ?
             '<span style="font-size:10.5px;color:var(--muted);">closing…</span>' :
-            '<button onclick="exitTrade(' + t.trade_id + ')" style="cursor:pointer;font-family:\'Public Sans\',sans-serif;' +
+            '<button onclick="event.stopPropagation();exitTrade(' + t.trade_id + ')" style="cursor:pointer;font-family:\'Public Sans\',sans-serif;' +
             'font-size:10.5px;font-weight:600;padding:3px 11px;border-radius:999px;border:1px solid #E4B9AC;' +
             'background:#FCEFEA;color:#B4472F;">Exit</button>') : '') + '</span>' +
       '</div>' +
@@ -1074,6 +1078,213 @@ function paintTrades() {
         return;
     }
     body.innerHTML = open.map(t => tradeRow(t, true)).join('') + closed.map(t => tradeRow(t, false)).join('');
+    // The panel lives outside #trades-body (this node is rebuilt wholesale on
+    // every poll), so an open trade's marks tick in place instead of vanishing.
+    if (state.panelTradeId != null) paintTradePanel();
+}
+
+/* ------------------------------------------------- trade detail panel */
+function statCell(k, v, color) {
+    return '<div style="background:#FFFFFF;padding:14px 16px 13px;">' +
+        '<div class="ow-k">' + k + '</div>' +
+        '<div class="ow-v" style="color:' + (color || C.ink) + ';">' + v + '</div></div>';
+}
+
+function kvRow(k, v) {
+    return '<div style="display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:12.5px;">' +
+        '<span style="color:var(--muted);">' + k + '</span><span class="mono">' + v + '</span></div>';
+}
+
+/* Age of the marks, plus the session phase. Age alone cannot detect the CAS
+   carry-forward window (15:15-15:40), where the feed rebroadcasts a stale LTP
+   while snapshot timestamps keep advancing — so the phase is stated too. */
+function quoteFreshness() {
+    if (!state.quoteTs) return { text: 'No snapshot recorded', color: C.red };
+    const age = Math.max(0, (Date.now() - new Date(state.quoteTs).getTime()) / 1000);
+    const ageStr = age < 90 ? Math.round(age) + 's old'
+                 : age < 5400 ? Math.round(age / 60) + 'm old'
+                 : 'from ' + new Date(state.quoteTs).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    const isOpen = state.derivativesOpen;
+    const phase = isOpen === true ? 'derivatives open' : isOpen === false ? 'derivatives closed' : 'session unknown';
+    return { text: 'Quotes ' + ageStr + ' · ' + phase,
+             color: (isOpen === true && age <= 60) ? C.green : C.amber };
+}
+
+function unquotedNote() {
+    return state.derivativesOpen === false
+        ? 'Market closed — this is the last quoted cycle of the session. Live marks resume at the next open.'
+        : 'Unquoted this cycle — at least one leg carried neither a two-sided book nor an LTP in the newest snapshot. The mark returns on the next poll.';
+}
+
+function legQuoteTable(t, isOpen) {
+    const entryLegs = JSON.parse(t.entry_legs || '[]');
+    const legs = isOpen ? (t.current_legs || entryLegs)
+                        : JSON.parse(t.exit_legs || t.entry_legs || '[]');
+    const cols = isOpen ? '58px 92px 1fr 1fr 1fr 1fr 1fr 1fr' : '58px 92px 1fr 1fr 1fr';
+    const head = isOpen ? ['Side', 'Strike', 'Entry', 'Bid', 'Ask', 'Mid', 'IV', 'Delta']
+                        : ['Side', 'Strike', 'Entry', 'Exit', 'Move'];
+    const headHtml = head.map((h, i) =>
+        '<span style="' + (i > 1 ? 'text-align:right;' : '') + '">' + h + '</span>').join('');
+
+    const rows = legs.map(function (l) {
+        const ref = (entryLegs.find(function (e) { return e.strike === l.strike && e.type === l.type; }) || {}).mid;
+        const entry = l.entry_mid != null ? l.entry_mid : (isOpen ? ref : ref);
+        const exitMid = l.exit_mid != null ? l.exit_mid : l.mid;
+        const cells = isOpen
+            ? [n(l.bid, 2), n(l.ask, 2), n(l.cur_mid, 2), n(l.iv, 2), n(l.delta, 3)]
+            : [n(exitMid, 2), (ref != null && exitMid != null)
+                  ? '<span style="color:' + (exitMid < ref ? C.green : C.red) + ';">' +
+                    (exitMid < ref ? '−' : '+') + n(Math.abs(exitMid - ref), 2) + '</span>' : '--'];
+        return '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;padding:9px 15px;border-top:1px solid #F5F2ED;' +
+            'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;align-items:center;">' +
+            '<span style="color:' + (l.side === 'SELL' ? C.red : C.teal) + ';">' + l.side + '</span>' +
+            '<span>' + n(l.strike, 0) + ' ' + l.type + '</span>' +
+            '<span style="text-align:right;color:var(--muted);">' + n(entry != null ? entry : ref, 2) + '</span>' +
+            cells.map(function (c) { return '<span style="text-align:right;">' + c + '</span>'; }).join('') +
+            '</div>';
+    }).join('');
+
+    return '<div style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' +
+        '<div style="display:grid;grid-template-columns:' + cols + ';gap:8px;padding:9px 15px;background:#FBFAF8;' +
+        'font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--faint);">' + headHtml + '</div>' +
+        (rows || '<div style="padding:16px;font-size:12.5px;color:var(--muted);">No legs recorded.</div>') +
+        '</div>';
+}
+
+function contextHtml(ctx) {
+    if (!ctx) return '<div style="padding:15px 17px;font-size:12.5px;color:var(--muted);">Loading…</div>';
+    const r = ctx.regime, sg = ctx.signal;
+    if (!r && !sg) return '<div style="padding:15px 17px;font-size:12.5px;color:var(--muted);text-wrap:pretty;">' +
+        'No regime or scan cycle was recorded before this entry — the trade predates the persisted trail.</div>';
+    const regimePart = r ? (
+        kvRow('Regime', '<span style="color:' + regimeColor(r.regime) + ';">' + (r.regime || '--') + '</span>') +
+        kvRow('Spot at entry', n(r.underlying_ltp, 2)) +
+        kvRow('Pin strike', n(r.pin_strike, 0) + (r.pin_conviction != null ? '  ·  ' + pct(r.pin_conviction * 100, 1) + ' conviction' : '')) +
+        kvRow('Walls (put / call)', n(r.put_wall, 0) + ' / ' + n(r.call_wall, 0)) +
+        kvRow('Net GEX', cr(r.net_gex_cr)) +
+        kvRow('ATM IV / RV', n(r.atm_iv, 2) + ' / ' + n(r.realized_vol, 2) +
+              (r.atm_iv != null && r.realized_vol != null
+                 ? '  (' + (r.atm_iv - r.realized_vol >= 0 ? '+' : '−') + n(Math.abs(r.atm_iv - r.realized_vol), 2) + ' pt)' : ''))
+    ) : kvRow('Regime', 'not recorded for this cycle');
+    const signalPart = sg ? (
+        kvRow('Screen', (SCREEN_LABEL[sg.screen] || sg.screen || '--')) +
+        kvRow('Score', n(sg.score, 2)) +
+        kvRow('Signal credit', sg.credit != null ? '₹' + n(sg.credit, 1) : '--') +
+        kvRow('IV − RV', sg.iv_minus_rv != null ? n(sg.iv_minus_rv, 2) + ' pt' : '--') +
+        (sg.reason ? '<div style="margin-top:9px;padding-top:9px;border-top:1px solid #F5F2ED;font-size:12.5px;color:var(--body);text-wrap:pretty;">' + sg.reason + '</div>' : '')
+    ) : kvRow('Signal', 'no scan row matched this structure');
+    return '<div style="padding:15px 17px;">' + regimePart +
+        '<div style="height:12px;"></div>' + signalPart + '</div>';
+}
+
+function tradePanelHtml(t) {
+    const isOpen = !t.exit_ts;
+    const pnl = isOpen ? t.unrealized_pnl : t.net_pnl;
+    const mark = isOpen ? t.current_mark : t.exit_mark;
+    const spot = (state.regime || {}).underlying_ltp;
+    const fresh = quoteFreshness();
+    const entered = t.entry_ts ? new Date(t.entry_ts) : null;
+    const exited = t.exit_ts ? new Date(t.exit_ts) : null;
+    const held = (entered && exited) ? Math.round((exited - entered) / 60000) + ' min'
+               : (entered && isOpen ? Math.round((Date.now() - entered) / 60000) + ' min' : '--');
+    const fmtTs = function (d) {
+        return d ? d.toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '--';
+    };
+
+    const stats = isOpen ? [
+        ['Index spot', n(spot, 2), C.ink],
+        ['Current mark', money(mark), C.ink],
+        ['Unrealized P&L', money(pnl), pnlColor(pnl)],
+        ['Net credit', money(t.net_credit), C.green],
+        ['Max loss', money(t.max_loss), C.red],
+        ['Held', held, C.ink]
+    ] : [
+        ['Exit mark', money(mark), C.ink],
+        ['Net P&L', money(t.net_pnl), pnlColor(t.net_pnl)],
+        ['Gross P&L', money(t.gross_pnl), pnlColor(t.gross_pnl)],
+        ['Return on margin', t.return_on_margin != null ? pct(t.return_on_margin * 100, 2) : '--', pnlColor(t.return_on_margin)],
+        ['Net credit', money(t.net_credit), C.green],
+        ['Held', held, C.ink]
+    ];
+    const statHtml = stats.map(function (s) { return statCell(s[0], s[1], s[2]); }).join('');
+
+    const liveLine = isOpen
+        ? '<div style="margin-top:12px;font-size:11.5px;color:' + fresh.color + ';">' + fresh.text + '</div>' +
+          (mark == null ? '<div style="margin-top:9px;padding:10px 13px;border:1px solid #F5E3D8;background:#FEFAF6;border-radius:10px;' +
+              'font-size:12px;color:#A8703C;text-wrap:pretty;">' + unquotedNote() + '</div>' : '')
+        : '<div style="margin-top:12px;font-size:11.5px;color:var(--muted);">Closed ' + fmtTs(exited) +
+          ' · ' + (t.exit_reason || 'reason not recorded') + '</div>';
+
+    return '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:18px;position:sticky;top:0;background:#FFFFFF;padding-bottom:15px;border-bottom:1px solid var(--hairline);">' +
+      '<div><div class="mono" style="font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);">' +
+        '<span style="padding:2px 8px;border-radius:999px;margin-right:8px;background:' +
+        (isOpen ? 'rgba(25,122,90,.10);color:' + C.green : '#EFECE6;color:var(--muted)') + ';">' + (isOpen ? 'OPEN' : 'CLOSED') + '</span>' +
+        'Trade #' + t.trade_id + ' · ' + currentIndex + ' · ' + (t.expiry || '') + '</div>' +
+        '<div class="display" style="font-size:32px;margin-top:5px;">Iron fly ' + n(t.short_strike, 0) + '</div>' +
+        '<div class="mono" style="font-size:12.5px;color:var(--muted);margin-top:3px;">wings ' + n(t.put_wing, 0) + ' / ' + n(t.call_wing, 0) +
+        ' · qty ' + t.qty + ' · entered ' + fmtTs(entered) + '</div></div>' +
+      '<button onclick="closePanel()" style="cursor:pointer;flex-shrink:0;width:33px;height:33px;border-radius:999px;border:1px solid var(--line);background:#FBFAF8;color:var(--muted);font-size:14px;">✕</button></div>' +
+
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--hairline);' +
+      'border:1px solid var(--hairline);border-radius:11px;overflow:hidden;margin-top:20px;">' + statHtml + '</div>' +
+    liveLine +
+
+    '<div style="margin-top:28px;"><div class="ow-sec-h">' + (isOpen ? 'Legs · entry vs live' : 'Legs · entry vs exit') + '</div>' +
+      legQuoteTable(t, isOpen) + '</div>' +
+
+    '<div style="margin-top:28px;display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:13px;">' +
+      '<div style="border:1px solid var(--hairline);border-radius:11px;padding:15px 17px;"><div class="ow-sec-h">Economics</div>' +
+        kvRow('Net credit', money(t.net_credit)) +
+        kvRow('Entry fees', money(t.entry_fees)) +
+        kvRow('Exit fees', t.exit_fees != null ? money(t.exit_fees) : 'not yet charged') +
+        kvRow('Max loss', money(t.max_loss)) +
+        kvRow('Quantity', String(t.qty)) + '</div>' +
+      '<div style="border:1px solid var(--hairline);border-radius:11px;padding:15px 17px;"><div class="ow-sec-h">Structure</div>' +
+        kvRow('Short strike', n(t.short_strike, 0)) +
+        kvRow('Call wing', n(t.call_wing, 0)) +
+        kvRow('Put wing', n(t.put_wing, 0)) +
+        kvRow('Expiry', t.expiry || '--') +
+        kvRow('Exit reason', t.exit_reason || (isOpen ? 'still open' : '--')) + '</div></div>' +
+
+    '<div style="margin-top:28px;"><div class="ow-sec-h">Entry context · why this trade opened</div>' +
+      '<div id="ow-trade-context" style="border:1px solid var(--hairline);border-radius:11px;overflow:hidden;">' +
+      contextHtml(state.contextCache[t.trade_id]) + '</div></div>' +
+
+    '<div style="margin-top:24px;font-size:11.5px;color:var(--faint);">Paper execution — marks come from the newest quoted snapshot, not from a broker fill.</div>';
+}
+
+function paintTradePanel() {
+    const t = (state.trades || []).find(function (x) { return x.trade_id === state.panelTradeId; });
+    if (!t) return;
+    document.getElementById('ow-panel-body').innerHTML = tradePanelHtml(t);
+}
+
+function openTradePanel(tradeId) {
+    state.open = null;
+    state.panelTradeId = tradeId;
+    paintTradePanel();
+    document.getElementById('ow-panel').classList.add('open');
+    document.getElementById('ow-scrim').classList.add('on');
+    loadTradeContext(tradeId);
+}
+
+async function loadTradeContext(tradeId) {
+    // Immutable once the trade is open, so it is fetched once and cached — never
+    // on the 7s live poll that keeps the rest of the panel ticking.
+    if (!state.contextCache[tradeId]) {
+        try {
+            const resp = await fetch('/options/wall/api/trade/' + tradeId + '/context?index=' + currentIndex);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            state.contextCache[tradeId] = await resp.json();
+        } catch (err) {
+            state.contextCache[tradeId] = { regime: null, signal: null };
+            console.error('Failed to load trade context:', err);
+        }
+    }
+    if (state.panelTradeId === tradeId) {
+        const node = document.getElementById('ow-trade-context');
+        if (node) node.innerHTML = contextHtml(state.contextCache[tradeId]);
+    }
 }
 
 async function exitTrade(tradeId) {
@@ -1159,6 +1370,8 @@ async function loadTrades() {
         const resp = await fetch('/options/wall/api/trades?index=' + currentIndex);
         const data = await resp.json();
         state.trades = data.trades || [];
+        state.quoteTs = data.quote_ts || null;
+        state.derivativesOpen = data.derivatives_open;
         paintTrades();
         loadEvidence();
     } catch (err) {
