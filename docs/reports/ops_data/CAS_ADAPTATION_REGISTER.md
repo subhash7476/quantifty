@@ -55,6 +55,8 @@ The non-matching remainder is exactly the Category II count — those close on V
 All 22 items closed. 13 code tasks executed per `docs/superpowers/plans/2026-08-27-cas-adaptation.md`; Task 12 withdrawn. Commits `f82cd32`…`13ffd92` on `isd-program-reassessment`.
 
 > **Reopened 2026-09-10 — one new item, `A9`.** The auction-window *index reference* freezes at 15:15; the original 22 items covered carry-forward **bars** and segment **end-times**, not the spot level the derivatives book is priced against. It was found only because **B6** (now closed) extended the options-wall poller to 15:40 and made the window observable. A9 is open.
+>
+> **Full re-audit 2026-09-10** — every item re-checked against code, not against this register's own claim: `CAS_REGISTER_REAUDIT_2026-09-10.md`. Nineteen genuinely closed. Still open: **A9**; **C3** half-fixed (`ops/routes.py:218`, `ops_facade.py:77` still bare `is_market_open()`, so the UI reads CLOSED for the last 25 min of every F&O session); **C4** not fixed (`daily_bhavcopy.py:108,241` still stamp 15:30). **B10** is unchanged by design — the archival need is served by `wall_chain_snapshots/`, so re-classify rather than fix. B1/B2 left dead constants (`MARKET_CLOSE`, `get_market_hours()`, `MarketSession.SESSION_END`) with zero callers, which also makes C1's docstring justification false.
 
 **A5 (ISD SEALED straddle) — MOOT.** The ISD battery closed at TRAIN (`05f5ed2`: both families FAIL, F1 sign negative and F4 net-spread gate). No sealed read will be taken, so the 55%-post-CAS straddle is history rather than a live risk. The declaration is left frozen as-is; moving a SHA on a closed program is the error this repo already recorded against PSB-2's selection report.
 
