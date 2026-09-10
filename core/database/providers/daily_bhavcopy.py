@@ -27,6 +27,20 @@ import duckdb
 
 from core.database.providers.base import MarketDataProvider
 from core.events import OHLCVBar
+from core.market.session_schedule import session_window
+
+
+def session_close_stamp(td: date) -> datetime:
+    """The nominal close stamp for a daily bar on `td`, resolved by era.
+
+    Pre-CAS the Category I close was struck at the 15:30 cash close; since
+    2026-08-03 it is struck in the closing auction, which ends 15:35. The bar's
+    VALUE is the official close either way — this is the label, and it comes from
+    `session_schedule` rather than a constant (CAS register C4).
+    """
+    auction = session_window("cash_auction", td)
+    end = auction[1] if auction else session_window("cash_cat1", td)[1]
+    return datetime.combine(td, end)
 
 
 class DailyBhavcopyProvider(MarketDataProvider):
@@ -102,10 +116,7 @@ class DailyBhavcopyProvider(MarketDataProvider):
 
             self._data[sym] = {}
             for td, o, h, l, c in rows:
-                # Nominal session-close stamp. Post-CAS the Category I official
-                # close is struck 15:30-15:35; the VALUE here is correct, only
-                # the label is nominal.
-                ts = datetime.combine(td, time(15, 30))
+                ts = session_close_stamp(td)
                 self._data[sym][td] = OHLCVBar(
                     symbol=sym,
                     timestamp=ts,
@@ -235,10 +246,7 @@ class DailyBhavcopyProvider(MarketDataProvider):
                 FROM near_month WHERE rn = 1 ORDER BY trade_date
             """).fetchall()
             for td, o, h, l, c in sym_rows:
-                # Nominal session-close stamp. Post-CAS the Category I official
-                # close is struck 15:30-15:35; the VALUE here is correct, only
-                # the label is nominal.
-                ts = datetime.combine(td, time(15, 30))
+                ts = session_close_stamp(td)
                 self._data.setdefault(sym, {})[td] = OHLCVBar(
                     symbol=sym, timestamp=ts,
                     open=float(o) if o else 0.0,

@@ -97,3 +97,72 @@ A8, B4, B5, B8, B9) are properly closed in code, several by better mechanisms th
 **Nothing found here changes a research number.** What remains is one genuine new defect (A9),
 two cosmetic misses recorded as closed (C3 residual, C4), and tidy-up. The register's "all 22
 closed" line was ~86% true, and the misses are all in Class C.
+
+
+---
+
+# Resolution — 2026-09-10
+
+C3, C4 and the dead code are fixed. A9 remains open; B10 is re-classified, not fixed.
+
+## Correction to §"What actually needs work" item 4
+
+That section named **`MarketHours.get_market_hours()`** as the dead function with zero callers.
+**No function of that name exists.** The real chain was:
+
+```
+MARKET_CLOSE  ->  get_session_times()  ->  time_until_market_close()  ->  (nothing)
+```
+
+`get_session_times` *does* have a caller — `time_until_market_close` at `market_hours.py:318`
+— which is itself uncalled. So the conclusion ("dead, safe to delete") held, but the audit
+asserted it from a mis-named symbol and a grep that returned nothing because the name was
+wrong. **A blank grep for a symbol that does not exist is not evidence of dead code.** The
+chain was established properly before anything was deleted.
+
+## What changed
+
+**C3 — the UI no longer reports CLOSED while F&O trades.**
+`flask_app/blueprints/ops/routes.py:218` and `app_facade/ops_facade.py:77` now use
+`MarketHours.is_any_open()`. Both are "no status row, infer from the clock" fallbacks, so the
+right question is *is any segment trading* — not *is cash Cat-I trading*, which since CAS ends
+at 15:15 and made both read `CLOSED` for the last 25 minutes of every derivatives session.
+
+**C4 — the daily bar's close stamp follows the era.**
+`core/database/providers/daily_bhavcopy.py` gains `session_close_stamp(td)`, used at both
+former `time(15, 30)` sites:
+
+```python
+auction = session_window("cash_auction", td)
+end = auction[1] if auction else session_window("cash_cat1", td)[1]
+return datetime.combine(td, end)
+```
+
+Pre-CAS → **15:30** (the cash close). Post-CAS → **15:35** (the auction end, where the Cat-I
+official close is struck). Three tests in
+`tests/database/providers/test_daily_bhavcopy_close_stamp.py`, written first and confirmed
+failing. Checked before changing: the only test asserting a 15:30 bar stamp
+(`tests/analog_path/test_data_layer.py:36`) is on the 1m analog-path loader, not this provider.
+
+**Dead code removed.** `MarketHours.MARKET_CLOSE`, `MarketHours.get_session_times()`,
+`MarketHours.time_until_market_close()`, and `MarketSession.SESSION_END` — all deleted, plus
+the module-docstring example that referenced `get_session_times`. Deletion rather than repair:
+they were unused *and* encoded the bare-constant defect the register exists to eliminate;
+`session_window()` already provides the capability correctly, and it forces the caller to say
+which segment they mean.
+
+`MarketSession.SESSION_START` is **retained** — it is live at `market_session.py:95` for the
+"before open belongs to the prior session" rule. Its comment previously covered both constants
+and is now accurate about the one that survives. This also removes the false claim in C1's
+docstring that the constants are "retained because callers still reference them for display."
+
+**Verified:** 632 tests in `tests/database`, `tests/analog_path`, `tests/options_wall`,
+`tests/runtime`; 736 across a wider sweep including `tests/analytics` and `tests/daytype`.
+`MarketSession` still resolves 15:30 pre-CAS and 15:15 post-CAS.
+
+## Still open after this pass
+
+- **A9** — the frozen index reference. The only item that can still move a number.
+- **B10** — unchanged by design; needs re-classifying in the register, not fixing.
+- **Stale `.claude/worktrees/*` copies** carrying the pre-CAS `market_hours.py`.
+- **`scripts/mrlc_test/archive_ingest.py:21`** — its own hardcoded `SESSION_END`, test-scoped.

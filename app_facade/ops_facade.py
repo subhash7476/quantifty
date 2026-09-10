@@ -73,6 +73,8 @@ class OpsFacade:
                     }
         except Exception:
             pass
-        # No row: infer status from market hours
-        fallback = "DISCONNECTED" if MarketHours.is_market_open(MarketHours.get_ist_now()) else "CLOSED"
+        # No row: infer status from market hours. CAS: cash Cat-I ends 15:15
+        # while derivatives trade to 15:40 — a missing status row matters while
+        # ANY segment is open.
+        fallback = "DISCONNECTED" if MarketHours.is_any_open(MarketHours.get_ist_now()) else "CLOSED"
         return {"status": fallback, "updated_at": None, "pid": None}

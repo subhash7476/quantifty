@@ -215,7 +215,9 @@ def api_websocket_status():
     except Exception:
         pass
 
-    fallback = "DISCONNECTED" if MarketHours.is_market_open() else "CLOSED"
+    # CAS: cash Cat-I ends 15:15 while derivatives trade to 15:40 — a missing
+    # status row matters while ANY segment is open.
+    fallback = "DISCONNECTED" if MarketHours.is_any_open() else "CLOSED"
     return jsonify({"status": fallback, "updated_at": None, "pid": None})
 
 

@@ -40,10 +40,10 @@ class MarketSession:
     IST = pytz.timezone("Asia/Kolkata")
 
     # Session bounds are date-resolved (CAS, 2026-08-03) — see
-    # core/market/session_schedule.py. These constants are the pre-CAS values,
-    # retained for `for_timestamp`'s "before open belongs to prior session" rule.
+    # core/market/session_schedule.py. Only the START is retained, for
+    # `for_timestamp`'s "before open belongs to prior session" rule; the end is
+    # era-dependent and must come from the schedule.
     SESSION_START = time(9, 15)
-    SESSION_END = time(15, 30)
 
     def __init__(self, session_date: date):
         """

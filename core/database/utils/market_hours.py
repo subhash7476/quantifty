@@ -5,8 +5,8 @@ Utilities for checking market hours and trading sessions.
 
 Indian market hours (IST). Segment-dependent since SEBI's Closing Auction
 Session (2026-08-03) — see core/market/session_schedule.py, which is the
-authority. The constants below are the pre-CAS cash session, retained because
-callers still reference them for display.
+authority. The constants below are the pre-CAS cash session, retained only for the
+pre-open/post-close helpers that still reason in cash-session terms.
 """
 
 from datetime import datetime, time, date, timedelta
@@ -37,8 +37,6 @@ class MarketHours:
         # Get current IST time
         now = MarketHours.get_ist_now()
 
-        # Get today's session times
-        open_time, close_time = MarketHours.get_session_times()
     """
 
     # Indian Standard Time timezone
@@ -46,7 +44,6 @@ class MarketHours:
 
     # Market hours (IST)
     MARKET_OPEN = time(9, 15)  # 9:15 AM
-    MARKET_CLOSE = time(15, 30)  # 3:30 PM
     PRE_MARKET_OPEN = time(9, 0)  # 9:00 AM
     POST_MARKET_CLOSE = time(16, 0)  # 4:00 PM
 
@@ -222,30 +219,6 @@ class MarketHours:
         return bool(window) and window[1] <= current_time < cls.POST_MARKET_CLOSE
 
     @classmethod
-    def get_session_times(
-        cls, dt: Optional[datetime] = None
-    ) -> Tuple[datetime, datetime]:
-        """
-        Get today's market open and close times.
-
-        Args:
-            dt: Date to get session for. Defaults to today.
-
-        Returns:
-            Tuple of (open_datetime, close_datetime) in IST.
-        """
-        if dt is None:
-            dt = cls.get_ist_now()
-        else:
-            dt = cls.to_ist(dt)
-
-        date = dt.date()
-        open_dt = cls.IST.localize(datetime.combine(date, cls.MARKET_OPEN))
-        close_dt = cls.IST.localize(datetime.combine(date, cls.MARKET_CLOSE))
-
-        return (open_dt, close_dt)
-
-    @classmethod
     def get_next_market_open(cls, dt: Optional[datetime] = None) -> datetime:
         """
         Get the next market open time.
@@ -295,25 +268,3 @@ class MarketHours:
 
         next_open = cls.get_next_market_open(dt)
         return next_open - dt
-
-    @classmethod
-    def time_until_market_close(cls, dt: Optional[datetime] = None) -> Optional[timedelta]:
-        """
-        Get time remaining until market closes.
-
-        Args:
-            dt: Starting datetime. Defaults to current IST time.
-
-        Returns:
-            Timedelta until market close, or None if market is not open.
-        """
-        if dt is None:
-            dt = cls.get_ist_now()
-        else:
-            dt = cls.to_ist(dt)
-
-        if not cls.is_market_open(dt):
-            return None
-
-        _, close_dt = cls.get_session_times(dt)
-        return close_dt - dt
