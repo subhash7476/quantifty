@@ -417,3 +417,77 @@ pass is not an entry signal, and the panel currently renders them identically.
 
 **Recommend fixing this before the next expiry.** It is cheap, it is already diagnosed, and on
 today's evidence it is more expensive than anything the square-off change addresses.
+
+---
+
+# Addendum 3 — should `entry_end` move past 15:00?
+
+Asked after the 2026-09-10 close. **Recommendation: no, not on this evidence — and after
+15:15 it is blocked outright by a defect, not a preference.**
+
+## 1. After 15:15 entry is unsafe, full stop
+
+`build_iron_fly` centres the structure on `structural.underlying_ltp`. That print **freezes
+from 15:15** (Addendum 1). An entry in the auction window would therefore pick its ATM and
+both wings off a stale reference.
+
+This is not hypothetical — it is the error that corrupted my own DTE-0 analysis: the frozen
+74,629.50 put a synthetic fly at 74,600 when the market was at ~74,900, and the resulting
+"DTE-0 is negative" conclusion had to be withdrawn. **Production would make the same mistake
+with real strikes.**
+
+Entering after 15:15 is therefore blocked until spot is sourced from something that keeps
+moving through the auction — the option chain's own synthetic forward, or the index future.
+That is a substrate fix, not a config change.
+
+## 2. Between 15:00 and 15:15 it is mechanically safe, but the evidence does not support it
+
+Spot is live and quotes are tight in this window, so a fly *can* be built correctly. Synthetic
+ATM entries on the only sessions where a late entry resolves the same day (DTE 0–1), held to
+the last snapshot, net of ~₹212 round-trip fees:
+
+| session | index | DTE | 15:00 | 15:05 | 15:10 |
+|---|---|--:|--:|--:|--:|
+| 09-07 | Nifty 50 | 1 | +750 | +719 | +722 |
+| 09-08 | Nifty 50 | 0 | +1,538 | +1,468 | +1,628 |
+| 09-09 | SENSEX | 1 | −674 | −1,076 | −892 |
+| 09-10 | SENSEX | 0 | +1,283 | **−880** | −821 |
+
+| entry | n | mean | **median** | min | max |
+|---|--:|--:|--:|--:|--:|
+| 15:00 | 4 | +724 | **+1,017** | −674 | +1,538 |
+| 15:05 | 4 | +58 | **−81** | −1,076 | +1,468 |
+| 15:10 | 4 | +159 | **−50** | −892 | +1,628 |
+
+**The median goes negative the moment you move past 15:00**, on a range of −₹1,076 to +₹1,628.
+n = 4. Nothing here justifies moving the boundary.
+
+**Why it degrades so fast — strike selection, not timing.** On 2026-09-10 the 15:00 entry
+landed on ATM 74,700 and netted **+₹1,283**; the 15:05 entry landed on 74,600 and netted
+**−₹880**. A **100-point difference in which strike you land on swung the outcome by ₹2,163**
+on the same session, same structure, five minutes apart. As the close approaches, the fly's
+P&L is dominated by `|settlement − short strike|`, so being one strike off is decisive. That
+sensitivity is the argument against late entries even where spot is still live.
+
+## 3. DTE ≥ 2 late entries are a different question entirely
+
+The time stop is `dte <= 1`, so a fly opened at 15:05 on a DTE-5 chain is not a late-session
+trade at all — it is the opening of a multi-day hold. It should be evaluated as such, not
+under this heading.
+
+## 4. The discipline point
+
+Moving `entry_end` because the 15:03 close on 2026-09-10 felt wrong in hindsight would be the
+post-hoc overlay this repo keeps warning against (`CLAUDE.md`, the C2 guard note): a boundary
+loosened because one foregone trade would have worked. **The correct fix for that session was
+the tradeability badge — telling the operator why entry was closed — not moving the line so
+the mistake becomes legal.**
+
+Note also where the value actually was on 09-10: not in a new 15:03 entry, but in the position
+already open. Trade 31 held to 15:20:50 would have taken TP at +₹1,876. **The square-off change
+captures that; an entry-window change is not needed to.**
+
+**If late entry is worth testing**, it is a pre-registered candidate with its window, DTE
+scope, and success criterion fixed before the data is looked at again — and it cannot start
+until the frozen-spot dependency in §1 is fixed, because that bounds the window to 15:15
+regardless.
