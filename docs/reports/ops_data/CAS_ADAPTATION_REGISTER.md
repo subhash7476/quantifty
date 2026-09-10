@@ -54,6 +54,8 @@ The non-matching remainder is exactly the Category II count — those close on V
 
 All 22 items closed. 13 code tasks executed per `docs/superpowers/plans/2026-08-27-cas-adaptation.md`; Task 12 withdrawn. Commits `f82cd32`…`13ffd92` on `isd-program-reassessment`.
 
+> **Reopened 2026-09-10 — one new item, `A9`.** The auction-window *index reference* freezes at 15:15; the original 22 items covered carry-forward **bars** and segment **end-times**, not the spot level the derivatives book is priced against. It was found only because **B6** (now closed) extended the options-wall poller to 15:40 and made the window observable. A9 is open.
+
 **A5 (ISD SEALED straddle) — MOOT.** The ISD battery closed at TRAIN (`05f5ed2`: both families FAIL, F1 sign negative and F4 net-spread gate). No sealed read will be taken, so the 55%-post-CAS straddle is history rather than a live risk. The declaration is left frozen as-is; moving a SHA on a closed program is the error this repo already recorded against PSB-2's selection report.
 
 **A6 (A-construct exit) — RESOLVED at 15:14.** Operator decision D6 (`d33e762`) pinned the exit at the 15:14 bar close: last continuous print in all eras, auction window untraded. The construct was then retired at HOLDOUT (`c72fa63`: TRAIN net +1.27 bp p 0.003; HOLDOUT net −0.22 bp p 0.15), SEALED untouched at 873 sessions. D6 stands as the settled convention for any index intraday exit.
@@ -109,6 +111,38 @@ The original finding, preserved:
 `core/analytics/day_features.py:38` sets `PM_START_BAR = 255` (13:30); the PM window runs 13:30–15:29, of which 13–14 bars are now fabricated for Cat-I names. `EXPECTED_BARS = 375` (line 40) still holds numerically but no longer means 375 tradeable minutes. These features feed the DayType facts store, which feeds **NiftyShield regime classification**.
 **Verify:** NiftyShield's live entry reads the 13:00 fact, which precedes the PM window's close — so the live path is probably clean. The historical facts store used for classification is not. Confirm before relying on either.
 
+
+### A9 · The index reference freezes during the auction — `underlying_ltp` stops updating at 15:15
+*Added 2026-09-10.*
+
+From **15:15** the index print stops moving: the cash auction halts continuous trading, so the index is no longer computed from live trades while options keep quoting against it. Measured on the option-chain snapshot store, distinct `underlying_ltp` values per bucket:
+
+| session | index | 15:05–15:10 | 15:15–15:20 | 15:20–15:30 | 15:30–15:33 |
+|---|---|--:|--:|--:|--:|
+| 2026-09-04 | all three | 13 | 1 | 1–2 | 1 |
+| 2026-09-07 | all three | 16–17 | 1–2 | 1–2 | 1 |
+| 2026-09-09 | all three | 21–22 | 1–2 | 2 | 1 |
+| 2026-09-10 | all three | 17–19 | 1–2 | 2 | 1 |
+
+NIFTY, BANKNIFTY and SENSEX, four sessions, no exceptions — from 15:15 onward the reference is effectively one frozen number for the rest of the session.
+
+**This is A1's defect in a different field.** A1 is carry-forward *bars* from a stale LTP; this is the carry-forward *index level* the derivatives book is priced against. The tell is different and there is no `is_synthetic` flag to filter on — the value simply stops changing, which is indistinguishable from a quiet tape unless you count distinct values.
+
+**Why it is Class A and not Class B:** it has already changed a number in an analysis. `OPTIONS_WALL_CAS_AUCTION_WINDOW_ANALYSIS_2026-09-10.md` Addendum 1 concluded expiry-day decay was negative (−₹388) from a synthetic fly centred on the 15:15 print of 74,629.50. SENSEX settled near 74,900, so the fly was built ~300 points off *because the frozen reference put it there*. Addendum 2 withdrew the finding. Any study that selects a strike, computes a moneyness, or measures a "spot move" inside 15:15–15:40 is exposed the same way.
+
+**Confirmed not affected:** option **quotes** are healthy throughout — two-sided 100.0% at every minute 15:00→15:40, median ATM relative spread 0.24% pre-auction vs 0.25–0.30% through it. Marks are trustworthy; only the underlying reference is stale. So mark-to-market, TP/SL and any clock-driven exit are clean, and `core/options_wall/paper_executor.py` is unaffected (it marks from chain mids and its time stop reads only the clock).
+
+**Where:** anything keyed on spot after 15:15 —
+- `core/options_wall/fly.py::build_iron_fly` — centres ATM and both wings on `structural.underlying_ltp`. Safe today only because `entry_end = 15:00`; **this is the blocker on any late-entry proposal** (`OPTIONS_WALL_CAS_AUCTION_WINDOW_ANALYSIS_2026-09-10.md` Addendum 3).
+- `core/analytics/chain_scanner.py::_farm_screen` — the pin-proximity band `|spot − pin| / spot`.
+- `core/analytics/options_analytics.py::calculate_gex` — `cr_scale = underlying_ltp²·…`, so net GEX in ₹cr and the regime classification derived from it.
+- `core/options_wall/persistence.py` → `session_regime` — **rows written 15:15–15:40 carry a stale `underlying_ltp` and everything computed from it.** Treat that tail as non-market-state, not as a quiet regime.
+- The `/options/wall/` dashboard, which renders those rows live.
+
+**Fix direction:** source the reference from something that keeps trading through the auction — the option chain's own synthetic forward (put-call parity at the ATM strike), or the front-month index future, which trades to 15:40. Until then, **no consumer may treat a post-15:15 `underlying_ltp` as a live level**, and studies over that window must state which side of the freeze their spot came from.
+
+**Verify:** the freeze boundary is the *cash* segment's, so it should track `session_schedule`'s `cash_cat1` end rather than a constant — check the pre-CAS era, where continuous cash ran to 15:30 and no such window existed.
+
 ---
 
 ## Class B — Forward-only
@@ -134,6 +168,8 @@ Live aggregation runs only while `MarketHours.is_market_open(now)`. Two conseque
 Misses the 15:30–15:40 F&O window entirely, including the post-settlement window on expiry days. This is the single cheapest change that starts accumulating the only dataset any post-15:15 construct could ever be gated on.
 
 ### B6 · `core/options_wall/poller.py:182` — same gate, same gap.
+
+> **Closed 2026-09-10.** The poller now gates on `MarketHours.is_derivatives_open()` (`poller.py:313`) and reached **15:40:02** on 2026-09-09. It is what makes the 15:15–15:40 option window observable at all — and, in doing so, exposed **A9**: the repo now collects a window whose spot reference is frozen.
 
 ### B7 · `core/runtime/driver.py:883` — telemetry `market_open` flag
 Publishes `MarketHours.is_market_open(now)`; will read `False` during 15:30–15:40 while F&O is live. Coupled to the test at `tests/runtime/test_driver_telemetry_publish.py:104` — see the warning in B1.
@@ -168,6 +204,7 @@ No `2026-08-25.duckdb` or `2026-08-26.duckdb` as of 2026-08-27; files stop at 20
 
 - **All daily-close constructs**: Carry (production), TS Basis, TS Basis Daily, CB-N50, PSB-1/PSB-2, SFB-1/F1. The auction print **is** the official close (92–95% match; the remainder are Cat-II VWAP closes, which is correct pre- and post-CAS alike). No committed number moves.
 - **NiftyShield v1**: structurally insulated. Its 15:15 exit now coincides exactly with the end of continuous cash, it trades **index options** which stay liquid to 15:40, and `expiry_days_min = 2` means it never holds a same-day-expiring contract — zero exposure to CAS-derived settlement. Only caveat: when the paper record is evaluated, split it at 2026-08-03, since afternoon flow character may drift as closing volume migrates into the auction.
+  > **Two corrections, 2026-09-10.** The exit is **15:35**, not 15:15 — `core/execution/options/nifty_shield_exit.py:51-52` defaults to hour 15 / minute 35 — so the structure is held *through* the auction, not flattened at its start. That places it inside **A9**'s window. It appears to be handled: `nifty_shield_marks.py:233` and `nifty_shield_handler.py:657` describe a deliberate 15:29→15:35 bridge for exactly the moment the underlying stops printing. **Not re-verified here** — the exemption above should be re-confirmed against A9 rather than inherited.
 - **Fee models**: CAS changed no statutory rate. STT, stamp, exchange, SEBI, and GST schedules are unaffected in both `intraday_fees.py` and `delivery_fees.py`.
 
 ---
