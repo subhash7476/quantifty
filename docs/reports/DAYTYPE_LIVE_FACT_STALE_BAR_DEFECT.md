@@ -237,12 +237,8 @@ Flagging it as the one remaining reader that could see one.
 
 ## 7. Follow-ups (not fixed here)
 
-1. **Order the startup purge after the first feed flush, or re-run it once the
-   session's own bars start.** The purge is correct but races the connect
-   snapshot. Simplest durable option: make the rotation drop rows outside the
-   *current* session window rather than "before today", so a stale-`ltt` row
-   written seconds later is still excluded. This belongs with the writer-worker
-   redesign (F3/F4/F1), not as a spot fix.
+1. ~~Order the startup purge after the first feed flush…~~ **FIXED — but not in
+   the rotation, and not with a session *window*.** See §8.
 2. **`_purge_stale_live_buffer` logs success on `submit()`, not on completion.**
    `"EOD purge: live buffer cleared"` prints the moment the command is queued.
    The rotation's own result line (`live buffer rotated at ...: candles=N kept`)
@@ -256,3 +252,62 @@ Flagging it as the one remaining reader that could see one.
    full-directory `tests/nifty_shield_paper` run. The same suite passed 52/52
    before and 53/53 after, and the file passes in isolation — flaky, and the
    live stack was writing stores concurrently at the time.
+
+---
+
+## 8. Root-cause fix — session-date guard at the tick write boundary
+
+Requested as "fix the rotation to use the session window". Both halves of that
+framing turned out to be wrong instruments, and §7's original wording (mine) was
+what suggested them. Recorded here so the reasoning is not lost:
+
+**Why not the rotation.** It is a *one-shot* submitted at daemon startup
+(`_last_cleanup_date` blocks a same-day repeat). The stale rows are written
+~1 s **after** it runs. No predicate a snapshot operation applies at T can
+exclude a row written at T+1s.
+
+**Why not the session *window*.** Verified against the buffer: index
+dissemination legitimately runs **09:00 → 16:00** (today's index ticks start
+09:00; yesterday's stale row was 16:00), while the widest segment
+`session_schedule` defines is `derivatives` **09:15 → 15:40**. Filtering on the
+window would delete real pre-open and post-close index data — strictly worse
+than the bug.
+
+**What was done instead.** A session-**date** guard in
+`LiveBufferWriter._parse`, at the write boundary where the bad row is created:
+
+```python
+session = datetime.now(IST).date()
+...
+ts = datetime.fromtimestamp(ltt_ms / 1000.0, tz=IST).replace(tzinfo=None)
+if ts.date() != session:
+    self._note_stale(symbol, ts, session)
+    continue
+```
+
+Every genuine tick of today's session carries today's date, so this cannot drop
+real data — the property the window predicate could not offer. The drop is
+logged **once per symbol per session** (`_note_stale`, re-armed on the next
+rotation): a silently discarded feed row is how a stale price becomes a fact.
+
+**It fixes the general case, not just the indices.** Any instrument that has not
+traded today — an illiquid option is the common one — is broadcast with its last
+trade's `ltt`. Every one of those was landing as a prior-session tick and then a
+prior-session candle. The three indices were merely the symbols the 13:00
+publisher happened to read.
+
+**Verification.** RED/GREEN proven (guard removed → the new test fails).
+`tests/database/ingestors` **36 passed**; `tests/daytype` +
+`tests/nifty_shield_paper` + `tests/database` together **125 passed**.
+Two existing test helpers pinned `ltt` to fixed historical epochs
+(2024-08-10, 2020-01-01) and now anchor to today's IST session instead.
+
+### Defence in depth
+
+Three layers now, each independently sufficient for the DayType path:
+
+| layer | file | effect |
+|---|---|---|
+| ingest | `live_buffer_writer._parse` | a prior-session tick never enters the buffer |
+| publisher | `publish_live_fact._session_frame` | a stale row in the buffer cannot truncate the 13:00 frame |
+| evidence | `recorder._extract_session_bars` | a stale row cannot enter the replay package |

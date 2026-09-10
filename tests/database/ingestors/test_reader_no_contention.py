@@ -1,5 +1,7 @@
 import subprocess, sys, textwrap, threading, time
-from datetime import datetime
+from datetime import datetime, time as _time
+
+import pytz
 from core.database.manager import DatabaseManager
 from core.database.ingestors.live_buffer_writer import LiveBufferWriter, Aggregate
 from core.database.ingestors.db_tick_aggregator import DBTickAggregator
@@ -19,7 +21,10 @@ def test_cross_process_reader_lands_during_active_writing(tmp_path):
     w.start()
     stop = threading.Event()
     def load():
-        base = int(datetime(2020, 1, 1, 10, 0).timestamp() * 1000)
+        # today's session: the writer drops ticks stamped outside it
+        _ist = pytz.timezone("Asia/Kolkata")
+        base = int(_ist.localize(datetime.combine(
+            datetime.now(_ist).date(), _time(10, 0))).timestamp() * 1000)
         i = 0
         # Sustained candle writes at ~10/sec (15x production's 1.5s cycle).
         # A DuckDB RW open->write->close cycle costs ~27ms on Windows (file-lock

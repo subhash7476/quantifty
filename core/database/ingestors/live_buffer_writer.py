@@ -3,7 +3,7 @@ import queue
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional, Tuple
 
 import pytz
@@ -65,6 +65,7 @@ class LiveBufferWriter:
         self._pending: List[TickFrame] = []
         self._last_flush = 0.0
         self._last_tick: dict = {}
+        self._stale_logged: set = set()
 
     def start(self):
         if self._running:
@@ -259,12 +260,32 @@ class LiveBufferWriter:
         return out
 
     def _parse(self, raw: bytes) -> List[Tuple]:
+        """Feed frame -> tick rows for the CURRENT session only.
+
+        The row timestamp is the exchange's `ltt` (last traded time), not the
+        arrival time, so a symbol that has not traded today is broadcast with a
+        PRIOR session's timestamp and lands as a prior-session tick — which the
+        aggregator then buckets into a prior-session candle. On 2026-09-10 the
+        connect snapshot arrived ~1 s after the startup rotation carrying the
+        previous evening's index dissemination (`ltt` 2026-09-09 16:00), and the
+        three 16:00 bars it produced cost that session its 13:00 DayType fact.
+
+        The rotation cannot prevent this: it is a one-shot at startup and these
+        rows are written after it runs. The guard has to be here, at the write
+        boundary. It is scoped by session DATE, not by
+        `session_schedule.session_window`, because index dissemination
+        legitimately runs 09:00-16:00 while the widest defined segment is
+        derivatives 09:15-15:40 — a window predicate would discard real
+        pre-open and post-close index ticks. Every genuine tick of today's
+        session carries today's date, so the date guard cannot drop one.
+        """
         out = []
         try:
             resp = FeedResponse()
             resp.ParseFromString(raw)
         except Exception:
             return out
+        session = datetime.now(IST).date()
         for symbol, feed in resp.feeds.items():
             ltp_data = self._extract_ltp(feed)
             if not ltp_data:
@@ -273,8 +294,22 @@ class LiveBufferWriter:
             if ltp == 0:
                 continue
             ts = datetime.fromtimestamp(ltt_ms / 1000.0, tz=IST).replace(tzinfo=None)
+            if ts.date() != session:
+                self._note_stale(symbol, ts, session)
+                continue
             out.append((symbol, ts, ltp, int(ltq)))
         return out
+
+    def _note_stale(self, symbol: str, ts: datetime, session: date) -> None:
+        """Warn once per symbol per session. A dropped tick must be visible —
+        silently discarding feed rows is how a stale price becomes a fact."""
+        if symbol in self._stale_logged:
+            return
+        self._stale_logged.add(symbol)
+        logger.warning(
+            "dropping %s tick stamped %s (ltt outside session %s) — "
+            "feed is re-broadcasting a prior session's last trade",
+            symbol, ts, session)
 
     @staticmethod
     def _extract_ltp(feed):
@@ -315,6 +350,7 @@ class LiveBufferWriter:
         # holding one day of data reached 4 GB. rotate_live_buffer verifies the
         # retained row count before swapping and leaves the original in place if
         # it would lose anything.
+        self._stale_logged.clear()
         kept = self.db.rotate_live_buffer(cmd.cutoff)
         logger.info("live buffer rotated at %s: %s", cmd.cutoff,
                     ", ".join(f"{t}={n} kept" for t, n in kept.items()) or "nothing to rotate")
