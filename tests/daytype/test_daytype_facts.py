@@ -595,3 +595,43 @@ def test_reaches_checkpoint_but_below_min_bars_is_rejected(tmp_path, monkeypatch
     res = live.publish_live(tmp_path / "live.duckdb", today=d)
     assert res["ready"] is False
     assert "90" in res["reason"]
+
+
+@pytest.mark.skipif(not _model_present(), reason="models/daytype not present")
+def test_prior_session_bar_in_live_buffer_does_not_truncate_frame(tmp_path, monkeypatch):
+    """2026-09-10 13:00 root cause: `candles_today.duckdb` is a ROLLING buffer, not
+    a today-only one. It held three leftover 2026-09-09 16:00 rows (one per index)
+    alongside all 226 of the session's bars. `_session_frame` filtered on
+    minute-of-day only, so the stale 16:00 row (minute 960 >= 13:00) sorted first
+    on `ORDER BY timestamp` and became the first-bar-at/after-checkpoint slice —
+    a 1-bar frame. Every retry from 13:00 to 13:30 reported "1 bars, last 16:00",
+    the window latched, and the session produced no entry.
+
+    The session frame must be scoped to the session date BEFORE the checkpoint
+    slice."""
+    import scripts.daytype.publish_live_fact as live
+
+    d = date(2023, 1, 2)
+    stale = pd.DataFrame({
+        "timestamp": [pd.Timestamp("2023-01-01 16:00")],
+        "open": [1.0], "high": [1.0], "low": [1.0], "close": [1.0],
+        "volume": [0.0],
+    })
+    rolling = {
+        sym: pd.concat([stale, _craft_session_bars(seed=s, base=b)],
+                       ignore_index=True)
+        for sym, s, b in [(pf.NF_SYMBOL, 1, 24000.0),
+                          (pf.BN_SYMBOL, 2, 52000.0),
+                          (pf.VIX_SYMBOL, 3, 14.0)]
+    }
+    candle_dir = tmp_path / "candles_1m"
+    candle_dir.mkdir()
+    buf = tmp_path / "candles_today.duckdb"
+    _write_candle_db(buf, rolling)
+    monkeypatch.setattr(live, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(pf, "CANDLE_DIR_1M", candle_dir)
+    monkeypatch.setattr(live, "LIVE_BUFFER", buf)
+
+    res = live.publish_live(tmp_path / "live.duckdb", today=d)
+    assert res["ready"] is True, res.get("reason")
+    assert res["source"] == "live_buffer"

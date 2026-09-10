@@ -755,3 +755,33 @@ def test_repeated_skips_with_no_entry_collapse_to_one_structure(tmp_path):
     assert len(report.structures) == 1
     assert report.structures[0].status == "skipped"
     assert report.structures[0].reason == "attempt 3"     # final outcome
+
+
+def test_session_bars_exclude_prior_session_rows_in_rolling_buffer(tmp_path):
+    """2026-09-10: `candles_today.duckdb` is a ROLLING buffer — it carried three
+    2026-09-09 16:00 rows past the morning rotation. `_extract_session_bars`
+    took a `session` argument but never filtered on it, so those rows entered
+    the evidence package and sorted ahead of every real bar on
+    `ORDER BY symbol, timestamp` — a replay clock that starts on the prior
+    session and jumps backwards."""
+    import duckdb as _duckdb
+    from scripts.nifty_shield_paper.recorder import _extract_session_bars
+
+    buf = tmp_path / "candles_today.duckdb"
+    con = _duckdb.connect(str(buf))
+    con.execute(
+        "CREATE TABLE candles (symbol VARCHAR, timeframe VARCHAR, "
+        "timestamp TIMESTAMP, open DOUBLE, high DOUBLE, low DOUBLE, "
+        "close DOUBLE, volume BIGINT)")
+    con.executemany(
+        "INSERT INTO candles VALUES (?, '1m', ?, ?, ?, ?, ?, ?)",
+        [(NF_SYMBOL, datetime(2026, 6, 4, 16, 0), 1.0, 1.0, 1.0, 1.0, 0),
+         (NF_SYMBOL, datetime(2026, 6, 5, 9, 15), 2.0, 2.0, 2.0, 2.0, 10),
+         (NF_SYMBOL, datetime(2026, 6, 5, 9, 16), 3.0, 3.0, 3.0, 3.0, 10)],
+    )
+    con.close()
+
+    rows = _extract_session_bars(SESSION, per_day_store=None,
+                                 live_buffer=str(buf))
+    assert [r[1] for r in rows] == [datetime(2026, 6, 5, 9, 15),
+                                    datetime(2026, 6, 5, 9, 16)]

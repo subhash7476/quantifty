@@ -98,8 +98,16 @@ SESSION_OPEN_MIN = 555                  # 09:15 IST, in minutes from midnight
 CHECKPOINT_MIN = 780                    # 13:00 IST
 
 
-def _session_frame(df: pd.DataFrame) -> Optional[pd.DataFrame]:
-    """Session bars from 09:15 up to and including the first bar at/after 13:00.
+def _session_frame(df: pd.DataFrame, session: date) -> Optional[pd.DataFrame]:
+    """`session`'s bars from 09:15 up to and including the first bar at/after 13:00.
+
+    Scoped to `session` FIRST: the live buffer is a rolling store, not a
+    today-only one, and a leftover bar from the previous session outranks every
+    bar of this one on `ORDER BY timestamp`. On 2026-09-10 the buffer held three
+    stale 2026-09-09 16:00 rows (one per index); minute-of-day 960 >= 13:00, so
+    the first-bar-at/after-checkpoint slice truncated the frame to that single
+    row and every retry through 13:30 reported "1 bars, last 16:00" while all 226
+    of the session's bars sat in the same table.
 
     No coverage judgement here — the caller decides acceptance from the returned
     frame (its last bar's minute vs the checkpoint, and its length). This mirrors
@@ -112,6 +120,7 @@ def _session_frame(df: pd.DataFrame) -> Optional[pd.DataFrame]:
         return None
     df = df.copy()
     df["timestamp"] = pd.to_datetime(df["timestamp"])
+    df = df[df["timestamp"].dt.date == session]
     minute = df["timestamp"].dt.hour * 60 + df["timestamp"].dt.minute
     sess = df[minute >= SESSION_OPEN_MIN].sort_values("timestamp").reset_index(drop=True)
     if sess.empty:
@@ -167,7 +176,7 @@ def _today_bars(symbol: str, today: date,
         if df is None:
             _note(diag, f"{label}: unreadable")
             continue
-        frame = _session_frame(df)
+        frame = _session_frame(df, today)
         n = 0 if frame is None else len(frame)
         if _reaches_checkpoint(frame) and n >= MIN_BARS:
             _note(diag, f"{label}: {_coverage(frame)} -> used")

@@ -407,29 +407,34 @@ def _extract_session_bars(session: date, *, per_day_store: Optional[str],
     volume).
     """
     if per_day_store and Path(per_day_store).exists():
-        rows = _read_candle_db(Path(per_day_store))
+        rows = _read_candle_db(Path(per_day_store), session)
         if rows:
             return rows
     if live_buffer and Path(live_buffer).exists():
-        return _read_candle_db(Path(live_buffer))
+        return _read_candle_db(Path(live_buffer), session)
     return []
 
 
-def _read_candle_db(path: Path) -> List[tuple]:
+def _read_candle_db(path: Path, session: date) -> List[tuple]:
+    """`session`'s 1m bars only.
+
+    The live buffer is a ROLLING store: on 2026-09-10 it carried three
+    2026-09-09 16:00 rows past the morning rotation. Unfiltered, those land in
+    the evidence package as session bars and sort ahead of every real bar on
+    ``ORDER BY symbol, timestamp``, so a replay's clock starts on the prior
+    session and jumps backwards. The per-day store is single-date by
+    construction; the predicate is a no-op there.
+    """
     try:
         con = duckdb.connect(str(path), read_only=True)
         try:
             cols = {r[1] for r in con.execute(
                 "PRAGMA table_info('candles')").fetchall()}
-            if "timeframe" in cols:
-                rows = con.execute(
-                    "SELECT symbol, timestamp, open, high, low, close, volume "
-                    "FROM candles WHERE timeframe = '1m' "
-                    "ORDER BY symbol, timestamp").fetchall()
-            else:
-                rows = con.execute(
-                    "SELECT symbol, timestamp, open, high, low, close, volume "
-                    "FROM candles ORDER BY symbol, timestamp").fetchall()
+            tf = "timeframe = '1m' AND " if "timeframe" in cols else ""
+            rows = con.execute(
+                "SELECT symbol, timestamp, open, high, low, close, volume "
+                f"FROM candles WHERE {tf}CAST(timestamp AS DATE) = ? "
+                "ORDER BY symbol, timestamp", [session]).fetchall()
         finally:
             con.close()
     except Exception:
