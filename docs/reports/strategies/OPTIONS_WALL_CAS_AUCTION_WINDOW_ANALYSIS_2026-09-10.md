@@ -7,6 +7,13 @@ Analysis 2026-09-10. Question: options-wall squares off at **15:15**, but index 
 **Answer: yes to both.** Quotes do not degrade in the auction window, and holding past 15:15
 captured positive P&L in **9 of 9** index-sessions to 15:25.
 
+> **⚠ Read the addendum at the end before acting on this body.** The post-close re-run added
+> 2026-09-10 (the first DTE-0 session) and found (a) the **underlying print freezes** from
+> 15:15 — Part 1 measured option quotes, not the index reference — and (b) the DTE-0 row is
+> negative at every cutoff past 15:20, moving 15:30 from mean +352 / 8-of-9 to
+> **mean +228 / 9-of-12**. The 15:30 recommendation stands; the "9 of 9" headline above does
+> not.
+
 ---
 
 ## 0. Sample — read this before the numbers
