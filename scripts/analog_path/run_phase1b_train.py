@@ -1,9 +1,9 @@
-"""Phase 1B TRAIN orchestrator — analogue engine, forecasts, controls, nulls.
+"""Phase 1B orchestrator — analogue engine, forecasts, controls, nulls.
 
-Runs on TRAIN only (fence-guarded, refuses any other fence). Writes all
-artefacts under data/analog_path/ and appends ledger rows. The SEALED
-window is not touched: `load_eligible_dates("train")` + require_fence per
-date make any SEALED access raise.
+Frozen methodology, runnable one-shot per fence: TRAIN (discovery) and
+HOLDOUT (validation). Every loaded date is fence-asserted; SEALED refuses
+to run (config.require_fence raises). Writes per-fence artefacts under
+data/analog_path/ and appends ledger rows.
 """
 from __future__ import annotations
 
@@ -29,30 +29,32 @@ from scripts.analog_path.states import build_matrices
 
 OUT = Path(__file__).resolve().parents[2] / "data" / "analog_path"
 REPS = {"A": "states_A", "B": "states_B", "C": "states_C"}
+MIN_N = {"train": 1500, "holdout": 900}
 
 
-def run() -> dict:
+def run(fence: str = "train") -> dict:
     OUT.mkdir(parents=True, exist_ok=True)
-    dates = load_eligible_dates("train")
-    if len(dates) < 1500:
+    dates = load_eligible_dates(fence)
+    if len(dates) < MIN_N[fence]:
         raise RuntimeError(
-            f"eligible TRAIN list has only {len(dates)} dates — the persisted "
-            "eligible_days.csv appears stale or clobbered; rebuild with "
-            "scripts.analog_path.eligibility.build_eligible_days()")
+            f"eligible {fence.upper()} list has only {len(dates)} dates — the "
+            "persisted eligible_days.csv appears stale or clobbered; rebuild "
+            "with scripts.analog_path.eligibility.build_eligible_days()")
     for d in dates:
-        config.require_fence(d, "train")
+        config.require_fence(d, fence)
     M = build_matrices(dates)
     mat_dates = M["dates"]
     n = len(mat_dates)
-    if n < 1500:
-        raise RuntimeError(f"TRAIN matrix has only {n} sessions — eligibility "
-                           "regression; refusing to run on a truncated sample")
+    if n < MIN_N[fence]:
+        raise RuntimeError(f"{fence.upper()} matrix has only {n} sessions — "
+                           "eligibility regression; refusing to run on a "
+                           "truncated sample")
     A, B, C = M["states_A"], M["states_B"], M["states_C"]
     R = M["r_1230"]
     O = M["outcomes"]
     X = M["excursions"]
     horizons = list(config.HORIZONS)
-    print(f"TRAIN matrix: n={n} (skipped {len(M['skipped'])})")
+    print(f"{fence.upper()} matrix: n={n} (skipped {len(M['skipped'])})")
 
     baseline_f = np.column_stack([expanding_baseline(O, h) for h in range(len(horizons))])
     retonly_f = np.column_stack([expanding_return_only(O, h, R) for h in range(len(horizons))])
@@ -97,7 +99,7 @@ def run() -> dict:
                     "pool_rank_nearest": md["pool_rank_nearest"],
                 })
             df = pd.DataFrame(rows)
-            df.to_parquet(OUT / f"analogue_records_train_{rep_name}_K{k}.parquet")
+            df.to_parquet(OUT / f"analogue_records_{fence}_{rep_name}_K{k}.parquet")
             record_rows.append((cell, len(rows)))
             grid["similarity"][cell] = {
                 "n_query": int(len(rows)),
@@ -189,12 +191,12 @@ def run() -> dict:
                     "corr": q["corr"], "mae": q["mae"], "n": q["n"]}
     grid["excursion_diagnostics"] = diag
 
-    with open(OUT / "phase1b_train_grid.json", "w") as fh:
+    with open(OUT / f"phase1b_{fence}_grid.json", "w") as fh:
         json.dump(grid, fh, indent=1, default=str)
     for cell, nrows in record_rows:
-        record("phase1b_analogue_engine", fence="train", representation=cell.split("_")[0],
+        record("phase1b_analogue_engine", fence=fence, representation=cell.split("_")[0],
                distance="euclidean", k=int(cell.split("K")[1]), horizon="all",
-               sample=f"TRAIN walk-forward, {nrows} query days",
+               sample=f"{fence.upper()} walk-forward, {nrows} query days",
                metric="analogue records + similarity",
                result={"n_query": nrows}, used_for_methodology_decision=False)
     return grid
@@ -214,8 +216,13 @@ def _dist_summary(x: np.ndarray) -> dict:
 
 
 if __name__ == "__main__":
-    g = run()
-    print("\nPhase 1B TRAIN complete.")
+    import argparse
+
+    p = argparse.ArgumentParser()
+    p.add_argument("--fence", choices=["train", "holdout"], default="train")
+    args = p.parse_args()
+    g = run(args.fence)
+    print(f"\nPhase 1B {args.fence.upper()} complete.")
     for cell, sim in g["similarity"].items():
         s = sim["reference_percentile"]
         print(f"  {cell}: ref-pct median={s['median']:.3f} "

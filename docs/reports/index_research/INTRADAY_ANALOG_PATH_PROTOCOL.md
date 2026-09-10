@@ -276,3 +276,18 @@ experiment ledger, experiment results, analogue records, plots).
 Phase 1B TRAIN results: `INTRADAY_ANALOG_PATH_TRAIN_REPORT.md` (verdict:
 WEAK; central forecast question NO EVIDENCE; control close-horizon effect
 +2.4 bp, permutation p≈2e-5).
+
+## 14. Closure record (2026-09-09)
+
+HOLDOUT (2019–2022, n=981) was run **once** at the frozen methodology
+(`--fence holdout`; nothing else changed). Result: **NO EVIDENCE** —
+β_analogue insignificant in all 60 cells after controlling for R; the
+TRAIN close-horizon +2.4 bp shape premium did not survive (−0.04 bp,
+t −0.54); the return-only baseline strengthened OOS (+0.11…+0.16 corr).
+Per the frozen termination mapping (HOLDOUT fail → construct retired,
+SEALED untouched), the construct is **RETIRED**. The SEALED window
+2023-01-01 → present (885 eligible sessions) remains **locked and unspent**.
+The 09:15→12:30 historical-analog hypothesis is substantially falsified in
+this formulation: the path's predictive content reduces to its endpoint
+return. Report: `INTRADAY_ANALOG_PATH_HOLDOUT_REPORT.md`. Any successor
+starts its own pre-registration.
