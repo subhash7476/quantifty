@@ -7,12 +7,16 @@ Analysis 2026-09-10. Question: options-wall squares off at **15:15**, but index 
 **Answer: yes to both.** Quotes do not degrade in the auction window, and holding past 15:15
 captured positive P&L in **9 of 9** index-sessions to 15:25.
 
-> **⚠ Read the addendum at the end before acting on this body.** The post-close re-run added
-> 2026-09-10 (the first DTE-0 session) and found (a) the **underlying print freezes** from
-> 15:15 — Part 1 measured option quotes, not the index reference — and (b) the DTE-0 row is
-> negative at every cutoff past 15:20, moving 15:30 from mean +352 / 8-of-9 to
-> **mean +228 / 9-of-12**. The 15:30 recommendation stands; the "9 of 9" headline above does
-> not.
+> **⚠ Read BOTH addenda at the end before acting on this body — the recommendation has moved
+> twice.**
+> - **Addendum 1** found the **underlying print freezes** from 15:15 (Part 1 measured option
+>   quotes, not the index reference), and read the first DTE-0 row as negative.
+> - **Addendum 2 withdraws that DTE-0 reading** — it came from a synthetic fly centred on the
+>   frozen print, so it measured the freeze defect, not expiry economics. Measured on the real
+>   position (trade 31), **TP would have fired at 15:20:50** and the fly reached +₹5,049 by
+>   15:32 against the −₹2,495 actually taken at 15:03.
+> - **Final: square-off is 15:35**, not the 15:30 recommended in §3 below. The "9 of 9"
+>   headline and §3 are both superseded.
 
 ---
 
