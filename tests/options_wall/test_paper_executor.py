@@ -1,11 +1,11 @@
 """Paper executor: opens one ATM fly on a farm signal, then manages/closes it."""
-from datetime import datetime
+from datetime import date, datetime, time
 
 from core.analytics.options_analytics import (
     GEXResult, OIAnalysisResult, OptionsStructuralData, PCRResult,
 )
 from core.data.options_provider import OptionChainRow
-from core.options_wall.paper_executor import PaperConfig, PaperExecutor
+from core.options_wall.paper_executor import _hhmm, PaperConfig, PaperExecutor
 
 _PREMIA = {
     97: (4.0, 0.5), 98: (3.2, 0.8), 99: (2.5, 1.2), 100: (1.8, 1.8),
@@ -108,7 +108,7 @@ def test_time_stop_fires_during_a_negative_regime(tmp_path):
     ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 17, 10, 0))
     action = ex.step("NSE_INDEX|Nifty 50", _chain(),
                      _structural(regime="Negative GEX (Volatile)"), 1.0,
-                     datetime(2026, 8, 17, 15, 15))
+                     datetime(2026, 8, 17, 15, 30))
     assert action == "time_stop"
 
 
@@ -116,9 +116,9 @@ def test_time_stop_squares_off(tmp_path):
     db = tmp_path / "r.duckdb"
     ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db)
     ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 17, 10, 0))
-    # expiry 2026-08-18 (Tue) -> DTE 1 on Mon; 15:15 is the squareoff
+    # expiry 2026-08-18 (Tue) -> DTE 1 on Mon; 15:30 is the squareoff
     action = ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
-                     datetime(2026, 8, 17, 15, 15))
+                     datetime(2026, 8, 17, 15, 30))
     assert action == "time_stop"
 
 
@@ -239,3 +239,48 @@ def test_min_dte_floor_suppresses_the_farm_row_and_the_trade(tmp_path):
             if r.screen == "premium_farm"]
     assert farm == []
     assert ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, now) is None
+
+
+# --- CAS square-off (2026-09-10 auction-window analysis) --------------------
+
+def test_squareoff_default_is_inside_the_derivatives_session():
+    """15:15 is the CASH close. Index options are derivatives, open to 15:40.
+
+    Measured 2026-09-04/07/09: quotes stay 100% two-sided through the auction and
+    holding past 15:15 captured decay in 9 of 9 index-sessions (median +Rs193 to
+    +Rs314 per lot). See OPTIONS_WALL_CAS_AUCTION_WINDOW_ANALYSIS_2026-09-10.md.
+    """
+    from core.market.session_schedule import session_window
+    start, end = session_window("derivatives", date(2026, 9, 10))
+    cfg = _hhmm(PaperConfig().squareoff)
+    assert cfg == time(15, 30)
+    assert start < cfg < end
+
+
+def test_time_stop_does_not_fire_before_the_squareoff(tmp_path):
+    """The old 15:15 exit must no longer close the position."""
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb")
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 17, 10, 0))
+    action = ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
+                     datetime(2026, 8, 17, 15, 15))
+    assert action is None
+
+
+def test_squareoff_is_clamped_inside_the_derivatives_close(tmp_path):
+    """A misconfigured square-off past the segment end is pulled back, not honoured.
+
+    Session truth comes from session_schedule (CLAUDE.md); the square-off is a
+    strategy parameter the schedule *bounds*, not one that can outrun it. The
+    buffer keeps the exit clear of the 15:39-15:40 spread blow-out (0.38% then
+    0.96% vs 0.27% mid-auction).
+    """
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03, squareoff="16:30"),
+                       db_path=tmp_path / "r.duckdb")
+    assert ex._squareoff_time(date(2026, 9, 10)) == time(15, 38)
+
+
+def test_squareoff_respects_the_pre_cas_schedule():
+    """Before CAS the derivatives segment ended 15:30, so the bound moves with the era."""
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03, squareoff="15:30"))
+    assert ex._squareoff_time(date(2026, 7, 1)) == time(15, 28)
+    assert ex._squareoff_time(date(2026, 9, 10)) == time(15, 30)

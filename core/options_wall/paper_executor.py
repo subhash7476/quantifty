@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 from core.analytics.chain_scanner import ChainScanner, ScanConfig
+from core.market.session_schedule import session_window
 from core.options_wall import persistence as pers
 from core.options_wall.fly import (FlyLeg, IronFly, build_iron_fly, exit_fees,
                                    mark_to_close, unrealized_pnl)
@@ -30,8 +31,14 @@ class PaperConfig:
     sl_frac: float = 0.5        # of max_loss, NOT of credit: a fly cannot lose a multiple of its own credit
     entry_start: str = "09:30"
     entry_end: str = "15:00"
-    squareoff: str = "15:15"
+    squareoff: str = "15:30"    # bounded by the derivatives segment; see _squareoff_time
     min_dte: int = ScanConfig.min_dte   # single default, shared with the scanner
+
+
+# Keep the exit clear of the derivatives close, where the book thins out: measured
+# 2026-09-04/07/09, median ATM relative spread runs 0.27% through the CAS auction,
+# 0.38% at 15:39 and 0.96% at 15:40.
+EXIT_BUFFER_MIN = 2
 
 
 def _hhmm(s: str) -> time:
@@ -102,7 +109,7 @@ class PaperExecutor:
         elif pnl is not None and pnl <= -self.cfg.sl_frac * row["max_loss"]:
             reason = "sl"
         dte = (date.fromisoformat(row["expiry"]) - now.date()).days
-        if reason is None and dte <= 1 and now.time() >= _hhmm(self.cfg.squareoff):
+        if reason is None and dte <= 1 and now.time() >= self._squareoff_time(now.date()):
             reason = "time_stop"
         if reason is None:
             return None
@@ -138,6 +145,19 @@ class PaperExecutor:
                                return_on_margin=rom, exit_legs=exit_legs,
                                db_path=self.db_path)
         return reason
+
+    def _squareoff_time(self, on: date) -> time:
+        """The configured square-off, bounded by the derivatives segment on `on`.
+
+        Session truth comes from `session_schedule`, never a bare constant
+        (CLAUDE.md) — but the square-off is a strategy parameter, not a session
+        boundary, so the schedule *bounds* it rather than defines it. The era-keyed
+        window matters: derivatives closed 15:30 pre-CAS and 15:40 since
+        2026-08-03, so the same config resolves differently across the change.
+        """
+        start, end = session_window("derivatives", on)
+        latest = (datetime.combine(on, end) - timedelta(minutes=EXIT_BUFFER_MIN)).time()
+        return min(max(_hhmm(self.cfg.squareoff), start), latest)
 
     def _rehydrate(self, row) -> IronFly:
         legs = [
