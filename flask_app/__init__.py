@@ -200,6 +200,9 @@ def create_app(test_config=None):
     from flask_app.blueprints.nifty_shield import nifty_shield_bp
     app.register_blueprint(nifty_shield_bp)
 
+    from flask_app.blueprints.index_ticker import index_ticker_bp
+    app.register_blueprint(index_ticker_bp)
+
     # Global context processor for templates
     @app.context_processor
     def inject_user_context():

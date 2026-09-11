@@ -60,13 +60,24 @@ def _token_ok() -> bool:
 def _pid_alive(pid: int) -> bool:
     if os.name == "nt":
         import ctypes
+        from ctypes import wintypes
         if hasattr(ctypes, "windll"):
-            SYNCHRONIZE = 0x00100000
-            handle = ctypes.windll.kernel32.OpenProcess(SYNCHRONIZE, False, pid)
+            # OpenProcess succeeds on an exited process whose object lingers
+            # while any handle to it is held, so it read a dead poller as alive:
+            # the orchestrator (pidfile.pid_alive, exit-code based) respawned it
+            # and every respawn refused to start (2026-09-11). Same test as the
+            # orchestrator, or the two disagree.
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
+            handle = ctypes.windll.kernel32.OpenProcess(
+                PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
             if not handle:
                 return False
+            exit_code = wintypes.DWORD()
+            ok = ctypes.windll.kernel32.GetExitCodeProcess(
+                handle, ctypes.byref(exit_code))
             ctypes.windll.kernel32.CloseHandle(handle)
-            return True
+            return bool(ok) and exit_code.value == STILL_ACTIVE
     try:
         os.kill(pid, 0)
         return True
