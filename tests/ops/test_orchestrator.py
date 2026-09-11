@@ -311,9 +311,9 @@ def test_dispatch_catchup_spawns_once_per_day(tmp_path, monkeypatch):
     spawned = []
     monkeypatch.setattr(orch.subprocess, "Popen",
                         lambda argv, **kw: spawned.append(argv) or _FakePopen(argv))
-    orch._dispatch_catchup(stamp_path=stamp)
-    orch._dispatch_catchup(stamp_path=stamp)
-    orch._dispatch_catchup(stamp_path=stamp)
+    orch._dispatch_catchup(stamp_path=stamp, log_dir=tmp_path)
+    orch._dispatch_catchup(stamp_path=stamp, log_dir=tmp_path)
+    orch._dispatch_catchup(stamp_path=stamp, log_dir=tmp_path)
     assert len(spawned) == 1
     assert "download_all_data.py" in spawned[0][-1]
 
