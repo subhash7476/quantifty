@@ -5,6 +5,11 @@ Computes time-series basis z-scores per (formation_date, underlying) at
   raw_z = (basis_now - trailing_mean) / trailing_std
   z_ts  = raw_z clamped to [-3, 3]
 
+From CAS (2026-08-03) spot is the continuous-session close (last traded 1m bar
+before 15:15), not the bhavcopy close, which is the closing-auction print struck
+after continuous trading stopped while futures traded on. A post-CAS name with no
+such bar fails the build.
+
 Usage:
   Full rebuild:  python build_ts_basis_daily.py
                  (builds beside the store, copies the old store to data/_baselines, then replaces it)
@@ -23,8 +28,11 @@ from pathlib import Path
 import duckdb
 
 ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts" / "signal_engine" / "carry"))
 import contract_arms as A
+from core.market.session_schedule import CAS_EFFECTIVE
+from scripts.cas.fo_1m_coverage import CANDLES_1M_DIR, load_continuous_closes
 
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 EQ_DB = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
@@ -53,8 +61,43 @@ def _existing_dates(path: Path) -> set:
         con.close()
 
 
+def _use_continuous_spot(con, dates: list) -> None:
+    load_continuous_closes(con, dates, CANDLES_1M_DIR)
+    con.execute("CREATE OR REPLACE TEMP TABLE cas_dates (d DATE)")
+    con.executemany("INSERT INTO cas_dates VALUES (?)", [(d,) for d in dates])
+    missing = con.execute("""
+        SELECT bp.trade_date, LIST(bp.underlying ORDER BY bp.underlying)
+        FROM basis_panel bp
+        JOIN cas_dates cd ON cd.d = bp.trade_date
+        LEFT JOIN cont_close c ON c.trade_date = bp.trade_date AND c.underlying = bp.underlying
+        WHERE bp.spot_close IS NOT NULL AND bp.annualized_basis IS NOT NULL AND c.close IS NULL
+        GROUP BY 1 ORDER BY 1
+    """).fetchall()
+    if missing:
+        detail = "; ".join(f"{d}: {', '.join(names)}" for d, names in missing)
+        raise RuntimeError(
+            f"{sum(len(names) for _, names in missing)} post-CAS cells have no continuous-session "
+            f"1m close in {CANDLES_1M_DIR} — backfill with scripts/cas/backfill_fo_1m.py --apply. {detail}")
+    priced = con.execute("""
+        UPDATE basis_panel bp SET spot_close = c.close,
+               raw_basis_ratio = (bp.fut_close - c.close) / c.close,
+               annualized_basis = (bp.fut_close - c.close) / c.close * 365.0 / GREATEST(bp.days_to_expiry, 1)
+        FROM cont_close c
+        WHERE c.trade_date = bp.trade_date AND c.underlying = bp.underlying
+          AND bp.spot_close IS NOT NULL AND bp.annualized_basis IS NOT NULL
+    """).fetchone()[0]
+    print(f"  {priced:,} post-CAS cells priced at the continuous-session close")
+
+
 def _build(out_path: Path, existing_dates: set) -> tuple[int, int]:
     con = duckdb.connect()
+    try:
+        return _build_into(con, out_path, existing_dates)
+    finally:
+        con.close()
+
+
+def _build_into(con, out_path: Path, existing_dates: set) -> tuple[int, int]:
     con.execute(f"ATTACH '{FUT_DB}' AS fut (READ_ONLY)")
     con.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
     con.execute("SET threads=4")
@@ -64,15 +107,26 @@ def _build(out_path: Path, existing_dates: set) -> tuple[int, int]:
     print("Building basis_panel...")
     print(f"  {A.build_basis_panel(con):,} cells")
 
+    # A name leaving F&O has no next contract to roll into, so the panel keeps pricing it
+    # off the expiring one, where 365 / days_to_expiry blows a small basis up. Drop those cells.
+    exiting = con.execute(f"""
+        DELETE FROM basis_panel bp USING td_cal tc, exp_cal ec
+        WHERE tc.trade_date = bp.trade_date AND ec.trade_date = bp.expiry_dt
+          AND ec.td_idx - tc.td_idx <= {A.ROLL_TRADING_DAYS}
+    """).fetchone()[0]
+    print(f"  {exiting:,} cells dropped: expiring contract, no next contract")
+
     all_fmt_dates = [r[0] for r in con.execute(
         "SELECT DISTINCT trade_date FROM fut.futures_bhavcopy WHERE inst_type='FUTSTK' ORDER BY trade_date"
     ).fetchall()]
     fmt_dates = [d for d in all_fmt_dates if d not in existing_dates]
     if not fmt_dates:
         print("  All formations already built — nothing to do.")
-        con.close()
         return 0, 0
     print(f"  {len(all_fmt_dates)} total, {len(fmt_dates)} new: {fmt_dates[0]} -> {fmt_dates[-1]}")
+    post_cas = [d for d in fmt_dates if d >= CAS_EFFECTIVE]
+    if post_cas:
+        _use_continuous_spot(con, post_cas)
 
     con.execute("BEGIN")
     con.execute("CREATE TEMP TABLE new_dates (d DATE)")
@@ -92,15 +146,6 @@ def _build(out_path: Path, existing_dates: set) -> tuple[int, int]:
             GROUP BY trade_date, underlying
         )
     """)
-
-    # A name leaving F&O has no next contract to roll into, so the panel keeps pricing it
-    # off the expiring one, where 365 / days_to_expiry blows a small basis up. Drop those cells.
-    exiting = con.execute(f"""
-        DELETE FROM basis_panel bp USING td_cal tc, exp_cal ec
-        WHERE tc.trade_date = bp.trade_date AND ec.trade_date = bp.expiry_dt
-          AND ec.td_idx - tc.td_idx <= {A.ROLL_TRADING_DAYS}
-    """).fetchone()[0]
-    print(f"  {exiting:,} cells dropped: expiring contract, no next contract")
 
     if fresh:
         con.execute("""
@@ -188,7 +233,6 @@ def _build(out_path: Path, existing_dates: set) -> tuple[int, int]:
 
     total = con.execute("SELECT COUNT(*) FROM out.signals").fetchone()[0]
     n_form = con.execute("SELECT COUNT(DISTINCT formation_date) FROM out.signals").fetchone()[0]
-    con.close()
     return total, n_form
 
 

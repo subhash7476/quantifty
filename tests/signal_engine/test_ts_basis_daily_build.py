@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import duckdb
@@ -166,6 +166,82 @@ def test_drops_cells_priced_off_an_expiring_contract_with_no_successor(stores, m
     assert date(2026, 6, 23) in by_name["GGG"]
     assert not by_name["GGG"] & roll_window
     assert roll_window <= by_name["AAA"]          # names with a next contract roll and stay
+
+
+CAS_DAYS = [date(2026, 7, 29), date(2026, 7, 30), date(2026, 7, 31), date(2026, 8, 3), date(2026, 8, 4)]
+CAS_EXPIRIES = [date(2026, 8, 25), date(2026, 9, 29)]
+CAS_ISIN = {"AAA": "INE000A01011", "BBB": "INE000B01011"}
+
+
+def _write_1m(path, bars):
+    con = duckdb.connect(str(path))
+    con.execute("CREATE TABLE candles (symbol VARCHAR, timeframe VARCHAR, timestamp TIMESTAMP, "
+                "close DOUBLE, volume BIGINT)")
+    con.executemany("INSERT INTO candles VALUES (?, '1m', ?, ?, ?)", bars)
+    con.close()
+
+
+@pytest.fixture
+def cas_stores(tmp_path, monkeypatch):
+    """Spot bhavcopy close 100 (the auction print); continuous trading last printed 99 at 15:14."""
+    fut = duckdb.connect(str(tmp_path / "fut.duckdb"))
+    fut.execute("CREATE TABLE futures_bhavcopy (trade_date DATE, underlying VARCHAR, inst_type VARCHAR, "
+                "expiry_dt DATE, close DOUBLE, settle DOUBLE, val_in_lakh DOUBLE)")
+    eq = duckdb.connect(str(tmp_path / "eq.duckdb"))
+    eq.execute("CREATE TABLE equity_bhavcopy (trade_date DATE, symbol VARCHAR, series VARCHAR, close DOUBLE)")
+    eq.execute("CREATE TABLE equity_bhavcopy_adjusted (trade_date DATE, symbol VARCHAR, series VARCHAR, close DOUBLE)")
+    eq.execute("CREATE TABLE symbol_entity_intervals (symbol VARCHAR, valid_from DATE, valid_to DATE, entity VARCHAR)")
+    eq.execute("CREATE TABLE instrument_master (symbol VARCHAR, series VARCHAR, isin VARCHAR)")
+    (tmp_path / "1m").mkdir()
+    for u, isin in CAS_ISIN.items():
+        eq.execute("INSERT INTO instrument_master VALUES (?, 'EQ', ?)", [u, isin])
+    for d in CAS_DAYS:
+        bars = []
+        for u, isin in CAS_ISIN.items():
+            eq.execute("INSERT INTO equity_bhavcopy VALUES (?, ?, 'EQ', 100.0)", [d, u])
+            eq.execute("INSERT INTO equity_bhavcopy_adjusted VALUES (?, ?, 'EQ', 100.0)", [d, u])
+            for x in CAS_EXPIRIES:
+                fut.execute("INSERT INTO futures_bhavcopy VALUES (?, ?, 'FUTSTK', ?, 101.0, 101.0, 900)", [d, u, x])
+            key = f"NSE_EQ|{isin}"
+            at = lambda hh, mm: datetime(d.year, d.month, d.day, hh, mm)  # noqa: E731
+            bars += [(key, at(15, 13), 98.5, 40), (key, at(15, 14), 99.0, 25),
+                     (key, at(15, 20), 99.0, 0), (key, at(15, 29), 100.0, 9000)]
+        _write_1m(tmp_path / "1m" / f"{d}.duckdb", bars)
+    fut.close()
+    eq.close()
+    monkeypatch.setattr(B, "FUT_DB", tmp_path / "fut.duckdb")
+    monkeypatch.setattr(B, "EQ_DB", tmp_path / "eq.duckdb")
+    monkeypatch.setattr(B, "OUT_DB", tmp_path / "out" / "ts_signals.duckdb")
+    monkeypatch.setattr(B, "BASELINE_DIR", tmp_path / "baselines")
+    monkeypatch.setattr(B, "CANDLES_1M_DIR", tmp_path / "1m")
+    return tmp_path
+
+
+def test_post_cas_basis_uses_the_continuous_session_close(cas_stores, monkeypatch):
+    # F10: from CAS on, the bhavcopy close is the auction print, taken after continuous
+    # trading stopped at 15:15 while futures kept trading; it mismeasures basis.
+    assert _run(monkeypatch) == 0
+    basis = {(r[0], r[1]): r[2] for r in _rows(B.OUT_DB)}
+    pre, post = date(2026, 7, 31), date(2026, 8, 3)
+    assert basis[(pre, "AAA")] == pytest.approx((101.0 - 100.0) / 100.0 * 365 / 25)
+    assert basis[(post, "AAA")] == pytest.approx((101.0 - 99.0) / 99.0 * 365 / 22)
+
+
+def test_post_cas_name_without_a_continuous_bar_fails_the_build(cas_stores, monkeypatch):
+    path = cas_stores / "1m" / "2026-08-04.duckdb"
+    con = duckdb.connect(str(path))
+    con.execute("DELETE FROM candles WHERE symbol = 'NSE_EQ|INE000B01011' AND volume > 0 "
+                "AND CAST(timestamp AS TIME) < TIME '15:15'")
+    con.close()
+    with pytest.raises(RuntimeError, match=r"2026-08-04.*BBB"):
+        _run(monkeypatch)
+    assert not B.OUT_DB.exists()
+
+
+def test_post_cas_date_without_a_1m_file_fails_the_build(cas_stores, monkeypatch):
+    (cas_stores / "1m" / "2026-08-03.duckdb").unlink()
+    with pytest.raises(RuntimeError, match=r"2026-08-03.*AAA"):
+        _run(monkeypatch)
 
 
 def test_incremental_refuses_a_store_without_raw_z(stores, monkeypatch):
