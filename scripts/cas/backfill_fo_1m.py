@@ -119,6 +119,11 @@ def main() -> int:
         return 0
 
     touched = sorted(absent)
+    cat1 = {d: cat1_isin_symbols(d) for d in touched}
+    uncategorised = [str(d) for d, symbols in cat1.items() if not symbols]
+    if uncategorised:
+        raise RuntimeError(f"no Category I symbols for {uncategorised} — backfilled bars would land unmarked; "
+                           f"extend data/cas/cas_category.duckdb (scripts/cas/build_cas_category.py) first")
     for d in touched:
         _baseline(d)
     for (start, end), keys in runs.items():
@@ -126,7 +131,7 @@ def main() -> int:
                "--interval", "1", "--from", start.isoformat(), "--to", end.isoformat(), "--no-intraday"]
         if subprocess.run(cmd, cwd=ROOT).returncode != 0:
             raise RuntimeError(f"fetch failed for {start} -> {end}")
-    flagged = sum(mark_file(CANDLES_1M_DIR / f"{d}.duckdb", d, cat1_isin_symbols(d))
+    flagged = sum(mark_file(CANDLES_1M_DIR / f"{d}.duckdb", d, cat1[d])
                   for d in touched if (CANDLES_1M_DIR / f"{d}.duckdb").exists())
     print(f"CAS marker: {flagged:,} carry-forward bars flagged on {len(touched)} files")
 
