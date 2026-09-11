@@ -25,6 +25,7 @@ from core.database.manager import DatabaseManager
 from core.messaging.zmq_handler import ZmqPublisher
 from core.messaging.telemetry import TelemetryPublisher
 from core.logging import setup_logger, TelemetryHandler
+from scripts.ops import pidfile
 
 import atexit
 
@@ -153,15 +154,11 @@ class MarketIngestorDaemon:
         if PID_FILE.exists():
             try:
                 pid = int(PID_FILE.read_text())
-                # Basic check if PID is active
-                try:
-                    os.kill(pid, 0)
+                if pidfile.pid_alive(pid):
                     logger.error(f"Another instance of MarketIngestor is already running (PID: {pid})")
                     sys.exit(1)
-                except OSError:
-                    pass # Stale PID
-            except (ValueError, Exception):
-                pass 
+            except (ValueError, OSError):
+                pass # Unreadable PID file
         
         PID_FILE.parent.mkdir(parents=True, exist_ok=True)
         PID_FILE.write_text(str(os.getpid()))
