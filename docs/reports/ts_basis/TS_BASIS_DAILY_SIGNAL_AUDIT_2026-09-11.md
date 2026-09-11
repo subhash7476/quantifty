@@ -422,3 +422,26 @@ At **15:47:48** the RED run of `test_ts_basis_daily_pipeline.py` ran against the
 - **Research reports** computed on the old store (F4 plus the construct changes) were not re-derived.
 - **2027 NSE holidays** must be added to `core/market/nse_holidays.py` before about **2027-01-18**. From then on the January expiry is within the hard-fail margin, and builds that use `build_basis_panel` (TS Basis Daily, Carry, trend continuous) will stop with a message naming the file.
 - **O1 (CAS)** is unchanged; it is an observation, not a defect.
+
+---
+
+## Addendum — the 2026-08-31 book is a closing-auction artifact (F10), and exiting names blow up at expiry (F11)
+
+Raised from the `/ts-basis-daily/` panel for 2026-08-31, which showed 10+ names at exactly ±3.0000 on each side. Both findings are present in the rebuilt store.
+
+### F10 — spot and futures closes are not synchronous after CAS; auction-imbalance days fabricate basis (HIGH)
+
+- **2026-08-31 stands alone.** The cross-sectional raw_z SD is 3.46 (the surrounding sessions run 0.7–1.1), with 22 names at +3 and 62 at −3. The extremes reverse the next session: ITC's annualized basis goes 6% → **48%** → 2%, and ICICIPRULI's 9% → **−40%** → 1%.
+- **The prices are genuine; the basis is not.** The bhavcopy close is the official CAS auction print. ITC traded around ₹264.40 up to 15:14, then the 15:29 auction printed ₹255.50 on 5.46M shares (−3.4%). RELIANCE traded around ₹1,294.90 and printed ₹1,277.00 on 26.6M shares. The futures close (₹265.30 for ITC) comes from the derivatives market, which trades to 15:40 and does not take part in the equity auction.
+- **Scale on 08-31.** On the 148 names matched to the 1m store, the median auction-vs-continuous gap is 1.88%, and 83 names are more than 1% apart. With the auction close as spot, 36 names show an annualized basis above 30%; with the last continuous-session price as spot, 1 does.
+- **Not only 08-31.** Across 210 names, the spot close falls outside the same-day futures high–low range on 0 names on 07-27/28 (pre-CAS), 1–11 names on most post-CAS days, **56** on 08-26, **25** on 08-27 and **87** on 08-31.
+- **Consequences.** These cells are real rows in each name's 252-row window, so, as with F1, they compress later z for about a year. The 08-31 books were auction-imbalance picks, not basis dislocations. This escalates observation O1 to a defect.
+- **Side finding.** The 1m store's 08-31 carry-forward bars (15:15–15:28, `volume = 0`) are **not** flagged `is_synthetic`, so the CAS marker has not covered that session.
+
+### F11 — names leaving F&O are annualized over 0–3 days at their last expiry (MEDIUM)
+
+- A name with no next contract cannot roll, so its last ≤3 sessions price the expiring contract. `×365 / GREATEST(days, 1)` then blows the basis up. Example: DALBHARAT on 2026-08-25 (expiry day, no September contract) had basis −186% and raw_z **−29.1**, and it sat in that day's SHORT book.
+- **History:** 625 cells, 145 names, 217 dates. Median \|annualized basis\| is 31.8% against 7.1% for all cells, with a maximum of 2,670%.
+- The fix belongs in the TS Basis Daily build (drop cells whose selected contract is inside the roll window), not in `build_basis_panel`, so Carry's frozen panel is untouched.
+
+Neither is fixed yet. F10 needs a decision on how spot is measured after CAS.
