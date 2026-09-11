@@ -895,7 +895,7 @@ class ExecutionHandler:
                         price=current_price,
                         timestamp=order.timestamp,
                         side=order.side.value,
-                        fee=self._calculate_fees(order.quantity, current_price),
+                        fee=self._calculate_fees(order, current_price),
                     )
                     
                     # Instead of creating TradeEvent manually here, we route through _handle_broker_fill
@@ -1133,7 +1133,7 @@ class ExecutionHandler:
             self.config.slippage_value
         return price + adj if direction == "BUY" else price - adj
 
-    def _calculate_fees(self, quantity: float, price: float) -> float:
+    def _calculate_fees(self, order, price: float) -> float:
         """Realistic NSE equity intraday costs per leg.
 
         Brokerage: Rs 20 flat (discount broker)
@@ -1142,8 +1142,11 @@ class ExecutionHandler:
         SEBI fee: 0.0001% of turnover
         GST: 18% on (brokerage + exchange + SEBI)
         Stamp duty: 0.003% of buy-side turnover
+
+        Takes the order, not just its quantity, so a subclass trading another
+        segment can charge that segment's schedule (side- and date-dependent).
         """
-        turnover = quantity * price
+        turnover = order.quantity * price
         brokerage = 20.0
         exchange_txn = turnover * 0.0000345
         sebi = turnover * 0.000001
