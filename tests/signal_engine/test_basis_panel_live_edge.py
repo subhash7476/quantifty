@@ -18,7 +18,12 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts" / "signal_engine" / "carry"))
 
+# tests/psb1 caches scripts/psb1/contract_arms.py under the same module name.
+_cached_arms = sys.modules.pop("contract_arms", None)
 import contract_arms as A  # noqa: E402
+sys.modules.pop("contract_arms")
+if _cached_arms is not None:
+    sys.modules["contract_arms"] = _cached_arms
 
 SEP_EXP = date(2026, 9, 29)
 OCT_EXP = date(2026, 10, 27)

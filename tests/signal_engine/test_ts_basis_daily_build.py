@@ -18,7 +18,12 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "scripts" / "signal_engine" / "ts_basis_daily"))
 
+# tests/psb1 caches scripts/psb1/contract_arms.py under the name the build imports.
+_cached_arms = sys.modules.pop("contract_arms", None)
 import build_ts_basis_daily as B  # noqa: E402
+sys.modules.pop("contract_arms")
+if _cached_arms is not None:
+    sys.modules["contract_arms"] = _cached_arms
 
 EXPIRIES = [date(2026, 6, 30), date(2026, 7, 28), date(2026, 8, 25)]
 # name -> (near-contract turnover, next-contract turnover), in lakh
