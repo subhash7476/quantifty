@@ -4,11 +4,13 @@ The poller is the sole writer of the snapshot store; this pins that a cycle
 appends both indices and writes a heartbeat, using a stubbed provider and a temp
 store (no network, no token).
 """
+import subprocess
+import sys
 from pathlib import Path
 
 from core.data import options_wall_store as store
 from core.data.options_provider import OptionChainRow
-from core.options_wall.poller import WallPoller
+from core.options_wall.poller import WallPoller, _pid_alive
 
 
 class _FakeProvider:
@@ -74,3 +76,22 @@ def test_poll_cycle_captures_the_oi_baseline_once_per_session(tmp_path):
     poller._poll_cycle(provider)
     base = persistence.get_oi_baseline("NSE_INDEX|Nifty 50", date.today(), db_path=results)
     assert base[(100.0, "CE")] == 1000          # first cycle of the session wins
+
+
+def test_pid_alive_false_for_exited_process_whose_handle_is_still_held():
+    """A dead poller whose process object lingers (another process still holds a
+    handle) must read as dead, or the orchestrator respawns it and every respawn
+    refuses to start against the stale lock (2026-09-11, PID 11296)."""
+    p = subprocess.Popen([sys.executable, "-c", "pass"])
+    p.wait()                                    # `p` keeps the handle open
+    assert _pid_alive(p.pid) is False
+
+
+def test_acquire_lock_reclaims_a_lock_held_by_an_exited_process(tmp_path):
+    p = subprocess.Popen([sys.executable, "-c", "pass"])
+    p.wait()
+    pid = tmp_path / "p.pid"
+    pid.write_text(str(p.pid), encoding="utf-8")
+    poller = WallPoller(heartbeat_path=tmp_path / "hb.json", pid_path=pid,
+                        results_db_path=tmp_path / "results.duckdb")
+    assert poller._acquire_lock() is True
