@@ -11,8 +11,9 @@ determinism test that re-publishes facts four times from identical signals; (4) 
 ADV join, the run path and the recency of what is published.
 
 **Substrate held fixed:** `futures_bhavcopy.duckdb` (09:31:43) and `equity_bhavcopy.duckdb`
-(09:32:40) mtimes and sizes were identical before and after the audit. Live stores were opened
-read-only and never written.
+(09:32:40) mtimes and sizes were identical before and after the audit. During the audit, live
+stores were opened read-only and never written. The fix phase did write them — see Remediation,
+including the test-run incident.
 
 **Governance:** signal-level comparisons only. No forward-return, spread or P&L figure was read for
 any window, so the preserved SEALED window (2023-01-01 → 2026-07-24) got no performance read.
@@ -238,7 +239,9 @@ straddles the break until about Aug 2027, and a higher clamp rate directly worse
 ## Per-date book diff (2026-07-01 → 2026-09-09)
 
 Top-5 as `get_book` emits it (eligible names, Q5 highest-z first / Q1 lowest-z first). *Live* is
-the live facts store; *rebuild* is committed code on the same substrate. Rebuild books on
+the live facts store at audit time; *rebuild* is the then-committed code on the same substrate.
+**Neither column is what is published now:** the remediation's eligibility, quintile-universe and
+tie-order changes move the books further. Rebuild books on
 tie-heavy days are themselves one arbitrary draw (F3). F1 dates are **bold**.
 
 | Formation | L∩ | S∩ | Ties L/S live | Ties L/S rebuild | Live LONG | Live SHORT | Rebuild LONG | Rebuild SHORT |
@@ -359,7 +362,7 @@ Scripts ran from the session scratchpad; the key queries are below.
 | F2 / F4 | Full rebuild mode builds beside the store, copies it to `data/_baselines`, then replaces it; `refresh_all_strategies.py --force` runs it; incremental runs are one transaction and hard-fail on an old-schema store | `d34c014` | Live store rebuilt (below) |
 | F3 | `raw_z` stored in signals and carried into facts; quintiles and every book consumer order by `(z_ts, raw_z, underlying)` | `d34c014` | 3 publishes from the live signals give identical quintiles, equal to the live facts |
 | F5 | ADV = 30-session median of **daily total** futures turnover (contracts summed); 1:1 join; duplicate keys raise | `d34c014` | Unit test; see construct change below |
-| F6 | Latest-book CLIs exit 2 with a STALE message, and the Flask panel shows a banner, when the futures store is ahead of the newest formation; the catch-up's output goes to `logs/catchup_*.log` | `d34c014`, `d63120b` | Unit tests; `ts_basis_daily_signals.py` prints 2026-09-10 as current |
+| F6 | Latest-book CLIs exit 2 with a STALE message, and the Flask panel shows a banner, when the futures store is ahead of the newest formation; the catch-up's output goes to `logs/catchup_*.log`. **EOD behaviour change:** on a day futures publish but the TS Basis Daily formation is not built (e.g. equity stale), the chain now aborts at `ts_basis_daily_signals.py` with a `chain_failed` alert instead of completing with a suppressed book | `d34c014`, `d63120b` | Unit tests; `ts_basis_daily_signals.py` prints 2026-09-10 as current |
 | F7 | Forward returns fill for the new dates **and** the formation just before them | `d34c014` | Incremental run equals a full build in a unit test |
 | F8 | `publish_facts.py` is the only publisher; the pipeline, the Flask refresh button and the forward runner all use it, followed by the recovery filter, and a failed step fails the refresh | `d34c014` | Unit tests |
 
@@ -393,6 +396,14 @@ At **15:47:48** the RED run of `test_ts_basis_daily_pipeline.py` ran against the
 - The pre-fix facts were regenerated with `main`'s code from the untouched signals baseline. The regeneration matches this audit's recorded counts exactly: 481,131 joined rows, 12,562 `basis_reverting` disagreements, 38,131 flags. Quintiles on clamp-tie days can differ from the original, since that is F3 itself.
 - The live store was then rebuilt as above.
 - The same test file also let the existing catch-up test write two empty `logs/catchup_*.log` files. The test now uses `tmp_path` (`d63120b`) and the files were removed. A full re-run of the suites left the live stores' mtimes unchanged.
+
+### Incident — branch switch removed the NiftyShield fee fix from the live tree
+
+`F:\Nifty` is the tree the orchestrator runs from. This branch was cut from `main` at 15:17:56. `main` lacked `0f46f9b` (option legs charged the options fee schedule), so from then until the merge of `fix/nifty-shield-option-fees` at **16:02:43** (`9efb5b3`) the files on disk were the pre-fix versions.
+
+- **No impact found.** The NiftyShield session child had loaded the fixed code at 14:27, placed its last order at 13:29, and did not restart inside the window.
+- The orchestrator, Flask and the ingestor restarted at 16:01:47–48, 55 s before the merge. Neither Flask nor the ingestor places NiftyShield orders.
+- `core/execution` on this branch is now identical to the fee-fix branch.
 
 ### Baselines (`data/_baselines/`)
 
