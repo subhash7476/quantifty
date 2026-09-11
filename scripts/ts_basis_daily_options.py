@@ -33,6 +33,18 @@ from core.analytics.options_selection import (  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_facts.duckdb"
+FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
+
+
+def stale_message(formation: date) -> str | None:
+    """Why the latest formation is not current, or None when it is."""
+    con = duckdb.connect(str(FUT_DB), read_only=True)
+    source = con.execute("SELECT MAX(trade_date) FROM futures_bhavcopy WHERE inst_type='FUTSTK'").fetchone()[0]
+    con.close()
+    if formation is None or (source is not None and formation < source):
+        return (f"STALE: latest TS Basis Daily formation is {formation} but the futures store has {source} — "
+                f"refresh_all_strategies.py did not build it. Pass a date to view a past book.")
+    return None
 
 
 def _arg_value(flag: str, default):
@@ -48,7 +60,7 @@ def get_book(target: date | None, top_n: int):
         target = con.execute("SELECT MAX(formation_date) FROM carry_facts").fetchone()[0]
     rows = con.execute(
         "SELECT underlying, quintile FROM carry_facts "
-        "WHERE formation_date = ? AND eligible ORDER BY z_carry_neut",
+        "WHERE formation_date = ? AND eligible ORDER BY z_carry_neut, raw_z, underlying",
         [target],
     ).fetchall()
     con.close()
@@ -73,7 +85,11 @@ def main():
                 pass
             break
 
+    latest = target is None
     target, book = get_book(target, top_n)
+    if latest and (stale := stale_message(target)):
+        print(stale, file=sys.stderr)
+        return 2
     contracts = select_book_options(book, min_dte=min_dte)
 
     print(f"\n{'='*90}")

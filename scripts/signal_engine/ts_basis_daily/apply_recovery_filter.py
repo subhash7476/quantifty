@@ -1,12 +1,11 @@
 """TS Basis Daily — Signal Enrichment (post-facts).
 
-Adds market-state columns to ts_facts.duckdb/carry_facts:
+Fills the market-state column in ts_facts.duckdb/carry_facts:
 
   basis_reverting — TRUE when the basis dislocation is already shrinking
-  raw_z           — unclamped z-score (build_ts_basis_daily caps at +/-3)
 
-Neither modifies frozen signal code. Runs idempotently after every
-facts publish.
+raw_z (the unclamped z) is written by build_ts_basis_daily and carried into
+facts by publish_facts. Runs idempotently after every facts publish.
 
 Usage:
   python scripts/signal_engine/ts_basis_daily/apply_recovery_filter.py
@@ -25,8 +24,6 @@ SIG_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_signals.duckdb
 FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_facts.duckdb"
 
 Z_THRESHOLD = 0.70
-Z_LOOKBACK = 252
-Z_MIN_OBS = 12
 
 
 def main():
@@ -41,13 +38,6 @@ def main():
     con = duckdb.connect(str(FACTS_DB))
     con.execute(f"ATTACH '{SIG_DB}' AS sig (READ_ONLY)")
     con.execute("SET threads=4")
-
-    cols = {r[1] for r in con.execute("PRAGMA table_info('carry_facts')").fetchall()}
-
-    # 1. basis_reverting
-    if "basis_reverting" not in cols:
-        con.execute("ALTER TABLE carry_facts ADD COLUMN basis_reverting BOOLEAN DEFAULT FALSE")
-        print("  Added basis_reverting column")
 
     con.execute("UPDATE carry_facts SET basis_reverting = FALSE")
 
@@ -76,31 +66,6 @@ def main():
     n_reverting = con.execute(
         "SELECT COUNT(*) FROM carry_facts WHERE basis_reverting = TRUE"
     ).fetchone()[0]
-
-    # 2. raw_z — unclamped z-score (same formula as build_ts_basis_daily, minus clamp)
-    if "raw_z" not in cols:
-        con.execute("ALTER TABLE carry_facts ADD COLUMN raw_z DOUBLE")
-        print("  Added raw_z column")
-
-    con.execute("UPDATE carry_facts SET raw_z = NULL")
-
-    con.execute(f"""
-        WITH uncapped AS (
-            SELECT formation_date, underlying,
-                   CASE WHEN COUNT(raw_ann_basis) OVER w >= {Z_MIN_OBS}
-                         AND STDDEV_SAMP(raw_ann_basis) OVER w > 1e-8
-                   THEN (raw_ann_basis - AVG(raw_ann_basis) OVER w)
-                        / STDDEV_SAMP(raw_ann_basis) OVER w
-                   ELSE NULL END AS raw_z
-            FROM sig.signals WHERE raw_ann_basis IS NOT NULL
-            WINDOW w AS (PARTITION BY underlying ORDER BY formation_date
-                         ROWS BETWEEN {Z_LOOKBACK} PRECEDING AND 1 PRECEDING)
-        )
-        UPDATE carry_facts SET raw_z = u.raw_z
-        FROM uncapped u
-        WHERE carry_facts.formation_date = u.formation_date
-          AND carry_facts.underlying = u.underlying
-    """)
 
     n_raw_z = con.execute(
         "SELECT COUNT(*) FROM carry_facts WHERE raw_z IS NOT NULL"

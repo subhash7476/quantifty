@@ -318,6 +318,18 @@ def test_dispatch_catchup_spawns_once_per_day(tmp_path, monkeypatch):
     assert "download_all_data.py" in spawned[0][-1]
 
 
+def test_dispatch_catchup_captures_output_to_a_dated_log(tmp_path, monkeypatch):
+    # The detached catch-up used to discard its output, so a failed refresh left no trace.
+    seen = {}
+    monkeypatch.setattr(orch.subprocess, "Popen",
+                        lambda argv, **kw: seen.update(kw) or _FakePopen(argv))
+    orch._dispatch_catchup(stamp_path=tmp_path / "last_catchup.json", log_dir=tmp_path / "logs")
+    log = Path(seen["stdout"].name)
+    assert log.parent == tmp_path / "logs" and log.name.startswith("catchup_")
+    assert seen["stderr"] is orch.subprocess.STDOUT
+    assert seen["env"]["PYTHONIOENCODING"] == "utf-8"
+
+
 # --------------------------------------------------------------------------- #
 # Wall poller adopted as a supervised, natively-locked child
 # --------------------------------------------------------------------------- #
