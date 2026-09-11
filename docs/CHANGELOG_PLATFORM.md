@@ -6,6 +6,21 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-09-11 — TS Basis Daily: post-CAS spot at the continuous close (F10), exiting names dropped (F11); F&O 1m backfill
+
+**F10.** From CAS (2026-08-03) the bhavcopy close of an F&O stock is the auction print, which is not synchronous with the futures close. On 08-31 it put 85 names at the ±3 clamp. The TS Basis Daily build now prices post-CAS spot at the last traded 1m bar before 15:15 and hard-fails on a name without one. The name → ISIN map is `instrument_master`; `symbol_isin` holds pre-split ISINs.
+
+**F11.** Cells priced off an expiring contract with no successor are dropped: 625 cells, e.g. DALBHARAT on 08-25 at −186%. Carry's frozen panel is unchanged.
+
+**1m store.**
+- `scripts/cas/backfill_fo_1m.py` added **213,750 bars** for 570 absent (session, name) cells, 08-03..09-10. It fetched only sessions where each name had no row, changed 0 existing OHLCV rows, took copy-first baselines in `data/_baselines/1m_pre_fo_backfill/`, and re-checked coverage clean.
+- Its marker pass also re-flagged **14,843 existing** carry-forward bars on 08-21..08-28, which the daily download's upsert had reset.
+- `download_all_data.py` now fetches 1m bars for every FUTSTK underlying.
+
+**Live store rebuilt** (17:13): 485,105 signals / 2,611 formations. Pre-CAS cells are identical to the F11 store. On 08-31 the raw_z SD went 3.47 → 1.11 and names at ±3 went 85 → 3.
+
+**Open (operator):** `data/cas/cas_category.duckdb` ends 08-28, so carry-forward bars on 08-31..09-10 are still unmarked. Commits `4cdb0f6`, `34f58c3`, `0ea73cb`, `ad8b703`. *(docs/reports/ts_basis/TS_BASIS_DAILY_SIGNAL_AUDIT_2026-09-11.md — Addendum)*
+
 ## 2026-09-11 — TS Basis Daily signal audit and fix; live store rebuilt
 
 **Audit.** A full rebuild diffed against the live store found:

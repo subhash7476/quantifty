@@ -436,7 +436,7 @@ Raised from the `/ts-basis-daily/` panel for 2026-08-31, which showed 10+ names 
 - **Scale on 08-31.** On the 148 names matched to the 1m store, the median auction-vs-continuous gap is 1.88%, and 83 names are more than 1% apart. With the auction close as spot, 36 names show an annualized basis above 30%; with the last continuous-session price as spot, 1 does.
 - **Not only 08-31.** Across 210 names, the spot close falls outside the same-day futures high–low range on 0 names on 07-27/28 (pre-CAS), 1–11 names on most post-CAS days, **56** on 08-26, **25** on 08-27 and **87** on 08-31.
 - **Consequences.** These cells are real rows in each name's 252-row window, so, as with F1, they compress later z for about a year. The 08-31 books were auction-imbalance picks, not basis dislocations. This escalates observation O1 to a defect.
-- **Side finding.** The 1m store's 08-31 carry-forward bars (15:15–15:28, `volume = 0`) are **not** flagged `is_synthetic`, so the CAS marker has not covered that session.
+- **Side finding.** The 1m store's 08-31 carry-forward bars (15:15–15:28, `volume = 0`) are **not** flagged `is_synthetic`, so the CAS marker has not covered that session. The cause is under *Remediation — F10 and F11* below.
 
 ### F11 — names leaving F&O are annualized over 0–3 days at their last expiry (MEDIUM)
 
@@ -444,4 +444,52 @@ Raised from the `/ts-basis-daily/` panel for 2026-08-31, which showed 10+ names 
 - **History:** 625 cells, 145 names, 217 dates. Median \|annualized basis\| is 31.8% against 7.1% for all cells, with a maximum of 2,670%.
 - The fix belongs in the TS Basis Daily build (drop cells whose selected contract is inside the roll window), not in `build_basis_panel`, so Carry's frozen panel is untouched.
 
-Neither is fixed yet. F10 needs a decision on how spot is measured after CAS.
+### Remediation — F10 and F11 (implemented 2026-09-11)
+
+Operator decisions:
+- **F10:** after CAS, spot is the continuous-session close. The 1m gap is closed by a backfill, the daily 1m universe is widened, and a name without a bar fails the build.
+- **F11:** drop the cells in the TS Basis Daily build.
+
+| Finding | Fix | Commit | Verification |
+|---|---|---|---|
+| F11 | The build deletes panel cells whose **selected** contract is ≤ `ROLL_TRADING_DAYS` trading days from expiry. Such a cell only exists when there is no next contract. `build_basis_panel` is unchanged | `4cdb0f6` | Exactly the audited 625 cells / 145 names / 217 dates are dropped; no other key changes. `raw_z` moves materially (> 1e-9) on 6,859 cells, all in names that lost a cell; elsewhere the differences are float noise (≤ 7e-15). DALBHARAT's last cell is now 08-19. Unit test |
+| F10 | From `CAS_EFFECTIVE` (2026-08-03), spot = the last 1m bar with `volume > 0` before the `cash_cat1` window ends (15:15). A post-CAS cell without one raises, naming each date and name. The name → `NSE_EQ\|<isin>` map comes from `instrument_master` (current ISIN); `symbol_isin` still carries pre-split ISINs (HDFCBANK `…01026` has no bars, `…01034` has 375) | `0ea73cb` | 3 unit tests (continuous close used; missing bar fails; missing file fails) |
+| F10 coverage | `scripts/cas/backfill_fo_1m.py` fetches only runs of sessions on which a name has **no row at all**, so no existing bar is re-upserted. It takes copy-first baselines, then runs the CAS marker, then re-checks coverage (exit 1 on any gap). `download_all_data.py` now adds every FUTSTK underlying to the daily 1m universe | `0ea73cb`, `ad8b703` | See below |
+
+**The gap was not a narrow download list.** Every symbol in every post-CAS file maps through `instrument_master`. Each file simply holds whatever universe its writer used: 200 to 231 symbols, changing in blocks that line up with ingest runs.
+- KOTAKBANK, DLF and BAJAJFINSV were absent on 08-10..08-20.
+- ANGELONE, FORCEMOT and NAM-INDIA were absent on all 29 sessions.
+- In all, 570 (session, name) cells were absent; 194 of them sat in Q1/Q5 and 23 in a top-5 book.
+
+**Backfill, 2026-09-11 17:07.** 5 fetch runs, 0 fetch errors. Against the 29 baselines in `data/_baselines/1m_pre_fo_backfill/`:
+- **213,750 rows added** (570 × 375 bars), 0 existing rows changed in OHLCV, 0 rows lost.
+- **The marker touched existing bars.** 14,843 existing bars went `is_synthetic` FALSE → TRUE, all in the 08-21..08-28 files. The daily download had re-fetched those files on 09-01 20:56, and its upsert resets the flag. The re-check then reported 0 absent, 0 without a continuous close, 0 unmapped.
+
+**Live store rebuilt 2026-09-11 17:13** (baseline `ts_basis_daily_signals_20260911_171316.duckdb`, the F11-only store): 485,105 signals, 2,611 formations; 480,713 facts across 2,599 formations. 6,052 post-CAS cells were priced at the continuous close. Predictions stated before the rebuild, then checked:
+
+| Check | Predicted | Result |
+|---|---|---|
+| Pre-CAS cells vs the F11 store | identical | 0 differing rows (every column) |
+| 08-31 names with \|annualized basis\| > 30% (all 210 names) | falls to ~1 | 46 → **2** |
+| 08-31 cross-sectional raw_z SD | well below 3.46 | 3.47 → **1.11** (neighbours 0.73–1.04) |
+| 08-31 names at the ±3 clamp | far fewer than 84 | 85 → **3** |
+| ITC / ICICIPRULI on 08-31 | back in line with 08-28 / 09-01 | 48% → **4.3%** / −40% → **−3.3%** |
+| Keys, duplicates, NULL-z clamp | unchanged / 0 / 0 | identical key set / 0 / 0 |
+
+**Consequence for the pipeline.** Refreshing a post-CAS formation now needs 1m bars for every F&O name on that date. `download_all_data.py` fetches them (step 6) before it refreshes (step 9). Two entry points skip that download and can hit the hard-fail when the latest date's 1m file is incomplete: a refresh started on its own (the Flask button, or `refresh_all_strategies.py` run by hand) and the orchestrator catch-up. The error names the backfill command.
+
+### Found while fixing F10 / F11 — recorded, not changed here
+
+- **The CAS category table ends 2026-08-28.** `data/cas/cas_category.duckdb` has no rows effective after 08-28, so `cat1_isin_symbols()` returns an empty set for 08-31 onward, and `mark_file()` then silently returns 0. The carry-forward bars on **08-31..09-10** (2,730 per session in 15:15–15:28, both existing and backfilled) are still unmarked; that is the side finding above. The backfill printed "flagged on 29 files" when only 20 were marked, and `ad8b703` makes it refuse such sessions up front. **Operator:** extend the table with `scripts/cas/build_cas_category.py`, then re-mark 08-31 onward.
+- **`mark_synthetic_bars.py --apply` overwrites its own snapshots.** It re-copies every post-CAS file over `<date>.duckdb.pre_cas_mark`, so a re-run destroys the baseline of the first marking, which is the pitfall CLAUDE.md records. The F10 backfill called `mark_file` directly behind its own baselines and did not use `run()`.
+- **The daily download un-marks a week of bars every run.** It re-fetches a 7-day trailing window, and the fetcher's `ON CONFLICT` sets `is_synthetic = FALSE`. The 08-21..08-28 flags restored above are one instance of that. It does not affect F10: the continuous close reads `volume > 0`, not the flag.
+- **June 2023 never rolled.** The bhavcopy lists the June 2023 contracts with `expiry_dt` 2023-06-29, a holiday that is not a session, so `trading_days_to_exp` is NULL. For 5,049 cells (2023-05-22..06-27) the T-3 rule could never fire, and the last days priced the expiring contract, down to 2 calendar days. That is F11's blow-up on every name at once. It is a defect in Carry's frozen panel and falls inside the TS Basis Daily SEALED window; it was not fixed.
+- **`fwd_ret_1m` still uses the auction close.** After CAS it runs from the formation's auction close to the next day's. Only the basis spot changed.
+- **Test isolation.** In a full-suite run, `tests/psb1` caches `scripts/psb1/contract_arms.py` under the module name the carry panel uses, so 11 of this branch's tests loaded the wrong module and failed. `34f58c3` swaps the cache around the import; `tests/psb1` + `tests/signal_engine` pass in either order.
+- **Full-suite failures that do not come from this branch.** The g1 closure guard (2 tests) fails identically on `main`. `tests/reliance_regime/test_intraday.py` (3 tests) failed only in the full-suite order and passes when run alone.
+
+| Baseline | What it is |
+|---|---|
+| `ts_basis_daily_signals_20260911_164726.duckdb` | Store before F11 (the 15:58 rebuild) |
+| `ts_basis_daily_signals_20260911_171316.duckdb` | Store after F11, before F10 |
+| `1m_pre_fo_backfill/<date>.duckdb` (29) | Post-CAS 1m files before the F&O backfill and marker pass |
