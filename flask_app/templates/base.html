@@ -129,6 +129,20 @@
         .log-INFO { color: var(--muted); }
         .log-DEBUG { color: var(--faint); }
         .pb-24 { padding-bottom: 6rem; }
+        /* ---- global index ticker (app shell) ---- */
+        .idx-tick { display: flex; align-items: baseline; gap: 8px; padding: 4px 10px; border-radius: 8px; white-space: nowrap;
+                    border: 1px solid var(--line); background: #FFFFFF; transition: background .5s ease, border-color .5s ease; }
+        .idx-tick .idx-name { font-size: 9.5px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--faint); }
+        .idx-tick .idx-ltp { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 13.5px; color: var(--ink); }
+        .idx-tick .idx-chg { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; font-size: 11px; }
+        .idx-tick.up { animation: idxUp .55s ease; }
+        .idx-tick.down { animation: idxDown .55s ease; }
+        @keyframes idxUp { 0% { background: rgba(25,122,90,.16); border-color: rgba(25,122,90,.45); } 100% { background: #FFFFFF; } }
+        @keyframes idxDown { 0% { background: rgba(180,71,47,.14); border-color: rgba(180,71,47,.45); } 100% { background: #FFFFFF; } }
+        .idx-stale { opacity: .5; }
+        @media (max-width: 1100px) { .idx-tick .idx-chg { display: none; } }
+        @media (max-width: 900px) { #index-ticker { display: none !important; } }
+
     </style>
     {% block head %}{% endblock %}
 </head>
@@ -208,12 +222,17 @@
     </aside>
 
     <!-- Main Content -->
-    <div class="flex-1 ml-64 flex flex-col min-h-screen">
-        <header class="h-16 sticky top-0 z-10 flex items-center justify-between px-8" style="background: rgba(247,245,242,0.88); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line);">
-            <h2 class="mono" style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint);">
+    <div class="flex-1 ml-64 flex flex-col min-h-screen" style="min-width: 0;">
+        <header class="h-16 sticky top-0 z-10 px-8" style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr); align-items: center; gap: 16px; background: rgba(247,245,242,0.88); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line);">
+            <h2 class="mono" style="font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--faint); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                 {% block breadcrumb %}{% endblock %}
             </h2>
-            <div class="flex items-center gap-4">
+            <div id="index-ticker" class="flex items-center" style="gap: 10px; min-width: 0; overflow: hidden;">
+                <div class="idx-tick" id="idx-NIFTY"><span class="idx-name">Nifty 50</span><span class="idx-ltp">--</span><span class="idx-chg">--</span></div>
+                <div class="idx-tick" id="idx-SENSEX"><span class="idx-name">Sensex</span><span class="idx-ltp">--</span><span class="idx-chg">--</span></div>
+            </div>
+
+            <div class="flex items-center gap-4" style="justify-self: end;">
                 <div id="live-indicator" class="flex items-center gap-2 px-3 py-1 rounded-full" style="background: rgba(25,122,90,0.09); border: 1px solid rgba(25,122,90,0.20);">
                     <span class="w-1.5 h-1.5 rounded-full animate-pulse" style="background: var(--green);"></span>
                     <span style="font-size: 10px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--green);">System Live</span>
@@ -546,5 +565,46 @@
     </script>
 
     {% block scripts %}{% endblock %}
+    <script>
+    /* ---- global index ticker: Nifty 50 + Sensex, every page ---- */
+    (function () {
+      const CELLS = ['NIFTY', 'SENSEX'];
+      const last = {};
+      const fmt = v => v == null ? '--' : v.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+      function paint(rows, stale) {
+        rows.forEach(r => {
+          const cell = document.getElementById('idx-' + r.key);
+          if (!cell) return;
+          const ltpEl = cell.querySelector('.idx-ltp'), chgEl = cell.querySelector('.idx-chg');
+          ltpEl.textContent = fmt(r.ltp);
+          const up = (r.net_change || 0) >= 0;
+          chgEl.textContent = r.net_change == null ? '--'
+            : (up ? '+' : '') + r.net_change.toFixed(2) + '  (' + (up ? '+' : '') + (r.change_pct == null ? 0 : r.change_pct).toFixed(2) + '%)';
+          chgEl.style.color = r.net_change == null ? '#8A8578' : up ? '#197A5A' : '#B4472F';
+          cell.classList.toggle('idx-stale', !!stale);
+          if (last[r.key] != null && r.ltp != null && r.ltp !== last[r.key]) {
+            const dir = r.ltp > last[r.key] ? 'up' : 'down';
+            cell.classList.remove('up', 'down');
+            void cell.offsetWidth;
+            cell.classList.add(dir);
+          }
+          if (r.ltp != null) last[r.key] = r.ltp;
+        });
+      }
+
+      async function poll() {
+        try {
+          const r = await fetch('/api/index-ticker', { cache: 'no-store' });
+          const d = await r.json();
+          paint(d.indices || [], !!d.error);
+        } catch (e) {
+          CELLS.forEach(k => { const c = document.getElementById('idx-' + k); if (c) c.classList.add('idx-stale'); });
+        }
+        setTimeout(poll, document.hidden ? 10000 : 1500);
+      }
+      document.addEventListener('DOMContentLoaded', poll);
+    })();
+    </script>
 </body>
 </html>
