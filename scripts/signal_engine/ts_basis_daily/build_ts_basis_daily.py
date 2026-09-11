@@ -93,6 +93,15 @@ def _build(out_path: Path, existing_dates: set) -> tuple[int, int]:
         )
     """)
 
+    # A name leaving F&O has no next contract to roll into, so the panel keeps pricing it
+    # off the expiring one, where 365 / days_to_expiry blows a small basis up. Drop those cells.
+    exiting = con.execute(f"""
+        DELETE FROM basis_panel bp USING td_cal tc, exp_cal ec
+        WHERE tc.trade_date = bp.trade_date AND ec.trade_date = bp.expiry_dt
+          AND ec.td_idx - tc.td_idx <= {A.ROLL_TRADING_DAYS}
+    """).fetchone()[0]
+    print(f"  {exiting:,} cells dropped: expiring contract, no next contract")
+
     if fresh:
         con.execute("""
             CREATE TABLE out.signals (

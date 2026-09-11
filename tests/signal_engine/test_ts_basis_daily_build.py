@@ -140,6 +140,29 @@ def test_full_rebuild_replaces_the_store_and_keeps_a_baseline(stores, monkeypatc
     assert _rows(baselines[0]) == first
 
 
+def test_drops_cells_priced_off_an_expiring_contract_with_no_successor(stores, monkeypatch):
+    # F11: a name leaving F&O keeps pricing off its last contract into expiry, where
+    # 365 / days_to_expiry turns a few paise of basis into a triple-digit annualized rate.
+    fut = duckdb.connect(str(stores["tmp"] / "fut.duckdb"))
+    eq = duckdb.connect(str(stores["tmp"] / "eq.duckdb"))
+    for d in stores["days"][:-1]:
+        if d <= EXPIRIES[0]:
+            eq.execute("INSERT INTO equity_bhavcopy VALUES (?, 'GGG', 'EQ', 100.0)", [d])
+            fut.execute("INSERT INTO futures_bhavcopy VALUES (?, 'GGG', 'FUTSTK', ?, 100.3, 100.3, 900)",
+                        [d, EXPIRIES[0]])
+    fut.close()
+    eq.close()
+
+    assert _run(monkeypatch) == 0
+    by_name = {}
+    for r in _rows(B.OUT_DB):
+        by_name.setdefault(r[1], set()).add(r[0])
+    roll_window = {date(2026, 6, 24), date(2026, 6, 25), date(2026, 6, 29), date(2026, 6, 30)}
+    assert date(2026, 6, 23) in by_name["GGG"]
+    assert not by_name["GGG"] & roll_window
+    assert roll_window <= by_name["AAA"]          # names with a next contract roll and stay
+
+
 def test_incremental_refuses_a_store_without_raw_z(stores, monkeypatch):
     B.OUT_DB.parent.mkdir(parents=True)
     con = duckdb.connect(str(B.OUT_DB))
