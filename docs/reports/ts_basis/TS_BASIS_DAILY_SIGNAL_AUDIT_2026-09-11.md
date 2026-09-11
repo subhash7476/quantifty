@@ -348,3 +348,66 @@ Scripts ran from the session scratchpad; the key queries are below.
   GROUP BY 1,2` — `n > 1`: 370,231 keys; `MIN < 500 <= MAX`: 27,291.
 - **Substrate stamp:** futures 2026-09-11 09:31:43 / 130,560,000 B; equity 09:32:40 / 737,423,360 B;
   unchanged before vs after.
+
+---
+
+## Remediation — implemented 2026-09-11 (branch `fix/ts-basis-daily-signal-defects`)
+
+| Finding | Fix | Commit | Verification |
+|---|---|---|---|
+| F1 | `build_basis_panel` counts sessions past the store's last date from `core/market/nse_holidays.py` (moved out of `MarketHours`, which re-exports it). A near expiry close enough for an unlisted year's holidays to flip the roll hard-fails | `e54a4a7` | Full-history panel identical in contract, basis, prices and entity on all 485,730 cells; only `trading_days_to_exp` fills for 2,520 post-store cells (no consumers). Real futures store truncated at each F1 date now reproduces the full-history selection 100%. 6 unit tests |
+| F2 / F4 | Full rebuild mode builds beside the store, copies it to `data/_baselines`, then replaces it; `refresh_all_strategies.py --force` runs it; incremental runs are one transaction and hard-fail on an old-schema store | `d34c014` | Live store rebuilt (below) |
+| F3 | `raw_z` stored in signals and carried into facts; quintiles and every book consumer order by `(z_ts, raw_z, underlying)` | `d34c014` | 3 publishes from the live signals give identical quintiles, equal to the live facts |
+| F5 | ADV = 30-session median of **daily total** futures turnover (contracts summed); 1:1 join; duplicate keys raise | `d34c014` | Unit test; see construct change below |
+| F6 | Latest-book CLIs exit 2 with a STALE message, and the Flask panel shows a banner, when the futures store is ahead of the newest formation; the catch-up's output goes to `logs/catchup_*.log` | `d34c014`, `d63120b` | Unit tests; `ts_basis_daily_signals.py` prints 2026-09-10 as current |
+| F7 | Forward returns fill for the new dates **and** the formation just before them | `d34c014` | Incremental run equals a full build in a unit test |
+| F8 | `publish_facts.py` is the only publisher; the pipeline, the Flask refresh button and the forward runner all use it, followed by the recovery filter, and a failed step fails the refresh | `d34c014` | Unit tests |
+
+**Live store rebuilt 2026-09-11 15:58** via `refresh_all_strategies.py --force --skip-carry --skip-ts-basis`: 485,730 signals, 2,611 formations (2016-02-11 → 2026-09-10), 481,338 facts across 2,599 formations. Checks:
+- Symmetric difference against an independent scratch build of the same code is 0 rows.
+- No duplicate keys.
+- `z_ts` is NULL exactly when `raw_z` is NULL.
+- A second `--incremental` run is a no-op.
+
+On basis, `z_ts` and forward returns, the new code matches the previous code's full rebuild on every row. Only `liquid` changes.
+
+### Construct changes (on the record)
+
+TS Basis Daily is research-only, and these change what it publishes. Research numbers computed under the old definitions are **not comparable**.
+
+1. **Eligibility.** Measured as daily total turnover, ~100% of F&O names clear the 500-lakh bar in every year from 2016 on. Under the old per-contract median artifact the pass rate was 47% (2016) to 96% (2024). The old filter's exclusions were mostly the measurement artifact, not illiquidity; the threshold constant is unchanged.
+2. **Quintile universe (new finding, F9).** The research (`run_net_spread.py`) ranks quintiles among liquid names only. The pipeline's inline publisher ranked among all names and then neutralized the illiquid ones, so Q1/Q5 held fewer liquid names than the research construct. The single publisher now uses the research rule.
+3. **Tie order.** Names tied at the ±3 clamp are ordered by unclamped z. Before, their order was arbitrary.
+
+### Other defects found while fixing
+
+- `ts_basis_daily_forward_runner.py` ran the build **without** `--incremental`. Under the old code that re-inserts every date into an existing store, duplicating it. It now builds incrementally and runs the recovery filter.
+- The Flask refresh button ran the insert-only publisher, never ran the recovery filter, and reported "Refresh complete" even when publishing failed.
+- The new build's first draft clamped with DuckDB `GREATEST/LEAST`, which **skip NULLs**. A NULL `raw_z` would have become `z_ts = +3.0`, sending every new listing to Q5. The real-data comparison caught it before any live write (4,392 rows), and a regression test now covers it.
+
+### Incident during the fix — live facts overwritten by a test run
+
+At **15:47:48** the RED run of `test_ts_basis_daily_pipeline.py` ran against the not-yet-changed `refresh_all_strategies.py`. That old code called its inline `_publish_daily_facts()` directly rather than through the `_run` the test stubbed. It deleted and republished the **live** `ts_facts.duckdb` from the live signals, and the stubbed recovery filter left it without `raw_z` / `basis_reverting`.
+
+- The signals store was untouched (mtime still 2026-09-10 09:20).
+- The pre-fix facts were regenerated with `main`'s code from the untouched signals baseline. The regeneration matches this audit's recorded counts exactly: 481,131 joined rows, 12,562 `basis_reverting` disagreements, 38,131 flags. Quintiles on clamp-tie days can differ from the original, since that is F3 itself.
+- The live store was then rebuilt as above.
+- The same test file also let the existing catch-up test write two empty `logs/catchup_*.log` files. The test now uses `tmp_path` (`d63120b`) and the files were removed. A full re-run of the suites left the live stores' mtimes unchanged.
+
+### Baselines (`data/_baselines/`)
+
+| File | What it is |
+|---|---|
+| `ts_basis_daily_ts_signals_pre_audit_fix_20260911_155230.duckdb` | Original live signals (2026-09-10 09:20), byte copy |
+| `ts_basis_daily_ts_facts_pre_audit_fix_regenerated_from_main.duckdb` | Original facts regenerated with `main`'s pipeline from the signals above |
+| `ts_basis_daily_ts_facts_overwritten_by_test_20260911_1547.duckdb` | The facts as the test run left them (no `raw_z` / `basis_reverting`) |
+| `ts_basis_daily_signals_20260911_155814.duckdb` | Automatic baseline taken by the forced rebuild (same content as the first row) |
+
+### Not changed — decisions left open
+
+- **`carry_rebalancer.compute_target_book` tie order.** TS Basis Daily replay/forward books remain tie-nondeterministic, because the facts query has no `ORDER BY` and the sort key is the clamped z. Carry's z is winsorized too, so fixing this shared production path needs Carry parity re-verification. The forward runner's store has not been written since 2026-08-07.
+- **`fwd_ret_1m` name.** It holds a next-formation (1-day) return. It was kept because frozen research scripts read it by name.
+- **EOD worker.** It is alive (heartbeat 2026-09-11 15:51) but `enabled = 0` since 2026-08-03, which is why the scheduled chain stopped. Enabling it sends Telegram messages, so that is an operator decision.
+- **Research reports** computed on the old store (F4 plus the construct changes) were not re-derived.
+- **2027 NSE holidays** must be added to `core/market/nse_holidays.py` before about **2027-01-18**. From then on the January expiry is within the hard-fail margin, and builds that use `build_basis_panel` (TS Basis Daily, Carry, trend continuous) will stop with a message naming the file.
+- **O1 (CAS)** is unchanged; it is an observation, not a defect.
