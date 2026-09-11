@@ -34,6 +34,7 @@ from core.analytics.options_selection import (  # noqa: E402
 ROOT = Path(__file__).resolve().parent.parent
 FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_facts.duckdb"
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
+Z_CLAMP = 3.0   # build_ts_basis_daily.Z_CLAMP: z_ts sits at ±3 exactly when |raw_z| >= 3
 
 
 def stale_message(formation: date) -> str | None:
@@ -66,6 +67,22 @@ def get_book(target: date | None, top_n: int):
     con.close()
     shorts = [(u, "SHORT") for u, q in rows if q == 1][:top_n]
     longs = [(u, "LONG") for u, q in rows if q == 5][-top_n:][::-1]
+    return target, longs + shorts
+
+
+def get_clamp_book(target: date | None):
+    """Every liquid name whose z sits at the ±Z_CLAMP clamp, strongest first on each side."""
+    con = duckdb.connect(str(FACTS_DB), read_only=True)
+    if target is None:
+        target = con.execute("SELECT MAX(formation_date) FROM carry_facts").fetchone()[0]
+    rows = con.execute(
+        "SELECT underlying, raw_z FROM carry_facts "
+        "WHERE formation_date = ? AND eligible AND ABS(raw_z) >= ?",
+        [target, Z_CLAMP],
+    ).fetchall()
+    con.close()
+    longs = [(u, "LONG") for u, z in sorted((r for r in rows if r[1] > 0), key=lambda r: (-r[1], r[0]))]
+    shorts = [(u, "SHORT") for u, z in sorted((r for r in rows if r[1] < 0), key=lambda r: (r[1], r[0]))]
     return target, longs + shorts
 
 

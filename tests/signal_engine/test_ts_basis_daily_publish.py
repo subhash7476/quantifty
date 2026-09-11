@@ -85,6 +85,18 @@ def test_fewer_than_five_liquid_names_publish_as_neutral(tmp_path):
     assert {v[0] for v in _facts(tmp_path / "facts.duckdb", D1).values()} == {3}
 
 
+def test_clamp_book_holds_every_liquid_name_at_the_clamp_and_nothing_else(tmp_path, monkeypatch):
+    rows = [(D1, "UP1", 3.4, True), (D1, "UP2", 3.0, True), (D1, "UP3", 5.1, True), (D1, "NEAR", 2.99, True),
+            (D1, "ILLIQ", 4.0, False), (D1, "DN1", -3.2, True), (D1, "DN2", -6.0, True)]
+    rows += [(D1, f"M{i}", 0.1 * i - 1, True) for i in range(15)]
+    _signals(tmp_path / "sig.duckdb", rows)
+    P.publish(tmp_path / "sig.duckdb", tmp_path / "facts.duckdb")
+    monkeypatch.setattr(O, "FACTS_DB", tmp_path / "facts.duckdb")
+    target, book = O.get_clamp_book(None)
+    assert target == D1
+    assert book == [("UP3", "LONG"), ("UP1", "LONG"), ("UP2", "LONG"), ("DN2", "SHORT"), ("DN1", "SHORT")]
+
+
 def test_book_order_breaks_clamp_ties_on_unclamped_z(tmp_path, monkeypatch):
     rows = [(D1, f"T{i}", 3.1 + 0.1 * i, True) for i in range(15)]
     rows += [(D1, f"B{i}", -3.1 - 0.1 * i, True) for i in range(15)]

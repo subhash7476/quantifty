@@ -353,6 +353,68 @@ def select_book_options(book, min_dte: int = DEFAULT_MIN_DTE, today: date | None
         o.close(); f.close(); inst.close()
 
 
+def _eod_row(o, f, inst, snap, ticker, direction, on, min_dte):
+    opt_type = "CE" if direction == "LONG" else "PE"
+    row = _base_row(ticker, direction, opt_type)
+    row.update({"quote_date": on, "premium": None, "volume": None, "screen": "eod"})
+    expiries = [r[0] for r in o.execute(
+        "SELECT DISTINCT expiry_dt FROM stock_options_bhavcopy "
+        "WHERE trade_date=? AND underlying=? AND option_type=? ORDER BY expiry_dt",
+        [on, ticker, opt_type]).fetchall()]
+    if not expiries:
+        row["screen_reason"] = f"no {opt_type} chain on {on}"
+        return row
+    expiry = next((e for e in expiries if (e - on).days >= min_dte), expiries[-1])
+    row["expiry"] = expiry
+
+    fut = f.execute(
+        "SELECT close FROM futures_bhavcopy WHERE trade_date=? AND underlying=? "
+        "AND expiry_dt=? AND inst_type='FUTSTK'", [on, ticker, expiry]).fetchone()
+    if not fut or not fut[0]:
+        row["screen_reason"] = f"no {expiry} futures close on {on}"
+        return row
+    forward = fut[0]
+    row.update({"forward": forward, "anchor_source": "eod_future"})
+
+    chain = o.execute(
+        "SELECT strike, close, contracts, open_int FROM stock_options_bhavcopy "
+        "WHERE trade_date=? AND underlying=? AND expiry_dt=? AND option_type=? ORDER BY strike",
+        [on, ticker, expiry, opt_type]).fetchall()
+    atm = min(range(len(chain)), key=lambda i: abs(chain[i][0] - forward))
+    band = chain[max(0, atm - STRIKE_BAND):atm + STRIKE_BAND + 1]
+    traded = [r for r in band if r[2] and r[1]]
+    if not traded:
+        row["screen_reason"] = f"no trades within {STRIKE_BAND} strikes of ATM on {on}"
+        return row
+    strike, close, contracts, oi = min(traded, key=lambda r: (abs(r[0] - forward), r[0]))
+    key, tsym, lot = _resolve_instrument(inst, snap, ticker, opt_type, strike, expiry)
+    row.update({
+        "strike": strike, "premium": close, "volume": contracts, "oi": oi,
+        "nearest_strike": chain[atm][0], "snapped": strike != chain[atm][0],
+        "lot_size": lot, "instrument_key": key, "tradingsymbol": tsym,
+        "premium_cost": close * lot if lot else None,
+    })
+    return row
+
+
+def select_eod_options(book, on: date, min_dte: int = DEFAULT_MIN_DTE):
+    """Resolve [(ticker, direction), ...] into option contracts priced strictly at `on`'s EOD.
+
+    Expiry is the nearest listed on `on` at least `min_dte` days out; ATM is that expiry's
+    futures close on `on`; the premium is the `on` close of the traded strike (contracts > 0)
+    nearest ATM within STRIKE_BAND listed strikes. An untraded strike's close is an earlier
+    day's print, so it is never used. No live quotes are read.
+    """
+    o = duckdb.connect(str(OPT_DB), read_only=True)
+    f = duckdb.connect(str(FUT_DB), read_only=True)
+    inst = duckdb.connect(str(INST_DB), read_only=True)
+    try:
+        snap = inst.execute("SELECT MAX(snapshot_date) FROM instruments").fetchone()[0]
+        return [_eod_row(o, f, inst, snap, t, d, on, min_dte) for t, d in book]
+    finally:
+        o.close(); f.close(); inst.close()
+
+
 def _future_key(inst, snap, ticker, expiry):
     name = inst.execute(
         "SELECT name FROM instruments WHERE snapshot_date=? "

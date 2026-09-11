@@ -26,10 +26,10 @@ def run_download(timeout: int = 3600) -> StepResult:
 
 def _default_book():
     sys.path.insert(0, str(ROOT / "scripts"))
-    from ts_basis_daily_options import get_book
-    from core.analytics.options_selection import DEFAULT_MIN_DTE, select_book_options
-    target, book = get_book(None, 5)
-    return target, select_book_options(book, min_dte=DEFAULT_MIN_DTE)
+    from ts_basis_daily_options import get_clamp_book
+    from core.analytics.options_selection import DEFAULT_MIN_DTE, select_eod_options
+    target, book = get_clamp_book(None)
+    return target, select_eod_options(book, on=target, min_dte=DEFAULT_MIN_DTE)
 
 
 @dataclass

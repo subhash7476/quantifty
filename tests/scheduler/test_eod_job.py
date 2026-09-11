@@ -93,7 +93,7 @@ def test_options_book_message_is_sent_after_chain(store):
     sent = []
     run_attempt(store, TODAY, 1, datetime(2026, 7, 31, 20, 0),
                 make_deps(all_fresh(), sent=sent))
-    assert "ATM OPTIONS" in sent[-1]
+    assert "no signals at |z| = 3" in sent[-1]
 
 
 def test_book_suppressed_when_a_feed_is_stale(store):
