@@ -89,10 +89,15 @@ every leg, stamp both sides), not `core/execution/options/fees.py`. Per leg:
 | 23200PE close | SELL | 45.80 | 24.56 | 29.30 |
 | **Total** | | | **100.49** | **116.81** |
 
-This is Finding #2 of `NIFTY_SHIELD_REMEDIATION_2026-09-08.md`, listed there as
-open. `option_order_fees` is still imported only by `core/options_wall/fly.py`
+This is Finding #2 of `NIFTY_SHIELD_REMEDIATION_2026-09-08.md`. At the time of
+this trade `option_order_fees` was imported only by `core/options_wall/fly.py`
 and two audit scripts, not the NiftyShield execution path. Reported P&L is
 overstated by Rs 16.32 on this trade.
+
+**Fixed 2026-09-11** (branch `fix/nifty-shield-option-fees`):
+`NiftyShieldExecutionHandler._calculate_fees` now charges `option_order_fees`
+for `nifty_shield_v1` orders. It takes effect when the PAPER session next
+starts; this trade's stored fees are left as written.
 
 ## 5. Reproduce
 

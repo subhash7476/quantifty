@@ -42,6 +42,7 @@ from core.events import SignalEvent, SignalType
 from core.execution.groups.order_group import OrderGroup
 from core.execution.groups.group_pnl import GroupPnLTracker
 from core.execution.handler import ExecutionHandler
+from core.execution.options.fees import option_order_fees
 from core.execution.options.nifty_shield_exit import NiftyShieldExitManager
 from core.execution.options.nifty_shield_groups import group_type_for
 from core.execution.options.nifty_shield_wall import shadow_record
@@ -558,6 +559,18 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             utilisation = (used + incr) / self.metrics.cash_balance
             return utilisation <= self.config.max_capital_utilisation, utilisation
         return super()._check_margin_budget(order, current_price)
+
+    def _calculate_fees(self, order, price) -> float:
+        if order.strategy_id == STRATEGY_ID:
+            # The base schedule is equity intraday: STT at 0.025% on every leg.
+            # Options pay STT on sell-leg premium only (0.15% from 2026-04-01),
+            # stamp duty on buys only, and a ~10x higher exchange charge — the
+            # base understated a 2026-09-11 spread's round trip by Rs 16
+            # (Finding #2, NIFTY_SHIELD_REMEDIATION_2026-09-08).
+            return option_order_fees(
+                premium=price, quantity=int(order.quantity),
+                side=order.side.value, trade_date=order.timestamp.date()).total
+        return super()._calculate_fees(order, price)
 
     def _nifty_shield_used_margin(self, prices: Dict[str, float]) -> float:
         """Used margin = per-leg incremental margin of open NiftyShield legs,
