@@ -6,6 +6,43 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-09-11 — TS Basis Daily: post-CAS spot at the continuous close (F10), exiting names dropped (F11); F&O 1m backfill
+
+**F10.** From CAS (2026-08-03) the bhavcopy close of an F&O stock is the auction print, which is not synchronous with the futures close. On 08-31 it put 85 names at the ±3 clamp. The TS Basis Daily build now prices post-CAS spot at the last traded 1m bar before 15:15 and hard-fails on a name without one. The name → ISIN map is `instrument_master`; `symbol_isin` holds pre-split ISINs.
+
+**F11.** Cells priced off an expiring contract with no successor are dropped: 625 cells, e.g. DALBHARAT on 08-25 at −186%. Carry's frozen panel is unchanged.
+
+**1m store.**
+- `scripts/cas/backfill_fo_1m.py` added **213,750 bars** for 570 absent (session, name) cells, 08-03..09-10. It fetched only sessions where each name had no row, changed 0 existing OHLCV rows, took copy-first baselines in `data/_baselines/1m_pre_fo_backfill/`, and re-checked coverage clean.
+- Its marker pass also re-flagged **14,843 existing** carry-forward bars on 08-21..08-28, which the daily download's upsert had reset.
+- `download_all_data.py` now fetches 1m bars for every FUTSTK underlying.
+
+**Live store rebuilt** (17:13): 485,105 signals / 2,611 formations. Pre-CAS cells are identical to the F11 store. On 08-31 the raw_z SD went 3.47 → 1.11 and names at ±3 went 85 → 3.
+
+**Open (operator):** `data/cas/cas_category.duckdb` ends 08-28, so carry-forward bars on 08-31..09-10 are still unmarked. Commits `4cdb0f6`, `34f58c3`, `0ea73cb`, `ad8b703`. *(docs/reports/ts_basis/TS_BASIS_DAILY_SIGNAL_AUDIT_2026-09-11.md — Addendum)*
+
+## 2026-09-11 — TS Basis Daily signal audit and fix; live store rebuilt
+
+**Audit.** A full rebuild diffed against the live store found:
+- **F1:** the T-3 roll could not fire at the live edge, so the 07-23/24/27 and 08-20/21/24 books priced basis off the expiring contract (median annualized basis up to 94%; 0–1 of 5 names shared with a correct build).
+- **F2:** those outliers compressed every later z.
+- **F3:** clamp ties made the top-5 non-deterministic (4 publishes → 4 books).
+- **F4:** pre-07-24 z was not reproducible from committed code.
+- **F5:** ADV fan-out made `liquid` arbitrary on 27,291 name-days.
+- **F6:** the books came from an unlogged catch-up with no freshness gate. The EOD worker had been disabled since 08-03, and the 09-10 formation had silently not been built.
+
+**Fix** (branch `fix/ts-basis-daily-signal-defects`: `e54a4a7`, `d34c014`, `d63120b`):
+- Forward NSE session calendar for the roll (`core/market/nse_holidays.py`). The full-history panel is unchanged on all 485,730 cells.
+- Daily-total ADV, a stored `raw_z`, and a raw_z tie-break.
+- One facts publisher, ranking among liquid names as the research did (`publish_facts.py`).
+- A real `--force` full rebuild with a copy-first baseline, plus transactional incremental runs.
+- STALE refusal in the CLI and panel.
+- Catch-up output logged to `logs/`.
+
+**During the fix** a RED test run overwrote the live facts store. It was regenerated from `main` as a baseline, verified against the audit's counts, and the test was isolated.
+
+**Live store rebuilt:** 485,730 signals / 2,611 formations through 2026-09-10. Eligibility and quintile-universe changes make earlier TS Basis Daily research numbers not comparable. *(docs/reports/ts_basis/TS_BASIS_DAILY_SIGNAL_AUDIT_2026-09-11.md)*
+
 ## 2026-09-03 — Poller/orchestrator optimization: once-a-day catch-up, pipeline lock, per-day wall snapshots
 
 Reviewed `scripts/ops/orchestrator.py` + `scripts/options_wall_poller.py` for double-fetch/double-write and the merge question. **Not merged** — supervisor vs. worker; the honest "one command" is the wall poller adopted as a supervised orchestrator child (`CHILDREN["wall_poller"]`, native-locked, ensured last so it never gates the production path; `stop` skips it like `poller`/`eod`). **Orchestrator no longer re-runs `download_all_data.py` on every start** — `_dispatch_catchup()` stamps `data/ops/last_catchup.json` and fires at most once per calendar day (the EOD chain still runs it unconditionally after close, so today's bhavcopy is never missed). **`download_all_data.py` gained a single-instance PID lock** (`data/ops/download_all_data.pid`) — the real double-*write* guard against two pipelines ingesting the same window into the same DuckDB stores concurrently. **Per-day wall snapshot files** — `data/options/wall_chain_snapshots/{date}.duckdb` replaces the single unbounded file that had grown to **2.06 GB / 1.9 M rows** and pushed append latency to ~12.5 s/cycle against a 5 s poll interval; each session file is ~100–200 MB and appends stay ~2–3 s. Same schema/rows, partitioned by date; default reads resolve the newest file, explicit `db_path=` still pins one. **Inspection finding:** nothing reads the raw snapshot store's *history* — only `latest_snapshot` (newest cycle) + `snapshot_timestamps` (staleness); the scan trail + regime river are derived and live in the separate `wall_scan_results.duckdb` (0.12 GB). The 2 GB legacy file is now orphaned (retained for operator archival/deletion). Also memoized `OptionsProvider.get_weekly_expiry` per `(sym, date)` (was opening the instrument DB 2–3×/cycle) and hoisted `UpstoxMarketData()`/`OptionsAnalytics()` out of the poller loops. Tests: +8 orchestrator, +5 per-day store; full touched surface 130 green; production per-day routing smoke-verified through `WallPoller._poll_cycle`. *(docs/reports/POLLER_ORCHESTRATOR_OPTIMIZATION.md)*

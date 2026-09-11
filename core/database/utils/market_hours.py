@@ -14,6 +14,7 @@ from typing import Tuple, Optional, Set
 import pytz
 import logging
 
+from core.market.nse_holidays import NSE_HOLIDAYS
 from core.market.session_schedule import any_open as _any_open
 from core.market.session_schedule import is_open as _is_open
 from core.market.session_schedule import session_window
@@ -50,27 +51,8 @@ class MarketHours:
     # Trading days (Monday = 0, Sunday = 6)
     TRADING_DAYS = {0, 1, 2, 3, 4}  # Monday to Friday
 
-    # NSE Trading Holidays 2026 (official NSE calendar)
-    # Source: https://www.nseindia.com/resources/exchange-communication-holidays
-    # Update this set at the start of each calendar year.
-    NSE_HOLIDAYS: Set[date] = {
-        date(2026, 1, 15),   # Municipal Corporation Election - Maharashtra
-        date(2026, 1, 26),   # Republic Day
-        date(2026, 3, 3),    # Holi
-        date(2026, 3, 26),   # Shri Ram Navami
-        date(2026, 3, 31),   # Shri Mahavir Jayanti
-        date(2026, 4, 3),    # Good Friday
-        date(2026, 4, 14),   # Dr. Baba Saheb Ambedkar Jayanti
-        date(2026, 5, 1),    # Maharashtra Day
-        date(2026, 5, 28),   # Bakri Id
-        date(2026, 6, 26),   # Muharram
-        date(2026, 9, 14),   # Ganesh Chaturthi
-        date(2026, 10, 2),   # Mahatma Gandhi Jayanti
-        date(2026, 10, 20),  # Dussehra
-        date(2026, 11, 10),  # Diwali-Balipratipada
-        date(2026, 11, 24),  # Prakash Gurpurb Sri Guru Nanak Dev
-        date(2026, 12, 25),  # Christmas
-    }
+    # NSE Trading Holidays — maintained in core/market/nse_holidays.py
+    NSE_HOLIDAYS: Set[date] = NSE_HOLIDAYS
 
     @classmethod
     def is_holiday(cls, dt: Optional[datetime] = None) -> bool:

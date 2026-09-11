@@ -17,6 +17,9 @@ from pathlib import Path
 
 import duckdb
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ts_basis_daily_options import stale_message  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_facts.duckdb"
 SIG_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_signals.duckdb"
@@ -52,13 +55,17 @@ def main():
         target = con.execute(
             "SELECT MAX(formation_date) FROM carry_facts"
         ).fetchone()[0]
+        if stale := stale_message(target):
+            con.close()
+            print(stale, file=sys.stderr)
+            return 2
 
     q_map = {1: "SHORT", 3: "NEUTRAL", 5: "LONG"}
     rows = con.execute("""
         SELECT underlying, z_carry_neut, ABS(z_carry_neut), quintile, eligible,
                COALESCE(CAST(raw_z AS DOUBLE), z_carry_neut) as raw_z
         FROM carry_facts WHERE formation_date = ?
-        ORDER BY z_carry_neut
+        ORDER BY z_carry_neut, raw_z, underlying
     """, [target]).fetchall()
     con.close()
 

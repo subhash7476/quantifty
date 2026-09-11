@@ -16,7 +16,17 @@ NEAR-MONTH SELECTOR (pre-reg section 3.4):
 """
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from core.market.nse_holidays import NSE_HOLIDAYS, sessions_after  # noqa: E402
+
+ROLL_TRADING_DAYS = 3
+# Weekdays of slack an unknown year's holidays would need to eat before they could flip
+# the roll. Inside this margin the count must come from a published holiday list.
+UNKNOWN_HOLIDAY_MARGIN = 3
 
 # ── Bounds (stated BEFORE running, economically defensible) ──────────────────
 
@@ -78,6 +88,39 @@ class PITResult:
 
 # ── Basis panel builder ──────────────────────────────────────────────────────
 
+def _build_expiry_calendar(con):
+    """Temp table 'exp_cal': td_cal plus the sessions after the store's last trade date.
+
+    An expiry still in the future has no row in td_cal, which left trading days to
+    expiry NULL and kept the roll from ever firing at the live edge. Past the last
+    stored date the count continues from the NSE holiday list.
+    """
+    last, last_idx = con.execute("SELECT MAX(trade_date), MAX(td_idx) FROM td_cal").fetchone()
+    pending = [r[0] for r in con.execute("""
+        SELECT DISTINCT near_exp FROM (
+            SELECT MIN(expiry_dt) AS near_exp FROM fut.futures_bhavcopy
+            WHERE inst_type='FUTSTK' AND expiry_dt >= trade_date
+            GROUP BY underlying, trade_date
+        ) WHERE near_exp > ?
+    """, [last]).fetchall()]
+    known_years = {d.year for d in NSE_HOLIDAYS}
+    forward = sessions_after(last, max(pending), NSE_HOLIDAYS) if pending else []
+    for exp in pending:
+        if exp not in forward:
+            raise RuntimeError(f"near expiry {exp} is not an NSE session per core/market/nse_holidays.py")
+        years = {y for y in range(last.year, exp.year + 1)} - known_years
+        weekdays = len(sessions_after(last, exp, frozenset()))
+        if years and weekdays <= ROLL_TRADING_DAYS + UNKNOWN_HOLIDAY_MARGIN:
+            raise RuntimeError(
+                f"near expiry {exp} is {weekdays} weekdays after {last} but NSE holidays for "
+                f"{sorted(years)} are not listed in core/market/nse_holidays.py — the T-{ROLL_TRADING_DAYS} "
+                f"roll cannot be decided without them")
+    con.execute("CREATE OR REPLACE TEMP TABLE exp_cal AS SELECT trade_date, td_idx FROM td_cal")
+    if forward:
+        con.executemany("INSERT INTO exp_cal VALUES (?, ?)",
+                        [(d, last_idx + i + 1) for i, d in enumerate(forward)])
+
+
 def build_basis_panel(con):
     """Build the near-month basis panel as temp table 'basis_panel'.
 
@@ -87,6 +130,7 @@ def build_basis_panel(con):
     con.execute("CREATE TEMP TABLE IF NOT EXISTS td_cal AS "
         "SELECT trade_date, ROW_NUMBER() OVER (ORDER BY trade_date) AS td_idx "
         "FROM (SELECT DISTINCT trade_date FROM fut.futures_bhavcopy WHERE inst_type='FUTSTK')")
+    _build_expiry_calendar(con)
 
     con.execute("""
         CREATE TEMP TABLE basis_panel AS
@@ -113,7 +157,7 @@ def build_basis_panel(con):
                    ec.td_idx - tc.td_idx AS tdays
             FROM near n
             JOIN td_cal tc ON tc.trade_date = n.trade_date
-            LEFT JOIN td_cal ec ON ec.trade_date = n.near_exp
+            LEFT JOIN exp_cal ec ON ec.trade_date = n.near_exp
             LEFT JOIN nxt nx ON nx.underlying = n.underlying AND nx.trade_date = n.trade_date
         ),
         sel AS (

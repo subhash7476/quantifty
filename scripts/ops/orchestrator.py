@@ -355,6 +355,7 @@ class Supervisor:
 
 
 CATCHUP_STAMP = OPS_DIR / "last_catchup.json"
+CATCHUP_LOG_DIR = ROOT / "logs"
 
 
 def _catchup_due(*, stamp_path: Path = CATCHUP_STAMP,
@@ -386,24 +387,29 @@ def _record_catchup(*, stamp_path: Path = CATCHUP_STAMP,
         encoding="utf-8")
 
 
-def _dispatch_catchup(*, stamp_path: Path = CATCHUP_STAMP) -> None:
+def _dispatch_catchup(*, stamp_path: Path = CATCHUP_STAMP, log_dir: Path = CATCHUP_LOG_DIR) -> None:
     """Fire download_all_data as a detached background one-shot; never blocks.
 
-    At most once per calendar day (`_catchup_due`)."""
+    At most once per calendar day (`_catchup_due`). Output goes to a dated log —
+    a detached child's console output is otherwise lost, failures included."""
     if not _catchup_due(stamp_path=stamp_path):
         _logger.info("catch-up download already dispatched today — skipping")
         return
     argv = [PY, str(ROOT / "scripts" / "download_all_data.py")]
     flags = _CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
-    kw = {"cwd": str(ROOT)}
+    kw = {"cwd": str(ROOT), "stderr": subprocess.STDOUT,
+          "env": {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}}
     if os.name == "nt":
         kw["creationflags"] = flags
     else:
         kw["start_new_session"] = True
     try:
-        subprocess.Popen(argv, **kw)
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"catchup_{datetime.now():%Y%m%d_%H%M%S}.log"
+        with open(log_path, "ab") as log:
+            subprocess.Popen(argv, stdout=log, **kw)
         _record_catchup(stamp_path=stamp_path)
-        _logger.info("background catch-up download dispatched")
+        _logger.info("background catch-up download dispatched — output: %s", log_path)
     except Exception as exc:  # noqa: BLE001
         _logger.warning("catch-up dispatch failed (non-blocking): %s", exc)
 

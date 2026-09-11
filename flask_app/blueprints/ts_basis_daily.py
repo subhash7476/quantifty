@@ -9,7 +9,7 @@ Endpoints
 GET  /ts-basis-daily/               render page
 GET  /ts-basis-daily/api/signals    signals for date (?date=YYYY-MM-DD)
 GET  /ts-basis-daily/api/dates      available formation dates
-POST /ts-basis-daily/api/refresh    trigger build + facts refresh
+POST /ts-basis-daily/api/refresh    trigger the TS Basis Daily refresh (build + facts + recovery filter)
 """
 import subprocess
 import sys
@@ -23,6 +23,7 @@ from flask import Blueprint, render_template, jsonify, request, current_app
 from core.analytics.options_selection import select_book_options
 from core.brokers.upstox_market_data import UpstoxMarketData
 from flask_app.middleware import login_required
+from scripts.ts_basis_daily_options import stale_message
 
 ts_basis_daily_bp = Blueprint(
     "ts_basis_daily",
@@ -39,6 +40,14 @@ _refresh_status = {"running": False, "message": "", "last_run": None}
 
 _options_lock = threading.Lock()
 _options_cache = {"formation": None, "contracts": []}
+
+
+def _stale(formation):
+    """Stale-book banner text, or None. A futures store locked by an ingest must not 500 the page."""
+    try:
+        return stale_message(formation)
+    except duckdb.Error as exc:
+        return f"Freshness unknown — futures store unreadable: {exc}"
 
 
 def _get_facts_con():
@@ -93,11 +102,12 @@ def api_signals():
         target_date = con.execute(
             "SELECT MAX(formation_date) FROM carry_facts"
         ).fetchone()[0]
+    stale = None if target else _stale(target_date)
 
     rows = con.execute("""
         SELECT underlying, z_carry_neut, quintile, eligible
         FROM carry_facts WHERE formation_date = ?
-        ORDER BY z_carry_neut
+        ORDER BY z_carry_neut, raw_z, underlying
     """, [target_date]).fetchall()
     con.close()
 
@@ -105,7 +115,7 @@ def api_signals():
         return jsonify({
             "date": str(target_date),
             "shorts": [], "longs": [], "n_liquid": 0,
-            "n_total": 0, "n_long": 0, "n_short": 0,
+            "n_total": 0, "n_long": 0, "n_short": 0, "stale": stale,
         })
 
     liquid_rows = [r for r in rows if r[3]]
@@ -140,6 +150,7 @@ def api_signals():
         "n_long": sum(1 for r in rows if r[2] == 5 and r[3]),
         "n_short": sum(1 for r in rows if r[2] == 1 and r[3]),
         "nq": nq,
+        "stale": stale,
     })
 
 
@@ -171,7 +182,7 @@ def _load_book(con, formation_date):
     """The 10-name book for a formation: top-5 Q5 (LONG) + top-5 Q1 (SHORT)."""
     rows = con.execute("""
         SELECT underlying, quintile FROM carry_facts
-        WHERE formation_date = ? AND eligible ORDER BY z_carry_neut
+        WHERE formation_date = ? AND eligible ORDER BY z_carry_neut, raw_z, underlying
     """, [formation_date]).fetchall()
     shorts = [(u, "SHORT") for u, q in rows if q == 1][:5]
     longs = [(u, "LONG") for u, q in rows if q == 5][-5:][::-1]
@@ -237,6 +248,7 @@ def api_options():
         })
     return jsonify({
         "formation_date": str(formation),
+        "stale": _stale(formation),
         "quote_date": str(contracts[0]["quote_date"]) if contracts and contracts[0]["quote_date"] else None,
         "contracts": out,
     })
@@ -295,6 +307,11 @@ def api_dates():
     })
 
 
+def _refresh_command():
+    """The same TS Basis Daily pipeline the EOD refresh runs — one implementation."""
+    return [sys.executable, str(ROOT / "scripts" / "refresh_all_strategies.py"), "--skip-carry", "--skip-ts-basis"]
+
+
 @ts_basis_daily_bp.route("/api/refresh", methods=["POST"])
 @login_required
 def api_refresh():
@@ -310,45 +327,18 @@ def api_refresh():
     def _do_refresh():
         global _refresh_status
         with _refresh_lock:
-            _refresh_status = {"running": True, "message": "Building signals...", "last_run": datetime.now().isoformat()}
+            _refresh_status = {"running": True, "message": "Refreshing TS Basis Daily...", "last_run": datetime.now().isoformat()}
             try:
-                build_script = ROOT / "scripts" / "signal_engine" / "ts_basis_daily" / "build_ts_basis_daily.py"
                 result = subprocess.run(
-                    [sys.executable, str(build_script), "--incremental"],
-                    cwd=str(ROOT), capture_output=True, text=True, timeout=300,
+                    _refresh_command(), cwd=str(ROOT), capture_output=True, text=True, timeout=1800,
                 )
-                if result.returncode != 0:
-                    _refresh_status = {
-                        "running": False,
-                        "message": f"Build failed: {result.stderr[-500:]}",
-                        "last_run": datetime.now().isoformat(),
-                    }
-                    return
-
-                _refresh_status["message"] = "Publishing facts..."
-                pub_script = ROOT / "scripts" / "signal_engine" / "ts_basis_daily" / "publish_facts.py"
-                result2 = subprocess.run(
-                    [sys.executable, str(pub_script)],
-                    cwd=str(ROOT), capture_output=True, text=True, timeout=120,
-                )
-
-                _refresh_status = {
-                    "running": False,
-                    "message": "Refresh complete",
-                    "last_run": datetime.now().isoformat(),
-                }
+                message = ("Refresh complete" if result.returncode == 0
+                           else f"Refresh failed: {(result.stdout + result.stderr)[-500:]}")
             except subprocess.TimeoutExpired:
-                _refresh_status = {
-                    "running": False,
-                    "message": "Refresh timed out",
-                    "last_run": datetime.now().isoformat(),
-                }
+                message = "Refresh timed out"
             except Exception as e:
-                _refresh_status = {
-                    "running": False,
-                    "message": f"Error: {e}",
-                    "last_run": datetime.now().isoformat(),
-                }
+                message = f"Error: {e}"
+            _refresh_status = {"running": False, "message": message, "last_run": datetime.now().isoformat()}
 
     thread = threading.Thread(target=_do_refresh, daemon=True)
     thread.start()

@@ -26,7 +26,6 @@ WEEKLY_DB = ROOT / "data" / "signal_engine" / "carry" / "weekly_signals.duckdb"
 CARRY_FACTS_DB = ROOT / "data" / "signal_engine" / "carry" / "facts.duckdb"
 TS_SIG_DB = ROOT / "data" / "signal_engine" / "ts_basis" / "ts_signals.duckdb"
 DAILY_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_signals.duckdb"
-DAILY_FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_facts.duckdb"
 
 
 def _latest_source_date():
@@ -153,61 +152,6 @@ def _publish_carry_facts():
     return True
 
 
-def _publish_daily_facts():
-    """Fast inline facts publish for ts_basis_daily."""
-    if not DAILY_DB.exists():
-        print("  [daily-facts] Daily signals DB not found")
-        return False
-
-    if DAILY_FACTS_DB.exists():
-        DAILY_FACTS_DB.unlink()
-
-    fc = duckdb.connect(str(DAILY_FACTS_DB))
-    fc.execute("SET threads=4")
-    fc.execute(f"ATTACH '{DAILY_DB}' AS sig (READ_ONLY)")
-
-    fc.execute("""
-        CREATE TABLE carry_facts (
-            formation_date   DATE    NOT NULL,
-            underlying       VARCHAR NOT NULL,
-            z_carry_neut     DOUBLE,
-            quintile         TINYINT,
-            eligible         BOOLEAN NOT NULL,
-            PRIMARY KEY (formation_date, underlying)
-        )
-    """)
-    fc.execute("CREATE INDEX idx_facts_date ON carry_facts (formation_date)")
-
-    fc.execute("""
-        INSERT INTO carry_facts
-        WITH raw AS (
-            SELECT formation_date, underlying, z_ts, liquid
-            FROM sig.signals WHERE z_ts IS NOT NULL
-        ),
-        ranked AS (
-            SELECT *,
-                   ROW_NUMBER() OVER (PARTITION BY formation_date ORDER BY z_ts) AS rn_asc,
-                   ROW_NUMBER() OVER (PARTITION BY formation_date ORDER BY z_ts DESC) AS rn_desc,
-                   COUNT(*) FILTER (WHERE liquid) OVER (PARTITION BY formation_date) AS n_liq
-            FROM raw
-        )
-        SELECT formation_date, underlying, z_ts,
-               CASE WHEN NOT liquid THEN 3
-                    WHEN n_liq < 5 THEN 3
-                    WHEN rn_asc <= GREATEST(1, CAST(ROUND(0.20 * n_liq) AS BIGINT)) THEN 1
-                    WHEN rn_desc <= GREATEST(1, CAST(ROUND(0.20 * n_liq) AS BIGINT)) THEN 5
-                    ELSE 3 END AS quintile,
-               liquid AS eligible
-        FROM ranked
-    """)
-
-    n = fc.execute("SELECT COUNT(*) FROM carry_facts").fetchone()[0]
-    nf = fc.execute("SELECT COUNT(DISTINCT formation_date) FROM carry_facts").fetchone()[0]
-    fc.close()
-    print(f"  [daily-facts] Published {n:,} facts across {nf} formations")
-    return True
-
-
 def main():
     force = "--force" in sys.argv
     skip_carry = "--skip-carry" in sys.argv
@@ -264,12 +208,11 @@ def main():
     if not skip_daily:
         print("\n-- TS Basis Daily --")
         if force or _needs_rebuild(DAILY_DB, "ts-basis-daily"):
-            build = SIG_ENGINE / "ts_basis_daily" / "build_ts_basis_daily.py"
-            if _run(build, ["--incremental"], "ts-basis-daily"):
-                _publish_daily_facts()
-                _run(SIG_ENGINE / "ts_basis_daily" / "apply_recovery_filter.py",
-                     label="daily-recovery-filter")
-            else:
+            daily = SIG_ENGINE / "ts_basis_daily"
+            ok = (_run(daily / "build_ts_basis_daily.py", None if force else ["--incremental"], "ts-basis-daily")
+                  and _run(daily / "publish_facts.py", label="daily-facts")
+                  and _run(daily / "apply_recovery_filter.py", label="daily-recovery-filter"))
+            if not ok:
                 all_ok = False
 
     print(f"\n{'='*60}")

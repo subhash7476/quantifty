@@ -23,7 +23,7 @@ Pipeline:
   3. Index history (1d)  → data/market_data/nse/candles/1d/{date}.duckdb
   4. Corporate actions   → equity_bhavcopy.duckdb (adds adjusted view)
   5. Stock options       → data/market_data/stock_options_bhavcopy.duckdb
-  6. 1m candles (Nifty200 + Nifty/BankNifty/IndiaVIX) → data/market_data/nse/candles/1m/{date}.duckdb (via fetch_upstox_historical.py)
+  6. 1m candles (Nifty200 + F&O stocks + Nifty/BankNifty/IndiaVIX/Sensex) → data/market_data/nse/candles/1m/{date}.duckdb (via fetch_upstox_historical.py)
   7. Build Nifty 50 DB   → data/signal_engine/carry/nifty50.duckdb
   8. Build continuous    → data/signal_engine/trend/continuous.duckdb
   9. Refresh strategies  → carry + ts_basis + ts_basis_daily signals
@@ -148,8 +148,35 @@ def _load_nifty200_instrument_keys():
     return sorted(set(keys))
 
 
+def _load_fo_equity_keys() -> list[str]:
+    """NSE_EQ keys of every FUTSTK underlying on the latest futures date.
+
+    TS Basis Daily prices post-CAS spot off these names' continuous-session 1m bars
+    and fails its build on a gap, so the Nifty 200 alone is not enough.
+    """
+    from scripts.cas.fo_1m_coverage import fo_equity_keys
+
+    if not FUTURES_DB.exists() or not EQUITY_DB.exists():
+        return []
+    con = duckdb.connect()
+    try:
+        con.execute(f"ATTACH '{FUTURES_DB}' AS fut (READ_ONLY)")
+        con.execute(f"ATTACH '{EQUITY_DB}' AS eq (READ_ONLY)")
+        latest = con.execute(
+            "SELECT MAX(trade_date) FROM fut.futures_bhavcopy WHERE inst_type = 'FUTSTK'").fetchone()[0]
+        if latest is None:
+            return []
+        keys, unmapped = fo_equity_keys(con, latest)
+    finally:
+        con.close()
+    if unmapped:
+        print(f"  [1m-candles] WARNING: {len(unmapped)} FUTSTK names have no EQ ISIN in "
+              f"instrument_master and are not fetched: {unmapped}")
+    return sorted(keys.values())
+
+
 def _download_1m_candles(full: bool, lookback: int) -> bool:
-    """Incrementally refresh 1m candles for Nifty200 + 3 indices via
+    """Incrementally refresh 1m candles for Nifty200 + every F&O stock + indices via
     fetch_upstox_historical.py (Upstox V3, 1-minute).
 
     Window is (latest 1m file − lookback) → today so a daily run only
@@ -169,7 +196,8 @@ def _download_1m_candles(full: bool, lookback: int) -> bool:
     if not nifty_keys:
         print("  [1m-candles] SKIP — no Nifty200 keys resolved (CSV + fo_stocks empty)")
         return True
-    instrument_keys = sorted(set(nifty_keys + ONE_MIN_INDICES))
+    fo_keys = _load_fo_equity_keys()
+    instrument_keys = sorted(set(nifty_keys + fo_keys + ONE_MIN_INDICES))
     actual_max = _max_1m_date()
     if not full and actual_max is not None:
         start_date = actual_max - timedelta(days=lookback)
@@ -190,7 +218,8 @@ def _download_1m_candles(full: bool, lookback: int) -> bool:
     start_iso = start_date.isoformat()
     end_iso = end_date.isoformat()
     joined = ",".join(instrument_keys)
-    print(f"  [1m-candles] Universe: {len(nifty_keys)} Nifty200 + {len(ONE_MIN_INDICES)} indices = {len(instrument_keys)} keys")
+    print(f"  [1m-candles] Universe: {len(nifty_keys)} Nifty200 + {len(fo_keys)} F&O stocks + "
+          f"{len(ONE_MIN_INDICES)} indices = {len(instrument_keys)} keys")
     print(f"  [1m-candles] Window: {start_iso} → {end_iso} (lookback {lookback}d, full={full}) — today via intraday, past via historical")
     args = [
         "--instrument_key", joined,

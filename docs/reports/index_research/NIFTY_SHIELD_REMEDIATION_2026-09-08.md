@@ -308,10 +308,14 @@ overload `ENTRY_MARGIN`, and an existing test correctly caught it.
 1. **Finding #1 — exit routing by symbol.** Not yet fixed. Exits must target the
    group's own open legs and quantities. **This is the highest-severity item
    still outstanding**; it can flatten an unrelated structure.
-2. **Finding #2 — fee schedule.** Not yet fixed. Wire
-   `core/execution/options/fees.py` into the option path. Expect the reported
-   P&L to get *worse* by ~Rs 303 over 8 round trips; this is a correctness
-   repair, not a performance one.
+2. **Finding #2 — fee schedule.** **Fixed 2026-09-11** (branch
+   `fix/nifty-shield-option-fees`): `NiftyShieldExecutionHandler._calculate_fees`
+   charges `option_order_fees` (side- and date-effective) for its own strategy;
+   other strategies keep the base equity schedule. Applies to fills from the
+   next session start; rows already in `trading.db` / `execution.db` keep the
+   fees they were written with. Reported P&L gets *worse* — a correctness
+   repair, not a performance one. See
+   `NIFTY_SHIELD_TRADE_2026-09-11_EARLY_TAKE_PROFIT.md` §4.
 3. **Finding #9 — chain archival.** The traded expiry is priced live but not
    archived, so most of the audit cannot be repeated on the trades that matter.
 4. **Finding #8 — concurrent structures on overlapping strikes.** Whether

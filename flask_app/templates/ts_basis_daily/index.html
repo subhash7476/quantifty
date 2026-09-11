@@ -27,6 +27,9 @@
         </div>
     </div>
 
+    <div id="stale-banner" hidden
+         class="px-4 py-3 rounded-lg text-sm font-medium text-amber-200 bg-amber-900/40 border border-amber-700"></div>
+
     <!-- Stats Row -->
     <div class="grid grid-cols-4 gap-4">
         <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
@@ -176,6 +179,7 @@
             const data = await resp.json();
             if (data.error) { showOptError(data.error); return; }
             optContracts = data.contracts || [];
+            if (data.stale) showStale(data.stale);
             document.getElementById('opt-book-date').textContent =
                 fmtDate(data.formation_date) + ' close';
             const exp = optContracts.find(c => c.expiry);
@@ -184,6 +188,12 @@
             renderOptions();
             startOptLive();
         } catch (e) { showOptError('Failed to load contracts: ' + e.message); }
+    }
+
+    function showStale(message) {
+        const banner = document.getElementById('stale-banner');
+        banner.textContent = message || '';
+        banner.hidden = !message;
     }
 
     function fmtDate(iso) {
@@ -309,6 +319,7 @@
     function renderSignals(data) {
         // Stats
         document.getElementById('stat-date').textContent = data.date;
+        showStale(data.stale);
         document.getElementById('stat-total').textContent = data.n_total;
         document.getElementById('stat-liquid').textContent = data.n_liquid;
         document.getElementById('stat-ls').textContent = `${data.n_short}S / ${data.n_long}L`;

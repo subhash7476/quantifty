@@ -69,7 +69,7 @@ def _refresh_signals():
     import subprocess
     build_script = ROOT / "scripts" / "signal_engine" / "ts_basis_daily" / "build_ts_basis_daily.py"
     result = subprocess.run(
-        [sys.executable, str(build_script)],
+        [sys.executable, str(build_script), "--incremental"],
         cwd=str(ROOT), capture_output=True, text=True,
     )
     if result.returncode != 0:
@@ -80,15 +80,16 @@ def _refresh_signals():
 
 def _refresh_facts():
     import subprocess
-    pub_script = ROOT / "scripts" / "signal_engine" / "ts_basis_daily" / "publish_facts.py"
-    result = subprocess.run(
-        [sys.executable, str(pub_script)],
-        cwd=str(ROOT), capture_output=True, text=True,
-    )
-    print(result.stdout.strip())
-    if result.returncode != 0:
-        _logger.error("publish_facts FAILED: %s", result.stderr)
-        return False
+    daily = ROOT / "scripts" / "signal_engine" / "ts_basis_daily"
+    for script in (daily / "publish_facts.py", daily / "apply_recovery_filter.py"):
+        result = subprocess.run(
+            [sys.executable, str(script)],
+            cwd=str(ROOT), capture_output=True, text=True,
+        )
+        print(result.stdout.strip())
+        if result.returncode != 0:
+            _logger.error("%s FAILED: %s", script.name, result.stderr)
+            return False
     return True
 
 

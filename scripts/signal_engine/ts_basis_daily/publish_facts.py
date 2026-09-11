@@ -1,27 +1,74 @@
-"""TS Basis Daily — facts publisher.
+"""TS Basis Daily — facts publisher (the only one).
 
-Reads ts_signals.duckdb (z_ts) → computes quintile + eligible →
-writes ts_facts.duckdb with the same schema as carry_facts so
-CarryRebalancerHook can be reused unchanged.
+Reads ts_signals.duckdb → quintiles among liquid names → rebuilds ts_facts.duckdb
+with the carry_facts schema so CarryRebalancerHook can be reused unchanged.
+
+Ordering is (z_ts, raw_z, underlying): z_ts is clamped at ±3, so the unclamped
+z decides between names tied at the clamp.
 
 Usage: python scripts/signal_engine/ts_basis_daily/publish_facts.py
 Output: data/signal_engine/ts_basis_daily/ts_facts.duckdb
 """
 from __future__ import annotations
 
+import os
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 import duckdb
 
 ROOT = Path(__file__).resolve().parents[3]
-sys.path.insert(0, str(ROOT))
 
 TS_SIG_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_signals.duckdb"
 TS_FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_facts.duckdb"
 
 QUINTILE_FRAC = 0.20
+MIN_LIQUID = 5
+
+
+def publish(sig_db: Path, facts_db: Path) -> tuple[int, int]:
+    built = facts_db.with_name(facts_db.stem + ".rebuild.duckdb")
+    built.unlink(missing_ok=True)
+    fc = duckdb.connect(str(built))
+    fc.execute("SET threads=4")
+    fc.execute(f"ATTACH '{sig_db}' AS sig (READ_ONLY)")
+    fc.execute("""
+        CREATE TABLE carry_facts (
+            formation_date   DATE    NOT NULL,
+            underlying       VARCHAR NOT NULL,
+            z_carry_neut     DOUBLE,
+            quintile         TINYINT,
+            eligible         BOOLEAN NOT NULL,
+            raw_z            DOUBLE,
+            basis_reverting  BOOLEAN DEFAULT FALSE,
+            PRIMARY KEY (formation_date, underlying)
+        )
+    """)
+    fc.execute(f"""
+        INSERT INTO carry_facts (formation_date, underlying, z_carry_neut, quintile, eligible, raw_z)
+        WITH liq AS (
+            SELECT formation_date, underlying,
+                   ROW_NUMBER() OVER (PARTITION BY formation_date ORDER BY z_ts, raw_z, underlying) AS rn_asc,
+                   ROW_NUMBER() OVER (PARTITION BY formation_date ORDER BY z_ts DESC, raw_z DESC, underlying) AS rn_desc,
+                   COUNT(*) OVER (PARTITION BY formation_date) AS n_liq
+            FROM sig.signals WHERE z_ts IS NOT NULL AND liquid
+        )
+        SELECT s.formation_date, s.underlying, s.z_ts,
+               CASE WHEN NOT s.liquid OR l.n_liq < {MIN_LIQUID} THEN 3
+                    WHEN l.rn_asc <= GREATEST(1, CAST(ROUND({QUINTILE_FRAC} * l.n_liq) AS BIGINT)) THEN 1
+                    WHEN l.rn_desc <= GREATEST(1, CAST(ROUND({QUINTILE_FRAC} * l.n_liq) AS BIGINT)) THEN 5
+                    ELSE 3 END,
+               s.liquid, s.raw_z
+        FROM sig.signals s
+        LEFT JOIN liq l ON l.formation_date = s.formation_date AND l.underlying = s.underlying
+        WHERE s.z_ts IS NOT NULL
+    """)
+    fc.execute("CREATE INDEX idx_facts_date ON carry_facts (formation_date)")
+    total = fc.execute("SELECT COUNT(*) FROM carry_facts").fetchone()[0]
+    n_form = fc.execute("SELECT COUNT(DISTINCT formation_date) FROM carry_facts").fetchone()[0]
+    fc.close()
+    os.replace(built, facts_db)
+    return total, n_form
 
 
 def main():
@@ -29,87 +76,8 @@ def main():
         print(f"TS Basis Daily signals not found: {TS_SIG_DB}")
         print("Run scripts/signal_engine/ts_basis_daily/build_ts_basis_daily.py first.")
         return 1
-
-    con = duckdb.connect(str(TS_SIG_DB), read_only=True)
-    rows = con.execute("""
-        SELECT formation_date, underlying, z_ts, liquid, fwd_ret_1m
-        FROM signals WHERE z_ts IS NOT NULL
-        ORDER BY formation_date, underlying
-    """).fetchall()
-    con.close()
-
-    by_date = defaultdict(list)
-    for fdate, u, z_ts, liq, fr in rows:
-        by_date[fdate].append((u, float(z_ts), bool(liq)))
-
-    facts = []
-    for fdate in sorted(by_date.keys()):
-        day_rows = by_date[fdate]
-        liquid_rows = [r for r in day_rows if r[2]]
-        n_liq = len(liquid_rows)
-        if n_liq < 5:
-            continue
-        nq = max(1, round(QUINTILE_FRAC * n_liq))
-        sorted_liq = sorted(liquid_rows, key=lambda r: r[1])
-        u_to_q = {}
-        for i, (u, z, liq) in enumerate(sorted_liq):
-            if i < nq:
-                u_to_q[u] = 1
-            elif i >= n_liq - nq:
-                u_to_q[u] = 5
-            else:
-                u_to_q[u] = 3
-        for u, z, liq in day_rows:
-            if not liq:
-                u_to_q[u] = 3
-
-        for u, z, liq in day_rows:
-            facts.append((fdate, u, z, u_to_q[u], bool(liq)))
-
-    TS_FACTS_DB.parent.mkdir(parents=True, exist_ok=True)
-    existing_dates = set()
-    if TS_FACTS_DB.exists():
-        ec = duckdb.connect(str(TS_FACTS_DB), read_only=True)
-        existing_dates = {r[0] for r in ec.execute(
-            "SELECT DISTINCT formation_date FROM carry_facts"
-        ).fetchall()}
-        ec.close()
-
-    if existing_dates:
-        fact_rows = [r for r in facts if r[0] not in existing_dates]
-        if not fact_rows:
-            print("TS Basis Daily facts: up to date (0 new formations)")
-            return 0
-        fc = duckdb.connect(str(TS_FACTS_DB))
-        fc.executemany(
-            "INSERT INTO carry_facts VALUES (?, ?, ?, ?, ?)",
-            [(str(fd), u, z, q, elig) for fd, u, z, q, elig in fact_rows],
-        )
-    else:
-        fc = duckdb.connect(str(TS_FACTS_DB))
-        fc.execute("""
-            CREATE TABLE carry_facts (
-                formation_date   DATE    NOT NULL,
-                underlying       VARCHAR NOT NULL,
-                z_carry_neut     DOUBLE,
-                quintile         TINYINT,
-                eligible         BOOLEAN NOT NULL,
-                PRIMARY KEY (formation_date, underlying)
-            )
-        """)
-        fc.execute("CREATE INDEX idx_facts_date ON carry_facts (formation_date)")
-        fc.executemany(
-            "INSERT INTO carry_facts VALUES (?, ?, ?, ?, ?)",
-            [(str(fd), u, z, q, elig) for fd, u, z, q, elig in facts],
-        )
-
-    total = fc.execute("SELECT COUNT(*) FROM carry_facts").fetchone()[0]
-    n_form = fc.execute("SELECT COUNT(DISTINCT formation_date) FROM carry_facts").fetchone()[0]
-    fc.close()
-
-    new_formations = len({r[0] for r in facts}) - len(existing_dates)
-    print(f"TS Basis Daily facts: {total:,} rows across {n_form} formations "
-          f"(+{max(0, new_formations)} new formations) -> {TS_FACTS_DB}")
+    total, n_form = publish(TS_SIG_DB, TS_FACTS_DB)
+    print(f"TS Basis Daily facts: {total:,} rows across {n_form} formations -> {TS_FACTS_DB}")
     return 0
 
 

@@ -445,6 +445,33 @@ def test_exit_updates_entry_keyed_trade_ledger(tmp_path, monkeypatch):
         assert fees > 0.0                      # entry + exit fees accumulated
         expected = (100.0 - 40.0) * 130.0 if "18150" in symbol else 0.0
         assert pnl == pytest.approx(expected)
+
+
+def test_option_legs_are_charged_the_option_fee_schedule(tmp_path, monkeypatch):
+    """Finding #2 (NIFTY_SHIELD_REMEDIATION_2026-09-08): legs were charged the
+    equity-intraday schedule — STT on every leg at 0.025% of turnover — instead
+    of STT on sell-leg premium and stamp duty on buys only."""
+    from core.execution.options.fees import option_order_fees
+
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    with handler.db_manager.trading_reader() as conn:
+        rows = conn.execute("SELECT symbol, side, fees FROM trades").fetchall()
+    assert len(rows) == 4
+    for symbol, side, fees in rows:
+        premium = _entry_marks()[symbol]
+        expected = option_order_fees(premium=premium, quantity=130, side=side,
+                                     trade_date=FIXED_DT.date()).total
+        assert fees == pytest.approx(expected), symbol
+
+
+def test_non_nifty_shield_orders_keep_the_equity_fee_schedule(tmp_path, monkeypatch):
+    handler = _build_handler(tmp_path, monkeypatch)
+    order = type("Order", (), {"strategy_id": "other", "quantity": 10.0})()
+    # Rs 5,000 turnover: 20 + 0.1725 exch + 0.005 SEBI + 1.25 STT + 0.15 stamp
+    # + 18% GST on (20 + 0.1725 + 0.005).
+    assert handler._calculate_fees(order, 500.0) == pytest.approx(25.20945)
+
+
 def test_exit_driver_holds_before_any_trigger(tmp_path, monkeypatch):
     handler = _enter_iron_fly(tmp_path, monkeypatch)
     driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))

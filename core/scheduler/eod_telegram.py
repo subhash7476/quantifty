@@ -56,25 +56,20 @@ def format_download_success(feeds: dict[str, date | None], today: date, attempt:
 
 
 def format_options_book(target: date, contracts: list[dict]) -> str:
-    lines = [f"TS BASIS DAILY — ATM OPTIONS {target}", ""]
     if not contracts:
-        lines.append("  (no contracts selected)")
-        return truncate("\n".join(lines))
+        return f"TS BASIS DAILY — {target}: no signals at |z| = 3"
+    lines = [f"TS BASIS DAILY — |z| = 3 SIGNALS {target}",
+             f"Option prices: EOD close {target}, traded strikes only", ""]
     for c in contracts:
         if c.get("strike") is None:
-            reason = c.get("screen_reason") or c.get("screen") or "no chain"
-            lines.append(f"{c['ticker']} {c['direction']} {c['opt_type']} — SKIP ({reason})")
+            lines.append(f"{c['ticker']} {c['direction']} {c['opt_type']} — SKIP "
+                         f"({c.get('screen_reason') or 'no chain'})")
             continue
-        cost = c.get("premium_cost") or 0
-        lines.append(
-            f"{c['ticker']} {c['direction']} {c['opt_type']} {c['strike']:.0f} "
-            f"exp {c['expiry']}"
-        )
-        lines.append(
-            f"   prem {c['settle']:.2f} x {c.get('lot_size') or 0} = {cost:,.0f}"
-        )
-    lines.append("")
-    lines.append("Live prices: /ts-basis-daily/")
+        lines.append(f"{c['ticker']} {c['direction']} {c['opt_type']} {c['strike']:g} exp {c['expiry']}")
+        if c.get("lot_size"):
+            lines.append(f"   close {c['premium']:.2f} x {c['lot_size']} = {c['premium_cost']:,.0f}")
+        else:
+            lines.append(f"   close {c['premium']:.2f} (lot size not in instrument master)")
     return truncate("\n".join(lines))
 
 
