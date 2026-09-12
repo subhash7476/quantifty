@@ -41,8 +41,10 @@ carries the repo's only recorded treatment of this seam (see `PTMS_I_BETA_DEPEND
 vendor era **end-labelled** (bar stamped *t* covers *t−1 → t*), native era **start-labelled**
 (bar stamped *t* opens at *t*), era resolved by the **observed first-bar stamp, not the
 calendar date** (AP-D4), with 20 January-2023 sessions whose metadata disagreed with their
-labelling already handled. C1's job is to **verify and generalize that assertion**, not to
-start from zero.
+labelling already handled. **Operator ruling (P2/P3 review): AP-D4's `observed_bar_labeling` is now the FROZEN CANDIDATE
+SEMANTIC RULE, not a newly invented hypothesis.** C1's job is to **independently verify and
+generalize it store-wide** using the evidence arms below. It may not be rediscovered,
+replaced, or re-derived without evidence that contradicts it.
 
 **Admissible evidence (three arms; C1 passes on at least two agreeing).**
 
@@ -84,7 +86,9 @@ cross-sectional work until it is, rather than silently allowing survivorship in.
   per slot passes on carry-forward data; ISD's did, over 16 certified sessions.
 - **The synthetic predicate is `NSE_EQ`-only.** Indices carry volume 0 on every bar; resolve
   the index era by rule. (Verified already: zero `NSE_INDEX` rows are marked synthetic.)
-- **V3 must be fixed before C3 can pass.** The 10 post-CAS sessions 2026-08-31 → 2026-09-11
+- **C3 REMAINS BLOCKED (operator ruling).** The defect must be resolved by either (i) obtaining
+  or fixing upstream Category-I coverage, or (ii) an **explicit operator-approved quarantine
+  boundary**. **PTMS may not silently work around it.** Detail: The 10 post-CAS sessions 2026-08-31 → 2026-09-11
   carry zero equity synthetic marks — `cas_category.duckdb` ends 2026-08-28, and `mark_file()`
   returns 0 with no Category I list, so an unmarked session looks marked. Certification must
   **assert the Category I list is non-empty** before marking, and the marker must be re-run

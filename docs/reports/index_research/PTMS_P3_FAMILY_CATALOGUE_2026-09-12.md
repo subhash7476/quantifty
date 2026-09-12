@@ -98,7 +98,7 @@ seven families; **no expansion after seeing results.**
 | **Null** | Random-origin null (same ray set, origins drawn from the eligible set); plus circular-shift |
 | **Eligibility** | As A; rays requiring bars beyond the session excluded |
 | **Multiplicity** | *m* = rays (5) × scale definitions (*k*) × origin rules (*j*) = 5·*k*·*j*. **Pinned before the read; this is where a geometry family degenerates into a fishing machine if left open** |
-| **Availability** | **BUDGET-BLOCKED.** No fresh signal-level window on index 1m or 1d. **Note the structural constraint independent of budget:** `per_trade_pnl` on a single index faces `ncp = S·√T`; RS-MOM established √T_sealed ≈ 1.89 requires Sharpe ≥ 1.3 for power 0.80. Even with a fresh window, C's RFA is likely ABANDON — which the operator has already accepted as a clean, cheap outcome |
+| **Availability** | **BUDGET-BLOCKED.** No fresh signal-level window on index 1m or 1d. **Prior power constraint, recorded and independent of budget:** `per_trade_pnl` on a single index time series obeys `ncp = S·√T`, and RS-MOM measured √T_sealed ≈ 1.89 on a comparable window, which implies Sharpe ≥ ~1.3 for power 0.80. Cadence cancels, so finer bars do not relieve it. **This is a prior constraint on the achievable band, not an RFA disposition.** C's disposition is determined only after its eligible window and effect-size band are frozen |
 
 ## Family D — Temporal symmetry / cycles
 
@@ -161,6 +161,18 @@ seven families; **no expansion after seeing results.**
 | **Availability** | **CONDITIONAL.** Futures EOD sealed windows are spent (Carry PASS, TS Basis de-authorized, IVOL FAIL). Index options 2023 → 2026-07-17 has no recorded signal-level read by a *market-state* family; O-1 spent stock options 2023–2026. A window may exist; it must be established against the register |
 
 ---
+
+## 1b. Status of the availability column (operator ruling, P2/P3 review)
+
+The verdicts above are **provisional pending P2**. The ruling requires that, after
+certification, certified surfaces be reconciled against the exposure register and the
+eligible window derived **separately for each family** — availability must never be inferred
+from physical data coverage. Until that reconciliation exists, every "BUDGET-BLOCKED" and
+"CONDITIONAL" above is a register-derived expectation, not a certified determination.
+
+**No RFA is authorized for any family.** Where a prior power constraint is recorded (Family
+C), it constrains the defensible effect-size band; it is **not** a disposition. Dispositions
+follow the frozen window and band, never precede them.
 
 ## 2. What P3 needs next
 

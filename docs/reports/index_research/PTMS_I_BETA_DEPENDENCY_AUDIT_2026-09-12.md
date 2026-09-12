@@ -6,8 +6,9 @@ merely from temporal overlap").
 **Access level:** source inspection only. **No market data was read.** No window spent.
 
 **Finding: no consumption channel exists. The overlap is temporal only.**
-**Status recommendation: I-β is not established as contamination — but the audit cannot
-close it alone. See §4.**
+**OPERATOR DISPOSITION (PTMS P2/P3 review, 2026-09-12): the CONTAMINATION limb is CLOSED on
+this evidence. The MULTIPLICITY / FRESHNESS limb remains OPEN — the analog window is not to
+be treated as statistically fresh merely because dependency contamination is absent.**
 
 ---
 
@@ -66,10 +67,11 @@ after removing temporal overlap from consideration **nothing remains**.
    level by *other* families. Whether that constitutes multiplicity for a directional
    construct is a governance question this audit does not answer.
 
-**Recommendation (not a ruling).** I-β's *contamination* limb can be closed on this
-evidence; its *multiplicity* limb cannot be closed by a dependency audit and should be
-adjudicated separately. Analog-path SEALED remains blocked either way, since the operator
-has also made it conditional on V1.
+**Disposition (operator, 2026-09-12).** The *contamination* limb is **CLOSED** — no code path
+consumes either MSRP-fitted artifact. The *multiplicity / freshness* limb stays **OPEN**:
+absence of dependency contamination is not evidence of statistical freshness, and rows I-2,
+I-3 and I-6 still record that window as read at feature, signal and estimation level by other
+families. Analog-path SEALED remains blocked on that limb and on C1.
 
 ---
 
