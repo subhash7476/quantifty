@@ -102,7 +102,7 @@ cross-sectional work until it is, rather than silently allowing survivorship in.
 
 | Item | Work |
 |---|---|
-| **V2** | Enumerate and quarantine the 90 sessions in 2022 carrying 376–378 bars to 15:31/15:32. Preserve the 4 Muhurat and 2 NSE Saturday-special sessions — correct data, not anomalies |
+| **V2** | Enumerate and quarantine the **88 defect sessions** (2022-03-24 → 2026-03-04; 83 in 2022) carrying 376–378 bars to 15:31/15:32. The broad >15:30 filter also catches **3 Muhurat** sessions — correct data, separated out, never quarantined. Preserve all 10 Muhurat and 2 NSE Saturday-special sessions |
 | **Vendor 1m CSV** | 2,547 invalid-OHLC rows (`high < low`, or open/close outside `[low, high]`) across 28 sessions in 2018–2019: quarantine, enumerated. Truncated tail at 2025-03-05 11:30: drop the partial session. Sub-minute stamps on 46 sessions: floor to the minute. Provenance now stated (external vendor) — record it |
 | **EOD CSV** | Run the **unrun** 2015 → 2025-06 overlap against the canonical 1d store before relying on the 2010–2015 prefix. Schema: DD-MM-YYYY, UTF-8 BOM, `Price` = close, `Vol.` empty, `Change %` derived |
 | **Canonical 1m VIX** | Already 99.98% value-verified against the vendor CSV over 294,131 bars / 789 sessions. Promote that check from one-off to a standing gate, re-run as canonical coverage grows |

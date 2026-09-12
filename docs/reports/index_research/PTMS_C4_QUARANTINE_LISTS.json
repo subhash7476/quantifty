@@ -1084,5 +1084,55 @@
    60,
    "18:59"
   ]
- ]
+ ],
+ "eod_vix_quarantined_dates": {
+  "2021-02-12": {
+   "canonical": 23.05,
+   "vendor": 22.0425,
+   "diff": 1.0075,
+   "status": "PERMANENTLY QUARANTINED - no authoritative evidence available in-repo; unresolved as of 2026-09-12"
+  },
+  "2021-03-30": {
+   "canonical": 20.65,
+   "vendor": 20.485,
+   "diff": 0.165,
+   "status": "quarantined"
+  },
+  "2018-11-07": {
+   "canonical": 17.88,
+   "vendor": 17.7225,
+   "diff": 0.1575,
+   "status": "quarantined - Muhurat session, close is definitionally ambiguous"
+  },
+  "2025-06-05": {
+   "canonical": 15.08,
+   "vendor": 15.195,
+   "diff": 0.115,
+   "status": "quarantined"
+  },
+  "2024-01-20": {
+   "canonical": 13.8,
+   "vendor": 13.715,
+   "diff": 0.085,
+   "status": "quarantined - NSE Saturday special, close is definitionally ambiguous"
+  }
+ },
+ "c3_quarantine_boundary": {
+  "surface": "equity 1m tradeability (is_synthetic marking)",
+  "unmarked_sessions": [
+   "2026-08-31",
+   "2026-09-01",
+   "2026-09-02",
+   "2026-09-03",
+   "2026-09-04",
+   "2026-09-07",
+   "2026-09-08",
+   "2026-09-09",
+   "2026-09-10",
+   "2026-09-11"
+  ],
+  "cause": "data/cas/cas_category.duckdb ends 2026-08-28; mark_file() returns 0 with no Category I list, so an unmarked session is indistinguishable from a marked one",
+  "proposed_boundary": "certify equity intraday tradeability only for sessions <= 2026-08-28; sessions >= 2026-08-31 are UNCERTIFIED pending upstream Category-I coverage",
+  "status": "PROPOSED - requires explicit operator approval per ruling; PTMS implements no workaround"
+ }
 }

@@ -107,8 +107,10 @@ was spent establishing it.
 
 ### V2 — VIX bars past session end (bounded, 2022 only)
 
-90 sessions carry 376–378 bars running to **15:31 / 15:32**: 28 × 376, 41 × 377, 21 × 378,
-first at 2022-03-24. The index pair in the same files stops at 15:30. Upstox returned
+**88 defect sessions** carry 376–378 bars running to **15:31 / 15:32**: 26 × 376, 41 × 377,
+21 × 378, spanning 2022-03-24 → 2026-03-04 with **83 of the 88 in 2022**. (A broad >15:30
+filter also catches 3 Muhurat evening sessions; those are correct data and are separated out,
+not quarantined.) The index pair in the same files stops at 15:30. Upstox returned
 trailing bars past the close. Enumerable; must be trimmed or the sessions quarantined.
 
 Also present, and **correct**: 4 sessions of 60 bars at 18:15–19:14 (Diwali **Muhurat**), and
@@ -149,7 +151,7 @@ available equality check and has **not** been run. Not assessed further here.
 2. **Resolve the labelling semantics** by a source-level check — the vendor bundle's own
    documentation, or an intraday cross-source comparison on a pre-2023 date against a third
    feed. The daily-close test is proven useless for this.
-3. **Trim or quarantine V2's 90 sessions** before any use of 2022 VIX.
+3. **Trim or quarantine V2's 88 defect sessions** before any use of 2022 VIX (list in `PTMS_C4_QUARANTINE_LISTS.json`).
 4. **Run the EOD CSV overlap check** (2015 → 2025-06) before relying on the 2010–2015 prefix.
 5. **Escalate V3** to whoever owns `cas_category` — it blocks nothing in PTMS but is silently
    corrupting post-2026-08-28 tradeability flags for every F&O equity name.
