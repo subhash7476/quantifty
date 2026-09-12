@@ -108,6 +108,11 @@ CREATE TABLE IF NOT EXISTS universe_eligibility (
     via     VARCHAR,
     PRIMARY KEY (symbol)
 );
+-- HALF-OPEN [valid_from, valid_to). A row qualifies when
+--     trade_date >= valid_from AND trade_date < valid_to
+-- Never `<= valid_to`: a recycled ticker hands off on a shared boundary date
+-- (DTIL: DPL ends 2010-07-26, DTIL begins 2010-07-26), and a closed comparison
+-- matches that date against BOTH entities.
 CREATE TABLE IF NOT EXISTS symbol_entity_intervals (
     symbol      VARCHAR,
     valid_from  DATE,

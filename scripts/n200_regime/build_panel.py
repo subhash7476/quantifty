@@ -110,7 +110,9 @@ def build() -> int:
         LEFT JOIN src.symbol_entity_intervals e
           ON e.symbol = p.symbol
          AND p.trade_date >= e.valid_from
-         AND p.trade_date <= e.valid_to
+         AND p.trade_date <  e.valid_to   -- half-open [valid_from, valid_to): a closed
+                                          -- comparison double-matches a recycled ticker's
+                                          -- handoff date against both of its entities
     """)
 
     print("[4] Flagging membership and computing Garman-Klass...")

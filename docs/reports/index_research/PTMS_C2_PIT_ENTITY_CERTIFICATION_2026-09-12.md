@@ -11,7 +11,7 @@ family that was still CONDITIONAL.
 | Arm | Result |
 |---|---|
 | **A1 — `pit_membership` universe validity** | **FAIL — the table is circular** |
-| A2 — entity handoffs | **PASS with 2 defects** (1 boundary-touch, 226 unmapped symbols) |
+| A2 — entity handoffs | **PASS.** A2-1 boundary-touch **retracted** (my check used closed `<=` against a half-open table); A2-2 (226 unmapped symbols) **resolved** by the universe rebuild |
 | A3 — ISIN linkage | **PASS with a newly recorded hazard** (issuer-prefix rule must not be applied to fund ISINs) |
 | A4 — `prev_close` identity | **PASS** — 5 mismatches in 6,544,193 pairs |
 | A5 — adjusted-series continuity | **HALT** — contract suite run 2026-09-12; Arms A and D do not clear, and the DVL→DTIL repair has **regressed** (`PTMS_A5_RESULT_AND_C2_DISPOSITION_2026-09-12.md`) |
@@ -62,8 +62,16 @@ built and certified — not a re-read of the panel.
 entities · **0** inverted intervals · 450 multi-symbol entities (renames, expected) · **1**
 recycled ticker.
 
-**Defect A2-1 — one ambiguous boundary day.** The recycled ticker is **DTIL** (the known
-case), and its two intervals **share an endpoint**:
+**Defect A2-1 — RETRACTED 2026-09-12. This was an error in my check, not a defect in the
+data.** `symbol_entity_intervals` is **already half-open `[valid_from, valid_to)`** by design —
+documented at `scripts/csmp/ingest_corporate_actions.py:674` and honoured by 37 of the repo's
+38 comparison sites, which all use `trade_date < valid_to`. My arm used a **closed** `<=`
+comparison, and that is the only reason it reported an overlap. Under the table's actual
+contract the DTIL handoff is contiguous, not overlapping, and no row is ambiguous. Verified:
+DTIL has 3,026 panel rows and matches 3,026 under both `<` and `<=`. Original text follows for
+the record.
+
+The recycled ticker is **DTIL** (the known case), and its two intervals **share an endpoint**:
 
 ```
 DTIL  2010-01-04 -> 2010-07-26  entity DPL
@@ -176,11 +184,18 @@ SUBSTRATE-BLOCKED, permanently, unless an independent PIT universe is separately
 certified.** Family F is removed from the list of potentially executable PTMS families; it is
 not to be rescued without that independent universe.
 
-### A2-1 — DTIL endpoint convention
+### A2-1 — CLOSED 2026-09-12, as a retraction plus one real consumer fix
 
-Deterministic correction required: make `symbol_entity_intervals` **half-open**
-`[valid_from, valid_to)`, or move the predecessor's `valid_to` back one trading session.
-Either removes the two-entity ambiguity on 2010-07-26. **Not to be left silently passing.**
+The table was **already half-open**; the finding was mine, not the data's (see the retraction
+above). The half-open contract is now stated in the `CREATE TABLE` in `build_universe.py`, so
+the next reader cannot repeat the error.
+
+**One genuine bug did surface from it.** A census of every `valid_to` comparison in the repo
+found **exactly one closed comparison**: `scripts/n200_regime/build_panel.py:113` used
+`p.trade_date <= e.valid_to` against a half-open table. That would double-match a recycled
+ticker's handoff date against both of its entities — latent rather than live today (DTIL's
+2010-07-26 is not a trading row for it), but a real contract violation. Corrected to `<`.
+Census after the fix: **zero `<=` sites remain.**
 
 ### A2-2 — the 226 unmapped symbols: enumerated and dispositioned
 
