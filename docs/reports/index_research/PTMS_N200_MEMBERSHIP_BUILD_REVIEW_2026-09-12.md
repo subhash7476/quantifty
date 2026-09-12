@@ -80,6 +80,18 @@ of `pit_membership`, and it does not unblock Family F.
 > COVID void, which was keyed to `ind_prs16032020` where the source names March **19**.
 > **D5 is partly reduced:** 18 rename pairs now, and intervals starting before first trade drop
 > **16 → 14**. D2, D3 and D6 are unchanged.
+>
+> **Second update — `PTMS_N200_D2_D3_D5_REMEDIATION_2026-09-12.md`. D2, D3 and D5 are now closed
+> as far as the sources allow.** 31 rename pairs; pre-listing intervals **16 → 2**, and the two
+> survivors (MGL, PNBHOUSING) are reported by name by a new `pre_listing_intervals` gate. The
+> terminal check is labelled an identity in both code and store. `backward_breaks` and
+> `forward_breaks` are split, the launch state is counted (violations 41 → **42**), and the build
+> report's gate table and residuals are rewritten against the audit.
+> **One correction to D2 below:** the charge that the MGL/PNBHOUSING diagnosis "does not match the
+> dates" was wrong — the prior report's arithmetic (two phantoms less one absentee) is confirmed
+> by direct measurement (201 members at 2015-01-01, exactly 2 not yet listed). What it omitted was
+> ABIRLANUVO's unmatched exit, the five 202-dates and the launch state. The "all green" criticism
+> stands. **D6 is the only defect still open**, and it cannot close: `/data/` is gitignored.
 
 ### D1 — BLOCKING: a whole rebalance is sourced from a file in a temp directory
 

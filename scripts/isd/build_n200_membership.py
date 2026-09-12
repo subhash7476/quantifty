@@ -62,6 +62,24 @@ RENAME_PAIRS = [
     # name that never left the index
     ('CADILAHC', 'ZYDUSLIFE'),
     ('SRTRANSFIN', 'SHRIRAMFIN'),
+    # Names that no event ever touched under their modern label, so the
+    # backward walk carried today's ticker all the way to LAUNCH_DATE and the
+    # table asserted membership years before that ticker existed. Each pair is
+    # a real NSE symbol-change record; SESAGOA->SSLT->VEDL is a two-step chain
+    # and era_chain() splits it into all three segments.
+    ('HEROHONDA', 'HEROMOTOCO'),
+    ('ISPATIND', 'JSWISPAT'),
+    ('COREPROTEC', 'COREEDUTEC'),
+    ('PIPAVAVYD', 'PIPAVAVDOC'),
+    ('MUNDRAPORT', 'ADANIPORTS'),
+    ('DEWANHOUS', 'DHFL'),
+    ('PIRHEALTH', 'PEL'),
+    ('PANTALOONR', 'FRL'),
+    ('UNIPHOS', 'UPL'),
+    ('SESAGOA', 'SSLT'),
+    ('SSLT', 'VEDL'),
+    ('TATAGLOBAL', 'TATACONSUM'),
+    ('TATAMOTORS', 'TMPV'),
 ]
 
 
@@ -1076,6 +1094,32 @@ def as_of(launch, snaps, d):
     return cur
 
 
+def pre_listing_gate(con):
+    """Flag intervals that assert membership before the security first traded.
+
+    A name that no event ever touches is carried silently back to LAUNCH_DATE
+    by the backward walk — no break fires, and the count gate sees only the net
+    imbalance. Two causes: a rename the label chain does not cover (fixable, and
+    RENAME_PAIRS now covers the ones the corpus contains), and a genuine phantom
+    whose entry appears in no press release (not fixable from the sources).
+    Reported per name so the second kind is visible instead of implicit.
+    """
+    db = os.path.join(ROOT, 'data', 'market_data', 'equity_bhavcopy.duckdb')
+    con.execute(f"attach '{db}' as eq (read_only)")
+    rows = con.execute(
+        'select m.symbol, m.valid_from, f.ft from n200_membership m '
+        'left join (select symbol, min(trade_date) ft from eq.equity_bhavcopy '
+        'group by 1) f on f.symbol = m.symbol '
+        'where f.ft is null or f.ft > m.valid_from + INTERVAL 5 DAY '
+        'order by f.ft - m.valid_from desc').fetchall()
+    con.execute('detach eq')
+    print('pre-listing intervals:', len(rows), flush=True)
+    for s, vf, ft in rows:
+        print(f'  PRELIST {s} from {vf}, first trade {ft}', flush=True)
+    return [('pre_listing_intervals', str(len(rows)))] + \
+           [('pre_listing', f'{s}|{vf}|{ft}') for s, vf, ft in rows]
+
+
 def union_gate(con, deduped, canon):
     """Independent reconstruction: NIFTY 200 = NIFTY 100 + NIFTY Midcap 100.
 
@@ -1193,7 +1237,8 @@ def build_chain(con, deduped):
                                    e[9], e[0]))
                 else:
                     state.add(sym)
-    print('backward breaks:', len(breaks), flush=True)
+    n_backward = len(breaks)
+    print('backward breaks:', n_backward, flush=True)
     for b in breaks[:40]:
         print('  BREAK', b, flush=True)
 
@@ -1221,8 +1266,11 @@ def build_chain(con, deduped):
                     canon_intervals.append((sym, open_from.pop(sym), d))
     for s in sorted(fwd):
         canon_intervals.append((s, open_from[s], None))
-    # per-date member counts from the event flow (renames don't move these)
-    counts, run = [], len(state)
+    # per-date member counts from the event flow (renames don't move these).
+    # The launch state is the first entry: it is a member count like any other,
+    # and leaving it out meant LAUNCH_DATE -> the first event date was the one
+    # span the count gate never evaluated.
+    counts, run = [(LAUNCH_DATE, len(state))], len(state)
     for d in sorted(by_date):
         day = by_date[d]
         run += sum(1 for e in day if e[7] == 'include') - \
@@ -1233,7 +1281,14 @@ def build_chain(con, deduped):
     for d, n in bad[:30]:
         print('  COUNT', d, n, flush=True)
     print('launch-era members:', len(state), flush=True)
-    # terminal gate: forward-open set must equal the anchor exactly
+    # Terminal check: the forward-open set must equal the anchor exactly.
+    # This is an IDENTITY, not evidence. The forward replay is the exact
+    # inverse composition of the backward walk over the same ordered event
+    # list, so whenever backward_breaks == 0 it must return the anchor —
+    # delete an entire press release and it still passes, because the launch
+    # state simply shifts to absorb it. Keep it as a self-consistency assertion
+    # on the two walks; for evidence that the event stream is complete, see
+    # union_gate().
     anchor_canon = set(canon(s) for s in anchor)
     terminal_extra = sorted(fwd - anchor_canon)
     terminal_missing = sorted(anchor_canon - fwd)
@@ -1269,11 +1324,16 @@ def build_chain(con, deduped):
         'create table n200_audit (check_name VARCHAR, detail VARCHAR)')
     audit = [('anchor_count', str(len(anchor))),
              ('chain_events', str(len(evs))),
-             ('backward_breaks', str(len(breaks))),
+             ('backward_breaks', str(n_backward)),
+             ('forward_breaks', str(len(breaks) - n_backward)),
              ('forward_violations', str(len(bad))),
              ('launch_count', str(len(state))),
              ('terminal_extra', '|'.join(terminal_extra)),
              ('terminal_missing', '|'.join(terminal_missing)),
+             ('terminal_is_identity',
+              'yes - inverse of the backward walk when backward_breaks=0; '
+              'carries no information about source completeness, see '
+              'union_gate_*'),
              ('intervals', str(len(intervals)))]
     for d, k, s, c, f in breaks:
         audit.append(('break', f'{d}|{k}|{s}|{c}|{f}'))
@@ -1283,6 +1343,8 @@ def build_chain(con, deduped):
     print('intervals:', len(intervals), flush=True)
     con.executemany('insert into n200_audit values (?,?)',
                     union_gate(con, deduped, canon))
+    con.executemany('insert into n200_audit values (?,?)',
+                    pre_listing_gate(con))
 
 
 if __name__ == '__main__':
