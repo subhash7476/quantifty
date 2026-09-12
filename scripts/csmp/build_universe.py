@@ -40,7 +40,7 @@ import urllib.error
 import urllib.request
 import ssl
 from collections import Counter
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import duckdb
@@ -51,6 +51,7 @@ sys.path.insert(0, str(ROOT))
 
 DB_PATH = ROOT / "data" / "market_data" / "equity_bhavcopy.duckdb"
 RAW_DIR = ROOT / "data" / "market_data" / "universe_raw"
+REFRESH_SOURCES = "--refresh-sources" in sys.argv
 
 UNIVERSE_SIZE = 200
 LOOKBACK_MONTHS = 6
@@ -155,11 +156,19 @@ def fetch_instrument_master(con):
     listing date, face value). Cached under universe_raw/ for deterministic re-runs."""
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     cache = RAW_DIR / "equity_l.csv"
-    if cache.exists():
+    # The cache is never invalidated by age: a run months later rebuilds
+    # instrument_master from a stale company master and every listing since the
+    # cache was written is silently absent (PTMS A2-2, 2026-09-12 — 211 symbols
+    # unmapped because this file was last fetched 2026-07-10). --refresh-sources
+    # re-fetches and keeps the superseded copy as evidence.
+    if cache.exists() and not REFRESH_SOURCES:
         text = cache.read_bytes().decode("utf-8-sig", "replace")
         outcome = "cached"
         status = "local"
     else:
+        if cache.exists():
+            stamp = datetime.fromtimestamp(cache.stat().st_mtime).strftime("%Y%m%d")
+            cache.replace(RAW_DIR / f"equity_l.superseded_{stamp}.csv")
         status, raw = _http_get(EQUITY_L_URL, timeout=40)
         text = raw.decode("utf-8-sig", "replace")
         cache.write_bytes(raw)
