@@ -1,6 +1,6 @@
 # PTMS — Substrate Quarantine Register
 
-**Opened:** 2026-09-12 · **Authority:** operator instruction 2026-09-12 ("Quarantine DVL,
+**Opened:** 2026-09-12 · **Updated:** 2026-09-12 (post CA refresh + rebuild + A5 re-run) · **Authority:** operator instruction 2026-09-12 ("Quarantine DVL,
 DTIL, KWALITY, KILITCH, GULFPETRO and SAHPETRO from the research substrate").
 **Scope:** PTMS research constructs only. This register does **not** modify
 `scripts/psb1/disposition_register.py` — PSB-1 is a closed battery and its register is a
@@ -90,3 +90,28 @@ Q-1 is withdrawn when **all** hold: `apply_factor_overrides` has run (a `RE-KEYE
 marker exists); the regression guards report DVL −6.550% and DTIL at its documented value;
 and the A5 re-run shows Arm A/Arm D clear of the 2021-08-05 items. Q-2 … Q-4 are **not**
 withdrawn by a re-run — they are unresolved historical items needing individual adjudication.
+
+
+---
+
+## 5. Update — 2026-09-12, after the CA refresh, rebuild and A5 re-run
+
+Append-only, per §Contract. Full evidence:
+`docs/reports/index_research/PTMS_A5_RERUN_AND_C2_REASSESSMENT_2026-09-12.md`.
+
+| # | Entity | New status |
+|---|---|---|
+| **Q-1** | DVL / DTIL | **WITHDRAWN.** The §4 withdrawal condition is met in full: the `RE-KEYED` marker exists, the structural guard reads `DVL=0 DTIL=1 BONUS`, and both regression guards pass (DVL **−6.5503%**, DTIL **−0.2255%**). The entity is absent from every HALT list. Its data is sound and it is released from quarantine |
+| **Q-2** | KWALITY 2010-06-15 | **RETAINED**, downgraded to *documented open item* — now dispositioned `evidence_exception` in Arms A and D. An evidence exception is a **recorded** unresolved `wrong_ratio`, not a resolution |
+| **Q-3** | KILITCH 2012-09-24 | **WITHDRAWN.** Gone from Arm A entirely — the refreshed CA register supplies its factor |
+| **Q-4** | GULFPETRO / SAHPETRO 2013-07-09 | **RETAINED**, same basis as Q-2 — now `evidence_exception` in Arms A and D |
+
+**Correction to §1 of this register.** The claim that the PSB-1 disposition register's
+docstring was "not true of the current store" regarding KWALITY and SAHPETRO in
+`ca_evidence_exceptions` is **retracted — the docstring was right.** Both names now appear
+there. The table was empty only because `record_evidence_exceptions()`, the CA pipeline's last
+step, had never run. That is the same half-built-store cause as Q-1, seen from a third angle.
+
+**§3's proposed atomicity fix stands and is still not implemented.** Nothing in the store
+announced that it was half-built; three separate symptoms (a missing re-key, empty evidence
+tables, and 15 undocumented Arm A items) each had to be traced back to it independently.
