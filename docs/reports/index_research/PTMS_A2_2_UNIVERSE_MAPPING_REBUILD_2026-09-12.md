@@ -167,8 +167,34 @@ the mechanical rule exists.
 
 ## 9. A5 re-run after the rebuild
 
-`symbol_entity_intervals` is an input to the contract arms, so A5 was re-run. Result recorded
-in §9a below.
+`symbol_entity_intervals` is an input to the contract arms, so A5 was re-run. Raw output:
+`PTMS_A5_CONTRACT_SUITE_POST_UNIVERSE_2026-09-12.md`.
+
+**The first attempt died with a DuckDB `OutOfMemoryException`** — CLASS A, environmental, not a
+substrate finding. The suite hardcodes `memory_limit='4GB'` / `threads=2`, and the rebuild
+widened its joins (entities 3,615 → 3,825). Raising that limit means editing the closed PSB-1
+battery, which is out of scope; a clean retry succeeded, so no change was needed.
+
+| Check | Post-CA-rebuild | **Post-universe-rebuild** |
+|---|---|---|
+| **Arm B** cross-symbol handoff | PASS — **4** splice fabrications (4 dispositioned) | **PASS — 0 splice fabrications** |
+| Structural: intervals | 4,133 rows · 1 multi-interval (DTIL) | **4,344 rows** · 1 multi-interval (DTIL) |
+| Structural: row count | 7,154,268 | **7,158,443** |
+| Arm A | HALT — 5 undocumented · 2,733 large_genuine | HALT — **5 undocumented** · 2,742 large_genuine |
+| Arm C / Arm D | PASS / PASS (16/16) | PASS / PASS (16/16) |
+| DVL→DTIL re-key, all regressions | PASS | PASS |
+
+**Two independent confirmations that A2-2 closed:**
+
+1. **Arm B went from 4 splice fabrications to zero.** The cross-symbol handoff arm is now
+   completely clean — the refreshed entity intervals eliminated the splices outright rather
+   than dispositioning them.
+2. **The suite's row count rose from 7,154,268 to 7,158,443** — exactly the direct `count(*)`.
+   The suite drops rows whose symbol has no entity interval, so its previous 4,175-row shortfall
+   *was* the unmapped-symbol count. That shortfall is now zero, measured from the suite's side.
+
+Arm A is unchanged at 5 undocumented items — the ETF-split and adjudication residue, out of
+A2-2 scope. The row-count and backup-file cells remain CLASS A stale expectations.
 
 ## 10. Exact next action
 
