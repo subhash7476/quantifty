@@ -68,6 +68,19 @@ of `pit_membership`, and it does not unblock Family F.
 
 ## 3. Defects
 
+> **Status update, same day — `PTMS_N200_D1_D4_REMEDIATION_2026-09-12.md`.**
+> **D1 and D4 are CLOSED.** The OCR transcript is committed with both sha256s and the build is
+> reproducible from the repo alone (content-identical across consecutive runs). The prose
+> super-set clause is parsed, and the union reconciliation gate is built and **passes: 42 dates,
+> 0 mismatches, 2018-06-29 → 2026-09-11**.
+> **One correction to D4 below:** the PVR directive was subsequently declared null and void by
+> the May-13-2020 press release, so `PVR`'s absence from `n200_membership` is **correct** and the
+> table was never missing a member. The blind spot was real — the build could not show it had
+> seen the clause — but it had not produced a wrong membership. Fixing it required correcting the
+> COVID void, which was keyed to `ind_prs16032020` where the source names March **19**.
+> **D5 is partly reduced:** 18 rename pairs now, and intervals starting before first trade drop
+> **16 → 14**. D2, D3 and D6 are unchanged.
+
 ### D1 — BLOCKING: a whole rebalance is sourced from a file in a temp directory
 
 `scripts/isd/build_n200_membership.py:30`
