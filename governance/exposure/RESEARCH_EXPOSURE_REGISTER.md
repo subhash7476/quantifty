@@ -232,7 +232,8 @@ orphan reader was found.
 
 | # | Surface | Window | Level | Hypothesis family | Consumer | Evidence |
 |---|---|---|---|---|---|---|
-| **Q-5** | Equity EOD (adjusted) | CSMP Phase-1 dev window | **signal** (frozen artifact) | CSMP 12-1 cross-sectional momentum | `core/msi/artifacts/xs_momentum_v1/model.py` | Frozen `PublishedArtifact` v1; spec `CSMP_PHASE1_RESEARCH_DOSSIER.md` Rev 7 (FROZEN); parameter-free construct. Already disclosed as PSB-2 prior exposure (decision D2) |
+| **Q-5** | Equity EOD (adjusted) | **dev: through 2022-12-30** (dossier §1.1 — every parameter fixed from the charter + dev window; gate (e) and the §2.1 re-run assert and print that nothing past 2022-12-30 was read) | **signal** (frozen artifact) | CSMP 12-1 cross-sectional momentum | `core/msi/artifacts/xs_momentum_v1/model.py` | Frozen `PublishedArtifact` v1; spec `CSMP_PHASE1_RESEARCH_DOSSIER.md` Rev 7 (FROZEN); parameter-free construct. Already disclosed as PSB-2 prior exposure (decision D2) |
+| **Q-6** | Equity EOD (adjusted) | **sealed: 2023-01 → 2026-06, 42 formation-months (2022-12-30 → 2026-05-29 grid)** | **UNREAD** | CSMP 12-1 cross-sectional momentum | — | Dossier Rev 7: single-shot Phase-6 read, subject to the §8 VOID precondition; **"the window has not been read."** Recorded so a successor cannot assume it free |
 
 ---
 
@@ -240,7 +241,7 @@ orphan reader was found.
 
 | # | Consumer | Window | Level | Note |
 |---|---|---|---|---|
-| I-11 | `scripts/msrp/derive_block_length.py` | **2023-01-02 → 2025-12-31** | **estimation** | Pins the moving-block-bootstrap length L from dev-window RV autocorrelation on Nifty-50 1m. Docstring: "never opens a 2026 file." **Second MSRP read inside the analog-path SEALED window — reinforces Finding I-β** |
+| I-11 | `scripts/msrp/derive_block_length.py` | **2023-01-02 → 2025-12-31** | **estimation** (second-order) | Pins the moving-block-bootstrap length L from dev-window RV autocorrelation on Nifty-50 1m. Docstring: "never opens a 2026 file." A *second independent* MSRP artifact fitted on the analog-path SEALED span — see Finding I-β for why characterization, not the count, is the issue |
 | I-12 | `scripts/analog_path/eligibility.py` | from 2012-01-01 | **meta** | Rule-driven eligible-day build + integrity scan + append-only defect register; no OHLC into features |
 | I-13 | `scripts/daytype/build_eod_features.py` | as invoked (defaults not pinned in source) | **feature** | Session features via `core/analytics/day_features.py` — same family as I-1 |
 | I-14 | `scripts/nifty_shield/derive_anchoring_params.py` | historical | **feature** | Scale-invariant re-derivation of config constants; docstring: "Nothing here reads a trade, a fill, or an outcome" |

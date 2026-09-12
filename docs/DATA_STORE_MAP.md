@@ -219,6 +219,7 @@ records what was checked, including the claims that held.
 | BSE 1m / 1d files | 15 / 8, from 2026-08-24 | **OK** |
 | vendor 1m files | 101 | **OK** |
 | missing 1m files vs calendar | **35** (calendar 3,646 sessions ≥ 2012-01-02) | **OK** |
+| 1m files with **no** calendar session | **1 — `2026-03-03`** | **new** (set difference run in both directions; 3,646 − 35 + 1 = 3,612 reconciles exactly to the file count). Recorded as a fact, not repaired — calendar changes are the operator's pre-freeze item |
 | 2018 1m file count | **223** (23 of the 35 misses fall in 2018) | **OK** |
 | `deliv_pct` fill | 7.92% null → **92.1% fill**, first non-null 2010-01-04 | **CORRECTED** (§9 Price said "~8% early rows null" — right; §9 Sentiment said "65% fill" — wrong; the two contradicted each other) |
 | India VIX 1m | **2024-11-29 → 2026-09-11, 117 of 445 sessions (26.3%)** | **CORRECTED** (was "1m 2023-01-02→", implying continuity that does not exist) |
