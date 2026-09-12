@@ -69,9 +69,19 @@ a gap filter. The guard exists solely to detect its return. **It has returned.**
 fabricated +40.17% / −33.48% pair on 2021-08-05 is present in the store today, and the re-key
 is absent (`DVL=1 DTIL=0`).
 
-This is the standing lesson firing exactly as written: *a historical backfill re-introduces
-every defect the backfill script was written to fix.* The repair lived in a repair script, not
-in the ingest, so a later rebuild silently undid it.
+**CORRECTION (2026-09-12, same day).** The sentence originally here — "the repair lived in a
+repair script, not in the ingest, so a later rebuild silently undid it" — is **wrong** and is
+retracted. `FACTOR_OVERRIDES` **is** a committed constant in the canonical ingest
+(`scripts/csmp/ingest_corporate_actions.py:51`), applied at line 867 of `main()`, explicitly
+designed to survive every rebuild. The replay harness `historical_backtest.py` was also
+suspected and cleared — it operates on a copy.
+
+The actual cause, established read-only: **the CA ingest ran `purge_and_rebuild()` and stopped
+before `apply_factor_overrides()`.** Zero factors carry the `RE-KEYED` source marker that
+`apply_factor_overrides()` is the sole writer of, and `ca_evidence_exceptions` /
+`ca_scope_exclusions` — populated by the pipeline's *last* step — are empty. The store is
+**half-built**, not corrupted by a bad rebuild. Full diagnosis:
+`governance/exposure/PTMS_SUBSTRATE_QUARANTINE.md` §2.
 
 **This is a live substrate defect on the equity panel, in the pre-fence era (2021), inside
 windows that PSB-1, PSB-2 and CSMP all read.** It is reported, not repaired — repairing a
@@ -119,8 +129,11 @@ PSB-1 built Arm D to catch, and none has a disposition-register entry.
 
 ## 4. What A5 requires to close (none of it authorized here)
 
-1. **Repair the DVL→DTIL regression in the ingest, not in a repair script** — otherwise the
-   next rebuild undoes it again, exactly as happened here. Copy-first baseline before any write.
+1. **Re-run the canonical CA ingest to completion.** The override is already committed in the
+   ingest; it simply did not execute. The pipeline defect to fix is **atomicity**, not the
+   override — a run that leaves `adjustment_factors` rebuilt while the override, the orphan
+   assertion, the adjusted view and the evidence tables are all missing presents a half-built
+   store as a finished one. Copy-first baseline before any write.
 2. **Rebuild the corporate-action and mapping registers past 2026-07-09**, then re-run. This
    should clear 11 of the 15 Arm A items and is the same remediation A2-2 already needs.
 3. **Disposition or repair the 4 historical Arm A items and the 17 Arm D items.** Arm D's 14
