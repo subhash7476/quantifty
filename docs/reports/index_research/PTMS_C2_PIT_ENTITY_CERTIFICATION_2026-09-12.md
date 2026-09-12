@@ -14,7 +14,7 @@ family that was still CONDITIONAL.
 | A2 — entity handoffs | **PASS with 2 defects** (1 boundary-touch, 226 unmapped symbols) |
 | A3 — ISIN linkage | **PASS with a newly recorded hazard** (issuer-prefix rule must not be applied to fund ISINs) |
 | A4 — `prev_close` identity | **PASS** — 5 mismatches in 6,544,193 pairs |
-| A5 — adjusted-series continuity | **INCONCLUSIVE by this screen** — defer to the existing contract suite |
+| A5 — adjusted-series continuity | **HALT** — contract suite run 2026-09-12; Arms A and D do not clear, and the DVL→DTIL repair has **regressed** (`PTMS_A5_RESULT_AND_C2_DISPOSITION_2026-09-12.md`) |
 | A6 — sector / thematic PIT status | **NOT PIT — recorded as unusable** |
 
 ---
@@ -162,7 +162,7 @@ Treating current membership as historical injects survivorship bias directly.
 4. **A4 passes cleanly**, and records why the uncontrolled version of the check is misleading.
 5. **A5 requires the existing contract suite to be run**, not a new screen.
 
-**C2 verdict: NOT CERTIFIED.** A1 fails; A5 is open pending the contract-suite run.
+**C2 verdict: NOT CERTIFIED.** A1 fails permanently; **A5 halted** — the contract suite ran on 2026-09-12 and returned CERTIFICATION INCOMPLETE, including a regressed DVL→DTIL repair. Full result and updated disposition: `PTMS_A5_RESULT_AND_C2_DISPOSITION_2026-09-12.md`.
 
 ---
 

@@ -1,7 +1,7 @@
 # PTMS — P2 Substrate Certification Report
 
 **Date:** 2026-09-12 · **Authority:** operator ruling PTMS P2/P3 review, 2026-09-12
-**Status:** **PARTIAL — C4 complete, C1 open, C2 not started, C3 blocked.**
+**Status:** **PARTIAL — C4 complete, C1 open, C2 NOT CERTIFIED (A1 permanent fail, A5 halt), C3 blocked.**
 **Access level:** meta + substrate verification throughout. **No research-market-data read.**
 No window spent, no construct code, no RFA.
 
@@ -40,7 +40,7 @@ C3 is blocked. C4 is complete but C4 alone does not make a surface usable.
 | Gate | Status | Detail |
 |---|---|---|
 | **C1 — timestamp semantics** | **OPEN** | AP-D4's `observed_bar_labeling` is the **frozen candidate semantic rule** per the ruling — to be independently verified and generalized store-wide, never rediscovered or replaced without contradicting evidence. Three arms: (a) vendor source spec — **needs the operator**; (b) cross-source bar-level shift test; (c) event anchoring on the 2020 circuit-breaker halts. The daily-close test is retired as insufficient |
-| **C2 — PIT & entity** | **NOT STARTED** | Contract-shaped arms per PSB-1's template, plus certifying `pit_membership` as a universe and recording sector membership as non-PIT |
+| **C2 — PIT & entity** | **NOT CERTIFIED** (ran 2026-09-12) | Contract-shaped arms per PSB-1's template, plus certifying `pit_membership` as a universe and recording sector membership as non-PIT |
 | **C3 — tradeability** | **BLOCKED** | §4 |
 | **C4 — VIX** | **COMPLETE** | §3 |
 
