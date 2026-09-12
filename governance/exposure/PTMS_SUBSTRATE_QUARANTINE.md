@@ -1,6 +1,6 @@
 # PTMS — Substrate Quarantine Register
 
-**Opened:** 2026-09-12 · **Updated:** 2026-09-12 (post CA refresh + rebuild + A5 re-run) · **Authority:** operator instruction 2026-09-12 ("Quarantine DVL,
+**Opened:** 2026-09-12 · **Updated:** 2026-09-12 (§6 — defective names dropped from the PTMS substrate) · **Authority:** operator instruction 2026-09-12 ("Quarantine DVL,
 DTIL, KWALITY, KILITCH, GULFPETRO and SAHPETRO from the research substrate").
 **Scope:** PTMS research constructs only. This register does **not** modify
 `scripts/psb1/disposition_register.py` — PSB-1 is a closed battery and its register is a
@@ -115,3 +115,63 @@ step, had never run. That is the same half-built-store cause as Q-1, seen from a
 **§3's proposed atomicity fix stands and is still not implemented.** Nothing in the store
 announced that it was half-built; three separate symptoms (a missing re-key, empty evidence
 tables, and 15 undocumented Arm A items) each had to be traced back to it independently.
+
+
+---
+
+## 6. Update — 2026-09-12: defective names DROPPED from the PTMS research substrate
+
+**Operator decision.** BSE CA refresh is deferred (BSE is not traded). The remaining defective
+names are **dropped from the PTMS research substrate** on the stated rationale that they
+mostly no longer trade on NSE and, where they do, sit outside the Nifty-200 universe.
+
+**This is an exclusion, not a deletion.** No row is removed from the canonical store. PTMS
+constructs must exclude these entities; every other consumer is unaffected.
+
+### Dropped
+
+| Entity / symbol | Defect | Last NSE session | In PIT universe? |
+|---|---|---|---|
+| DSPGOLDETF → **GOLDADD** | Arm A −90.0% 2026-08-28 (ETF unit split) | 2024-02-14 → 2026-09-11 | **never** |
+| DSPSILVETF → **SILVERADD** | Arm A −89.8% 2026-08-28 (ETF unit split) | 2024-02-14 → 2026-09-11 | **never** |
+| **IVZINNIFTY** | Arm A −89.9% 2026-07-31 (ETF unit split) | 2026-09-11 | **never** |
+| **INDIAGLYCO** | Arm A −78.8% 2026-09-02 | 2026-09-11 | **never** |
+| **KSE** | Arm A −62.2% 2026-08-17, magnitude-mismatch | 2026-09-11 | **never** |
+| **GULFPETRO / SAHPETRO** (Q-4) | Arm A/D `evidence_exception`, wrong_ratio 2013-07-09 | 2026-09-11 / 2015-05-05 | **never** |
+| **KWALITY** (Q-2) | Arm A/D `evidence_exception`, wrong_ratio 2010-06-15 | 2021-02-23 (delisted) | **YES — see below** |
+
+### Verification of the rationale — it holds on the operative test, with one exception
+
+The operative test is **PIT universe membership**, not existence. Checked against
+`universe_membership` (35,000 rows, 634 symbols, 2012-01-31 → 2026-07-09):
+
+- **12 of the 13 names checked have ZERO rebalances — never in the universe.** The rationale
+  holds for every dropped name except one.
+- **KWALITY is the exception: 8 rebalances, 2012-01-31 → 2016-06-30.** It *was* in the
+  Nifty-200-style universe for four and a half years, so "outside the Nifty200 universe" is
+  **not true of KWALITY**. Recorded rather than glossed.
+  **Why dropping it is still defensible:** its defect date is **2010-06-15**, *before* its
+  membership window opens. A `wrong_ratio` factor mis-scales the cumulative adjusted **level**
+  from that date onward, but within 2012–2016 the mis-scaling is constant and therefore
+  cancels in returns — the only return it distorts is the 2010-06-15 ex-date itself, outside
+  every membership window. The drop is sound; the stated reason was not the operative one.
+
+**The "no longer exists on NSE" half of the rationale does not hold**, and is recorded as such:
+**9 of the 13 still traded on 2026-09-11** (GOLDADD, SILVERADD, IVZINNIFTY, INDIAGLYCO, KSE,
+GULFPETRO, KILITCH, DVL, DTIL). Only DSPGOLDETF and DSPSILVETF (both renamed, not delisted),
+KWALITY (2021-02-23) and SAHPETRO (2015-05-05) have stopped trading. Universe membership — not
+existence — is what makes the drop safe.
+
+### A fourth sighting of the same staleness
+
+`universe_membership` runs to **2026-07-09** — the same boundary as the CA archive, the mapping
+tables and the Arm A cluster. Four independent artefacts stop at one date. Refreshing the
+universe and mapping tables (`build_universe.py`, `build_symbol_isin.py`) remains open work,
+and is what A2-2 needs.
+
+### Consequence for A5
+
+Dropping these does **not** close A5: the contract suite reports on the whole store and will
+keep HALTing on the 5 Arm A items until they are dispositioned in the PSB-1 register or the
+store changes. What the drop settles is narrower and sufficient for PTMS — **no PTMS construct
+may consume these entities**, so their defects cannot reach a PTMS result.
