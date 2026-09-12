@@ -1,6 +1,6 @@
 # Data Store Map — Persistent Stores (repo-wide)
 
-**Date:** 2026-09-12 · **Scope:** all persistent stores (`data/`, `historical/`, `cache/`, `backups/`, `models/`) — DuckDB + SQLite + raw archives + JSONL/session artifacts.
+**Date:** 2026-09-12 · **§9 re-verified (P1):** 2026-09-12 · **Scope:** all persistent stores (`data/`, `historical/`, `cache/`, `backups/`, `models/`) — DuckDB + SQLite + raw archives + JSONL/session artifacts.
 **Method:** filesystem enumeration + read-only schema sampling (`SHOW TABLES` / `DESCRIBE`, row counts). Counts are point-in-time; per-date partitions grow by ~1 file/session.
 **Related (not duplicated here):** `docs/reports/ops_data/DATA_STORE_MAP.md` (historical market-state reconstruction detail), `docs/reports/ops_data/DATABASE_CENSUS_2026-09-03.md` (active-vs-redundant census, reclaimable size).
 
@@ -39,11 +39,11 @@ Conventions: **Engine** = DuckDB per-file / DuckDB single-file / SQLite / flat f
 
 | Store | Tables / grain | Key columns | Rows / range | Writer → Reader |
 |---|---|---|---|---|
-| `equity_bhavcopy.duckdb` | `equity_bhavcopy` (symbol-day), `equity_bhavcopy_adjusted` VIEW, `corporate_actions` (11,965), `adjustment_factors` (1,194), `trading_calendar`, `symbol_entity_intervals`, `symbol_isin`, `instrument_master`, `universe_*` | trade_date, symbol, series, OHLC, prev_close, volume, turnover, deliv_qty, deliv_pct | 7.16M rows; 2010-01-04 → present | `scripts/csmp/ingest_*` + `scripts/ingest_equity_bhavcopy.py` → PSB/CSMP/Carry, backtests |
+| `equity_bhavcopy.duckdb` | `equity_bhavcopy` (symbol-day), `equity_bhavcopy_adjusted` VIEW, `corporate_actions` (11,965), `adjustment_factors` (1,194), `trading_calendar` (4,146), `symbol_entity_intervals`, `symbol_isin`, `instrument_master`, `universe_*` | trade_date, symbol, series, OHLC, prev_close, volume, turnover, deliv_qty, deliv_pct | 7,158,443 rows; 2010-01-04 → 2026-09-11 | `scripts/csmp/ingest_*` + `scripts/ingest_equity_bhavcopy.py` → PSB/CSMP/Carry, backtests |
 | `futures_bhavcopy.duckdb` | `futures_bhavcopy` (1.496M), `stock_futures_continuous` (49,711), `fo_eligible_intervals` (9,092), `ingest_meta` | underlying, expiry_dt, trade_date, OHLC, settle, contracts, open_int, chg_in_oi | 2016-02-11 → present | `scripts/sfb/ingest_futures_bhavcopy_v2.py` → Carry/TS-Basis |
 | `options_bhavcopy.duckdb` | `option_bhavcopy` (5.49M, index) | symbol, expiry_dt, strike, option_type, OHLC, settle, contracts, open_int | 2016-02-11 → 2026-07-17 (lags stock opts) | SFB options ingest → options analytics |
 | `stock_options_bhavcopy.duckdb` | `stock_options_bhavcopy` (99.5M) | underlying, expiry_dt, strike, option_type, OHLC, settle, contracts, open_int | 2016-02-11 → present | `scripts/sfb/ingest_stock_options_bhavcopy.py` → Skew sleeve |
-| `1m/{date}.duckdb` | `candles`: (symbol, timeframe, timestamp) | symbol, instrument_key, timeframe=1m, timestamp (bar open, IST-naive), OHLC, volume, is_synthetic | 2012-01-02 → present; 2 syms pre-2024-10-17, 195–231 after; filter `is_synthetic=FALSE` post-CAS 2026-08-03 | Upstox WS ingestor + historical backfill → LoopDriver, ISD, A-Index |
+| `1m/{date}.duckdb` | `candles`: (symbol, timeframe, timestamp) | symbol, instrument_key, timeframe=1m, timestamp (bar open, IST-naive), OHLC, volume, is_synthetic | 2012-01-02 → present (3,612 files); **2 symbols 2012-01-02 → 2022-12-30; 190 → 198 symbols (188 → 196 `NSE_EQ`) from 2023-01-02**; filter `is_synthetic=FALSE` post-CAS 2026-08-03 | Upstox WS ingestor + historical backfill → LoopDriver, ISD, A-Index |
 | `1d/{date}.duckdb` | `candles`: (symbol, timeframe, timestamp) | symbol, timeframe=1d, timestamp 00:00, OHLC, volume, is_synthetic | 2010-01-04 → present (1–165 rows/file) | `scripts/ingest_index_history.py` → DayType, DRA |
 | `bse/candles/{1m,1d}/` | `candles` | same as NSE | 2026-08-24 → present (15 × 1m, 8 × 1d) | BSE ingest → options_wall D2 |
 | `1m_vendor/{symbol}.duckdb` | `vendor_1m`: per-symbol 1m | ts, OHLC, volume (different schema) | 101 syms, 2015-02-02 → 2025-08-06; `vendor_flat.duckdb` roll-up | Vendor copy for G1-B1 gate (closed) — provenance only |
@@ -131,7 +131,7 @@ Conventions: **Engine** = DuckDB per-file / DuckDB single-file / SQLite / flat f
 
 ### The two 2012–2024 intraday symbols (verified)
 
-`data/market_data/nse/candles/1m/2012-01-02.duckdb` → 749 rows, **2 symbols**: `NSE_INDEX|Nifty 50`, `NSE_INDEX|Nifty Bank`. Same pair on `2020-01-02` (750 rows, 375 bars/symbol, 09:16→15:30). Breadth (195–231 symbols) starts **2024-10-17** only. Any 2012–2024 intraday construct is therefore an **index-pair construct on Nifty 50 vs Nifty Bank** — no equity breadth, no VIX (1m VIX starts 2023-01-02).
+`data/market_data/nse/candles/1m/2012-01-02.duckdb` → 749 rows, **2 symbols**: `NSE_INDEX|Nifty 50`, `NSE_INDEX|Nifty Bank`. Same pair on `2020-01-02` (750 rows, 375 bars/symbol, 09:16→15:30). Breadth starts **2023-01-02** (190 symbols: 188 `NSE_EQ` + 2 index), growing to 198 by 2025 — **not 2024-10-17**, and never 231. Verified by per-file `count(distinct symbol)` across 2022-12 → 2023-09 (the step is 2 → 190 at 2023-01-02) and by first-file-of-year scan (every first file 2012–2022 holds 2 symbols). Corroborated by `data/isd/pit_universe.duckdb:pit_membership` (898 sessions, 2023-01-02 → 2026-08-24). Any **2012 → 2022-12-30** intraday construct is therefore an **index-pair construct on Nifty 50 vs Nifty Bank** — no equity breadth, and no VIX at any date in that span (1m VIX begins 2024-11-29; see Sentiment).
 
 ### Price
 
@@ -139,18 +139,18 @@ Conventions: **Engine** = DuckDB per-file / DuckDB single-file / SQLite / flat f
 |---|---|
 | Exact stores | `data/market_data/equity_bhavcopy.duckdb` (`equity_bhavcopy` 7.16M + `equity_bhavcopy_adjusted` VIEW + `adjustment_factors`/`corporate_actions`), `futures_bhavcopy.duckdb` (`futures_bhavcopy` 1.496M + `stock_futures_continuous` 49,711), `options_bhavcopy.duckdb` (`option_bhavcopy` 5.49M), `stock_options_bhavcopy.duckdb` (99.5M), `nse/candles/1m/{date}.duckdb`, `nse/candles/1d/{date}.duckdb`, `1m_vendor/{symbol}.duckdb` (provenance only), `live_buffer/{candles,ticks}_today.duckdb` (today only) |
 | Instruments | Equities `NSE_EQ|<ISIN>` (~1,500 in 2010 → ~2,950 in 2026); indices `NSE_INDEX|Nifty 50`, `NSE_INDEX|Nifty Bank`, `NSE_INDEX|India VIX`; futures 380 underlyings (`NIFTY`/`BANKNIFTY` FUTIDX + FUTSTK); options `NIFTY` index + 366 stock underlyings × strikes |
-| Coverage / frequency | Equity EOD daily 2010-01-04→; futures/options EOD 2016-02-11→ (index options stall 2026-07-17); 1m 2012-01-02→ (2-sym until 2024-10-17); ticks today-only |
+| Coverage / frequency | Equity EOD daily 2010-01-04→; futures/options EOD 2016-02-11→ (index options stall 2026-07-17); 1m 2012-01-02→ (2-symbol index pair until 2022-12-30; ~190→198 symbols from 2023-01-02); ticks today-only |
 | Timestamp semantics | 1m `timestamp` = bar open, IST-naive (verified 2020-01-02: 09:16→15:30, 375 bars/symbol; pre-CAS session 09:15–15:30). 1d `timestamp` = 00:00 naive. Ticks = event time. Post-CAS (≥2026-08-03) F&O names carry `is_synthetic=TRUE` 15:15–15:27 + one auction print |
 | PIT availability | YES with discipline: `trading_calendar` session oracle + `symbol_entity_intervals` (recycled tickers) + `symbol_isin` + cumulative `adjustment_factors` applied causally (ex_date-gated); `pit_membership` 2023-01-02→; `fo_eligible_intervals` for futures. Continuous futures only 2022-08-08→2025-07-17 — no rolled series before 2022 |
 | Missingness | 2018: 223 × 1m files vs ~246 expected; 35 missing 1m files vs calendar overall; index-options 45-day lag; `deliv_*` null on ~8% early rows; CAS synthetics must be filtered (`WHERE is_synthetic=FALSE`, NSE_EQ only — indices have volume 0 on every bar) |
-| TRAIN/HOLDOUT | EOD equity panel (adjusted + PIT universe): **suitable**. Index-pair 1m (2 syms, 2012→): **suitable for index-level constructs only**. Breadth 1m (2024-10-17→): **unsuitable** — ~1 regime, no split possible. Options EOD: **suitable daily** (no intraday OI/IV history) |
+| TRAIN/HOLDOUT | EOD equity panel (adjusted + PIT universe): **suitable**. Index-pair 1m (2 syms, 2012→): **suitable for index-level constructs only**. Breadth 1m (**2023-01-02→**, ~900 sessions): a split is **arithmetically possible** (ISD ran a 474-session TRAIN on it), but the window is **budget-constrained, not data-constrained** — see `governance/exposure/RESEARCH_EXPOSURE_REGISTER.md` §4; still ~1 macro regime. Options EOD: **suitable daily** (no intraday OI/IV history) |
 | Leakage risks | Snapshot universes (`nifty200_current.csv`, `fo_stocks`) time-travel; dividends NOT price-adjusted (TR confusion); vendor-1m schema differs (`vendor_1m.ts` vs `candles`) and ends 2025-08-06 — never stitch silently; recycled tickers (DTIL) and ISIN re-issue (PHILIPCARB/PCBL) without interval linkage fabricate >20% returns |
 
 ### Time (sessions, calendar, clocks)
 
 | Field | Detail |
 |---|---|
-| Exact stores | `equity_bhavcopy.duckdb:trading_calendar` (4,138 sessions 2010→) + `core/market/session_schedule.py` (date-keyed, segment-named; `CAS_EFFECTIVE 2026-08-03`) + `bhavcopy_raw/*.404` miss markers + `core/market/nse_holidays.py` |
+| Exact stores | `equity_bhavcopy.duckdb:trading_calendar` (4,146 sessions 2010→, as of 2026-09-11; grows ~1/session) + `core/market/session_schedule.py` (date-keyed, segment-named; `CAS_EFFECTIVE 2026-08-03`) + `bhavcopy_raw/*.404` miss markers + `core/market/nse_holidays.py` |
 | Coverage / frequency | Session-level daily (calendar) + 1m bar grid (09:15–15:30 pre-CAS; CAT1 09:15–15:15 + halt/auction to 15:29 post-CAS; derivatives to 15:40) |
 | Timestamp semantics | As Price; LoopDriver `Clock` advances per bar with 90-day warmup; 1d files carry 1–165 rows (early years Nifty-only) |
 | PIT availability | Calendar is a PIT-safe oracle; schedule resolves era **by rule** (date), never by detecting `volume=0` on indices |
@@ -162,7 +162,7 @@ Conventions: **Engine** = DuckDB per-file / DuckDB single-file / SQLite / flat f
 
 | Field | Detail |
 |---|---|
-| Exact stores | NSE index family in `nse/candles/1d/{date}.duckdb` (verified 2026-09-11: 149 symbols incl. sector/thematic); `data/market_data/bse/candles/1m/` (15 files) + `1d/` (8 files); `futures_bhavcopy.duckdb` FUTIDX (`NIFTY`, `BANKNIFTY` verified); `data/reference/mcwb_*.zip` (monthly weights) |
+| Exact stores | NSE index family in `nse/candles/1d/{date}.duckdb` (149 symbols on the latest file 2026-09-11; **up to 200 observed in 2026**, max at 2026-03-02 — the per-file count is the writer's universe that day, not the store's breadth); `data/market_data/bse/candles/1m/` (15 files) + `1d/` (8 files); `futures_bhavcopy.duckdb` FUTIDX (`NIFTY`, `BANKNIFTY` verified); `data/reference/mcwb_*.zip` (monthly weights) |
 | Instruments | `NSE_INDEX|Nifty Bank / Nifty IT / sector + thematic` (1d only, 2016→); `BSE_INDEX|SENSEX` (single symbol, 2026-08-24→ only); NIFTY/BANKNIFTY futures. **Nothing else: no FX, commodities, bonds, or global indices** (MCX packet in `fetch_intermarket_data.py` unused) |
 | Coverage / frequency | Cross-index **daily** 2016-02-11→; cross-index **intraday** = Nifty-vs-Bank 1m 2012→ (2-sym era) + SENSEX 1m 2026-08-24→ (3 weeks) |
 | Timestamp semantics | Same bar-open IST-naive grid; BSE files share the `candles` schema incl. `is_synthetic` |
@@ -175,7 +175,7 @@ Conventions: **Engine** = DuckDB per-file / DuckDB single-file / SQLite / flat f
 
 | Field | Detail |
 |---|---|
-| Exact stores | `NSE_INDEX|India VIX` (1d 2015→; 1m 2023-01-02→; `data/nifty_shield/vix_history.duckdb:vix_history` 3,040 rows 2014-05-14→2026-09-07); PCR/GEX **live-only** (`data/options/chain_cache.duckdb:option_chain_snapshot` 360 rows + `wall_scan_results.duckdb:session_regime` 9,845 + `wall_chain_snapshots/` 6 days; computed by `core/analytics/options_analytics.py`); `data/features/day_type/day_type_facts.duckdb` (845 rows 2023-01-02→: regime, confidence, `vix_pctile`); positioning proxies: `equity_bhavcopy.deliv_qty/deliv_pct` (65% fill, 2010→) + `data/mto_probe/MTO_*.DAT` (2,728 raw) + options EOD `open_int/chg_in_oi` |
+| Exact stores | `NSE_INDEX|India VIX` (1d 2015→; **1m 2024-11-29 → 2026-09-11 but only 117 of 445 sessions in span = 26.3% — sparse, NOT a continuous intraday series**; `data/nifty_shield/vix_history.duckdb:vix_history` 3,040 rows 2014-05-14→2026-09-07); PCR/GEX **live-only** (`data/options/chain_cache.duckdb:option_chain_snapshot` 360 rows + `wall_scan_results.duckdb:session_regime` 9,845 + `wall_chain_snapshots/` 6 days; computed by `core/analytics/options_analytics.py`); `data/features/day_type/day_type_facts.duckdb` (845 rows 2023-01-02→: regime, confidence, `vix_pctile`); positioning proxies: `equity_bhavcopy.deliv_qty/deliv_pct` (**92.1% fill — 7.92% of rows null**; first non-null 2010-01-04) + `data/mto_probe/MTO_*.DAT` (2,728 raw) + options EOD `open_int/chg_in_oi` |
 | Instruments | India VIX; NIFTY PCR (live chain); Nifty 50 regime labels; delivery % per equity symbol; strike-level OI (EOD) |
 | Coverage / frequency | VIX daily 2014/2015→; PCR/GEX 5-sec snapshots **today + 6 recent days only**; regime labels daily 2023→; delivery/OI daily 2010/2016→ |
 | Timestamp semantics | VIX EOD close + `vix_at_checkpoint` (10am/11am/13pm) in day-type facts; chain snapshots carry `snapshot_timestamp`; OI rows keyed to `trade_date` (no intraday OI) |
@@ -190,3 +190,41 @@ Conventions: **Engine** = DuckDB per-file / DuckDB single-file / SQLite / flat f
 - **Intraday:** read `1m/{date}.duckdb` with `WHERE is_synthetic = FALSE` (NSE_EQ only; indices carry volume 0 on every bar).
 - **Live/paper:** `live_buffer` (today) → `1m/{date}` (history); trades land in `data/trading/trading.db` or `data/nifty_shield/trading/trading.db`.
 - **Before deleting anything:** consult `DATABASE_CENSUS_2026-09-03.md` §3–§5 — only `1d_snapshot_g1_r2`, empty duplicates, and closed-project fixtures are zero-risk.
+
+---
+
+## 11. §9 verification log (P1, 2026-09-12)
+
+Every §9 claim was re-checked at **meta level** (schema, counts, min/max dates, file
+presence — no OHLC entered any feature, label or fitted parameter; boundary ratified by
+operator decision PTMS-2026-09-12 §1). Corrections are in the diff above; this table
+records what was checked, including the claims that held.
+
+| Claim | Verified value | Verdict |
+|---|---|---|
+| equity rows / span | 7,158,443 · 2010-01-04 → 2026-09-11 | **OK** (was "7.16M → present"; pinned) |
+| `corporate_actions` / `adjustment_factors` | 11,965 / 1,194 | **OK** |
+| `trading_calendar` | 4,146 sessions | **corrected** (was 4,138 — moving count, now stamped) |
+| `symbol_entity_intervals` / `symbol_isin` | 4,133 / 3,639 | **OK** (not previously stated) |
+| futures rows / span | 1,495,989 · 2016-02-11 → 2026-09-11 | **OK** |
+| `stock_futures_continuous` | 49,711 · 2022-08-08 → 2025-07-17 | **OK** |
+| `fo_eligible_intervals` | 9,092 | **OK** |
+| index options | 5,490,319 · 2016-02-11 → **2026-07-17** | **OK** (the stall is real) |
+| stock options | 99,485,464 · 2016-02-11 → 2026-09-11 | **OK** |
+| instrument master | 1,467,444 rows | **OK** |
+| NSE 1m files | 3,612 · 2012-01-02 → 2026-09-11 | **OK** |
+| NSE 1m symbol breadth | 2 syms → 2022-12-30; **190 at 2023-01-02** → 198 | **CORRECTED** (was 2024-10-17 / 195–231) |
+| NSE 1d files | 4,135 · 2010-01-04 → 2026-09-11 | **OK** |
+| NSE 1d index breadth | 149 on latest file; **200 max in 2026** | **CORRECTED** (per-file ≠ store breadth) |
+| BSE 1m / 1d files | 15 / 8, from 2026-08-24 | **OK** |
+| vendor 1m files | 101 | **OK** |
+| missing 1m files vs calendar | **35** (calendar 3,646 sessions ≥ 2012-01-02) | **OK** |
+| 2018 1m file count | **223** (23 of the 35 misses fall in 2018) | **OK** |
+| `deliv_pct` fill | 7.92% null → **92.1% fill**, first non-null 2010-01-04 | **CORRECTED** (§9 Price said "~8% early rows null" — right; §9 Sentiment said "65% fill" — wrong; the two contradicted each other) |
+| India VIX 1m | **2024-11-29 → 2026-09-11, 117 of 445 sessions (26.3%)** | **CORRECTED** (was "1m 2023-01-02→", implying continuity that does not exist) |
+| `pit_membership` | 173,900 rows · 898 sessions · 2023-01-02 → 2026-08-24 | **OK** |
+
+**Method note.** Reader enumeration for this map must use component-wise search, not path
+literals: `grep -rl "candles/1m"` finds 9 readers of the 1m store while the component-wise
+pattern finds 63, missing `scripts/build_intraday_features.py` entirely because the path is
+assembled from parts. See `governance/exposure/RESEARCH_EXPOSURE_REGISTER.md` §2.

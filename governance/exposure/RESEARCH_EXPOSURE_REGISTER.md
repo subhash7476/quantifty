@@ -1,6 +1,6 @@
 # Research Exposure & Budget Register
 
-**Status:** v1 (seeded) · **Opened:** 2026-09-12 · **Authority:** operator ruling
+**Status:** v2 · **Opened:** 2026-09-12 · **Last appended:** 2026-09-12 (P0.2–P0.4 complete) · **Authority:** operator ruling
 PTMS-ALIGNMENT-2026-09-12 §1.
 **Purpose:** a durable, versioned, citable record of which *data surface* has been read,
 over which *window*, at which *exposure level*, by which *hypothesis family* — so that no
@@ -105,7 +105,7 @@ Rows **I-2, I-3, I-6** show that window read at feature, **signal**, and **estim
 level respectively. Per operator ruling §1, A's designation stands **within A's lineage
 only**; globally the window is **SPENT at signal level**.
 
-### Finding I-β — an active lineage with an incomplete disclosure (action required)
+### Finding I-β — OPEN / QUARANTINED (operator decision PTMS-2026-09-12 §2)
 
 `INTRADAY_ANALOG_PATH_PROTOCOL.md` §5 (dated 2026-09-09, TRAIN and HOLDOUT already run,
 SEALED pending) discloses three prior reads of its SEALED window — A, the pair-ratio
@@ -117,8 +117,7 @@ The protocol's claim is level-qualified — "never been read **at construct leve
 I-6 is estimation-level against a *volatility* target, not a directional construct. So the
 claim is not obviously false. But the disclosure is incomplete as written, and the
 operator's ruling makes level a recorded dimension rather than an automatic exemption.
-**Escalated for operator adjudication before any analog-path SEALED read.** Not adjudicated
-here.
+**Operator status: OPEN / QUARANTINED.** MSRP's estimation-level read is *not* ruled harmless, and the analog-path directional experiment is *not* ruled invalid merely because MSRP targeted forward volatility. The analog-path **SEALED decision is BLOCKED** until the exact dependency and possible contamination are formally examined. **No new market-data window may be spent investigating this.** Strengthened 2026-09-12 by row **I-11** — MSRP touched the window a second time (bootstrap block length from dev-window RV autocorrelation, same 2023-01-02 → 2025-12-31 span).
 
 ---
 
@@ -179,7 +178,7 @@ Recorded for planning only. **Nothing here is authorized for reading.**
 
 ---
 
-## 7. Open gaps in this register (= P0 remaining work)
+## 7. Gap list as opened at v1 (superseded — see §5e for current status)
 
 | Gap | What is missing | Why it matters |
 |---|---|---|
@@ -189,6 +188,99 @@ Recorded for planning only. **Nothing here is authorized for reading.**
 | **G-D** | Window determination for intraday readers classified by name but not inspected: `scripts/analog_path/eligibility.py`, `scripts/nifty_shield*/`, `scripts/daytype/build_eod_features.py`, `scripts/msrp/derive_block_length.py`, `scripts/research/options_seller_edge/cas_pcp_forward.py` | Each could carry an unrecorded window |
 | **G-E** | Artifact-side closure check run systematically over `data/` and `docs/reports/` | The completeness proof; currently spot-checked only |
 | **G-F** | Adjudication of **Finding I-β** (MSRP estimation-level read inside analog path's SEALED window) | Blocks the analog-path SEALED read |
+
+
+---
+
+## 5b. Register — EOD surfaces, component-wise enumeration (G-A / G-B / G-C, closed 2026-09-12)
+
+**Method.** Component-wise search over `scripts/`, `core/`, `flask_app/`, `app_facade/`,
+`governance/`, plus transitive importers of the modules that wrap store paths
+(`scripts/isd/__init__.py`, `scripts/psb1/screening_harness.py`, `scripts/psb2/harness.py`,
+`scripts/signal_engine/carry/*`, `core/analytics/realized_vol.py`). For the EOD stores the
+path is a single filename token, so the literal and component-wise searches coincide — the
+divergence that defeats the naive method is specific to the per-date candle stores (§2).
+
+**Reader counts:** equity EOD **84** · futures EOD **86** · index options **13** ·
+stock options **10**.
+
+Readers cluster by programme directory; every cluster maps to a recorded lineage. No
+orphan reader was found.
+
+| Surface | Cluster | Readers | Level | Family / disposition |
+|---|---|---:|---|---|
+| Equity EOD | `scripts/signal_engine/` | 19 | signal (gated) | Carry, TS Basis, TS Basis Daily, IVOL, Skew, LAG, Trend — rows F-1…F-5 |
+| Equity EOD | `scripts/psb1/` | 16 | signal (gated) + ingest/repair | PSB-1 C1–C5 — row Q-1 |
+| Equity EOD | `scripts/csmp/` | 14 | ingest + substrate repair | CSMP substrate build (write path, not exposure) |
+| Equity EOD | `scripts/psb2/` | 5 | signal (gated) | PSB-2 C2–C4 — row Q-2 |
+| Equity EOD | `scripts/research/` | 5 | signal | pair research, options seller-edge — rows I-3, O-1 |
+| Equity EOD | top-level `scripts/*.py` | 5 | mixed | C2 Phase 0.5 (Q-3), download/ingest pipeline, G2 sector ingest, index-history ingest |
+| Equity EOD | `scripts/mrlc_test/` | 4 | signal | MRLC — row E-3 |
+| Equity EOD | `scripts/sfb/` | 3 | signal | SFB-1 / F1 — row F-6 |
+| Equity EOD | `scripts/isd/` | 3 | signal (gated) | ISD — rows E-1/E-2 |
+| Equity EOD | `scripts/n200_regime/` | 2 | feature | N200 regime HMM — row Q-4 |
+| Equity EOD | `core/msi/` | 2 | **signal (frozen artifact)** | **New — row Q-5 below** |
+| Equity EOD | `governance/`, `core/scheduler/`, `app_facade/`, `scripts/{cas,reliance_regime}/` | 5 | declaration / ops / display | Not exposure |
+| Futures EOD | `scripts/signal_engine/` | 34 | signal (gated) | Rows F-1…F-5 |
+| Futures EOD | top-level `scripts/*.py` | 17 | signal + ops | Carry + TS Basis (daily/monthly) replay, forward runners, concentrated backtests, refresh pipeline |
+| Futures EOD | `scripts/sfb/` | 10 | ingest + signal | Futures substrate build; F1 screen (F-6) |
+| Futures EOD | `scripts/research/` | 7 | signal | pair research, options seller-edge |
+| Futures EOD | `governance/` | 5 | declaration | Frozen RFA declarations — not exposure |
+| Futures EOD | `scripts/{cas,isd,csmp,a_index_intraday}/`, `core/*` | 9 | ingest / meta / ops | A cost substrate (`measure_cost_substrate.py`) is **meta** — fee/slippage measurement, no signal |
+| Index options EOD | `scripts/{signal_engine,research,msrp,sfb,isd}/` + `core/*` + `app_facade/` | 13 | signal + ingest + live | Skew (O-2), MSRP fee triage, seller-edge, live option selection |
+| Stock options EOD | same shape | 10 | signal + ingest + live | Skew, seller-edge, PIT universe build, live selection |
+
+| # | Surface | Window | Level | Hypothesis family | Consumer | Evidence |
+|---|---|---|---|---|---|---|
+| **Q-5** | Equity EOD (adjusted) | CSMP Phase-1 dev window | **signal** (frozen artifact) | CSMP 12-1 cross-sectional momentum | `core/msi/artifacts/xs_momentum_v1/model.py` | Frozen `PublishedArtifact` v1; spec `CSMP_PHASE1_RESEARCH_DOSSIER.md` Rev 7 (FROZEN); parameter-free construct. Already disclosed as PSB-2 prior exposure (decision D2) |
+
+---
+
+## 5c. Register — G-D window determination (closed 2026-09-12)
+
+| # | Consumer | Window | Level | Note |
+|---|---|---|---|---|
+| I-11 | `scripts/msrp/derive_block_length.py` | **2023-01-02 → 2025-12-31** | **estimation** | Pins the moving-block-bootstrap length L from dev-window RV autocorrelation on Nifty-50 1m. Docstring: "never opens a 2026 file." **Second MSRP read inside the analog-path SEALED window — reinforces Finding I-β** |
+| I-12 | `scripts/analog_path/eligibility.py` | from 2012-01-01 | **meta** | Rule-driven eligible-day build + integrity scan + append-only defect register; no OHLC into features |
+| I-13 | `scripts/daytype/build_eod_features.py` | as invoked (defaults not pinned in source) | **feature** | Session features via `core/analytics/day_features.py` — same family as I-1 |
+| I-14 | `scripts/nifty_shield/derive_anchoring_params.py` | historical | **feature** | Scale-invariant re-derivation of config constants; docstring: "Nothing here reads a trade, a fill, or an outcome" |
+| I-15 | `scripts/nifty_shield/audit_regime_and_structures.py` | 2026-09 PAPER sessions | **feature / operational** | Forward paper window, not a research fence |
+| O-3 | `scripts/research/options_seller_edge/cas_pcp_forward.py` | 2026-09-* | **signal** | Put-call-parity implied spot vs frozen `underlying_ltp`; reads `wall_chain_snapshots`, **not** the canonical 1m store |
+
+**Shared-reader note.** `scripts/analog_path/data_layer.py` imports `scripts.isd` — the
+analog-path lineage reads the 1m store through ISD's certified reader (`scripts/isd/read_1m.py`).
+A substrate defect there is common to both lineages.
+
+---
+
+## 5d. G-E — artifact-side closure check (closed 2026-09-12)
+
+Every research-artifact directory under `data/` and every subdirectory of `docs/reports/`
+was mapped to a recorded reader. **Result: closed, with one addition.**
+
+- Mapped with no gap: `a_index_intraday` (I-4/I-5) · `analog_path` (I-7/I-8/I-12) ·
+  `audit` (Q-2/Q-3) · `cas` (E-5) · `features/day_type` (I-1/I-2) ·
+  `features/n200_regime` (Q-4) · `isd` (E-1/E-2/E-4) · `mrlc_test` (E-3) ·
+  `mto_probe` (CSMP ingest) · `nifty_shield*` (I-15, PAPER) · `ops` · `options` (live) ·
+  `psb{1,2}_synthetic` (fixtures) · `reliance_regime` (V-1) · `se3` (O-1) ·
+  `signal_engine` (F-1…F-5).
+- **Addition found:** `docs/reports/substrate_csmp/` + `core/msi/artifacts/xs_momentum_v1/`
+  → **row Q-5**. `core/msi/artifacts/forward_vol_v2/` → the MSRP family (I-6, I-11, D-1).
+- The check earned its keep: Q-5 was reachable from the artifact side and was **not**
+  surfaced by the v1 lineage sweep.
+
+---
+
+## 5e. Gap status after P0.2–P0.4
+
+| Gap | Status |
+|---|---|
+| G-A equity EOD enumeration | **CLOSED** (§5b) |
+| G-B futures + both options stores | **CLOSED** (§5b) |
+| G-C 1d index store | **CLOSED** — readers are the MSRP dev-window build (D-1), CB-N50 (D-2), `ingest_index_history.py` (ingest), `g1_r2_final_verification.py` (meta), pair research (I-3), `app_facade/data_facade.py` (display) |
+| G-D intraday reader windows | **CLOSED** (§5c) |
+| G-E artifact-side closure | **CLOSED** (§5d) |
+| **G-F adjudication of I-β** | **OPEN / QUARANTINED** — operator decision PTMS-2026-09-12 §2. The analog-path SEALED decision is **BLOCKED**. Strengthened by I-11: MSRP touched that window **twice** (frozen OLS coefficients *and* the bootstrap block length), both estimation-level on a volatility target. Not adjudicated here; no new window may be spent investigating it |
 
 ---
 
