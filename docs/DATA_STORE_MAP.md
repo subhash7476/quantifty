@@ -184,6 +184,22 @@ Conventions: **Engine** = DuckDB per-file / DuckDB single-file / SQLite / flat f
 | TRAIN/HOLDOUT | VIX daily + delivery/OI EOD: **suitable**. PCR/GEX intraday: **unsuitable** (no history). Regime labels: **suitable only retrained per window** |
 | Leakage risks | Reusing 2012–2023-trained regime labels as "facts" leaks the training window into every backtest; VIX/indices volume is dissemination noise (never VWAP/vol_z on `NSE_INDEX`); treating EOD OI change as an intraday timing signal overstates executability |
 
+## 9b. Certified entity/ISIN linkage rule (PTMS C2-A3, 2026-09-12 — binds repo-wide)
+
+**Issuer-prefix ISIN linkage applies ONLY to `INE…01` equity ISINs.** `INF` (mutual fund /
+ETF), `IN0`, and non-`01` security-type series receive **no** issuer-prefix union unless
+separately classified.
+
+Why: of the 144 issuer prefixes in `symbol_isin` carrying more than one ISIN, 81 are `INE`
+(genuine equity linkage — the PHILIPCARB/PCBL face-value re-issue class, plus renames such as
+CADILAHC→ZYDUSLIFE and RUCHISOYA→PATANJALI), but **52 are `INF` fund prefixes**. `INF109KC1`
+alone spans **34 ISINs across 42 ICICI ETF symbols** (SILVERIETF, GOLDIETF, BANKIETF,
+FMCGIETF…). Unioning those would fabricate a single fictitious entity across unrelated funds.
+`INE005A11` further shows an `11` series is debentures, not equity — so the rule is gated on
+ISIN class **and** security-type series, never on the 9-character prefix alone.
+
+Full derivation: `docs/reports/index_research/PTMS_C2_PIT_ENTITY_CERTIFICATION_2026-09-12.md` §A3.
+
 ## 10. How to use this map
 
 - **New research:** start from §1 canonical tables + `symbol_entity_intervals` + PIT membership (`universe_membership` / `pit_membership`); never filter history by `nifty200_current.csv` or `fo_stocks`.

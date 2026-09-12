@@ -163,3 +163,59 @@ Treating current membership as historical injects survivorship bias directly.
 5. **A5 requires the existing contract suite to be run**, not a new screen.
 
 **C2 verdict: NOT CERTIFIED.** A1 fails; A5 is open pending the contract-suite run.
+
+---
+
+## Dispositions (operator ruling, C2 review 2026-09-12)
+
+### A1 — PERMANENT BLOCKER
+
+`pit_membership` is circular **and may not be repaired by deriving another universe from the
+same candle panel** — any such derivation reproduces the circularity. **Family F is
+SUBSTRATE-BLOCKED, permanently, unless an independent PIT universe is separately sourced and
+certified.** Family F is removed from the list of potentially executable PTMS families; it is
+not to be rescued without that independent universe.
+
+### A2-1 — DTIL endpoint convention
+
+Deterministic correction required: make `symbol_entity_intervals` **half-open**
+`[valid_from, valid_to)`, or move the predecessor's `valid_to` back one trading session.
+Either removes the two-entity ambiguity on 2010-07-26. **Not to be left silently passing.**
+
+### A2-2 — the 226 unmapped symbols: enumerated and dispositioned
+
+Full list: `PTMS_C2_A2_UNMAPPED_SYMBOLS.json`. The enumeration settles the class cleanly:
+
+| Property | Value |
+|---|---|
+| Symbols | 226 (199 `EQ` + 27 `BE`), 4,175 rows |
+| **First seen** | **all 226 in 2026**, earliest **2026-07-10** |
+| Last seen | all 226 in 2026 (still trading) |
+| Rows per symbol | min 1, median 20, max 46 |
+| Carry a `symbol_isin` row | **1** of 226 |
+
+**This is not corruption — it is a stale mapping table.** Every unmapped symbol is a listing
+that began on or after 2026-07-10; `symbol_entity_intervals` and `symbol_isin` have not been
+rebuilt since roughly 2026-07-09.
+
+**Disposition (two acceptable routes):** (i) rebuild the mapping tables
+(`scripts/csmp/build_universe.py`, `scripts/csmp/build_symbol_isin.py`) and re-run A2; or
+(ii) set the certified equity window to end at the last mapping rebuild and exclude later
+listings explicitly. **Consequence either way: the certified equity panel currently ends
+around 2026-07-09, not at the store's 2026-09-11 max** — a fact no other gate surfaces.
+
+### A3 — certified rule, promoted globally
+
+**Issuer-prefix linkage applies only to `INE…01` equity ISINs.** `INF`, `IN0`, and non-`01`
+series receive **no** issuer-prefix union unless separately classified. Recorded in
+`DATA_STORE_MAP.md` so it binds outside PTMS.
+
+### A4 — certification contract
+
+The consecutive-trading-session methodology **is** the contract for `prev_close` identity.
+Unrestricted row lagging is not admissible evidence for this arm.
+
+### A6 — no substitution
+
+Sector/thematic membership is NOT point-in-time and is UNUSABLE for cross-sectional work.
+**Current membership may not be substituted for historical membership.**

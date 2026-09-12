@@ -20,18 +20,19 @@ Applied to all seven families, **before** any construct work:
 | **C — Gann geometry (single-index `per_trade_pnl`)** | index 1m / 1d | none at signal level | **BUDGET-BLOCKED** |
 | **D — Temporal symmetry / cycles** | index 1m / 1d | none at signal level | **BUDGET-BLOCKED** |
 | **E — Nifty/Bank cross-market** | index 1m pair | none — I-3 spent the ratio directly | **BUDGET-BLOCKED** |
-| **F — Stock-level cross-sectional price-time** | breadth 1m 2023-01-02→ | **partial** — 2024-12-01 → 2025-12-31 unspent by ISD, but E-3/E-6 touch it | **CONDITIONAL** |
+| **F — Stock-level cross-sectional price-time** | breadth 1m 2023-01-02→ | **n/a — substrate, not budget** | **SUBSTRATE-BLOCKED (permanent)** — C2-A1: `pit_membership` is circular and may not be repaired from the same candle panel. Removed from the executable list; not to be rescued without an independently sourced and certified PIT universe |
 | **G — EOD derivatives / market state** | options + futures EOD | **partial** — index options 2023→2026-07-17 not signal-read by a market-state family | **CONDITIONAL** |
 
 **The headline is uncomfortable and should not be softened: five of seven families, including
 Gann, have no legitimately fresh confirmatory window on the surface their hypothesis lives
-on.** This is the arithmetic consequence of C2 (the index 1m store is spent at signal level
+on — and after C2, Family F is removed outright as SUBSTRATE-BLOCKED, leaving G as the sole
+family not blocked on either budget or substrate.** This is the arithmetic consequence of C2 (the index 1m store is spent at signal level
 in both eras) plus the fact that futures history cannot predate 2016 and intraday breadth
 cannot predate 2023.
 
 Three honest responses exist, and the choice is the operator's:
 
-1. **Accept the blocks.** Run only F and G. Document A–E as budget-blocked — a valid P3
+1. **Accept the blocks.** Run only G (F is now substrate-blocked, not conditional). Document A–E as budget-blocked — a valid P3
    outcome under the §6 gate, and cheaper than discovering it after building.
 2. **Forward-paper as the confirmatory window.** A construct frozen today, run forward on
    genuinely unseen data, manufactures a fresh window at the cost of calendar time. This is
