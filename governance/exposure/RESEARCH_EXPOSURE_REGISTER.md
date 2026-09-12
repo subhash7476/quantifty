@@ -285,7 +285,7 @@ was mapped to a recorded reader. **Result: closed, with one addition.**
 | G-C 1d index store | **CLOSED** — readers are the MSRP dev-window build (D-1), CB-N50 (D-2), `ingest_index_history.py` (ingest), `g1_r2_final_verification.py` (meta), pair research (I-3), `app_facade/data_facade.py` (display) |
 | G-D intraday reader windows | **CLOSED** (§5c) |
 | G-E artifact-side closure | **CLOSED** (§5d) |
-| **G-F adjudication of I-β** | **OPEN / QUARANTINED** — operator decision PTMS-2026-09-12 §2. The analog-path SEALED decision is **BLOCKED**. Strengthened by I-11: MSRP touched that window **twice** (frozen OLS coefficients *and* the bootstrap block length), both estimation-level on a volatility target. Not adjudicated here; no new window may be spent investigating it |
+| **G-F adjudication of I-β** | **OPEN / QUARANTINED** — dependency audit COMPLETE 2026-09-12 (`PTMS_I_BETA_DEPENDENCY_AUDIT_2026-09-12.md`): **no consumption channel found** across all six named channels; analog path imports nothing from `core.msi`/MSRP, uses no volatility normalization, and its block length is a hard-coded 5 sessions declared self-contained in `stats.py`. The *contamination* limb can be closed on this evidence; the *multiplicity* limb cannot be closed by a dependency audit. Analog-path SEALED remains blocked (I-β + V1). Original entry follows: — operator decision PTMS-2026-09-12 §2. The analog-path SEALED decision is **BLOCKED**. Strengthened by I-11: MSRP touched that window **twice** (frozen OLS coefficients *and* the bootstrap block length), both estimation-level on a volatility target. Not adjudicated here; no new window may be spent investigating it |
 
 ---
 
