@@ -11,6 +11,11 @@ rather than defaulting to "certified".
 
 ---
 
+> **CERTIFIED (scoped) 2026-09-13** — equity breadth 1m, Nifty-100 PIT universe, 2023-01-02 →
+> 2026-09-11, native start-labelled clock: `PTMS_SUBSTRATE_CERTIFICATE_2026-09-13.md`. **The matrix
+> below is not edited and every other row still reads UNCERTIFIED** — that certificate covers one
+> surface, one window, one universe, and §6 of it says what it does not cover.
+>
 > **UPDATE 2026-09-13 — `PTMS_P2_CERTIFICATION_UPDATE_2026-09-13.md`.** Three of this report's
 > statements have been overtaken by evidence, and the matrix below is not edited: **C3 is no longer
 > blocked** (`cas_category` was stale, not short — rebuilt from the point-in-time futures bhavcopy

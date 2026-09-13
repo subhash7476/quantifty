@@ -123,6 +123,28 @@ runbook: `docs/reports/OPS_ORCHESTRATOR_RUNBOOK.md`.
 
 ---
 
+## PTMS — substrate certified (scoped), 2026-09-13
+
+**Equity breadth 1m · Nifty-100 PIT universe · 2023-01-02 → 2026-09-11 · native start-labelled
+clock.** Certificate: `docs/reports/index_research/PTMS_SUBSTRATE_CERTIFICATE_2026-09-13.md`
+(evidence: `PTMS_P2_CERTIFICATION_UPDATE_2026-09-13.md`; commit `999bb9f`). C1–C4 all carry
+evidence; census 917 files, 917 native, 913 OK, 4 GAP; coverage 0 absent (session, name) cells.
+
+**Nothing else is certified** — not the vendor era (C1-a still needs the vendor spec, and the seam
+is per SYMBOL: only Nifty 50 is end-labelled in 2022), not any other universe (A5's whole-panel
+halt is vacuous here, not resolved), not any non-`NSE_EQ` symbol class, and not the 1d / EOD
+surfaces.
+
+**The obligations that ride with it** (certificate §5, read before building on the store): pin the
+HDFC exception as *100 names, or exactly 99 missing HDFC before 2023-07-13* — never relax to
+`≥ 99`; declare the four GAP sessions rather than asserting 375 bars; resolve labelling from the
+observed first bar via `core/market/bar_labeling.py`; filter `is_synthetic = FALSE`; read **no**
+sector label (A6 is scoped out, not built); never join 1m to bhavcopy prices across a CA; rebuild
+`cas_category` whenever `futures_bhavcopy` advances; add the next Muhurat to `SPECIAL_SESSIONS`
+before it happens.
+
+---
+
 ## PSB-1 — Panel Screening Battery, Increment 1
 
 **Status:** CLOSED 2026-07-14. Outcome: **"no winner recommended"** — the protocol worked as designed. PSB-2 authorized as the successor.

@@ -16,6 +16,11 @@ the evidence gathered since, and the per-surface row it adds.
 >
 > **What did not change: I am not writing CERTIFIED on anything.** The evidence below supports a
 > scoped certification and says exactly where it stops. The stamp is the operator's.
+>
+> **STAMPED 2026-09-13.** The operator certified the scoped surface — Nifty 100, 2023-01-02 →
+> 2026-09-11. The certificate, with the digests it pins, the residuals it carries, the obligations
+> that ride with it and what it explicitly does not cover, is
+> `PTMS_SUBSTRATE_CERTIFICATE_2026-09-13.md`. This document remains the evidence behind it.
 
 ---
 
