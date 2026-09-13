@@ -528,3 +528,71 @@ because it is not a documentation change:** `session_schedule` has a test file
 correcting it changes live behaviour on Muhurat dates. It is platform infrastructure rather than
 PTMS construct code, so nothing forbids the change; it is simply not a repair to make inside a
 substrate-certification pass without being asked.
+
+
+---
+
+## 13. `session_schedule` fixed — date-keyed special-session override
+
+**Operator instruction 2026-09-13: fix it.** Done, TDD, `core/market/session_schedule.py`.
+
+`SPECIAL_SESSIONS` is consulted **before** the era table and supplies the complete segment map for
+that date, so a partial map can never silently inherit era values (there is a test for exactly
+that). The windows are **derived from the store, not from recall**: the native era is
+start-labelled, so `start` = the first bar's stamp and `end` = the last bar's stamp + 1 minute —
+re-checkable against the bar counts in §12.
+
+| Date | Window | Segments |
+|---|---|---|
+| 2023-11-12 | [18:15, 19:15) | cash_cat1 = cash_cat2 = derivatives; `cash_auction` None |
+| 2024-11-01 | [18:00, 19:00) | same |
+| 2025-10-21 | [13:45, 14:45) | same |
+
+Only the continuous market is expressed. No bar attests to the pre-open or the closing session, so
+neither is asserted — an unverifiable claim does not belong in live infrastructure.
+
+### What it changes
+
+| Call | Before | After |
+|---|---|---|
+| `any_open(2023-11-12 18:30)` | **False** while the market traded | True |
+| `any_open(2025-10-21 09:30 / 15:00)` | **True** while the market was shut | False |
+| `session_close_stamp` (daily bar) | 15:30 on all three | 19:15 / 19:00 / 14:45 |
+| `latest_intraday_exit` (MIS) | 15:30 on all three | 19:15 / 19:00 / 14:45 |
+
+`session_close_stamp`'s two call sites (`daily_bhavcopy.py:119`, `:249`) are **read paths** — they
+build `OHLCVBar`s when serving bhavcopy rows, and write nothing — so no stored row disagrees with a
+newly served one.
+
+### One live decision moved, and it needs an operator answer
+
+`paper_executor._squareoff_time` is `min(max(config.squareoff, start), end - 2min)`. With the
+default `squareoff = 15:35`, the same expression gives:
+
+| Date | Before | After |
+|---|---|---|
+| 2023-11-12 | 15:28 — **three hours before the market opened** | 18:15 — **the Muhurat open** |
+| 2024-11-01 | 15:28 | 18:00 |
+| 2025-10-21 | 15:28 | 14:43 — correct (2 min before the close) |
+
+The afternoon case becomes right. **The two evening cases are incoherent both before and after**:
+clamping a 15:35 config into an 18:15–19:15 window yields the session's *open*. That is a strategy
+config question — whether NiftyShield should trade a Muhurat session at all, and with what
+square-off — not a schedule question, so no rule was added for it. **Named here rather than
+silently inherited.**
+
+### Verification
+
+- `tests/market/test_session_schedule.py`: **25 pass** (12 new). RED first — the import of
+  `SPECIAL_SESSIONS` failed before the change.
+- Consumer suites `tests/market`, `tests/database/providers`, `tests/database/ingestors`,
+  `tests/execution/test_cas_rules.py`, `tests/options_wall/test_paper_executor.py`: **100 pass**.
+- `scripts/cas/prune_post_close_bars.py` re-run in plan mode: **0 sessions** carry post-close bars.
+  The three files no longer classify as SPECIAL SESSION (their bars are now *inside* the window)
+  and nothing new became pruneable — the guard's purpose is served by the schedule now knowing.
+
+### Not done, and not asked for
+
+`core/market/nse_holidays.py` generates sessions from weekdays minus holidays, so a Sunday special
+session (2023-11-12) is not in its output. That is the calendar's question, not the schedule's, and
+it is a separate change.
