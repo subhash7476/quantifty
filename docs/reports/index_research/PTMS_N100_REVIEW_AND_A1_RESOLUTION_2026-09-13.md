@@ -165,3 +165,61 @@ an unanswerable question.
 - **Next, cheap:** write G1/G3/G5 into `n100_audit` (§3), and dispose of 2026-02-01.
 - For a **daily-cadence** construct, the four inferred boundaries in §2 need an explicit
   disposition; for a monthly one they can be accepted as disclosed.
+
+---
+
+## 7. What is actually blocking C2 — measured, 2026-09-13
+
+C2's six arms, current state:
+
+| Arm | Status |
+|---|---|
+| A1 `pit_membership` circularity | **Discharged for the Nifty-100 scope by substitution** (§4). `pit_membership` itself remains circular and unused |
+| A2-1 DTIL interval endpoint | **CLOSED** — retracted as a data defect (the check used closed `<=` against an already half-open table); the one real consumer fixed (`scripts/n200_regime/build_panel.py:113`, commit `9c444c2`) |
+| A2-2 stale universe / mapping | **RESOLVED** — 211 unmapped symbols → 0 |
+| A3 ISIN issuer-prefix linkage | **CERTIFIED** |
+| A4 `prev_close` identity | **PASS** — 5 mismatches in 6,544,193 calendar-adjacent pairs |
+| A5 adjusted-series continuity | **HALT** — Arms B, C, D PASS; Arm A carries 5 undocumented items |
+| A6 sector / thematic PIT | **NOT PIT — UNUSABLE.** No PIT sector-constituent table exists |
+
+### A5's residue is entirely outside the study universe
+
+The 5 Arm A items and all 6 quarantined entities were checked against both PIT membership tables:
+
+| Symbol | Ever in Nifty 100 | Ever in Nifty 200 |
+|---|--:|--:|
+| DSPGOLDETF · GOLDADD · DSPSILVETF · SILVERADD · IVZINNIFTY | 0 | 0 |
+| INDIAGLYCO · KSE | 0 | 0 |
+| KWALITY · GULFPETRO · SAHPETRO · DVL · DTIL · KILITCH | 0 | 0 |
+
+**Not one has ever been a Nifty-100 or Nifty-200 constituent.** Three are ETFs, the rest small
+caps. So A5's HALT is a **whole-panel** blocker that is *vacuous under a Nifty-100 scope* — the
+adjudications (3 PSB-1 `ETF_SPLITS` register entries, plus INDIAGLYCO 2026-09-02 and KSE
+2026-08-17) remain necessary to certify the full 4,343-symbol panel and are irrelevant to this
+test.
+
+### So the blocker list depends on scope
+
+**Globally — C2 stays NOT CERTIFIED** on A5 (5 items, operator adjudication, one edits a closed
+battery's register) and A6 (no PIT sector table exists at all).
+
+**Scoped to Nifty 100, A1/A2/A3/A4 are satisfied and A5 is vacuous. What remains:**
+
+1. **The 1m coverage hole (§5)** — mean 11.0 of 100 constituents absent per session, four large
+   caps absent on 868 of 918 sessions. The universe is certified; the panel does not contain it.
+   **This is the binding blocker**, and it is new — it was unmeasurable while A1 was circular.
+2. **A6**, only if the construct needs sector membership. Sector-neutral or sector-conditioned
+   designs are hard-blocked; designs that need no sector labels can scope it out explicitly.
+
+### Two non-C2 gates block the same test
+
+- **C1 — timestamp semantics OPEN.** Unresolved bar-labelling convention for the 1m store
+  (AP-D4 `observed_bar_labeling` is a frozen candidate, not a certification). Directly load-bearing
+  for any intraday construct.
+- **C3 — blocked.** `data/cas/cas_category.duckdb` still ends **2026-08-28** (366 rows, verified
+  today), so post-CAS carry-forward bars after that date remain unmarked `is_synthetic = FALSE`.
+  Any intraday window extending past 2026-08-28 reads fabricated bars as real.
+
+**Certifying C2 is the operator's call.** The evidence above supports a *scoped* certification —
+Nifty-100 universe, stated fence — once the coverage gap is closed; it does not support a
+whole-panel certification, and nothing here touches C1 or C3.
