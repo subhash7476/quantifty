@@ -34,7 +34,7 @@ the evidence gathered since, and the per-surface row it adds.
 |---|---|---|
 | **C1** timestamp semantics | Era rule as code (`core/market/bar_labeling.py`), two agreeing arms (§2), census over all 917 sessions: **917/917 native, 911 OK, 4 GAP, 0 REFUSED, 0 MISDATED** | 4 sessions with 10 missing minutes in total (§2.3) |
 | **C2** PIT & entity | A1 discharged by substitution · A2-1 closed · A2-2 resolved · A3 certified · A4 PASS · A5 vacuous under this universe · **A6 scoped out by ruling** | HDFC 130 sessions, **accepted at 99/100 by ruling** |
-| **C3** tradeability & synthetics | `cas_category` rebuilt to 2026-09-11 · all 30 post-CAS sessions marked · **0 index rows marked** · coverage **0 absent (session, name) cells across 917 sessions** | **548 rows on 2 sessions carry a synthetic flag that cannot be true** (§4.2) |
+| **C3** tradeability & synthetics | `cas_category` rebuilt to 2026-09-11 · all 30 post-CAS sessions marked, 85,156 bars, **0 non-equity rows and 0 rows with volume** (§4.1) · coverage **0 absent (session, name) cells across 917 sessions** | **548 rows on 2 sessions carry a synthetic flag that cannot be true** (§4.2) |
 | **C4** VIX | Complete per the 09-12 report | 2021-02-12 quarantined |
 
 ---
@@ -60,9 +60,13 @@ feed's convention.
 
 **Arm 1 — the opening print.** Under end-labelling a bar stamped 09:15 would have to cover
 09:14→09:15, minutes the market was shut. The native era's first bar is stamped 09:15 on **917 of
-917** sessions in the fence. The vendor era is the control and behaves exactly as end-labelling
-predicts: first bar **09:16**, last bar **15:30**. The same session boundary, two eras, and the
-one-minute shift visible at both ends.
+917** sessions in the fence, so those bars can only be start-labelled.
+
+The obvious companion claim — *the vendor era is the control, 09:16 in and 15:30 out* — is **true
+of `NSE_INDEX|Nifty 50` and not of the store**: §2.4 measures 247 sessions in 2022 whose first bar
+is 09:15 because `Nifty Bank` and `India VIX` are start-labelled there. So this arm is evidence
+about the native era on its own terms, not a two-sided demonstration of a uniform one-minute
+shift.
 
 **Arm 2 — the CAS 15:15 halt.** Since 2026-08-03, Category I continuous trading stops at 15:15 by
 exchange schedule. Measured across all 30 post-CAS sessions, for Category I symbols only:
@@ -106,12 +110,12 @@ The four GAP sessions, in full — whole-market minute outages, every symbol abs
 | 2023-08-07 | 15:23 | 1 |
 | 2024-04-23 | 10:52, 10:53, **10:55**, 10:56, 10:57 | 5 |
 
-**Ten missing minutes in 343,875 session-minutes.** They are *not* repaired, deliberately: the
-store was itself built from the Upstox historical API, so the absence is almost certainly upstream,
-and the only way to test that is a re-fetch that **rewrites existing bars on today's CA basis**.
-The store is corporate-action adjusted; re-fetching part of a symbol's 2023 could leave that symbol
-on a mixed basis. A ten-minute hole is a smaller defect than that cure. Enumerated here so a loader
-can declare them rather than trip on them.
+**Ten missing minutes in 343,875 session-minutes.** They are *not* repaired, and **whether the
+source still has them was not tested** — because the only available test is destructive. Probing
+means re-fetching, and the fetcher upserts: it would **rewrite existing bars on today's CA basis**.
+The store is corporate-action adjusted, so re-fetching part of a symbol's 2023 could leave that
+symbol on a mixed basis within its own history — a worse and much harder-to-see defect than a
+ten-minute hole. Enumerated here so a loader can declare them rather than trip on them.
 
 ### 2.4 What the store-wide census adds (outside this fence)
 
@@ -190,7 +194,7 @@ which is genuinely point-in-time (a contract traded on a date, or it did not) �
 | Baseline first | `data/_baselines/cas_category_pre_rebuild_2026-09-13/` + `intervals_before.json` |
 | Rebuild (`scripts/cas/build_cas_category.py`) | 366 intervals in, **366 out**; **0 new runs, 0 vanished runs, 0 end-dates changed for any reason other than extension**; 210 runs extended past 2026-08-28; new max `effective_to` **2026-09-11** |
 | Mark (`mark_synthetic_bars.py --apply --since 2026-08-31`) | **10 sessions, 28,660 bars flagged**, 2,736–2,926 per session — in line with the 2,703–2,912 of the 20 already-marked sessions |
-| Index safety | **0 non-equity rows marked** on any of the 10 |
+| Index safety, all 30 | Re-measured across every post-CAS session after the schedule change, not just the 10: **85,156 synthetic bars, 0 non-equity rows marked, 0 marked bars outside the auction window, 0 marked bars carrying volume** |
 | Coverage | the 10 sessions are no longer REFUSED by the N100 backfill; **0 absent cells** across the full 917 |
 
 **The fence end moves from 2026-08-28 to 2026-09-11** as a result — C3 no longer binds it.
