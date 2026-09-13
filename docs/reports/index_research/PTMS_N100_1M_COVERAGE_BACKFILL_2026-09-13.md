@@ -192,3 +192,71 @@ RELIANCE 451, MOTHERSON 633 …) are genuine corporate-action ratios. **The long
 this benign VWAP-versus-last-trade effect, not a corporate action.** §4's headline finding (the
 1m store is CA-adjusted, pre-existing and undocumented) is unaffected; only the tail of its table
 needed this reading.
+
+---
+
+## 7. Orphan disposed, and a native-era label census
+
+### 7a. `2026-03-03` quarantined
+
+Moved to `data/_baselines/1m_orphans/2026-03-03.duckdb` (sha256 verified identical before
+removal), not deleted. A README there records the contents. It held **197 rows, all stamped
+2026-03-02**:
+
+- **13 rows at 15:29** — already present in the real `2026-03-02.duckdb` with identical
+  (symbol, timestamp, close). Pure duplicates.
+- **184 rows at 15:40–15:59** — after the equity session ends (the real file's last bar is 15:29,
+  and 2026-03-02 predates CAS). Post-close prints that belong in no 1m file on any date.
+
+**Disposal loses no row that belongs in the store.** A full sweep confirms it was the **sole
+orphan in 3,613 files**, and the arithmetic now closes exactly: 4,146 calendar sessions − 534 with
+no file = **3,612 files**, which is what `DATA_STORE_MAP.md` already claimed.
+
+### 7b. C1's missing artifact, for the native era
+
+Gate C1's third deliverable is "a contiguity + label census over all files recording the observed
+stamp per file". Produced here for 2023-01-02 → present (`NSE_EQ` rows), 917 sessions:
+
+| First bar | Last bar | Distinct minutes | Sessions | Reading |
+|---|---|--:|--:|---|
+| 09:15 | 15:29 | 375 | **904** | textbook native era, start-labelled |
+| 09:15 | 15:29 | 370–374 | 3 | minor contiguity gaps |
+| 09:15 | 12:29 | 105 | 2 | truncated/special session |
+| 09:15 | 15:44 / 15:53 / 15:59 | 377–393 | 4 | **post-close prints — same defect class as §7a** |
+| 18:15 / 18:00 / 13:45 | +59 min | 60 | 3 | Muhurat / special sessions, legitimate |
+
+**The native era is uniformly start-labelled 09:15 on 904 of 917 sessions, and all 13 exceptions
+fall into three named classes.** That is a certifiable state for a 2023+ fence — the era rule does
+not need rediscovering, only a loader that handles the three classes and refuses an unrecognised
+stamp rather than guessing.
+
+Note the 3 Muhurat sessions: any loader that assumes a 09:15 start silently drops them, and any
+gate that asserts 375 bars fails them. They are real trading sessions.
+
+## 8. Are we near substrate certification?
+
+**For a Nifty-100 intraday study fenced 2023-01-02 → 2026-08-28: yes, materially.** That fence is
+not arbitrary — three independent constraints land on it.
+
+| Gate | State for that fence | Residual |
+|---|---|---|
+| **C1** timestamp semantics | **Out of the cross-era seam entirely** — a 2023+ study never spans the vendor/native boundary, and §7b certifies the native era's labelling | Loader must handle the 13 enumerated exceptions; C1-a (vendor spec) matters only if pre-2023 is ever in scope |
+| **C2** PIT & entity integrity | A1 discharged by substitution, A2-1 closed, A2-2 resolved, A3 certified, A4 PASS, **A5 vacuous** (no A5 residue was ever an N100/N200 member), coverage gap closed 11.0 → 0.143 | **A6** if the construct needs sector membership; HDFC's 130 sessions |
+| **C3** tradeability & synthetics | **Satisfiable exactly to 2026-08-28** — `cas_category` covers every post-CAS session inside the fence, and those files are marked | Nothing inside the fence; everything after 2026-08-28 is blocked until the category table is extended |
+| **C4** VIX certification | PASS with quarantines (operator ruling) | 2021-02-12 permanently quarantined |
+
+**The honest summary: the substrate is close to certifiable for this scope, and the remaining work
+is small, named and bounded** — not the open-ended state it was in a day ago. What stands between
+here and a scoped certification:
+
+1. **A6** — decide whether the construct needs sector membership. If it does, this is a hard
+   blocker (no PIT sector table exists). If not, scope it out explicitly in the fence.
+2. **HDFC, 130 sessions** (2023-01-02 → 2023-07-12) — accept 99/100 for that window, or source it
+   elsewhere. Needs a stated disposition, not silence.
+3. **The 4 post-close-print sessions** in §7b — same defect as the orphan, not yet dealt with.
+4. **The 3 Muhurat sessions** — confirm the loader handles them rather than dropping them.
+5. **Extend `cas_category`** if the fence must run past 2026-08-28, then backfill the last 10
+   sessions.
+
+**Certification remains the operator's call.** None of the above is a claim that C1–C4 are passed;
+it is a statement of what is left, and the list is now short enough to work through.
