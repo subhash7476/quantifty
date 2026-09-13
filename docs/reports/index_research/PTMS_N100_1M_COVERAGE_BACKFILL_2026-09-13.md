@@ -256,11 +256,15 @@ here and a scoped certification:
    accept 99/100 for that window. Disposition and the obligations it carries: §11.
 3. ~~**The 4 post-close-print sessions** in §7b~~ — **CLOSED 2026-09-13**, §9: 466 rows pruned,
    the class is gone from the census.
-4. **The 3 Muhurat sessions** — confirm the loader handles them rather than dropping them.
+4. ~~**The 3 Muhurat sessions** — confirm the loader handles them.~~ **ANSWERED 2026-09-13,
+   §12: no single loader does, and `session_schedule.py` — the stated authority — mis-answers
+   all three.** The requirement this places on the study loader is stated there; whether it
+   blocks the scoped certification is an operator call.
 5. **Extend `cas_category`** if the fence must run past 2026-08-28, then backfill the last 10
    sessions.
 
-**Three of the five are now closed; two remain** — the Muhurat loader check and `cas_category`.
+**Four of the five are now closed or answered; `cas_category` remains** — plus whatever the
+operator decides to do with §12's finding.
 
 **Certification remains the operator's call.** None of the above is a claim that C1–C4 are passed;
 it is a statement of what is left, and the list is now short enough to work through.
@@ -416,3 +420,111 @@ include it. Only the intraday leg is short, and only for that window.
    (`scripts/psb1/disposition_register.py` is the shape; PSB-1's own register is closed and is not
    to be edited). No such gate exists yet because the study's eligibility code does not exist yet
    — this is the requirement on it when it is written, not a claim that it is in place.
+
+
+---
+
+## 12. The 3 Muhurat sessions — checked against every reader in the fence's path
+
+**Asked: does the loader handle them? Answer: there is no single loader, and the component that
+claims to be the authority on session hours gets all three wrong.** One construct loader handles
+them properly; the canonical reader passes them through; the ISD completeness gate produces an
+internally incoherent row.
+
+**Access note:** every figure below is structural — bar counts, slot counts, defect labels, boolean
+window answers. No price was printed, and nothing computed here entered a feature, signal, label or
+parameter.
+
+### The three sessions, measured
+
+| Date | Weekday | Window | Bars | `NSE_EQ` symbols |
+|---|---|---|--:|--:|
+| 2023-11-12 | Sunday | **18:15 → 19:14** | 12,180 | 203 |
+| 2024-11-01 | Friday | **18:00 → 18:59** | 12,180 | 203 |
+| 2025-10-21 | Tuesday | **13:45 → 14:44** | 12,420 | 207 |
+
+All three are in `trading_calendar`; each carries 60 distinct minutes per symbol and zero synthetic
+bars. They are real trading sessions with complete capture — nothing is missing from them.
+
+### What each reader does with them
+
+| Component | Behaviour | Reading |
+|---|---|---|
+| `core/market/session_schedule.py` | Returns the ordinary 09:15–15:30 window on all three dates | **WRONG on all three** — Finding 1 |
+| `scripts/isd/read_1m.py` | Returns all 12,180 / 12,180 / 12,420 rows with correct stamps | **Handles** — time-agnostic by construction |
+| `scripts/isd/gate_contiguity.py` (L2) | Ledger row, no block | **Incoherent** — Finding 2 |
+| `scripts/analog_path/data_layer.py` + `eligibility.py` | `valid=False`; defects `first_bar_stamp_18:15` / `short_session_60` / `morning_incomplete_0` plus 5 horizon codes; excluded from the eligible list and written to the defect register with date and codes | **Handles correctly** — refuses, names, publishes |
+| `core/analytics/day_features.py` | `EXPECTED_BARS = 375`, `PM_START_BAR = 255` positional | **Would break silently** — `iloc[255:]` on a 60-row frame is empty; no execution needed to see it |
+| `scripts/cas/*` (coverage, backfill, prune) | Coverage and backfill are time-agnostic; the pruner classifies an all-out-of-window file as a SPECIAL SESSION and never touches it (§9) | Handles |
+
+### Finding 1 — the stated authority mis-answers, and the afternoon case is the dangerous one
+
+`session_schedule.py`'s docstring calls it *the single authority for when segment X is open on date
+D*. It is keyed by **era** only and has no concept of a special session. Measured:
+
+| Date | `session_window("cash_cat1")` | `any_open()` during real trading | `any_open()` outside it |
+|---|---|---|---|
+| 2023-11-12 | 09:15–15:30 | **False** at 18:30 | — |
+| 2024-11-01 | 09:15–15:30 | **False** at 18:30 | — |
+| 2025-10-21 | 09:15–15:30 | True at 14:00 — **for the wrong reason** | **True at 09:30 and 15:00, when the market was shut** |
+
+The two evening sessions **fail closed**: 12,180 real bars each read as out-of-hours. The 2025
+afternoon session **fails open**, which is worse — the authority reports the market open across
+6h15m of which 60 minutes were real, and it is accidentally right at 14:00 only because 13:45–14:44
+falls inside the ordinary window.
+
+Live tick capture is not affected, for a reason worth recording: `live_buffer_writer` guards by
+session **date**, explicitly *not* by `session_window`, because index dissemination legitimately
+runs outside the widest defined segment. That deliberate choice is why these bars are in the store
+at all. Anything that instead calls `MarketHours.is_any_open()` — a thin wrapper over `any_open` —
+inherits the table above.
+
+### Finding 2 — the detection signal disappeared when Muhurat moved to the afternoon
+
+ISD's L2 audit grids each file against minutes 555–929 (09:15–15:29):
+
+| Date | `expected_slots` | `missing_slots` | `bars_outside_grid` |
+|---|--:|--:|--:|
+| 2023-11-12 | 76,125 | 63,945 | **12,180** |
+| 2024-11-01 | 76,125 | 63,945 | **12,180** |
+| 2025-10-21 | 77,625 | 65,205 | **0** |
+
+Two things fall out.
+
+**The arithmetic is incoherent on these files.** `missing_slots = expected - distinct_slots`, but
+`distinct_slots` counts distinct `(symbol, minute)` pairs across **all** bars while `expected` is
+defined over the 375-minute grid. So an 18:30 bar is credited against a missing 09:15 slot: the
+2023 row reports 63,945 missing rather than the 76,125 actually absent from the grid. The two
+quantities are on different domains. That is harmless while `bars_outside_grid = 0` — true of every
+ordinary session — and wrong exactly here.
+
+**The marker that made 2023 and 2024 visible is gone in 2025.** 13:45–14:44 sits *inside* the grid,
+so `bars_outside_grid` is 0 and the row reads as an ordinary session 84% incomplete —
+indistinguishable from a feed that died at the open. Whatever detected the evening sessions does not
+detect the afternoon one, and 2025 is the most recent precedent.
+
+### The requirement this places on the study loader
+
+None of this blocks a construct that never reads these sessions — a 60-bar session fails any
+sensible eligibility rule, and `analog_path` already excludes them by name. The exposure is a loader
+that iterates `trading_calendar` and trusts either `any_open` or a 375-bar assumption. So, when the
+Nifty-100 study's eligibility code is written:
+
+1. **Resolve the session window from the observed bars or an explicit special-session table — never
+   from `session_schedule` alone**, which is era-keyed and does not know these dates exist.
+2. **Refuse and name; do not assert 375 and do not guess.** `analog_path`'s `first_bar_stamp_HH:MM`
+   and `short_session_N` codes, written to a register with the date, are the pattern to copy: an
+   excluded session that is *published* is handled; one silently dropped is not.
+3. **Never treat a 60-bar special session as an incomplete 375-bar one.** They are different
+   objects, and the 2025 row above is what conflating them looks like.
+
+### The `session_schedule` defect — shape and blast radius, not repaired
+
+The fix is a date-keyed special-session override consulted ahead of the era schedule. **Not applied,
+because it is not a documentation change:** `session_schedule` has a test file
+(`tests/market/test_session_schedule.py`) and live consumers — `market_hours`, `market_session`,
+`db_tick_aggregator`, `live_buffer_writer`, `daily_bhavcopy`, `cas_rules`, `paper_executor`,
+`nifty_shield_v1/config`, `ingest_reference_1m`, `certify_index_slice`, `build_ts_basis_daily` — so
+correcting it changes live behaviour on Muhurat dates. It is platform infrastructure rather than
+PTMS construct code, so nothing forbids the change; it is simply not a repair to make inside a
+substrate-certification pass without being asked.
