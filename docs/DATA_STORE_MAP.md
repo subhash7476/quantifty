@@ -43,7 +43,7 @@ Conventions: **Engine** = DuckDB per-file / DuckDB single-file / SQLite / flat f
 | `futures_bhavcopy.duckdb` | `futures_bhavcopy` (1.496M), `stock_futures_continuous` (49,711), `fo_eligible_intervals` (9,092), `ingest_meta` | underlying, expiry_dt, trade_date, OHLC, settle, contracts, open_int, chg_in_oi | 2016-02-11 → present | `scripts/sfb/ingest_futures_bhavcopy_v2.py` → Carry/TS-Basis |
 | `options_bhavcopy.duckdb` | `option_bhavcopy` (5.49M, index) | symbol, expiry_dt, strike, option_type, OHLC, settle, contracts, open_int | 2016-02-11 → 2026-07-17 (lags stock opts) | SFB options ingest → options analytics |
 | `stock_options_bhavcopy.duckdb` | `stock_options_bhavcopy` (99.5M) | underlying, expiry_dt, strike, option_type, OHLC, settle, contracts, open_int | 2016-02-11 → present | `scripts/sfb/ingest_stock_options_bhavcopy.py` → Skew sleeve |
-| `1m/{date}.duckdb` | `candles`: (symbol, timeframe, timestamp) | symbol, instrument_key, timeframe=1m, timestamp (bar open, IST-naive), OHLC, volume, is_synthetic | 2012-01-02 → present (3,612 files); **2 symbols 2012-01-02 → 2022-12-30; 190 → 198 symbols (188 → 196 `NSE_EQ`) from 2023-01-02**; filter `is_synthetic=FALSE` post-CAS 2026-08-03 | Upstox WS ingestor + historical backfill → LoopDriver, ISD, A-Index |
+| `1m/{date}.duckdb` | `candles`: (symbol, timeframe, timestamp) | symbol, instrument_key, timeframe=1m, timestamp (bar open, IST-naive), OHLC, volume, is_synthetic | 2012-01-02 → present (3,612 files); **2 symbols 2012-01-02 → 2022-12-30; 190 → 198 symbols (188 → 196 `NSE_EQ`) from 2023-01-02**; filter `is_synthetic=FALSE` post-CAS 2026-08-03; **prices are CA-ADJUSTED — see §12** | Upstox WS ingestor + historical backfill → LoopDriver, ISD, A-Index |
 | `1d/{date}.duckdb` | `candles`: (symbol, timeframe, timestamp) | symbol, timeframe=1d, timestamp 00:00, OHLC, volume, is_synthetic | 2010-01-04 → present (1–165 rows/file) | `scripts/ingest_index_history.py` → DayType, DRA |
 | `bse/candles/{1m,1d}/` | `candles` | same as NSE | 2026-08-24 → present (15 × 1m, 8 × 1d) | BSE ingest → options_wall D2 |
 | `1m_vendor/{symbol}.duckdb` | `vendor_1m`: per-symbol 1m | ts, OHLC, volume (different schema) | 101 syms, 2015-02-02 → 2025-08-06; `vendor_flat.duckdb` roll-up | Vendor copy for G1-B1 gate (closed) — provenance only |
@@ -245,3 +245,48 @@ records what was checked, including the claims that held.
 literals: `grep -rl "candles/1m"` finds 9 readers of the 1m store while the component-wise
 pattern finds 63, missing `scripts/build_intraday_features.py` entirely because the path is
 assembled from parts. See `governance/exposure/RESEARCH_EXPOSURE_REGISTER.md` §2.
+
+
+## 12. Price basis — the 1m store is adjusted, the daily store is not
+
+**`data/market_data/nse/candles/1m/` holds corporate-action ADJUSTED prices, back-adjusted to the
+current basis. `equity_bhavcopy` holds AS-TRADED prices.** The two disagree by the CA ratio on
+every session before an ex-date.
+
+The 1m store is built from the Upstox historical API, which serves history adjusted to the basis
+at fetch time. Nothing in the schema records this: there is no basis flag, and both stores expose
+plain `open/high/low/close`.
+
+**Verified 2026-09-13** against every bonus/split with an ex-date inside the 1m window that hit a
+Nifty-100 name — 33 events, of which 32 have pre-ex 1m data and **all 32 are adjusted**, with the
+observed ratio matching the corporate action to within 0.05:
+
+| Name | Ex-date | Action | `bhav_close / 1m_close` before ex |
+|---|---|---|--:|
+| RELIANCE | 2024-10-28 | Bonus 1:1 | 2.00 |
+| KOTAKBANK | 2026-01-14 | Split 5/1 | 5.00 |
+| NMDC | 2024-12-27 | Bonus 2:1 | 3.00 |
+| ASHOKLEY | 2025-07-16 | Bonus 1:1 | 2.01 |
+| MOTHERSON | 2025-07-18 | Bonus 1:2 | 1.50 |
+| PFC · CONCOR | 2023-09-21 · 2025-07-04 | Bonus 1:4 | 1.25 |
+| HINDPETRO · OIL | 2024-06-21 · 2024-07-02 | Bonus 1:2 | 1.50 |
+
+### What this means in practice
+
+- **Within the 1m store the series is continuous across ex-dates** — no fabricated 50% crash at a
+  1:1 bonus. That is the property research wants, and it holds.
+- **The hazard is at the join.** An intraday close will not match "the close" for that date, and a
+  return computed from a 1m price against a bhavcopy `prev_close` is wrong by the CA ratio on
+  exactly the dates that matter. `equity_bhavcopy_adjusted` is the daily store's adjusted view and
+  is the correct counterpart for 1m prices; raw `equity_bhavcopy` is not.
+- **The check, since there is no flag:** `bhavcopy_close / last_traded_1m_close` should be 1.0.
+  Any other value is the CA ratio. The same test also surfaces benign single-session noise,
+  because NSE's official close is the **last-30-minute VWAP**, not the last trade — on a violent
+  late move the two can differ by 3–4% with no corporate action involved (MOTHERSON 2026-05-29:
+  last trade 151.01, official close 145.74, day OHLC otherwise matching exactly).
+- **Maintenance obligation.** Adjustment is applied by the source at fetch time, so a cell is
+  adjusted as of whenever it was last written. A corporate action occurring after a cell was
+  written does not retro-adjust it. No stale cell was found in the 2026-09-13 sweep, but the
+  mechanism means the ratio test is worth re-running after any CA on a covered name.
+
+Full derivation: `docs/reports/index_research/PTMS_N100_1M_COVERAGE_BACKFILL_2026-09-13.md` §4, §6.
