@@ -260,11 +260,16 @@ here and a scoped certification:
    §12: no single loader does, and `session_schedule.py` — the stated authority — mis-answers
    all three.** The requirement this places on the study loader is stated there; whether it
    blocks the scoped certification is an operator call.
-5. **Extend `cas_category`** if the fence must run past 2026-08-28, then backfill the last 10
-   sessions.
+5. ~~**Extend `cas_category`** if the fence must run past 2026-08-28~~ — **CLOSED 2026-09-13.**
+   The table was stale, not short: it derives from `futures_bhavcopy`, which already ran to
+   2026-09-11, so a rebuild covered every session (366 intervals in and out, 210 ends extended, 0
+   other changes). The 10 sessions are marked (28,660 bars) and coverage over the full 917 sessions
+   is 0 absent cells. **The fence end moves to 2026-09-11.**
+   Evidence: `PTMS_P2_CERTIFICATION_UPDATE_2026-09-13.md` §4.
 
-**Four of the five are now closed or answered; `cas_category` remains** — plus whatever the
-operator decides to do with §12's finding.
+**All five are now closed or answered.** What is left is enumerated in that update's §7: 10 missing
+minutes across 4 sessions, 548 rows with a false synthetic flag on 2 sessions, and HDFC's accepted
+99/100 — plus §12's `session_schedule` finding, which was fixed the same day.
 
 **Certification remains the operator's call.** None of the above is a claim that C1–C4 are passed;
 it is a statement of what is left, and the list is now short enough to work through.

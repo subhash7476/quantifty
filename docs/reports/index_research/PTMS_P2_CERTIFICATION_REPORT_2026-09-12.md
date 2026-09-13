@@ -11,6 +11,16 @@ rather than defaulting to "certified".
 
 ---
 
+> **UPDATE 2026-09-13 — `PTMS_P2_CERTIFICATION_UPDATE_2026-09-13.md`.** Three of this report's
+> statements have been overtaken by evidence, and the matrix below is not edited: **C3 is no longer
+> blocked** (`cas_category` was stale, not short — rebuilt from the point-in-time futures bhavcopy
+> to 2026-09-11, the 10 unmarked sessions marked, 28,660 bars); **C1's era rule now exists as code
+> that refuses** (`core/market/bar_labeling.py`) with two agreeing arms for the native era and a
+> store-wide census artifact; and the equity breadth 1m surface has a **scoped evidence row** for
+> the Nifty-100 universe over 2023-01-02 → 2026-09-11. C1-a, A5 whole-panel and A6 whole-panel are
+> unchanged and still open. **No surface is stamped CERTIFIED by that update either** — it carries
+> evidence and its residuals, and the stamp remains the operator's.
+
 ## 1. Per-surface certification matrix
 
 Columns are exactly those the ruling specified. **UNCERTIFIED means "not yet assessed",
