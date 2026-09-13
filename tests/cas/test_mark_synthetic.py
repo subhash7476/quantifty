@@ -2,6 +2,7 @@ from datetime import date, datetime
 
 import duckdb
 
+import scripts.cas.mark_synthetic_bars as marker
 from scripts.cas.mark_synthetic_bars import mark_file
 
 SYM = "NSE_EQ|INE002A01018"
@@ -88,3 +89,57 @@ def test_index_symbols_are_rejected_even_if_passed_in(tmp_path):
     path = _make_file(tmp_path, session, bars)
 
     assert mark_file(path, session, {idx}) == 0
+
+
+# --- run(): snapshot safety and date scoping -------------------------------
+
+_AUCTION_BARS = [
+    (SYM, datetime(2026, 8, 24, 15, 14), 1305.0, 1305.1, 1302.9, 1304.1, 68944),
+    (SYM, datetime(2026, 8, 24, 15, 15), 1304.1, 1304.1, 1304.1, 1304.1, 0),
+    (SYM, datetime(2026, 8, 24, 15, 29), 1309.8, 1309.8, 1309.8, 1309.8, 377584),
+]
+
+
+def _synthetic_count(path):
+    con = duckdb.connect(str(path), read_only=True)
+    try:
+        return con.execute("SELECT count(*) FROM candles WHERE is_synthetic").fetchone()[0]
+    finally:
+        con.close()
+
+
+def _store(tmp_path, monkeypatch, sessions):
+    for session in sessions:
+        bars = [(s, ts.replace(year=session.year, month=session.month, day=session.day),
+                 o, h, lo, c, v) for s, ts, o, h, lo, c, v in _AUCTION_BARS]
+        _make_file(tmp_path, session, bars)
+    monkeypatch.setattr(marker, "NATIVE_1M_DIR", tmp_path)
+    monkeypatch.setattr(marker, "cat1_isin_symbols", lambda session: {SYM})
+
+
+def test_a_rerun_never_overwrites_the_first_snapshot(tmp_path, monkeypatch):
+    """The snapshot's whole value is that it predates the FIRST mark."""
+    session = date(2026, 8, 24)
+    _store(tmp_path, monkeypatch, [session])
+    path = tmp_path / f"{session.isoformat()}.duckdb"
+    snapshot = path.with_suffix(".duckdb.pre_cas_mark")
+
+    assert marker.run(apply=True)["bars_flagged"] == 1
+    assert _synthetic_count(path) == 1
+    assert _synthetic_count(snapshot) == 0
+
+    marker.run(apply=True)
+
+    assert _synthetic_count(snapshot) == 0
+
+
+def test_since_limits_which_sessions_are_touched(tmp_path, monkeypatch):
+    early, late = date(2026, 8, 24), date(2026, 8, 31)
+    _store(tmp_path, monkeypatch, [early, late])
+
+    result = marker.run(apply=True, since=late)
+
+    assert result["sessions"] == 1
+    assert _synthetic_count(tmp_path / f"{late.isoformat()}.duckdb") == 1
+    assert _synthetic_count(tmp_path / f"{early.isoformat()}.duckdb") == 0
+    assert not (tmp_path / f"{early.isoformat()}.duckdb.pre_cas_mark").exists()

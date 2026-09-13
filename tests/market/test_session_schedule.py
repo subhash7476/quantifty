@@ -4,6 +4,7 @@ import pytest
 
 from core.market.session_schedule import (
     CAS_EFFECTIVE, SEGMENTS, SPECIAL_SESSIONS, any_open, is_open, session_window,
+    session_windows,
 )
 
 
@@ -109,3 +110,29 @@ def test_every_special_session_maps_every_segment():
     """A partial map would silently inherit era values for the missing segment."""
     for on, windows in SPECIAL_SESSIONS.items():
         assert set(windows) == set(SEGMENTS), on
+
+
+# --- split sessions (NSE special Saturdays, two blocks) ---------------------
+
+SPLIT = (date(2024, 3, 2), date(2024, 5, 18))
+
+
+@pytest.mark.parametrize("on", SPLIT)
+def test_split_session_outer_bounds(on):
+    assert session_window("cash_cat1", on) == (time(9, 15), time(12, 30))
+
+
+@pytest.mark.parametrize("on", SPLIT)
+def test_split_session_is_shut_during_the_recess(on):
+    assert any_open(datetime.combine(on, time(9, 30)))
+    assert not any_open(datetime.combine(on, time(10, 30)))
+    assert any_open(datetime.combine(on, time(12, 0)))
+    assert not any_open(datetime.combine(on, time(12, 30)))
+
+
+def test_session_windows_exposes_both_blocks_of_a_split_session():
+    assert session_windows("cash_cat1", date(2024, 3, 2)) == (
+        (time(9, 15), time(10, 0)), (time(11, 30), time(12, 30)))
+    assert session_windows("cash_cat1", date(2025, 10, 20)) == (
+        (time(9, 15), time(15, 30)),)
+    assert session_windows("cash_auction", date(2026, 7, 31)) == ()

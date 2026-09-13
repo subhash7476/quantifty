@@ -38,10 +38,14 @@ _SCHEDULE = (
 )
 
 
-def _continuous_only(start: time, end: time):
-    """Every segment trades one continuous window, with no auction (pre-CAS shape)."""
-    return {"cash_cat1": (start, end), "cash_cat2": (start, end),
-            "cash_auction": None, "derivatives": (start, end)}
+def _special(*windows):
+    """Every segment trades `windows`, with no auction (pre-CAS special-session shape).
+
+    More than one window means the session has a recess: NSE's special Saturdays
+    trade a block, stop, and trade a second block.
+    """
+    return {"cash_cat1": windows, "cash_cat2": windows,
+            "cash_auction": (), "derivatives": windows}
 
 
 # NSE occasionally trades a single one-hour session outside the era schedule
@@ -66,16 +70,26 @@ def _continuous_only(start: time, end: time):
 # before it happens, the same standing obligation core/market/nse_holidays.py
 # carries for its holiday list.
 SPECIAL_SESSIONS = {
-    date(2023, 11, 12): _continuous_only(time(18, 15), time(19, 15)),
-    date(2024, 11, 1): _continuous_only(time(18, 0), time(19, 0)),
-    date(2025, 10, 21): _continuous_only(time(13, 45), time(14, 45)),
+    # Diwali Muhurat - one continuous hour.
+    date(2023, 11, 12): _special((time(18, 15), time(19, 15))),
+    date(2024, 11, 1): _special((time(18, 0), time(19, 0))),
+    date(2025, 10, 21): _special((time(13, 45), time(14, 45))),
+    # NSE special Saturdays, traded in two blocks of 45 and 60 minutes with a
+    # 90-minute recess between them - the shape of a primary-site session
+    # followed by a disaster-recovery-site session. Bars: 09:15..09:59 and
+    # 11:30..12:29 on both dates, in every NSE_EQ symbol.
+    date(2024, 3, 2): _special((time(9, 15), time(10, 0)), (time(11, 30), time(12, 30))),
+    date(2024, 5, 18): _special((time(9, 15), time(10, 0)), (time(11, 30), time(12, 30))),
 }
 
 
-def session_window(segment: str, on: date):
-    """(start, end) for `segment` on `on`, or None if the segment does not exist."""
-    if segment not in SEGMENTS:
-        raise KeyError(f"unknown segment {segment!r}; expected one of {SEGMENTS}")
+def session_windows(segment: str, on: date) -> tuple:
+    """Every interval `segment` is open on `on` - more than one on a split session.
+
+    `session_window` collapses these to outer bounds; a caller that needs the
+    minutes the market was actually open (a contiguity census, say) needs them
+    all.
+    """
     special = SPECIAL_SESSIONS.get(on)
     if special is not None:
         return special[segment]
@@ -83,16 +97,31 @@ def session_window(segment: str, on: date):
     for effective_from, windows in _SCHEDULE:
         if on >= effective_from:
             resolved = windows
-    return resolved[segment]
+    window = resolved[segment]
+    return () if window is None else (window,)
+
+
+def session_window(segment: str, on: date):
+    """Outer (start, end) for `segment` on `on`, or None if it does not trade.
+
+    On a split session this spans the recess, so it answers "when does the
+    session run", not "is it open now" - ask is_open() for that.
+    """
+    if segment not in SEGMENTS:
+        raise KeyError(f"unknown segment {segment!r}; expected one of {SEGMENTS}")
+    windows = session_windows(segment, on)
+    return (windows[0][0], windows[-1][1]) if windows else None
 
 
 def is_open(segment: str, dt: datetime) -> bool:
-    """True if `segment` is open at `dt`. End boundary is exclusive."""
-    window = session_window(segment, dt.date())
-    if window is None:
-        return False
-    start, end = window
-    return start <= dt.time() < end
+    """True if `segment` is open at `dt`. End boundary is exclusive.
+
+    A split session's recess is closed, so this is not simply "inside
+    session_window", which spans it.
+    """
+    if segment not in SEGMENTS:
+        raise KeyError(f"unknown segment {segment!r}; expected one of {SEGMENTS}")
+    return any(start <= dt.time() < end for start, end in session_windows(segment, dt.date()))
 
 
 def any_open(dt: datetime) -> bool:
