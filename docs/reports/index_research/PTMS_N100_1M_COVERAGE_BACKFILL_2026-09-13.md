@@ -260,3 +260,54 @@ here and a scoped certification:
 
 **Certification remains the operator's call.** None of the above is a claim that C1–C4 are passed;
 it is a statement of what is left, and the list is now short enough to work through.
+
+---
+
+## 9. Post-close prints pruned — and two classes of data that nearly went with them
+
+**466 rows removed across 4 sessions; the native-era census is now clean of post-close prints.**
+Script: `scripts/cas/prune_post_close_bars.py` (plan by default, `--apply` to write), baselines in
+`data/_baselines/1m_pre_post_close_prune/`.
+
+| Session | Rows pruned | Symbols | Last stamp before | After |
+|---|--:|--:|---|---|
+| 2026-02-18 | 2 | 2 | 15:59 | 15:29 |
+| 2026-02-23 | 130 | 40 | 15:44 | 15:29 |
+| 2026-02-26 | 151 | 43 | 15:53 | 15:29 |
+| 2026-03-04 | 183 | 183 | 15:59 | 15:29 |
+
+All four are genuine sessions with a complete 09:15→15:29 book (206–207 symbols) plus a tail of
+one-row-per-symbol prints swelling toward 15:59 — the same shape as the 197 rows in the 2026-03-03
+orphan file, so one mechanism. Every cash window in `session_schedule.py` closes by 15:30 (15:35
+post-CAS), so no equity bar can legitimately carry a later stamp. **Symbol counts are unchanged
+(207→207, 206→206)** — no name was removed, so the coverage result in §1 is untouched.
+
+### Two classes the first pass would have destroyed
+
+The rule was initially written against the cash schedule for *all* symbols. Plan mode listed **19**
+sessions, not 4, and inspecting them before deleting is what caught it:
+
+- **`MCX_FO|451669`** — an MCX commodity future. MCX opens **09:00** and runs to **23:55**, so its
+  505 bars to 23:54 on 2026-02-16 are entirely real. The NSE *cash* schedule does not bound it.
+- **`NSE_INDEX|Nifty 50` at 15:30 on 2023-01-31** — the vendor-era end-labelled bar. `CLAUDE.md`
+  and the C1 plan both record 2023-01-31 as the one native-era date still on the 09:16→15:30
+  vendor convention. **That single bar is gate C1's own evidence**; pruning it would have erased
+  the artifact the gate exists to explain.
+
+The rule is now scoped to `NSE_EQ|`, which excludes both without special-casing either. A file
+whose bars are *entirely* outside the window is reported as a **special session and never touched**
+— this is what protects the Muhurat sessions (2023-11-12, 2024-11-01), each holding 12,180 real
+bars.
+
+### Native-era census after the prune
+
+| First | Last | Minutes | Sessions | Reading |
+|---|---|--:|--:|---|
+| 09:15 | 15:29 | 375 | **908** | canonical |
+| 09:15 | 15:29 | 370–374 | 4 | contiguity gaps |
+| 09:15 | 12:29 | 105 | 2 | truncated sessions |
+| 18:15 / 18:00 / 13:45 | +59 min | 60 | 3 | Muhurat / special, legitimate |
+
+**Exceptions fall from 13 to 9, and the post-close class is gone entirely.** What remains for the
+loader: 4 contiguity gaps, 2 truncated sessions, and 3 special sessions that any 09:15-start
+assumption silently drops.
