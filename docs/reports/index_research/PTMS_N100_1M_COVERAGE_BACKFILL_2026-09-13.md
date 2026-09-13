@@ -145,3 +145,50 @@ a look before the store is relied on across its 2024 bonus.
   resolve the MOTHERSON 23-session anomaly.
 - **Re-run `python scripts/cas/backfill_n100_1m.py`** (plan mode, no writes) to re-verify coverage
   at any time; it exits non-zero if anything is absent or unmappable.
+
+---
+
+## 6. The MOTHERSON 23-session anomaly — resolved, and it was mine
+
+**There is no anomaly. The store is uniformly adjusted for MOTHERSON, and my source attribution
+was the thing at fault.**
+
+The relevant corporate action is a **Bonus 1:2, ex-date 2025-07-18** (`corporate_actions`, NSE
+CF-CA feed). A 1:2 bonus multiplies shares by 1.5, so an adjusted price is the as-traded price
+× 2/3 and `bhav_close / 1m_close` should read **1.5 before the ex-date and 1.0 from it onward**.
+
+Tested across all 907 sessions:
+
+| | Sessions | Ratio |
+|---|--:|--:|
+| Pre-ex (2023-01-02 → 2025-07-17) | **631** | 1.5 |
+| Post-ex (2025-07-18 → 2026-08-28) | **276** | 1.0 |
+| **Off-step (mixed basis)** | **1** | see below |
+
+**A clean step function at the ex-date, with zero pre-ex sessions at the unadjusted basis and zero
+post-ex sessions at the adjusted one.** There is no mixing.
+
+**What I had mislabelled.** My `live` flag meant "this bar predates my backfill", *not* "written by
+the live intraday ingest". The 23 sessions sit in 2024-02-29 → 2024-12-31 — all pre-ex — and were
+written by an earlier Upstox *historical* fetch, which serves the same adjusted basis as the bars
+the backfill added. `live @ratio 1.5` was therefore exactly what a correctly adjusted store should
+show, and reading it as a contradiction was an error in the label, not a defect in the data.
+
+### The one off-step session is not a defect either
+
+`2026-05-29` reads ratio 0.965 against an expected 1.0. The day's OHLC matches the bhavcopy
+**exactly** — open 144.46, high 151.77, low 140.08 — and the file holds a complete 375 traded
+bars. Only the close differs: last trade **151.01** at 15:29 against an official close of
+**145.74**, on a session with 84.7M shares (roughly double its neighbours) and a sharp run from
+~148 to ~151 in the final five minutes.
+
+That is the expected divergence between *last traded price* and NSE's official close, which is
+the **volume-weighted average of the last 30 minutes** — exaggerated by a violent late move.
+
+**Corollary, and a correction to §4.** The ratio test in §4 uses last-traded-close as a proxy for
+the official close, so it conflates two effects. The large, many-session entries (KOTAKBANK 753,
+RELIANCE 451, MOTHERSON 633 …) are genuine corporate-action ratios. **The long tail of that table
+— ASIANPAINT, SBILIFE, ULTRACEMCO, SHREECEM, INDIGO and the others showing exactly 1 session — is
+this benign VWAP-versus-last-trade effect, not a corporate action.** §4's headline finding (the
+1m store is CA-adjusted, pre-existing and undocumented) is unaffected; only the tail of its table
+needed this reading.
