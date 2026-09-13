@@ -180,7 +180,7 @@ C2's six arms, current state:
 | A3 ISIN issuer-prefix linkage | **CERTIFIED** |
 | A4 `prev_close` identity | **PASS** — 5 mismatches in 6,544,193 calendar-adjacent pairs |
 | A5 adjusted-series continuity | **HALT** — Arms B, C, D PASS; Arm A carries 5 undocumented items |
-| A6 sector / thematic PIT | **NOT PIT — UNUSABLE.** No PIT sector-constituent table exists |
+| A6 sector / thematic PIT | **SCOPED OUT 2026-09-13** by operator ruling — this construct needs no sector membership. Globally unchanged: **NOT PIT — UNUSABLE**, no PIT sector-constituent table exists |
 
 ### A5's residue is entirely outside the study universe
 
@@ -208,8 +208,10 @@ battery's register) and A6 (no PIT sector table exists at all).
 1. **The 1m coverage hole (§5)** — mean 11.0 of 100 constituents absent per session, four large
    caps absent on 868 of 918 sessions. The universe is certified; the panel does not contain it.
    **This is the binding blocker**, and it is new — it was unmeasurable while A1 was circular.
-2. **A6**, only if the construct needs sector membership. Sector-neutral or sector-conditioned
-   designs are hard-blocked; designs that need no sector labels can scope it out explicitly.
+2. ~~**A6**, only if the construct needs sector membership.~~ **CLOSED 2026-09-13 by operator
+   ruling** — it does not, so A6 is scoped out of the fence. The consequence binds: sector-neutral
+   and sector-conditioned designs are excluded, and no sector diagnostic is available, post-hoc
+   included. Clause and cost: `PTMS_N100_1M_COVERAGE_BACKFILL_2026-09-13.md` §10.
 
 ### Two non-C2 gates block the same test
 

@@ -241,7 +241,7 @@ not arbitrary — three independent constraints land on it.
 | Gate | State for that fence | Residual |
 |---|---|---|
 | **C1** timestamp semantics | **Out of the cross-era seam entirely** — a 2023+ study never spans the vendor/native boundary, and §7b certifies the native era's labelling | Loader must handle the 13 enumerated exceptions; C1-a (vendor spec) matters only if pre-2023 is ever in scope |
-| **C2** PIT & entity integrity | A1 discharged by substitution, A2-1 closed, A2-2 resolved, A3 certified, A4 PASS, **A5 vacuous** (no A5 residue was ever an N100/N200 member), coverage gap closed 11.0 → 0.143 | **A6** if the construct needs sector membership; HDFC's 130 sessions |
+| **C2** PIT & entity integrity | A1 discharged by substitution, A2-1 closed, A2-2 resolved, A3 certified, A4 PASS, **A5 vacuous** (no A5 residue was ever an N100/N200 member), coverage gap closed 11.0 → 0.143 | **A6 scoped out** by operator ruling 2026-09-13 (§10); HDFC's 130 sessions |
 | **C3** tradeability & synthetics | **Satisfiable exactly to 2026-08-28** — `cas_category` covers every post-CAS session inside the fence, and those files are marked | Nothing inside the fence; everything after 2026-08-28 is blocked until the category table is extended |
 | **C4** VIX certification | PASS with quarantines (operator ruling) | 2021-02-12 permanently quarantined |
 
@@ -249,14 +249,17 @@ not arbitrary — three independent constraints land on it.
 is small, named and bounded** — not the open-ended state it was in a day ago. What stands between
 here and a scoped certification:
 
-1. **A6** — decide whether the construct needs sector membership. If it does, this is a hard
-   blocker (no PIT sector table exists). If not, scope it out explicitly in the fence.
+1. ~~**A6** — does the construct need sector membership?~~ — **CLOSED 2026-09-13.** Operator
+   ruling: it does not. Scoped out of the fence explicitly; clause and cost in §10.
 2. **HDFC, 130 sessions** (2023-01-02 → 2023-07-12) — accept 99/100 for that window, or source it
    elsewhere. Needs a stated disposition, not silence.
-3. **The 4 post-close-print sessions** in §7b — same defect as the orphan, not yet dealt with.
+3. ~~**The 4 post-close-print sessions** in §7b~~ — **CLOSED 2026-09-13**, §9: 466 rows pruned,
+   the class is gone from the census.
 4. **The 3 Muhurat sessions** — confirm the loader handles them rather than dropping them.
 5. **Extend `cas_category`** if the fence must run past 2026-08-28, then backfill the last 10
    sessions.
+
+**Two of the five are now closed; three remain.**
 
 **Certification remains the operator's call.** None of the above is a claim that C1–C4 are passed;
 it is a statement of what is left, and the list is now short enough to work through.
@@ -311,3 +314,58 @@ bars.
 **Exceptions fall from 13 to 9, and the post-close class is gone entirely.** What remains for the
 loader: 4 contiguity gaps, 2 truncated sessions, and 3 special sessions that any 09:15-start
 assumption silently drops.
+
+
+---
+
+## 10. A6 scoped out — operator ruling 2026-09-13
+
+**Ruling: "sector membership is not needed for this construct."** A6 therefore does not block this
+fence. It is **waived in scope, not repaired** — no PIT sector table was built, and none exists.
+
+### The clause, written so it can be checked
+
+A6 covers two distinct artefacts, and "not needed" has to close both or it closes neither:
+
+| Artefact | What it is | Status under this fence |
+|---|---|---|
+| Sector / thematic **index constituents** (who was in NIFTY IT on date X) | A PIT membership question, the same class as N100 membership. **No table exists** | Out of scope |
+| Sector **classification** — `governance/carry/sector_classification.csv` | A flat, undated label per name, current state only; used by Carry's neutralizer | Out of scope |
+
+The second is the one that can walk back in unnoticed: that CSV is present, readable and
+uncontrolled, so a construct could neutralize on sector under this fence and believe itself
+compliant. Hence the clause names the file rather than the concept.
+
+> **Fence clause.** No construct certified under the Nifty-100 / 2023-01-02 → 2026-08-28 fence may
+> read `governance/carry/sector_classification.csv`, any sector or thematic index constituent
+> list, or any other sector label — not as a feature, not as a neutralization axis, and not as a
+> post-hoc diagnostic. A design that needs one **reopens A6 as a hard blocker** and must build a
+> PIT sector table before certification.
+
+The post-hoc route is closed deliberately. A "descriptive only" sector breakdown carries exactly
+the same static-membership bias, and once such numbers are printed they shape what gets claimed.
+
+### What the ruling costs
+
+Stated plainly, because a waiver with no stated cost reads as a free pass:
+
+1. **Sector-neutral and sector-conditioned designs are excluded from this fence.** Family F's
+   normalization row in `PTMS_P3_FAMILY_CATALOGUE_2026-09-12.md` offers "beta and sector
+   neutralization if the claim is idiosyncratic"; the sector half of that option is foreclosed
+   here. That catalogue is a dated design record under a 2026-09-12 operator ruling and is left
+   unedited — this note is the amendment.
+2. **A finding can be neither attributed to nor ruled out as a sector effect.** If the construct's
+   spread is in truth a bank trade or an IT trade, this substrate cannot say so. That is a real
+   limit on what any result may claim, and it belongs in the construct's own disclosure, not only
+   here.
+
+### Present-state check
+
+`scripts/isd/`, `scripts/cas/` and `A_CONSTRUCT_DEFINITION.md` return **zero** matches for
+`sector`, so the ruling is consistent with the code that exists today. **That establishes present
+state, not future compliance** — nothing in the repo enforces the clause, and a prose scope-out is
+documentation, not a control. Naming the CSV at least makes it greppable.
+
+**Globally, A6 is unchanged: sector/thematic membership is NOT point-in-time and remains UNUSABLE
+for cross-sectional work** (`PTMS_C2_PIT_ENTITY_CERTIFICATION_2026-09-12.md`). What changed is
+scope, not status.

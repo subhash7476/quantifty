@@ -232,5 +232,13 @@ Unrestricted row lagging is not admissible evidence for this arm.
 
 ### A6 — no substitution
 
+> **STATUS UPDATE 2026-09-13 — scoped out for one fence, not repaired.** Operator ruling: sector
+> membership is not needed by the Nifty-100 intraday construct, so A6 does not block the
+> Nifty-100 / 2023-01-02 → 2026-08-28 fence. **Nothing below changes.** No PIT sector table was
+> built; sector/thematic membership remains NOT point-in-time and UNUSABLE for cross-sectional
+> work; current membership still may not be substituted for historical. The fence clause — which
+> also forbids the flat `governance/carry/sector_classification.csv` and any post-hoc sector
+> diagnostic — is `PTMS_N100_1M_COVERAGE_BACKFILL_2026-09-13.md` §10.
+
 Sector/thematic membership is NOT point-in-time and is UNUSABLE for cross-sectional work.
 **Current membership may not be substituted for historical membership.**
