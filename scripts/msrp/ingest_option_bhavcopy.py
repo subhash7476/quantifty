@@ -511,7 +511,9 @@ def main():
 
     total_inserted = 0
     total_skipped = 0
-    total_404 = 0
+    total_404 = 0          # source confirmed absent (HTTP 404 on both formats)
+    total_failed = 0       # WE failed: network/HTTP error. NOT evidence of absence
+    failed_dates: list[date] = []
     consec_both_404 = 0
 
     for d in date_range(start, end):
@@ -545,10 +547,13 @@ def main():
                 print(f"{d.isoformat()}  404   (no data)")
                 total_404 += 1
                 consec_both_404 += 1
-        except Exception as exc:
-            print(f"{d.isoformat()}  ERROR {exc}")
-            total_404 += 1
-            consec_both_404 += 1
+        except requests.RequestException as exc:
+            # A fetch that did not complete says nothing about whether the
+            # source has the date. It is retried on the next run, and it must
+            # NOT advance the legacy fast-skip counter.
+            print(f"{d.isoformat()}  FAIL  (request failed, will retry: {exc})")
+            total_failed += 1
+            failed_dates.append(d)
 
     con.close()
 
@@ -559,7 +564,9 @@ def main():
     print(f"Date range:     {start} to {end}")
     print(f"Rows inserted this run: {total_inserted:,}")
     print(f"Dates skipped (already present): {total_skipped}")
-    print(f"Dates with 404: {total_404}")
+    print(f"Dates confirmed absent at source (404): {total_404}")
+    print(f"Dates we failed to fetch (retry these): {total_failed}"
+          + (f" -> {[x.isoformat() for x in failed_dates]}" if failed_dates else ""))
 
     print()
     print("=" * 60)
