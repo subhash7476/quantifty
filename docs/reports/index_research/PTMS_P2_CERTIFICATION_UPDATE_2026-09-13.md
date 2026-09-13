@@ -32,7 +32,7 @@ the evidence gathered since, and the per-surface row it adds.
 
 | Gate | Evidence | Residual inside the fence |
 |---|---|---|
-| **C1** timestamp semantics | Era rule as code (`core/market/bar_labeling.py`), two agreeing arms (§2), census over all 917 sessions: **917/917 native, 911 OK, 4 GAP, 0 REFUSED, 0 MISDATED** | 4 sessions with 10 missing minutes in total (§2.3) |
+| **C1** timestamp semantics | Era rule as code (`core/market/bar_labeling.py`), two agreeing arms (§2), census over all 917 sessions: **917/917 native, 913 OK, 4 GAP, 0 REFUSED, 0 MISDATED, 0 false synthetic** | 4 sessions with 10 missing minutes in total (§2.3) |
 | **C2** PIT & entity | A1 discharged by substitution · A2-1 closed · A2-2 resolved · A3 certified · A4 PASS · A5 vacuous under this universe · **A6 scoped out by ruling** | HDFC 130 sessions, **accepted at 99/100 by ruling** |
 | **C3** tradeability & synthetics | `cas_category` rebuilt to 2026-09-11 · all 30 post-CAS sessions marked, 85,156 bars, **0 non-equity rows and 0 rows with volume** (§4.1) · coverage **0 absent (session, name) cells across 917 sessions** | **None** — the 548 false synthetic marks were cleared by operator ruling (§4.2) |
 | **C4** VIX | Complete per the 09-12 report | 2021-02-12 quarantined |
@@ -93,13 +93,16 @@ every missing and every extra minute, rows stamped for another date, and rows wh
 contradicts its definition. Expected minutes come from `session_windows`, so a 60-minute Muhurat
 and a split Saturday are measured against their own shape instead of failing a 375 constant.
 
-**Fence result, 2026-09-13:**
+**Fence result, 2026-09-13, re-run after the §4.2 clear:**
 
 ```
 917 files 2023-01-02 -> 2026-09-11
   labelling: {'native': 917}
-  classes:   {'OK': 911, 'GAP': 4, 'SYNTHETIC_LIES': 2}
+  classes:   {'OK': 913, 'GAP': 4}
 ```
+
+Every class but GAP is now empty: no file refuses, none is misdated, none carries an extra minute,
+and none carries a synthetic flag its own definition rejects.
 
 The four GAP sessions, in full — whole-market minute outages, every symbol absent:
 
