@@ -1,5 +1,16 @@
 # PTMS Family G — Index-options EOD substrate certification pass
 
+> **⚠️ SUPERSEDED 2026-09-13 by
+> `docs/reports/ptms/PTMS_FAMILY_G_INDEX_OPTIONS_SUBSTRATE_CERTIFICATION_2026-09-13.md`.**
+>
+> **This document is the PRE-REPAIR survey.** Its statements that the ingest "was *not* re-run",
+> that the store ends **2026-07-17**, and that 2021-03-30 is "closable by re-running the ingest"
+> were true when written and are **false now**. Phase G0 performed the repair: the store runs to
+> **2026-09-11** (2,612 sessions, +66,272 rows), the `except Exception` defect is fixed, and
+> 2021-03-30 was retried and is **permanently unrecoverable — the source returns 404**.
+>
+> Read the G0 report for the current state. Nothing below has been edited.
+
 **Date:** 2026-09-13 · **Authority:** operator instruction — *"begin the PTMS Family G index-options
 EOD substrate certification pass … P2/certification work only."*
 

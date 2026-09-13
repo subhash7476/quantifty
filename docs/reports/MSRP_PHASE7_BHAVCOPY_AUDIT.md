@@ -1,14 +1,14 @@
 # MSRP Phase 7 — Bhavcopy Ingestion Audit
 
-*Generated: 2026-09-13T22:22:16.996029*
+*Generated: 2026-09-13T22:32:21.698056*
 
 ## Ingestion Summary
 
-- Date range: 2026-07-18 to 2026-09-12
+- Date range: 2026-09-10 to 2026-09-13
 - Data coverage: 2016-02-11 to 2026-09-11
 - Rows in database: 5,556,591
-- Rows inserted this run: 66,272
-- Dates skipped (already present): 0
+- Rows inserted this run: 0
+- Dates skipped (already present): 2
 - Dates with 404 (holiday/unavailable): 0
 - Non-NIFTY rows purged (NIFTYNXT50): 0
 

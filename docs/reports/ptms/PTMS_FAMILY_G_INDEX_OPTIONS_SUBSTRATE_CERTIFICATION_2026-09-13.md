@@ -3,6 +3,13 @@
 **Phase G0 — zero-research-budget ingest repair and re-certification**
 
 **Date:** 2026-09-13 · **Authority:** operator instruction, Phase G0.
+**Repair status: PERFORMED AND RE-VERIFIED.** The ingest was re-run (not merely recommended) —
+forward backfill 2026-07-18 → 2026-09-12 inserted 66,272 rows, 2021-03-30 was retried explicitly,
+and the `except Exception` defect was fixed *before* the run so its classifications are
+trustworthy. §K records a second, independent re-run confirming the end state. The earlier
+pre-repair survey, `docs/reports/index_research/PTMS_G_INDEX_OPTIONS_CERTIFICATION_2026-09-13.md`,
+is superseded and now carries a banner saying so.
+
 **Access level:** ingest + structural certification. **No option value entered a feature, signal,
 label or fitted parameter.** No candidate, no RFA, no TRAIN, no HOLDOUT, no strike selection, no
 parameter fitting, no covariate (spot / VIX / futures / realized vol) was read.
@@ -248,3 +255,28 @@ sessions)**.
 **Stop point.** No hypothesis has been defined, no construct proposed, no strike selected, no
 parameter fitted, no RFA run. The next step is yours: define the Family G hypothesis, declare
 multiplicity and prior exposure, and only then run the RFA.
+
+---
+
+## K. Re-verification — second independent run, 2026-09-13
+
+Every step re-executed after the repair, to answer the question directly rather than by citing the
+first run.
+
+| Step | Command | Result |
+|---|---|---|
+| Retry the genuine gap | `ingest_option_bhavcopy.py 2021-03-30 2021-03-30` | `2021-03-30  404  (no data)` → **"Dates confirmed absent at source (404): 1"**. Still unrecoverable; the wording is the fixed classifier's |
+| Bring forward to latest | `ingest_option_bhavcopy.py 2026-09-10 2026-09-13` | **0 rows inserted · 2 dates SKIP (already present) · 0 confirmed-absent · 0 failed**. The store was already at the latest available session; 2026-09-12/13 are not trading days |
+| Ingest defect | `scripts/msrp/ingest_option_bhavcopy.py:550` | `except requests.RequestException as exc:` — the bare `except Exception` is gone; unexpected errors propagate |
+| G1–G6 | `scripts/msrp/certify_index_options.py` | **exit 0** — no hard structural failure |
+| Session accounting | — | **TRAIN 495 of 496** (missing 2021-03-30) · **HOLDOUT 172 of 173** (missing 2026-02-01) |
+
+**Store state at re-verification:** 5,556,591 rows · 2016-02-11 → **2026-09-11** · 2,612 sessions ·
+`max(ingested_at)` 2026-09-13 22:20:59 · **store max = calendar max, CURRENT**.
+
+G2 clean (0 duplicate keys, 0 nulls, 0 `expiry_dt < trade_date`, 0 negative values, 0 OHLC
+violations among traded rows, 0 thin sessions). G5 unchanged: 1,535,038 traded rows (27.6%);
+4,021,553 untraded, **all** carrying `close > 0`; 6,478 rows traded at zero open interest, which is
+why `open_int > 0` is not the predicate.
+
+**Nothing changed between the two runs.** The repair is idempotent and the end state is stable.
