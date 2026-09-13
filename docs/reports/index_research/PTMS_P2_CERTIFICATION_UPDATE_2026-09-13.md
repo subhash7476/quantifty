@@ -115,17 +115,34 @@ can declare them rather than trip on them.
 
 ### 2.4 What the store-wide census adds (outside this fence)
 
-- **The vendor-era seam is per symbol, not per date.** On 2023-01-31 `NSE_INDEX|Nifty 50` runs
-  09:16→15:30 (end-labelled) while `Nifty Bank` and `India VIX` run 09:15→15:29 (start-labelled) —
-  and the same split appears back through December 2022. Equities on that date are clean native, so
-  the fence is unaffected, but **"2023-01-31 is on the vendor convention" is true only of Nifty
-  50.**
-- **2026-02-16 and 2026-02-17 are REFUSED**, first bar 09:00 — `MCX_FO` commodity futures, which
-  open 09:00 and run to 23:55. The rule correctly declines to call that an equity session.
-- **11 index sessions in Apr–May 2025 carry post-close prints** at 15:39/15:59. Same class as the
-  equity tails pruned on 2026-09-13, in the index series, and **not** repaired: the equity pruner is
-  `NSE_EQ`-scoped by design, because that scoping is what protects the MCX contracts and the
-  2023-01-31 seam bar that gate C1 exists to explain.
+The same script over all **3,612 files, 2012-01-02 → 2026-09-11**:
+
+```
+labelling: {'vendor': 2438, 'native': 1162, unresolved: 12}
+classes:   {'OK': 3302, 'EXTRA': 261, 'GAP': 34, 'REFUSED': 12, 'SYNTHETIC_LIES': 3}
+```
+
+**The pre-2023 store is materially messier than the fence, and that is the argument for scoping
+the certification rather than a footnote to it.**
+
+- **The vendor-era seam is per symbol, not per date.** 247 of the 261 EXTRA files are 2022
+  sessions that resolve *native* — `Nifty Bank` and `India VIX` open 09:15 — while
+  `NSE_INDEX|Nifty 50` carries a 15:30 bar; 166 EXTRA files have exactly one extra minute, and it
+  is 15:30. The same split appears on 2023-01-31. So the repo's "2023-01-31 is on the vendor
+  convention" is true **only of Nifty 50**, and the boundary is a per-series property.
+- **12 REFUSED — the rule declining to guess, which is what it is for.** Six Saturday special
+  sessions (first bar ~11:08, ~93 minutes), three late-start index sessions (09:19, 09:21, 09:35),
+  one pre-2023 Muhurat (2022-10-24, 18:15→19:14), and the two `MCX_FO` days that open 09:00 and run
+  to 23:54. **Ten of those twelve are the maintenance obligation made concrete:** `SPECIAL_SESSIONS`
+  holds only the five special sessions inside the 2023+ window I measured, so every earlier one
+  still falls through to the era schedule.
+- **34 GAP files outside the fence**, 18 of them in 2012.
+- **11 index sessions in Apr–May 2025 carry post-close prints** at 15:39/15:59 — the same class as
+  the equity tails pruned on 2026-09-13, in the index series, and **not** repaired: the equity
+  pruner is `NSE_EQ`-scoped by design, and that scoping is what protects the MCX contracts and the
+  2023-01-31 seam bar gate C1 exists to explain.
+- **A third SYNTHETIC_LIES file**, 2026-02-18, is `MCX_FO` rows carrying the flag. Same class as
+  §4.2 and outside the equity universe.
 
 ---
 
