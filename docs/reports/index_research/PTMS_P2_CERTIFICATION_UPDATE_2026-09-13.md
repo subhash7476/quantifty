@@ -34,7 +34,7 @@ the evidence gathered since, and the per-surface row it adds.
 |---|---|---|
 | **C1** timestamp semantics | Era rule as code (`core/market/bar_labeling.py`), two agreeing arms (§2), census over all 917 sessions: **917/917 native, 911 OK, 4 GAP, 0 REFUSED, 0 MISDATED** | 4 sessions with 10 missing minutes in total (§2.3) |
 | **C2** PIT & entity | A1 discharged by substitution · A2-1 closed · A2-2 resolved · A3 certified · A4 PASS · A5 vacuous under this universe · **A6 scoped out by ruling** | HDFC 130 sessions, **accepted at 99/100 by ruling** |
-| **C3** tradeability & synthetics | `cas_category` rebuilt to 2026-09-11 · all 30 post-CAS sessions marked, 85,156 bars, **0 non-equity rows and 0 rows with volume** (§4.1) · coverage **0 absent (session, name) cells across 917 sessions** | **548 rows on 2 sessions carry a synthetic flag that cannot be true** (§4.2) |
+| **C3** tradeability & synthetics | `cas_category` rebuilt to 2026-09-11 · all 30 post-CAS sessions marked, 85,156 bars, **0 non-equity rows and 0 rows with volume** (§4.1) · coverage **0 absent (session, name) cells across 917 sessions** | **None** — the 548 false synthetic marks were cleared by operator ruling (§4.2) |
 | **C4** VIX | Complete per the 09-12 report | 2021-02-12 quarantined |
 
 ---
@@ -219,13 +219,29 @@ written these; the historical fetcher writes FALSE; the marker refuses pre-CAS s
 path that could carry them is `migrate_monolith_to_isolated.py`, which copies `is_synthetic`
 through from the pre-migration store — **i.e. the provenance is not recoverable.**
 
-**Not repaired, and that is the argued position, not an omission.** Clearing the flag would assert
-these are ordinary tick-aggregated bars, and I cannot support that: the flag may be recording
-something true about them (reconstructed rather than aggregated), and the writer is unknown.
-Deleting an unexplained warning is worse than keeping it. The cost of keeping it is bounded and
-stated: a construct obeying the mandated `is_synthetic = FALSE` filter loses **2 constituents on 2
-sessions, partial days**. If the operator wants them cleared, it is a one-rule committed script
-with copy-first — but it needs a decision, not an inference.
+**I recommended keeping them and the operator ruled otherwise: cleared 2026-09-13.** The concern
+I raised stands on the record — if the flag was recording something true about those bars
+(reconstructed rather than tick-aggregated), clearing it loses that warning — and the baselines are
+what make the ruling reversible.
+
+`scripts/cas/clear_false_synthetic.py` **imports `is_carry_forward()` rather than restating it**,
+so the script cannot drift from the flag's definition: a marked row survives only if the predicate
+that defines the flag returns True for it.
+
+| | Before | After |
+|---|--:|--:|
+| 2026-03-02 marked rows | 205 | **0** |
+| 2026-03-04 marked rows | 343 | **0** |
+| Rows in each file | 77,885 / 78,064 | **unchanged** |
+| Symbols in each file | 209 / 209 | **unchanged** |
+
+Only the flag moved. Baselines: `data/_baselines/1m_pre_false_synthetic_clear/`, each holding the
+original 205 / 343 marks.
+
+**Scope: exactly the 548 equity rows that were put to the operator.** The same rule finds 1,822
+more in three `MCX_FO` files (2026-02-16, -17, -18, symbol `MCX_FO|451669`) — outside the equity
+universe, never part of the question asked, and **left as they are**. `--symbols all` clears those
+too if that is ever wanted.
 
 ---
 
@@ -246,6 +262,7 @@ Every one through committed, re-runnable code, with the baseline taken **before*
 | `cas_category` rebuilt to 2026-09-11 | 210 intervals extended, 0 other changes | `scripts/cas/build_cas_category.py` | `data/_baselines/cas_category_pre_rebuild_2026-09-13/` |
 | 10 post-CAS sessions marked | 28,660 bars | `scripts/cas/mark_synthetic_bars.py --apply --since` | `*.duckdb.pre_cas_mark` per file |
 | Misfiled rows removed from 3 files | **23,670 rows**, 0 refused, 0 remaining | `scripts/cas/prune_misdated_bars.py --apply` | `data/_baselines/1m_pre_misdated_prune/` |
+| False synthetic marks cleared (operator ruling) | **548 rows**, 2 files, row and symbol counts unchanged | `scripts/cas/clear_false_synthetic.py --apply` | `data/_baselines/1m_pre_false_synthetic_clear/` |
 
 The misfiled rows are worth a line of their own. 2026-02-25 held 12,221 rows stamped 2026-02-24,
 2026-03-02 held 11,436 stamped 2026-02-27, 2026-03-04 held 13 stamped 2026-03-02 — so any reader
@@ -285,7 +302,8 @@ rest being partial aggregates — i.e. they were strictly poorer copies in the w
 **Inside the fence — three enumerated residuals, all small and all named:**
 
 1. **10 missing minutes** across 4 sessions (§2.3) — unrepaired by argument, not oversight.
-2. **548 rows with a false synthetic flag** on 2 sessions (§4.2) — needs an operator decision.
+2. ~~548 rows with a false synthetic flag~~ — **cleared 2026-09-13 by operator ruling** (§4.2).
+   1,822 `MCX_FO` rows of the same class remain, outside the equity universe.
 3. **HDFC, 130 sessions** — accepted at 99/100, with obligations recorded.
 
 ---
