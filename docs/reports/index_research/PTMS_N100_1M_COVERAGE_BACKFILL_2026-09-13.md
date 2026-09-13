@@ -6,7 +6,8 @@
 
 > **Result: the gap is closed. Nifty-100 constituents absent from the 1m store fall from a mean
 > of 11.0 per session to 0.143, and sessions at full 100/100 coverage rise from 41 to 777 of 907.
-> The sole residual is HDFC on 130 sessions — delisted at the 2023-07-13 merger and unfetchable.**
+> The sole residual is HDFC on 130 sessions — delisted at the 2023-07-13 merger and unfetchable;
+> accepted at 99/100 by operator ruling 2026-09-13 (§11).**
 >
 > **Three defects had to be fixed to get there, two of them pre-existing and affecting other
 > pipelines. A fourth finding is not a defect I introduced but a property of the substrate nobody
@@ -241,7 +242,7 @@ not arbitrary — three independent constraints land on it.
 | Gate | State for that fence | Residual |
 |---|---|---|
 | **C1** timestamp semantics | **Out of the cross-era seam entirely** — a 2023+ study never spans the vendor/native boundary, and §7b certifies the native era's labelling | Loader must handle the 13 enumerated exceptions; C1-a (vendor spec) matters only if pre-2023 is ever in scope |
-| **C2** PIT & entity integrity | A1 discharged by substitution, A2-1 closed, A2-2 resolved, A3 certified, A4 PASS, **A5 vacuous** (no A5 residue was ever an N100/N200 member), coverage gap closed 11.0 → 0.143 | **A6 scoped out** by operator ruling 2026-09-13 (§10); HDFC's 130 sessions |
+| **C2** PIT & entity integrity | A1 discharged by substitution, A2-1 closed, A2-2 resolved, A3 certified, A4 PASS, **A5 vacuous** (no A5 residue was ever an N100/N200 member), coverage gap closed 11.0 → 0.143 | **None inside the fence** — A6 scoped out (§10), HDFC accepted at 99/100 for 130 sessions (§11) |
 | **C3** tradeability & synthetics | **Satisfiable exactly to 2026-08-28** — `cas_category` covers every post-CAS session inside the fence, and those files are marked | Nothing inside the fence; everything after 2026-08-28 is blocked until the category table is extended |
 | **C4** VIX certification | PASS with quarantines (operator ruling) | 2021-02-12 permanently quarantined |
 
@@ -251,15 +252,15 @@ here and a scoped certification:
 
 1. ~~**A6** — does the construct need sector membership?~~ — **CLOSED 2026-09-13.** Operator
    ruling: it does not. Scoped out of the fence explicitly; clause and cost in §10.
-2. **HDFC, 130 sessions** (2023-01-02 → 2023-07-12) — accept 99/100 for that window, or source it
-   elsewhere. Needs a stated disposition, not silence.
+2. ~~**HDFC, 130 sessions** (2023-01-02 → 2023-07-12)~~ — **CLOSED 2026-09-13.** Operator ruling:
+   accept 99/100 for that window. Disposition and the obligations it carries: §11.
 3. ~~**The 4 post-close-print sessions** in §7b~~ — **CLOSED 2026-09-13**, §9: 466 rows pruned,
    the class is gone from the census.
 4. **The 3 Muhurat sessions** — confirm the loader handles them rather than dropping them.
 5. **Extend `cas_category`** if the fence must run past 2026-08-28, then backfill the last 10
    sessions.
 
-**Two of the five are now closed; three remain.**
+**Three of the five are now closed; two remain** — the Muhurat loader check and `cas_category`.
 
 **Certification remains the operator's call.** None of the above is a claim that C1–C4 are passed;
 it is a statement of what is left, and the list is now short enough to work through.
@@ -369,3 +370,49 @@ documentation, not a control. Naming the CSV at least makes it greppable.
 **Globally, A6 is unchanged: sector/thematic membership is NOT point-in-time and remains UNUSABLE
 for cross-sectional work** (`PTMS_C2_PIT_ENTITY_CERTIFICATION_2026-09-12.md`). What changed is
 scope, not status.
+
+
+---
+
+## 11. HDFC accepted at 99/100 — operator ruling 2026-09-13
+
+**Ruling: accept 99/100 for HDFC's 130 sessions.** Measured directly today, not inherited from
+§1:
+
+| Fact | Value |
+|---|---|
+| HDFC's Nifty-100 interval | 2011-03-25 → 2023-07-13 (half-open — last member session 2023-07-12) |
+| Member sessions inside the fence | **130**, 2023-01-02 → 2023-07-12 — 14.3% of the fence's 907 |
+| Session files present for those dates | 130 of 130 |
+| Sessions carrying an HDFC 1m bar | **0** |
+| `equity_bhavcopy` rows for the window | **130 of 130** — the daily record is complete |
+| Every other N100 absence in the fence | **0 cells across 907 sessions** (plan re-run today) |
+
+HDFC delisted into HDFCBANK at the 2023-07-13 merger. It has no `instrument_master` row, only a
+legacy `symbol_isin` row (`INE001A01036`), and Upstox rejects the dead ISIN on every chunk — so
+`backfill_n100_1m.py` now reports it through the *no ISIN anywhere (cannot fetch)* channel rather
+than as an absent cell. **Read the plan output carefully: "0 absent cells" is not "no gap"** — the
+gap is real and is carried on the line below it.
+
+**What is being accepted, precisely:** the **1m** panel is 99 names for 130 sessions. HDFC is not
+missing from the study — its daily record is intact, so any EOD-level control or sanity check can
+include it. Only the intraday leg is short, and only for that window.
+
+### Three obligations this acceptance creates
+
+1. **The absence is systematic, not random.** It is one specific name — at the time one of the
+   largest-weight constituents — absent across a *contiguous* block at the **start** of the fence,
+   terminating at a merger. If a result's strength concentrates in H1-2023, that must be examined
+   against the 99-name composition before it is claimed. This belongs in the construct's own
+   disclosure, not only here.
+2. **Fixed-count buckets shift; fractional quantiles do not.** A top-quintile rule ranks 99 instead
+   of 100 and is unaffected in kind. A fixed top-*k* rule draws its *k* from a 99-name pool on
+   those sessions. The construct must state which it uses.
+3. **Pin the exception — do not loosen the gate.** The eligibility check must never be relaxed to
+   "≥ 99 names": that tolerance would silently absorb the *next* absence, which is exactly how the
+   coverage hole went unmeasured for as long as it did. The assertion is **100 names, or exactly
+   99 where the missing name is HDFC and the date is before 2023-07-13 — anything else hard-fails.**
+   The repo's pattern for this is a committed disposition register
+   (`scripts/psb1/disposition_register.py` is the shape; PSB-1's own register is closed and is not
+   to be edited). No such gate exists yet because the study's eligibility code does not exist yet
+   — this is the requirement on it when it is written, not a claim that it is in place.

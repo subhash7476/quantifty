@@ -205,9 +205,12 @@ battery's register) and A6 (no PIT sector table exists at all).
 
 **Scoped to Nifty 100, A1/A2/A3/A4 are satisfied and A5 is vacuous. What remains:**
 
-1. **The 1m coverage hole (§5)** — mean 11.0 of 100 constituents absent per session, four large
-   caps absent on 868 of 918 sessions. The universe is certified; the panel does not contain it.
-   **This is the binding blocker**, and it is new — it was unmeasurable while A1 was circular.
+1. ~~**The 1m coverage hole (§5)** — mean 11.0 of 100 constituents absent per session.~~
+   **CLOSED 2026-09-13** by `scripts/cas/backfill_n100_1m.py`: **0 absent (session, name) cells**
+   across the 907 fenced sessions. The sole residual is **HDFC on 130 sessions**
+   (2023-01-02 → 2023-07-12) — delisted at the merger, unfetchable, and **accepted at 99/100 by
+   operator ruling**. Disposition and the obligations it carries:
+   `PTMS_N100_1M_COVERAGE_BACKFILL_2026-09-13.md` §11.
 2. ~~**A6**, only if the construct needs sector membership.~~ **CLOSED 2026-09-13 by operator
    ruling** — it does not, so A6 is scoped out of the fence. The consequence binds: sector-neutral
    and sector-conditioned designs are excluded, and no sector diagnostic is available, post-hoc
