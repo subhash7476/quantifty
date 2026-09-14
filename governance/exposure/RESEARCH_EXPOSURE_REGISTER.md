@@ -298,3 +298,41 @@ was mapped to a recorded reader. **Result: closed, with one addition.**
   and `n_available` must be justified against this register.
 - Rows are append-only. Corrections are new rows that cite and supersede the old, never edits.
 - A construct's own closure record is **not** a register update.
+
+---
+
+## 9. Governance rule GR-1 — what "spent" means (appended 2026-09-14)
+
+**Authority:** operator ruling 2026-09-14, accepting reading **B** of
+`docs/reports/ptms/PTMS_FAMILY_G_SPENT_WINDOW_GOVERNANCE_READING_2026-09-14.md` (commit
+`b4aded5`). Appended; no existing row or rule above is altered.
+
+**GR-1.1 — Spent is a loss of confirmatory status, not a prohibition on access.** A window
+recorded here as spending budget (level `signal`, or `estimation` where the operator so
+adjudicates) has lost its **freshness**. It does **not** become unreadable. Whether any
+project may read it remains the operator's call, per this register's header.
+
+**GR-1.2 — Freshness belongs to observations, not to hypotheses.** A new, separately
+pre-registered hypothesis does not restore freshness to a spent window on the same surface,
+however independently it was specified. This extends §1 "Lineage-local vs global" from
+closure records to new hypotheses.
+
+**GR-1.3 — A spent window can never be confirmatory.** For any hypothesis, a window read
+at spending level before that hypothesis's specification froze:
+- may **not** contribute to an RFA declaration's `n_available`;
+- may **not** serve as, or be pooled into, a HOLDOUT, SEALED or other confirmatory read;
+- may **not** sit on any gate's pass path.
+
+The order of freezing does not change this. Freezing first removes within-hypothesis
+snooping; it does not un-read a window.
+
+**GR-1.4 — Permitted non-confirmatory uses**, each subject to the operator's authorization
+and recorded as a row **before** the read:
+- structural / semantic verification that computes no outcome statistic (for example
+  PTMS-G-PTSQ §5's settlement-semantics check, confined to 2023-01-02 → 2025-12-31 on the
+  index-options EOD store);
+- descriptive or non-confirmatory analysis that is reported with that label and feeds no
+  gate.
+
+**GR-1.5 — Disclosure.** Any hypothesis whose design was informed by a result on a spent
+window must disclose that in its prior-exposure section, even if it never reads the window.
