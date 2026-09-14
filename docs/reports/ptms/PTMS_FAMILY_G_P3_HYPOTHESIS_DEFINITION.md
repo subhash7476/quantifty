@@ -322,7 +322,7 @@ quantity, side, trade_date)`, called per leg at entry.
 | Stamp | 0.003 % | Buy |
 | Brokerage | Rs 20 per order | Both |
 | GST | 18 % on brokerage + exchange + SEBI | Both |
-| **STT on exercise** | **Not in `fees.py`.** 0.125 % of intrinsic × `Q`, paid by the **holder** of an ITM option at settlement. **Applies to the long leg only.** The rate from 2026-04-01 must be taken from the Finance Act text and pinned before TRAIN | Long, ITM at FTD |
+| **STT on exercise** | **Not in `fees.py`. Rate UNVERIFIED in this session.** Paid by the **holder** of an ITM option at settlement, on intrinsic × `Q`, so it **applies to the long leg only**. `fees.py`'s docstring cites 0.125 % of intrinsic; that figure and every era's rate (including from 2026-04-01) must be confirmed from the Finance Act text and pinned before TRAIN | Long, ITM at FTD |
 
 **Pre-TRAIN code requirement.** Add an exercise-STT schedule to `fees.py`, sourced from statute,
 with a test. The rate is a regulatory constant, not market data, and it is **not chosen from any
@@ -549,9 +549,11 @@ S ≈ 1.6.
 | 13 | VOID threshold | 80 % | Convention |
 | 14 | Test | One-sided t on mean `z`, α = 0.05 | Standard |
 
-**Fitted parameters: zero. Searched parameters: zero.** The design has 14 declared choices. The
-honest reading is that choices 3, 4, 9 and 10 are the ones a data-snooper would have tuned. They
-are frozen here, before any read, and §13.7 bars revisiting them.
+**Zero parameters fitted to data and zero searched, but not zero degrees of freedom.** The
+design has **14 choices declared by design**, each fixed without reading an outcome. That is the
+sense in which §3.3 counts the offsets as 2 declared degrees of freedom. The honest reading is that
+choices 3, 4, 9 and 10 are the ones a data-snooper would have tuned. They are frozen here, before
+any read, and §13.7 bars revisiting them.
 
 ### 14.2 Secondary analyses (descriptive, cannot pass)
 
@@ -581,9 +583,9 @@ are frozen here, before any read, and §13.7 bars revisiting them.
 3. **Non-synchronous closes.** `close` is last trade per contract; CE and PE last trades can be
    minutes apart, which adds noise to `F` and so to `R`. This is attenuating, not biasing, for a
    liquid ATM near-expiry pair.
-4. **Liquidity composition shift.** Traded share 34.1 % → 58.8 % between windows. SEBI's 2024
-   rationalization to one weekly per exchange also concentrated NIFTY weekly volume. `K*` on
-   thinner TRAIN chains may sit further from the true forward.
+4. **Liquidity composition shift.** Traded share 34.1 % → 58.8 % between windows (measured,
+   certification §G). The cause is not established here. `K*` on thinner TRAIN chains may sit
+   further from the true forward.
 5. **Settlement semantics unverified** at intrinsic level (§5). STOP condition.
 6. **Exercise STT unmodelled** in `fees.py` (§9). The long leg is understated in cost until fixed.
 7. **Mid-HOLDOUT STT change** (2026-04-01).
@@ -637,7 +639,12 @@ A robustness variant passing where the primary failed changes nothing.
 1. **Operator review and approval** of this document as committed. Any change before freeze is
    made by a new commit, never after.
 2. **Spec digest.** `sha256sum docs/reports/ptms/PTMS_FAMILY_G_P3_HYPOTHESIS_DEFINITION.md`
-   at the approved commit. Record the commit hash and the SHA-256.
+   over the file **exactly as committed at a named commit** (`git show <commit>:<path> | sha256sum`,
+   so working-tree line-ending conversion cannot change the bytes). Record the commit hash and the
+   SHA-256. **If the document is edited after this step, repeat step 2 before step 3.** Only the
+   digest recorded in step 3 is load-bearing. This document cannot carry its own digest, because
+   writing it in would change it. The candidate commit and digest are therefore reported alongside
+   the document, not inside it.
 3. **Declaration file.** Create `governance/rfa/declarations/ptms_g_ptsq.py` with exactly the §13.1
    values. Its `prior_exposure` and `sharpe_provenance` strings cite the spec's commit hash and
    SHA-256 from step 2.
