@@ -73,6 +73,8 @@ alternate.
    - 5 are **descriptive only**, 8 are **secondary** and 5 are **primary** candidates.
    - Two pairs are mathematically equivalent (GS-5 ≡ GA-3; GS-4 ≡ GA-2 at n = 1), so there are
      4 independent primary and 7 independent secondary constructs.
+   - These counts cover the 26 constructs only. The 4 cross-sectional architectures are tallied
+     separately: GX-1 and GX-2 P-compatible, GX-3 rejected for Family F, GX-4 descriptive.
 2. **The decisive filter is dimensional.** Price and time are different dimensions. A Gann
    statement is dimensionally valid only if it does one of two things:
    - compares **like with like** — price : price, time : time, or rate : rate;
@@ -1453,7 +1455,10 @@ In order. Nothing here authorizes a read.
    declared off the pass path, controls and falsification conditions from §17.1, evidence label
    (historical = development / non-confirmatory per GR-1.3 and today's ruling).
 5. **Then** RFA declarations, `rank_ic` for GX-2 or a per-event formulation for GX-1, with
-   independently defended bands. Only after PROCEED and freeze may any outcome be read.
+   independently defended bands. **The band and power must be defended against the multiplicity
+   *m* pinned in step 2, not against a single-test α.** A three-digit *m* on a finite formation
+   count is the demonstrability arithmetic that closed C5, C4 and F1 — design arithmetic, noted here
+   without computing power. Only after PROCEED and freeze may any outcome be read.
 
 ---
 
