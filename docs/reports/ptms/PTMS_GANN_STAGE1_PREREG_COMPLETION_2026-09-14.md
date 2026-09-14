@@ -268,7 +268,7 @@ confirmed K3 state and the construct's anchor available.
 | **Mean block length** | Pinned a priori at **20 sessions**; 5 and 60 reported off the pass path | Not estimated from data. 20 sessions spans Gann's own "11 to 35 days" most-common swing band ([45Y] p. 89), a source-based scale |
 | **Draws** | **B = 1999**, fixed seed recorded, no extension after seeing p | At α = 0.0125 (m = 4) the rejection region holds 25 draws; Monte Carlo SE of p at α ≈ 0.0025. At m = 3 (α ≈ 0.0167) the same B is adequate |
 | **Gann-specificity (placebo) leg** | On **real** data: T_c recomputed with a pinned placebo point set of matched coverage (GF-1: non-Gann fractions of 144; GF-4T/R8: window set with identical widths, centres shifted to non-Gann day counts). p_plac = rank of T_c among the placebo sets. For GF-10: **Gann's own contrast** — T_c(time overbalance) > T_c(price overbalance), p from the surrogate joint distribution (**R-10**; alternative: ratio placebos 0.75× / 1.33×) | Separates "Gann's numbers matter" from "any swing-timing regularity" |
-| **Pass rule** | **Intersection-union test:** pass iff p_sur ≤ α **and** p_plac ≤ α | IUT controls size at α without further adjustment; both nulls must fall |
+| **Pass rule** | **Intersection-union test** (confirmatory tests): pass iff p_sur ≤ α **and** p_plac ≤ α. **The screen's kill rule uses the surrogate leg only** (§10) | IUT controls size at α without further adjustment; both nulls must fall. Its power is at most the weaker leg's, and the placebo leg's power is not computable a priori |
 | **Date clustering / dependence** | Carried by the synchronized surrogate up to the block scale; no Newey–West or normal approximation | The null spread comes from the resampled panel |
 | **Effect size report** | T_c − median T_c(b), with the 2.5–97.5% surrogate interval | **Descriptive only**, off the pass path |
 | **Size calibration (pre-read, blind)** | After freeze and before the real statistic is computed: treat 200 surrogate panels as pseudo-real and run the full test; the rejection rate must be ≤ 2α. Record the result before unblinding | Checks the bootstrap test's size on this panel's dependence structure. Computes no real-data score-outcome association |
@@ -338,13 +338,13 @@ below.** Not authorized here; requires an operator ruling (**R-12**).
 | **Constructs entering** | GF-1, GF-4T/R8, GF-10 (m = 3; m = 4 if GF-7 re-admitted). Pinned before the screen |
 | **Statistic** | T_c per §8.2 |
 | **Null** | IUT of the surrogate null and the placebo / contrast null, §8.2 |
-| **Threshold** | Survive iff p_sur ≤ 0.05/m **and** p_plac ≤ 0.05/m, one-sided |
-| **Kill rule** | A construct that does not survive is **retired from forward testing under this protocol**. Report wording: *"no evidence, at power ≈ 1.00 against the optimistic effect size, of an effect large enough to make confirmation feasible"* — **never** "Gann's rule is false" |
-| **Power** | Dev-only window, α = 0.05/4: optimistic 1.00 for all; central GF-1 0.72, GF-4T/R8 0.77, GF-10 0.39 (GF-7 0.34). A central-size effect can be missed; the kill rule is calibrated against optimistic-size effects only |
+| **Threshold** | **Kill decision on the surrogate leg only:** a construct survives iff p_sur ≤ 0.05/m, one-sided. The placebo / contrast leg (p_plac ≤ 0.05/m) is computed and reported as a **separate Gann-specificity finding**; it does not retire a construct |
+| **Kill rule** | A construct whose surrogate leg does not reject is **retired from forward testing under this protocol**. Report wording: *"no evidence, against a surrogate null, of an effect of the optimistic size that confirmation would need"* — **never** "Gann's rule is false". A construct that survives the surrogate leg but not the placebo leg is labelled *"timing effect not shown to be Gann-specific"*; whether it proceeds to a confirmatory IUT pre-registration is an operator decision (R-12) |
+| **Power** | **Proxy for the surrogate leg only** (noncentral t, `gf_screen_power.py`), dev-only window, α = 0.05/4: optimistic 1.00 for all; central GF-1 0.72, GF-4T/R8 0.77, GF-10 0.39 (GF-7 0.34). **These are upper bounds:** n takes no burn-in haircut, and dependence is assumed away. At m = 3 the threshold 0.05/3 is less strict than the 0.05/4 used here, so on that count the figures understate. **The IUT's power is not established** — the placebo leg's power depends on how far Gann's day counts differ from shifted placebo windows, which no stated assumption pins. That is why the kill rule rests on the surrogate leg alone. A central-size effect can still be missed |
 | **Surrogate uncertainty** | B = 1999 fixed; +1 rank formula; no extension; size calibration (§8.2) recorded before unblinding |
 | **Use of historical N100** | Legitimate: operator exposure ruling ("may be used freely … not pristine confirmation"); GR-1.1, GR-1.4. The window is already signal-spent on this surface, so the screen spends nothing new |
 | **Exposure label** | **signal — non-confirmatory (GR-1.4)** |
-| **Register row (draft; operator-owned; must be appended before the read)** | `\| G-S1 \| Equity EOD panel (N100 PIT, ratio-adjusted as-of-t) \| 2011-03-25 → 2022-12-30 \| **signal** (non-confirmatory, GR-1.4) \| PTMS-Gann Stage-1 screen: GF-1, GF-4T/R8, GF-10 \| <frozen protocol path + SHA-256>; report labelled NON-CONFIRMATORY; feeds no gate \|` |
+| **Register row (draft; operator-owned; must be appended before the read)** | `\| G-S1 \| Equity EOD panel (N100 PIT, ratio-adjusted as-of-t) \| 2011-03-25 → 2022-12-30 \| **signal** (non-confirmatory, GR-1.4) \| PTMS-Gann Stage-1 screen: GF-1, GF-4T/R8, GF-10 \| <committed screen script paths> \| <frozen protocol path + SHA-256>; report labelled NON-CONFIRMATORY; feeds no gate \|` — seven fields, matching register §5c (#, Surface, Window, Level, Hypothesis family, Consumer, Evidence) |
 | **Selection bias into confirmation** | (1) Confirmation must use disjoint data (2023+ if fresh, else forward). (2) **Confirmatory α = 0.05/m_entered** (pinned before the screen), not 0.05/m_survivors. (3) Winner's curse: the confirmatory δ band must **not** use screen estimates. (4) GR-1.5: the confirmatory pre-registration must disclose the screen and its results |
 | **Description** | The screen must never be described as confirmation, validation, or evidence that a Gann construct works |
 
@@ -373,7 +373,11 @@ below.** Not authorized here; requires an operator ruling (**R-12**).
 - Stock price translation (U-LIT) — no textual resolution.
 
 **Reading complete:** [45Y] pp. 1–148. *Commodities* copy is a translation (inadmissible for wording).
-*Puts and Calls* not inspected (not needed for Stage 1).
+*How to Make Profits Trading in Puts and Calls* (SHA-256 `d8ad4cb0…`): a 22-page typescript with no
+contents page. The cover and pp. 1–3 were viewed — option mechanics only (calls, puts, spreads, how
+options are sold). **pp. 4–22 not inspected.** Its relevance to stock price-time rules is therefore
+**not established** and stays an open item (reading, not a ruling); it does not block Stage-1 design
+on anything read so far, but should be checked before any freeze.
 
 ### B. Arm 1 — Gann-faithful (Stage-1 candidates)
 
@@ -420,7 +424,7 @@ as-traded prices and a CA policy, and they must not enter the Stage-1 experiment
 | **R-9** | GF-1 unit (calendar vs market days); GF-4T/R8 anchor scope (last confirmed K3 turn vs all turns) | Calendar days; last turn. If either is judged arbitrary, exclude the construct |
 | **R-10** | GF-10 Gann-specificity leg: Gann's time-vs-price contrast vs ratio placebos | Time-vs-price contrast |
 | **R-11** | Freshness of equity EOD 2023-01-02 → 2026-09-11: record the equity-EOD windows of the `signal_engine` and `mrlc_test` readers (EOD audit §L condition 1) | Must precede any confirmatory design |
-| **R-12** | Authorize the non-confirmatory screen on 2011-03-25 → 2022-12-30 with register row G-S1 appended first | Authorize only after R-1–R-10, R-13, R-14 and the §H freeze |
+| **R-12** | Authorize the non-confirmatory screen on 2011-03-25 → 2022-12-30 with register row G-S1 appended first; kill rule on the surrogate leg only; decide whether a surrogate-pass / placebo-fail construct may proceed to a confirmatory IUT | Authorize only after R-1–R-10, R-13, R-14 and the §H freeze. Note: the screen's power is established only as a proxy for the surrogate leg |
 | **R-13** | Scoped EOD substrate certification and external enumeration of spin-offs / special dividends (EOD audit §L condition 2) | Required before any read |
 | **R-14** | Surrogate and inference specification (§8.2) incl. block length 20, B = 1999, IUT, blind size calibration | Accept |
 | **R-15** | U-LIT translation (Stage 2 only) | Not needed for Stage 1; unchanged |
@@ -461,7 +465,10 @@ score–outcome association is computed on real data, including the screen:
 10. Statistic, IUT pass rule, α, one-sidedness, and the blind size-calibration procedure and threshold.
 11. Screen window 2011-03-25 → 2022-12-30; kill rule and its report wording; confirmatory α pinned at
     0.05/m_entered; prohibition on using screen estimates in any later δ band.
-12. Robustness list (off the pass path), declared in full.
+12. Robustness list (off the pass path), declared in full, with **pre-specified diagnostics**:
+    anchor-age strata (GF-1's early "all-time-to-date extremes" are left-censoring artifacts of the
+    2011-03-25 data start and listing dates), per-stock heterogeneity, and the realized burn-in
+    haircut to n.
 13. Report template with the NON-CONFIRMATORY label and the §8.2 limitation statement.
 14. Code committed from a clean tree; outputs written by script only.
 15. Exposure register row G-S1 appended **by the operator** before the read (GR-1.4).
@@ -477,8 +484,8 @@ score–outcome association is computed on real data, including the screen:
 > (construct exclusions and cell pins), R-11 (freshness of 2023-01-02 → 2026-09-11), R-13 (scoped
 > substrate certification and CA enumeration), R-14 (surrogate/inference specification).
 
-These are operator rulings, not further research. **No further primary-source reading can close
-them**: the remaining gaps are either undefined in Gann's text or withheld by Gann. Once they are
+These are operator rulings, not further research. One reading item also remains open: *Puts and Calls*
+pp. 4–22 (§11.A). **No further primary-source reading can close the rulings above**: the remaining gaps are either undefined in Gann's text or withheld by Gann. Once they are
 ruled, the §H freeze can be written and the screen (R-12) considered.
 
 ---
