@@ -325,7 +325,7 @@ constraint: **its only possible confirmatory evidence is forward calendar time.*
 |---|---|---|
 | Alive but unformalized | **Yes — primary** | Operator intent is directly evidenced (#24, #26, #51); the substrate is certified; no hypothesis document exists; no kill ruling exists; its forward window was deliberately preserved (#61) |
 | Formally blocked | No | The substrate block (#11) was discharged by the certificate; no other block was ruled |
-| Spent | **Historically, yes, for confirmation**, per GR-1.3 on the E-1/E-2/E-3 reads | Not a prohibition (GR-1.1); does not reach sessions after 2026-09-11 |
+| Spent | **Historically, yes, for confirmation**, per GR-1.3 on the E-1/E-2/E-3 reads. GR-1 was **appended 2026-09-14** and is applied here retrospectively; it codified a reading the register already implied, but it was **not a written rule during the PIT phase** | Not a prohibition (GR-1.1); does not reach sessions after 2026-09-11 |
 | Abandoned | No | No ruling |
 | Superseded | No | G was commissioned, never declared a replacement for F |
 | Unresolved | Partly | Its construct (Gann or other price-time) is unresolved; its existence is not |
@@ -333,7 +333,8 @@ constraint: **its only possible confirmatory evidence is forward calendar time.*
 **Open nuance, not adjudicated here.** The ~10,000 (session, name) cells backfilled on 09-13 were
 **not in the store** when ISD and MRLC read it. They are physically unread observations inside a
 signal-read window. Whether that matters to a cross-section that also contains read names is part of
-the open file-shaped versus observation-shaped exposure question.
+the open file-shaped versus observation-shaped exposure question, item 2 of the programme audit's
+§J (`5db7e65`). It belongs in that ruling, not in a separate one.
 
 ---
 
