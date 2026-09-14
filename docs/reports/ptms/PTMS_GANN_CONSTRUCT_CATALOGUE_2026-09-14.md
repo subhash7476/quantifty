@@ -5,6 +5,12 @@
 No construct is selected, frozen or approved by appearing here. No TRAIN/HOLDOUT exists. No RFA was
 run. No outcome value was read. See §20.
 
+**Addendum (2026-09-14, post-F0):** §21 records status changes from the F0 primary-source register
+and its delta Δ1 (register §26, 1953 *Master Mathematical Price Time and Trend Calculator*). The
+status table, §17 shortlist and §18 rejections below are **preserved as originally written** and are
+**superseded where §21 differs**. Faithful constructs GF-1 to GF-7 are defined in
+`PTMS_GANN_FAITHFUL_CONSTRUCT_DEFINITION_2026-09-14.md`.
+
 **Inputs:**
 - Operator brief of 2026-09-14 (Gann construct catalogue).
 - Substrate description: `PTMS_N100_EOD_FEASIBILITY_AUDIT_2026-09-14.md` (commits `a8c7e37`, `1aff3ae`).
@@ -1481,3 +1487,71 @@ In order. Nothing here authorizes a read.
   - shortlist decision;
   - PTMS multiplicity register;
   - the "certified" wording (no scoped EOD certificate yet).
+
+---
+
+## 21. Addendum — construct status after F0 and primary-source delta Δ1
+
+**Authority:**
+- `PTMS_GANN_PRIMARY_SOURCE_CLAIM_REGISTER_2026-09-14.md` §§22, 24, 26;
+- the operator handoff of 2026-09-14 authorizing this update.
+
+§§1–20 are preserved unedited. Where they conflict with this section, this section governs.
+
+### 21.1 Status changes
+
+| ID | Original status | Status now | Basis |
+|---|---|---|---|
+| GA-1 | R | **Arm 1 as GF-2** (framework), conditional on the translation ruling | 45° = one chart space per period; stocks 1 point per space on the daily chart ([MMPTC] pp. 1, 3, 5). The original objections (rupees ≡ days by fiat; CA-fatal on adjusted levels) stay as **design constraints** — scale-placebo controls and as-traded pricing — not grounds for rejection |
+| GA-2 | S | Arm 3 | Data-derived scale; not Gann's convention |
+| GA-3 | P | **Arm 2** | Not a test of Gann's documented angle method (register §26.6) |
+| GA-4 | S | Folded into GF-2, **Gann's rays only** (1×1, 2×1, 1×2; red angles on squares of 9) | [MMPTC] p. 5; an arbitrary ray fan remains high-DoF |
+| GA-5 | NT | NT (pixel sense) | The Master Chart space grid is mechanized as units under GF-2 |
+| GS-1 | R | **Arm 1 as GF-3** (square of high / low) | [MMPTC] p. 4 |
+| GS-2 | R | **Arm 1 as GF-3** (square of range) | [MMPTC] p. 4 |
+| GS-3 | S | Arm 2 | Random-walk scale is modern |
+| GS-4 | S | Arm 3 | — |
+| GS-5 | P | Arm 2 | ≡ GA-3 |
+| GT-1 | P | **Arm 1 as GF-5**, month/year resolution; 360-day form held | WSSS p. 55; [NSTD] p. 14 |
+| GT-2 | P (alternate) | Arm 2 | Only a qualitative primary anchor (register TIM-08) |
+| GT-3 | S | **Arm 1 as GF-4T** (circle divisions) and within **GF-1** (fractions of 144) | [MMPTC] pp. 2, 4, 8, 9 |
+| GT-4 | D | Faithful at index level; Arm 3 on a stock cross-section | Register ANN-04 |
+| GT-5 | NT | NT | Great Cycle / 56-year periods: at most one repetition in span |
+| GT-6 | D | Hold | Age is from incorporation, not listing |
+| GT-7 | D | Arm 2 | — |
+| GN-1, GN-2 | S | **Hold** | Spiral / √P not in the primary sources inspected |
+| GN-3 | R | R | As above |
+| GN-4 | NT | NT | — |
+| GO-1 | S | Partly Arm 1: halfway point of range or high as a GF-1 / GF-3 / GF-4P anchor and level | [MMPTC] pp. 3, 6, 7, 9. Generic eighths-of-range stays a control |
+| GO-2 | P | Relative form → **Arm 2**; absolute durations → **GF-6** | Register §16, TIM-03/04, Δ-16 |
+| GO-3 | D | Faithful, not price-time | Register PRB-04 |
+| GO-4 | R | R | — |
+| GO-5 | D | Hold | *k* not primary-pinned |
+| — (new) | — | **GF-6** absolute reaction duration | Register TIM-03/04; [NSTD] p. 38 |
+| — (new) | — | **GF-7** third-month / 3rd–4th move / 6–7 week culmination | Register TIM-01/09; [NSTD] pp. 14, 38 |
+| GX-1, GX-2 | P-compatible | Unchanged, **relabelled** | Pooling across N100 is a statistical device, not a Gann claim (Gann: study each stock individually) |
+| GX-4 | D | Elevated to a **required diagnostic** | Per-stock heterogeneity follows from Gann's individual-study principle |
+
+### 21.2 Shortlist
+
+The §17.1 shortlist (GO-2, GT-1, GA-3 ≡ GS-5, alternate GT-2) is **superseded**. The candidate set
+is now GF-1 to GF-7, defined in `PTMS_GANN_FAITHFUL_CONSTRUCT_DEFINITION_2026-09-14.md`. **Not
+selected, not frozen.**
+
+### 21.3 Carried constraints
+
+- **§4's dimensional analysis still applies.**
+  - *Fidelity* requires Gann's own unit.
+  - *Evidence of Gann-specific content* requires showing that the unit matters: scale placebos must
+    underperform.
+  - A faithful construct that works equally well under a non-Gann scale is not evidence for Gann.
+- **§15's multiplicity must be recomputed** for GF-1 to GF-7 before any read. The GF grids are larger
+  than the old slate.
+- **§14's corporate-action analysis** now bites harder: GF-2, GF-3 and GF-4P are level constructs on
+  as-traded prices.
+
+### 21.4 Governance
+
+- No outcome read; no RFA; no TRAIN/HOLDOUT; nothing frozen.
+- No family definition modified.
+- This addendum does not suggest Gann has predictive power.

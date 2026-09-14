@@ -6,6 +6,9 @@ no RFA / TRAIN / HOLDOUT / backtest run, no parameter chosen, nothing frozen.
 **Priority:** where this register conflicts with `PTMS_GANN_CONSTRUCT_CATALOGUE_2026-09-14.md` or
 `PTMS_GANN_FIDELITY_REVIEW_2026-09-14.md`, **this register governs** (§24). Neither document is
 modified here.
+**Delta:** §26 is a **primary-source delta added after F0** (1953 *Master Mathematical Price Time and
+Trend Calculator*; *New Stock Trend Detector*). §§0–25 are the unchanged F0 record, including the
+statement above that the catalogue was not modified. Where §§0–25 and §26 conflict, **§26 governs**.
 
 ---
 
@@ -1471,3 +1474,207 @@ predictive. No parameter, window, stock or anchor was selected. Gann's validity 
 F0's answer to "what did Gann actually claim?", within the inspected corpus, is recorded above. The
 unread later works, and the unscanned prose noted in §20 item 8, are the explicit limits of that
 answer.
+
+---
+
+## 26. PRIMARY-SOURCE DELTA Δ1 — 1953 Calculator and New Stock Trend Detector (added after F0)
+
+**Recorded:** 2026-09-14, after F0 commits `b3b4b4e` / `a1fbb23`.
+**Trigger:** the operator supplied five PDFs and relayed a third-party (ChatGPT) review of them in a
+handoff.
+**Method:**
+- The handoff was treated as the operator relaying another reader's conclusions. Primary text outranks it.
+- The central source was **read page by page from renders** (it has no text layer). Every locator
+  below was checked on the page.
+- Where this reading differs from the handoff, both are recorded (§26.4).
+- The source hunt was **not** repeated; the unread supplied books are listed as unread.
+
+### 26.1 Sources added
+
+| Key | Work | Copy | Status of reading |
+|---|---|---|---|
+| **[MMPTC]** | *W. D. Gann Mathematical Formula for Market Predictions — The Master Mathematical Price Time and Trend Calculator*. 9-page typescript, signed "W. D. Gann", dated September 29, 1953 (p. 9) | Operator-supplied PDF, **origin unstated**, image-only, SHA-256 `c1171949acbcee07235f8a3327e168bea0308f3149e50a50b32b0513e3a86640` | **All 9 pages read.** Pp. 1–7 are typewritten. **Pp. 8–9 are in a different typeface** (re-set or later addition?). No publisher imprint. **Edition identity UNCERTAIN.** Copyright status not established — short quotations only |
+| **[NSTD]** | *New Stock Trend Detector* (W. D. Gann, Publisher, Miami; 1936) | Operator-supplied PDF with a transcribed text layer (visible typos, e.g. "19321935"), SHA-256 `33387379f3910b302d1ed2665bdd8cc71621bc3ddda35b9f41f2c098a516012c` | **Only pp. 10, 14, 17, 38 of the text extraction read** (targeted at the handoff's claims) |
+| — | *45 Years in Wall Street* (1949) | SHA-256 `183ed23850c7056f47e7242f6fc0264b294ecf19e87fdca303fe3137064e70dc` | **Not inspected** (text extraction failed) |
+| — | *How to Make Profits in Commodities* | SHA-256 `782d312aa9c7f3ad7672332368266d2eebcc433af708be7c347e852f4032b89c` | **Not inspected** |
+| — | *How to Make Profits Trading in Puts and Calls* | SHA-256 `d8ad4cb0751e26c3d3815b7aa75e4109f43ea35632614334bf5b79dfe507ea67` | **Not inspected** |
+
+The files were renamed on disk during the session (e.g. the 1953 file became `and-trend-calculator.pdf`).
+**Identify them by hash, not filename.** None is committed to the repository.
+
+### 26.2 New verified claims (Δ entries)
+
+Locators: [MMPTC] page numbers are printed at the foot of pp. 1–7; pp. 8–9 are unnumbered and
+counted in sequence.
+
+| ID | Claim (paraphrase unless quoted) | Locator | Status | Op. |
+|---|---|---|---|---|
+| Δ-01 | The square of 144 is the "GREAT SQUARE" and works for both time and price; the square of 12 matters for time because a year has 12 months | [MMPTC] p. 1 | VERIFIED | Framework |
+| Δ-02 | **Chart-space convention.** Nine spaces on the daily chart equal 9 days, weeks or months, and 9¢ on grains, "9 points on stocks", 90 points on cotton. One column of the 144 square equals $144 on grain, 144 points on stocks, 1440 points on cotton (at 10 points per ⅛ inch). Scales differ by instrument and chart: grains 1¢ per ⅛ inch on daily, weekly and monthly charts; "for different commodities, different scales are used" with Special Instructions (not supplied); a nine-space set of 90 / 135 / 270 / 2880 points on daily / weekly / monthly / 20-point charts | [MMPTC] pp. 1, 5 | VERIFIED | With explicit assumptions (§26.5) |
+| Δ-03 | Price, time, volume and velocity move markets; the "PITCH or TREND" is the geometrical angle, showing whether time drives prices on a slow or fast angle | [MMPTC] p. 3 | VERIFIED | Framework |
+| Δ-04 | **Price-time square.** Price at 36 with time at 36 (days, weeks or months) means time and price are square — watch for a change in trend. At 72 and 72 they have balanced at the 45° angle, at the halfway point of the square | [MMPTC] p. 3 | VERIFIED | With explicit assumptions |
+| Δ-05 | Strongest points of the 144 square are 1/4, 1/3, 2/3, 3/8, 1/2, 5/8, 3/4, 7/8 and the whole square; points where most angles cross are the strongest resistance in price and time; triangle points and squares within the square are listed | [MMPTC] pp. 3, 6 | VERIFIED | With explicit assumptions |
+| Δ-06 | Most changes in trend occur when time periods reach one-half of 144, the end of a square, or the 1/3, 2/3, 1/4 and 3/4 points. A new square begins every 144 periods | [MMPTC] pp. 4, 6 | VERIFIED | With explicit assumptions |
+| Δ-07 | **Square of high, low and range.** Watch the square in time of the highest price, minor highs and lows, the lowest price, the second or third higher bottom, and the range. Worked wheat example: low 28¢ → every 28 months; high 325 → 325 months; range 281 → 281 months, weeks or days, compared with 2 squares of 144 (288). The same method applies to commodities, stock averages and individual stocks | [MMPTC] p. 4 | VERIFIED | With explicit assumptions |
+| Δ-08 | **Angles.** Green angles are 2×1 (two spaces or points per period) and 1×2 (one space per two periods); red angles are drawn on squares of 9; the inner square is drawn from 72; a price break below 45° on the inner square "shows weakness in proportion to the time" from the high or low. **The operational angle rules are deferred:** "Follow all rules on angles as given in the Master Forecasting course" (course not supplied) | [MMPTC] pp. 5, 6 | VERIFIED (framework); rules INCOMPLETE | Partly |
+| Δ-09 | **Placement / anchors.** Place the chart at 0, at the low price, or at the square of the high, the low or the range; at the halfway point of the extreme high or of the range (72 = centre); start from the extreme low, extreme high, 0, half the range, or half the highest selling price; on January for yearly periods; on all previous highs and lows. Keep time periods from important highs and lows in days, weeks and months | [MMPTC] pp. 6–7 | VERIFIED | With explicit assumptions |
+| Δ-10 | **Calendar vs market days.** One space per time unit on any chart, so 144 market days or 144 calendar days complete the square. Carry 7 calendar days and 5 market days. Add leap days | [MMPTC] pp. 2, 6 | VERIFIED | Choice per rule remains open |
+| Δ-11 | **360° circle.** The circle of 360° matters for time and price because its parts agree with the parts of 144 (2½ × 144 = 360). Its divisions by 2, 3, 4, 8, 16, 32, 64, 6, 12 and 24 give time and price points "in days, weeks or months". 15° is about 15 days; 180 months (15 years) is half a circle | [MMPTC] p. 2 (original typeface), p. 5; pp. 8–9 (re-set pages) | VERIFIED | With explicit assumptions |
+| Δ-12 | Price as degrees: halfway points of highs and lows form close to "natural degrees in the circle" (soybeans example) | [MMPTC] p. 9 | VERIFIED | Level-based; CA-exposed |
+| Δ-13 | Great Cycle of the 144 square = 20,736 days, weeks or months, with fractional periods checked from any major high and low | [MMPTC] pp. 1, 5 | VERIFIED | Mostly not testable (span) |
+| Δ-14 | Trend is shown by the close relative to the halfway point of the period's range (above or near the high = up; below or near the low = down, at least temporarily) | [MMPTC] p. 3 | VERIFIED | Directly operational |
+| Δ-15 | Master numbers 3, 5, 7, 9, 12 and their squares and products (e.g. 49–50, 63–64, 84, 90) are important for changes in trend | [MMPTC] p. 2 | VERIFIED | High degrees of freedom |
+| Δ-16 | In a bull market a stock that is going higher will not react more than two to three months and should resume in the third month. In a bear market a rally of only six to seven weeks, not over two months and not higher in the third month, is a sign of weakness | [NSTD] p. 38 | VERIFIED | With explicit assumptions |
+| Δ-17 | Watch for a change in trend "one year, two years, etc., from any important top and bottom" | [NSTD] p. 14 | VERIFIED | With explicit assumptions |
+| Δ-18 | Rules must be studied and applied to individual stocks, not averages; each stock in a group must be studied to detect its trend | [NSTD] p. 17 | VERIFIED | Principle |
+
+**Square of Nine note.** [MMPTC] uses "squares of 9" as divisions of the 144 square and nine-space
+sections. **It does not present the numbered spiral or the √P ladder.**
+
+### 26.3 Disposition of the F0 findings
+
+F0's absences were explicitly **scoped** to *Truth of the Stock Tape* and *Wall Street Stock Selector*
+("Absence here says nothing about them"). Those scoped statements remain true. The dispositions
+below are for **Gann's corpus as now inspected**.
+
+| Disposition | F0 IDs | What changed |
+|---|---|---|
+| **OVERTURNED** | 1X1-01 (angles) | Angle framework VERIFIED (Δ-03, Δ-04, Δ-08) |
+| **OVERTURNED** | 1X1-02 (1×1 as unit per period), SCL-02 (45° = one space per period) | SECONDARY-ONLY → VERIFIED: 45° where price and time spaces balance; 2×1 = 2 spaces per period; grains 1¢ per space (Δ-02, Δ-04, Δ-08) |
+| **OVERTURNED** | 1X1-03 (no equity scale rule) | A **stock chart-space convention** is VERIFIED: 1 point per space on the daily chart; one 144 column = 144 points (Δ-02). **What it does not establish:** §26.4 item 1 |
+| **OVERTURNED** | 1X1-04 ("9 points on stocks"), SQ9-05 (144 GREAT SQUARE) | SECONDARY-ONLY → VERIFIED (Δ-01, Δ-02). The secondary report [S5] was accurate |
+| **OVERTURNED** | SQR-02 (squaring the range), SQR-03 (squaring language) | → VERIFIED (Δ-04, Δ-07) |
+| **OVERTURNED** | SQ9-04 (circle ↔ market time), ANN-11 (circle-division day counts) | NOT FOUND → VERIFIED: circle divisions and 144 fractions applied to counts in days, weeks or months from highs and lows (Δ-06, Δ-11) |
+| **PARTLY OVERTURNED** | RET-01 (range divisions) | Halfway point of the range and of the highest price VERIFIED as anchor and resistance (Δ-09, Δ-12, Δ-14). Eighths and thirds are stated as fractions of the **144 square** (Δ-05), not as eighths of an arbitrary price range |
+| **STRENGTHENED** | ANN-01 (anniversary) | [NSTD] p. 14: one year, two years, etc. from any important top and bottom (Δ-17) |
+| **STRENGTHENED** | TIM-03, TIM-04, TIM-01, TIM-09 (duration and culmination) | [NSTD] p. 38 (Δ-16) |
+| **STRENGTHENED** | XS-01 to XS-03 (individual study) | [NSTD] p. 17 (Δ-18) |
+| **STRENGTHENED** | ANN-07 (geometry claim), ANN-08 (Master Time Factor) | Geometry is now operational text; [MMPTC] p. 3 says to apply the rules with the Master Time Factor and geometric angles. The Master Time Factor itself is still withheld |
+| **STRENGTHENED** | ANN-09 (calendar vs market days) | Both explicitly admissible (Δ-10). **The choice per rule is still open** — status stays UNCERTAIN |
+| **STRENGTHENED** | PRB-01, PRB-02 (high/low charts, close) | Close vs halfway point (Δ-14) |
+| **STRENGTHENED (concept only)** | SQR-01 | "Time and price is square … watch for change in trend" is verified (Δ-04). The popular wording "change is inevitable" remains **NOT VERIFIED IN PRIMARY SOURCE** |
+| **CONFIRMED** | TOB-01, TOB-04, TOB-10; ANN-02 to 04, ANN-06, ANN-10; TIM-02, 05 to 08, 11; PRB-03 to 05; CA-01 to 03, CA-05; SWG-01 to 04; SCL-01 (arithmetic spaces only); XS-04 | Nothing in the pages read changes them |
+| **CONFIRMED** | SQ9-01, SQ9-02 (Square-of-Nine spiral), SQ9-03 (√P ladder) | Still SECONDARY-ONLY / NOT FOUND — [MMPTC] does not contain them |
+| **STILL UNRESOLVED** | TOB-02, TOB-03 (relative time overbalance) | Not in [MMPTC]. *How to Make Profits in Commodities* and *45 Years* supplied but **not inspected** |
+| **STILL UNRESOLVED** | ANN-05 (360-day annual anniversary) | [MMPTC] treats 360 as a circle count applied to days, weeks or months. It does **not** equate 360 days with a year; its own year arithmetic uses 12 months and leap days |
+| **STILL UNRESOLVED** | 1X1-05 (scale fixed across pivots and timeframes) | Grains keep one scale across daily/weekly/monthly; cotton does not; **stocks: daily chart only** |
+| **STILL UNRESOLVED** | SWG-05, SWG-06 (pivot significance; *k*-day swing) | "Important" and "minor" highs and lows are used but not defined |
+| **STILL UNRESOLVED** | CA-04 (geometry across splits) | [MMPTC] is silent |
+| **STILL UNRESOLVED** | TIM-10 (85–100 points) | Held pending the translation ruling — now joined by every level-based Δ construct (§26.5) |
+| **NEW OPEN ITEMS** | — | The angle rules (Master Forecasting course) and the Special Instructions for scales are referenced but not supplied |
+
+### 26.4 Where this reading differs from the relayed handoff
+
+1. **"144-point stock scale: VERIFIED".** The words are on p. 1, and I agree the handoff quotes them
+   correctly. What they verify is a **chart-ruling convention**: one chart space = one quoted point
+   on stocks, on the daily chart.
+   - The same document sets scales **per instrument and per chart timeframe** (p. 5) and defers
+     other scales to Special Instructions that were not supplied.
+   - It gives no stock scale for weekly or monthly charts, no rule by price level, and no unit other
+     than 1950s US quotation points.
+   - The replacement for F0's "no equity scale rule found" should therefore read: *"A stock
+     chart-space convention is documented in the 1953 Calculator — 1 point per space on the daily
+     chart (9 spaces = 9 points; one 144 column = 144 points). Gann does not specify its transfer to
+     NSE rupee prices."*
+   - The handoff's own six unresolved items (universality, per-stock scale, fixity across pivots,
+     anchors, 45°-to-1×1 equivalence, corporate actions) are, together, **the scale problem itself**.
+2. **360°.** Agreed that geometry is verified and a 360-day **annual** cycle is not. **Addition:**
+   the circle divisions are applied directly to time counts in days, weeks or months (pp. 2, 8), and
+   15° is about 15 days (p. 9).
+   - So circle-division day counts from highs and lows (F0-ANN-11; catalogue GT-3) are **VERIFIED**.
+     The handoff did not list this.
+   - It is a different claim from the annual anniversary.
+3. **Angles.** Agreed that the framework is verified. However, Gann himself defers the operational
+   angle rules to the Master Forecasting course (p. 6). The only angle rule stated in [MMPTC] is the
+   break below 45° on the inner square (p. 5). *Verified construct* and *faithfully mechanizable
+   rule* are therefore different statuses for GF-2.
+4. **Square of Nine.** The handoff made no claim. Recorded for clarity: the spiral is not in [MMPTC].
+5. **Provenance.** The handoff treats [MMPTC] as settled. It is an operator-supplied typescript of
+   unstated origin, with two re-set pages. The 360° circle claim does not depend on the re-set
+   pages — it is also on p. 2 in the original typeface.
+
+### 26.5 Revised answer to THE FIXED-SCALE 1×1 QUESTION (§15)
+
+| # | Element | Answer after Δ1 |
+|---|---|---|
+| 1 | Reference quantity | Chart spaces: one space per time unit and per price unit (Δ-02, Δ-10) |
+| 2 | Price unit | **Stocks: 1 point per space, daily chart** (Δ-02). Weekly/monthly stock scales not given |
+| 3 | Time unit | Days (calendar **or** market), weeks, months (Δ-02, Δ-10) |
+| 4 | Scale selection | Per instrument and chart; stocks by the daily convention only; no price-level rule |
+| 5 | Anchor selection | Listed options: 0, extreme low, extreme high, halfway point, previous highs/lows, January (Δ-09). No rule for choosing among them; significance undefined |
+| 6 | Scale fixed across pivots | Not stated for stocks |
+| 7 | Scale per instrument | Yes (Δ-02) |
+| 8 | Corporate actions | Not addressed |
+| 9 | Arithmetic / log | Arithmetic spaces |
+| 10 | Causal? | Can be made causal with confirmed, running anchors (definition document §1) |
+| 11 | Objectively reproducible? | Yes, conditionally — see the verdict |
+
+**Revised verdict: `FAITHFUL BUT UNDER-SPECIFIED` — conditional on one operator ruling.**
+
+Gann specifies the quantity, the stock unit on the daily chart, the time units, the 45° definition
+and the candidate anchors. He does **not** specify:
+- the transfer from US quotation points to NSE rupees;
+- stock scales for weekly and monthly charts;
+- the choice of anchor;
+- the angle rules;
+- corporate-action treatment.
+
+The verdict holds **only if** the operator rules that the literal reading "1 quoted point = ₹1 per
+space on the daily chart" is admissible as a **declared assumption**. **If that ruling is refused,
+the §15 verdict reverts to `NOT FAITHFULLY TESTABLE FROM PRIMARY SOURCES`.**
+
+The same ruling governs TIM-10 and every level-based construct in Δ1. It must be made once and
+applied uniformly.
+
+### 26.6 Revised decision matrix (supersedes §22 lists where they conflict)
+
+- **Arm 1 — faithful Gann.** All are under-specified, have their mechanization declared, and are not
+  frozen. Definitions are in `PTMS_GANN_FAITHFUL_CONSTRUCT_DEFINITION_2026-09-14.md`.
+  - GF-1 Master Square time points (Δ-01, Δ-05, Δ-06).
+  - GF-2 45° / geometric angle framework (Δ-02 to Δ-04, Δ-08). The framework is verified; rules
+    beyond the inner-square 45° break are incomplete.
+  - GF-3 Square of high / low / range (Δ-04, Δ-07).
+  - GF-4 360° circle divisions as time points (GF-4T) and price points (GF-4P) (Δ-11, Δ-12).
+  - GF-5 Pivot anniversary — month / year resolution (ANN-01, Δ-17).
+  - GF-6 Absolute reaction-duration rules (TIM-03, TIM-04, Δ-16).
+  - GF-7 Third-month / 3rd–4th move / 6–7 week culmination (TIM-01, TIM-09, Δ-16).
+  - **Dependency:** GF-2, GF-3 and GF-4P, and GF-1 wherever a price level enters, depend on the
+    translation ruling.
+- **Arm 2 — Gann-inspired modern reinterpretation.** Never evidence for or against Gann.
+  - GA-3 / GS-5 — explicitly *not a test of Gann's documented angle method*.
+  - ATR-, σ- and prior-swing-scaled angles.
+  - GO-2 relative duration.
+  - GS-3, GT-2, GT-7.
+  - Any common-parameter cross-sectional aggregation.
+- **Arm 3 — generic:**
+  - GA-2 / GS-4;
+  - N-period breakouts;
+  - GT-4 applied to a stock cross-section.
+- **Reject:** GA-5 (pixel geometry), GN-4 (overlay reading), GO-4, GT-5 (Great Cycle and long
+  cycles — at most one repetition in span).
+- **Hold (not enough evidence):**
+  - GN-1 to GN-3 (Square-of-Nine spiral);
+  - 360-day annual form of GT-1;
+  - GO-5;
+  - GT-6;
+  - TIM-10, until the translation ruling.
+
+### 26.7 Operator questions added by Δ1
+
+1. **Translation ruling.** Is "1 quoted point = ₹1 per space (daily chart)" admissible as a declared
+   assumption? This decides GF-2, GF-3, GF-4P and TIM-10 together.
+2. **Read the two supplied, uninspected books** (*45 Years in Wall Street*; *How to Make Profits in
+   Commodities*) before any freeze. They bear directly on relative time overbalance, the 360-day
+   question, and further time rules. This repeats the failure mode recorded in §20 item 8 if skipped.
+3. **Provenance of [MMPTC]** — its origin, and why pp. 8–9 were re-set.
+4. **Missing referenced material:** the Master Forecasting course (angle rules) and the Special
+   Instructions (scales).
+5. **Price basis** for level-based constructs: as-traded, and a corporate-action policy (Gann is silent).
+
+### 26.8 Governance
+
+- Δ1 is a pre-experiment source clarification. **No market data or outcomes were read.**
+- **No RFA, TRAIN/HOLDOUT, backtest or parameter choice.**
+- **Nothing frozen.**
+- Families B, C, D, F, G and PTMS-G-PTSQ are untouched.
+- The catalogue is amended by addendum only (its §21), under the operator's handoff authorization.
