@@ -9,6 +9,9 @@ modified here.
 **Delta:** §26 is a **primary-source delta added after F0** (1953 *Master Mathematical Price Time and
 Trend Calculator*; *New Stock Trend Detector*). §§0–25 are the unchanged F0 record, including the
 statement above that the catalogue was not modified. Where §§0–25 and §26 conflict, **§26 governs**.
+**Delta Δ2:** §27 is a second primary-source delta (*45 Years in Wall Street*, 1949). Where §26 and
+§27 conflict, **§27 governs**. Several §27 dispositions contradict operator rulings of 2026-09-14 and
+are **recommendations pending operator acceptance** (§27.5).
 
 ---
 
@@ -1678,3 +1681,109 @@ applied uniformly.
 - **Nothing frozen.**
 - Families B, C, D, F, G and PTMS-G-PTSQ are untouched.
 - The catalogue is amended by addendum only (its §21), under the operator's handoff authorization.
+
+---
+
+## 27. PRIMARY-SOURCE DELTA Δ2 — *45 Years in Wall Street* (added after Δ1)
+
+**Recorded:** 2026-09-14, after commit `7d6d6f3`.
+**Trigger:** design decision A (is *45 Years* / *How to Make Profits in Commodities* needed before a
+freeze?) and Δ1 operator question 2. Reading a supplied book to answer a decision is not a repeat of
+the F0 source hunt; no new source was searched for or downloaded.
+**Method:** the scan has no text layer. Pages were rendered and read on the page; the Rule 8
+overbalance passage (pp. 11–12) was re-rendered at 170 dpi before being recorded, because it reverses
+F0 TOB-02. Quotations are short; everything else is paraphrase with printed page numbers.
+
+### 27.1 Sources
+
+| Key | Work | Copy | Reading status |
+|---|---|---|---|
+| **[45Y]** | *45 Years in Wall Street*, W. D. Gann, 1949 (foreword dated July 2, 1949) | Operator-supplied scan of a Lambert-Gann Publishing reprint, SHA-256 `183ed23850c7056f47e7242f6fc0264b294ecf19e87fdca303fe3137064e70dc`; 79 two-page image spreads, no text layer. **Edition: reprint** (original pagination printed) | **Read:** contents; pp. 1–45 (Rules 1–12, 24 rules, chs. III–V); pp. 56–63; pp. 74–75; pp. 82–83; pp. 90–95; pp. 100–101. **Not read:** pp. 46–55, 64–73, 76–81, 84–89, 96–99, 102 to end (chs. X–XVI except pp. 100–101) |
+| **[HMPC-it]** | *How to Make Profits in Commodities* | Operator-supplied, SHA-256 `782d312aa9c7f3ad7672332368266d2eebcc433af708be7c347e852f4032b89c`, 226 pp. **An Italian translation** (title page, index and body in Italian; p. 151 checked). Copyright lines cite the 1942 original, the 1951 revision and a 1976 edition | **Contents and p. 151 only.** A translation is **inadmissible for wording-dependent claims** (F0 §1 method). F0-TOB-03's reported commodities passage therefore stays unverified from this copy |
+| — | *How to Make Profits Trading in Puts and Calls* | SHA-256 `d8ad4cb0751e26c3d3815b7aa75e4109f43ea35632614334bf5b79dfe507ea67` | Not inspected |
+
+### 27.2 New verified claims (Δ2 entries)
+
+| ID | Claim (paraphrase unless quoted) | Locator | Status | Op. |
+|---|---|---|---|---|
+| Δ2-01 | **Relative time overbalance.** Averages or individual stocks become over-balanced after a considerable period of time; the greater the time, the greater the correction. "When a Time period on a decline exceeds the Time period of a previous decline it indicates a change in trend." Bear market: the first time a rally exceeds the time period of a previous rally, the trend is changing, at least temporarily | [45Y] p. 11 (Rule 8, *Market Over-Balanced*), p. 12 | VERIFIED | With explicit assumptions (swing detector, "previous", market state) |
+| Δ2-02 | **Price overbalance and its rank.** A decline breaking a greater number of points than the previous decline, or a rally gaining more points than a previous rally, is Over-Balanced and a change in trend. "The Time change is more important than reversal in price" | [45Y] pp. 11–12 | VERIFIED | Within-stock comparison of two moves; no unit translation needed |
+| Δ2-03 | Time overbalancing price and volume: time can overbalance price, and when time is up, volume increases | [45Y] p. 10 (Rule 8) | VERIFIED | NOT OPERATIONAL (causal assertion) |
+| Δ2-04 | **Greatest time period as reference.** Keep in mind at all times the greatest time period (the greatest correction in an advance; the greatest rally time in a decline). Worked examples cite Rule 8 time periods | [45Y] p. 39 (ch. V); examples pp. 41, 45 | VERIFIED (reference quantity) | The exceedance rule itself is stated in Δ2-01 against "a previous" decline |
+| Δ2-05 | **Diminishing sections.** Campaigns run 3 to 4 sections. Near the end of a long swing, at the 3rd or 4th section, swings are smaller in price and the time period is less than the previous section — a change in trend is due. Mirror in a bear market | [45Y] p. 9 (Rule 5); p. 12 (Rule 8) | VERIFIED | Needs a section definition |
+| Δ2-06 | **Day-count windows.** When looking up dates for a change in trend, check whether the market has run from any high or low 7–12, 18–21, 28–31, 42–49, 57–65, 85–92, 112–120, 150–157 or 175–185 days; the more important the top or bottom, the more important the change | [45Y] p. 11 (Rule 8) | VERIFIED | Window widths are Gann's; anchor importance undefined |
+| Δ2-07 | **Seasonal dates** for changes in trend, for averages and individual stocks (twice-monthly bands for all 12 months; September the most important); holiday dates | [45Y] pp. 10–11 (Rule 8); p. 13 (Rule 10) | VERIFIED | Market-wide calendar: identical for every stock (§27.4 item 4) |
+| Δ2-08 | **Reaction-duration norms.** Buy on a 3 weeks' reaction in a bull market. After a 30-day-or-more move, the next time period to watch is around 6–7 weeks; after more than 45–49 days, around 60–65 days, "about the greatest average time" a bear market rallies or a bull market reacts | [45Y] pp. 8–9 (Rule 4) | VERIFIED | With explicit assumptions |
+| Δ2-09 | **Percentage rules.** Buy or sell on a 50% decline from any high level or a 50% advance from any low level, with the main trend; percentage bands 3–5, 10–12, 20–25, 33–37, 45–50, 62–67, 72–78, 85–87; the most important resistance levels are 50% and 100%. Ch. IV develops percentages of extreme high and low prices as resistance, ranked by importance, with the halfway point between extreme high and low and 50% of the highest selling price | [45Y] p. 8 (Rule 3); pp. 30–38 (ch. IV); pp. 94–95 | VERIFIED | Scale-free (ratios of the stock's own prices) |
+| Δ2-10 | **3-Day Chart construction rule.** Advancing with higher bottoms and higher tops for 3 consecutive days moves the chart to the top of the third day; 2-day reactions are not recorded; the line follows each day's top until 3 days of lower bottoms, then moves to the low of the third day. 2-day moves are recorded near extreme highs or lows or in very wide fluctuations. Moves are based on calendar days | [45Y] p. 63; p. 61 | VERIFIED | Mechanical except the 2-day exception (discretionary) |
+| Δ2-11 | **Change in trend on the swing chart.** Breaking the last low on the 3-Day (or 9-Point) chart indicates the trend is changing, at least temporarily; in a declining market, crossing the top of the last upswing is the first signal | [45Y] p. 13 (Rule 10); p. 63 | VERIFIED | Directly operational given Δ2-10 |
+| Δ2-12 | **Exact years and months.** Check whether the market is exactly 1, 2, 3, 4 or 5 years from any extreme high or low, and whether the time period is 15, 22, 34, 42, 48 or 49 months | [45Y] p. 13 (Rule 10) | VERIFIED | "Exactly" has no stated tolerance |
+| Δ2-13 | **Anniversary dates.** Stocks make an important change in trend in the months where they reached extreme high and low; "what I call anniversary dates", to be watched each year. Worked record on the averages from the 1929 high and 1932 low, plus other extreme-high/low dates | [45Y] pp. 92–93 (ch. IX) | VERIFIED | Month resolution in the rule; day dates in the examples |
+| Δ2-14 | **Modal cycle.** With a record of the time of each important swing, watch for a change in trend at the end of the time cycle that has repeated the greatest number of times | [45Y] p. 57 (ch. VI, *Time Periods for Important Swings on the Averages*); swing tables in calendar days | VERIFIED | Stated for the averages |
+| Δ2-15 | **Elapsed time and breakouts.** The longer the time elapsed when a top is crossed or a bottom broken, the greater the move should be; the time period is most important | [45Y] p. 62 | VERIFIED | With explicit assumptions |
+| Δ2-16 | **Averages vs individual stocks.** Individual stocks' time periods run out sooner or later than the averages', but the averages guide dates; trade stocks that conform to the averages' trend (Rule 1). The averages have dividends and split-ups figured in; a true average would use actual selling prices | [45Y] p. 60; p. 7 (Rule 1) | VERIFIED | Scope qualifier (§27.4 item 3) |
+| Δ2-17 | **Nominal-point rules** (added to the translation family): double tops within 2–3 points on stocks (Rule 2); 5–7, 10–12, 18–21 point reactions (Rule 6); fast markets about 1 point per calendar day (Rule 12); 9-Point Swing Chart (p. 75); 5 points beyond an old top or bottom (pp. 38, 62). Gann notes point stops depend on "how high stocks are selling" (p. 8) | [45Y] pp. 7–9, 14, 38, 62, 75 | VERIFIED | Needs the §26.5 translation ruling |
+
+### 27.3 Disposition of earlier findings
+
+| Disposition | IDs | What changed |
+|---|---|---|
+| **OVERTURNED** | TOB-02 (relative duration rule) | NOT FOUND → **VERIFIED** (Δ2-01). F0 scoped the absence to [TST]/[WSSS] and named *45 Years* as unread; that scoping was correct. Wording: Gann compares with **"a previous" decline** (Rule 8); the **greatest** time period is a separate reference quantity (Δ2-04). The F0 paraphrase "largest previous reaction" matches Δ2-04, not the Rule 8 exceedance rule |
+| **OVERTURNED** | TOB-03 (time overbalancing price / volume) | SECONDARY-ONLY → **VERIFIED** for [45Y] p. 10 (Δ2-03). The commodities passage remains unverified (translation only) |
+| **OVERTURNED** | SWG-06 (*k*-day swing chart) | SECONDARY-ONLY → **VERIFIED** for *k* = 3, calendar days (Δ2-10). The 9-Point chart is also verified but is a nominal-point rule (Δ2-17) |
+| **OVERTURNED** | RET-01 (range divisions / percentages) | Partly overturned in Δ1 → **VERIFIED** (Δ2-09). The verified content is **percentages of the stock's own high and low prices**, plus range fractions at pp. 94–95 |
+| **STRENGTHENED** | TOB-06 (time primacy) | Now **overbalance-specific**: time change outranks price reversal (Δ2-02) |
+| **PARTLY RESOLVED** | SWG-05 (pivot significance) | A mechanical swing detector exists (Δ2-10). "Important" tops and bottoms are still ranked but not defined (Δ2-06) |
+| **STRENGTHENED** | TIM-03, TIM-04, Δ-16 (duration norms) | Rule 4 day norms (Δ2-08) |
+| **STRENGTHENED** | TIM-01, TIM-09 (culmination) | Rule 5 sections and Rule 8 diminishing sections (Δ2-05) |
+| **STRENGTHENED** | ANN-01, ANN-02, Δ-17 (anniversary) | Ch. IX anniversary dates and Rule 10 exact years (Δ2-12, Δ2-13) |
+| **STRENGTHENED** | ANN-04 (seasonal dates) | Rule 8 seasonal bands (Δ2-07) |
+| **STRENGTHENED** | ANN-11, Δ-11 (time counts from highs and lows) | Gann-specified day windows with widths (Δ2-06) |
+| **STRENGTHENED** | PRB / CA (price basis) | Gann prefers actual selling prices over split-adjusted averages for a "true" average (Δ2-16) |
+| **QUALIFIED** | XS-01 to XS-03, Δ-18 (individual study) | 1949 keeps per-stock rules (Rules 3 and 8 name individual stocks) but uses the averages to time dates and select conforming stocks (Δ2-16). A tension of emphasis, not a contradiction |
+| **NEW (catalogue GT-7)** | — | Modal swing duration VERIFIED, stated for the averages (Δ2-14) |
+| **STILL UNRESOLVED** | ANN-05 (360-day annual cycle) | Not in the pages read: *45 Years* counts in calendar days, months and years |
+| **STILL UNRESOLVED** | SQ9-01 to 03 (Square-of-Nine spiral, √P) | Not in the pages read |
+| **STILL UNRESOLVED** | TIM-10 and all Δ2-17 point rules | Translation ruling |
+| **STILL UNRESOLVED** | CA-04 | *45 Years* pages read do not treat geometry across splits |
+
+**Corrections to §24 (recorded here, §24 not edited):**
+- **D1** — Wrong after Δ2. The relative duration rule is Gann's (Δ2-01). The catalogue's GO-2 is
+  **near-verbatim in its time leg**. Its modern additions remain modern: log depth, session counts,
+  "longer than the longest prior" as the primary comparison, and k ∈ {1, 2}.
+- **D2** — Wrong after Δ2. Gann ranks the time change above the price reversal **within the
+  overbalance rule** (Δ2-02). The fidelity review's time-vs-price contrast has a textual basis.
+
+**Correction to §16 status:** "GO-2 relative-duration form: Arm 2, pending the 1941/1949 texts" — the
+1949 text is now read, and the relative form is faithful (recommended Arm 1 as GF-10; §27.5).
+
+### 27.4 Notes for construct design (textual, not outcome-based)
+
+1. **Percentages bypass the translation problem.** Δ2-09 and the price leg of Δ2-02 compare a stock's
+   prices with its own prices. Neither needs a rupee ↔ point ruling.
+2. **Gann supplies tolerances in 1949.** Δ2-06's windows have widths. Tolerance *w* is no longer a free
+   slot for that construct.
+3. **Averages vs stocks.** Rules 3, 4 and 8 name individual stocks or apply to "the market" generally.
+   Ch. VI's modal cycle and the Ch. IX worked record are stated on the averages. A per-stock version of
+   those is a declared extension.
+4. **Market-wide calendars cannot enter a stock cross-section.** Seasonal and holiday dates (Δ2-07)
+   and Ch. VIII's months of extreme highs are the same for every stock. A per-date rank IC over N100 has
+   no variation to rank. They belong to an index design (Family C/D), not N100.
+5. **Numerical note, not a Gann claim:** the Rule 8 day windows bracket 1/32, 1/16, 1/12, 1/8, 1/6,
+   1/4, 1/3, 7/16 and 1/2 of 360. *45 Years* does not say so in the pages read. Do not attribute it; do
+   count GF-4T/R8 and the [MMPTC] circle divisions as **one** construct family for multiplicity.
+
+### 27.5 Conflicts with operator rulings of 2026-09-14 (recommendations only)
+
+| Ruling | Text of ruling | Δ2 evidence | Recommendation |
+|---|---|---|---|
+| 7 | "Keep relative time-overbalance unresolved / Arm 2" | Δ2-01, Δ2-02 (verified at 170 dpi) | Restore the relative form to **Arm 1 as GF-10**. **Requires operator acceptance** — not applied to any classification until then |
+| 5 | Candidate set GF-1..GF-7 | Δ2-09, Δ2-14 | Add **GF-8** (percentage levels) and **GF-9** (modal swing duration) as candidates |
+| 6 | GA-3/GS-5 and normalized variants stay Arm 2 | — | Unchanged. The Δ2 percentage rules are not a licence for normalized angles |
+| 8 | Square-of-Nine / 360-day annual cycle unresolved | §27.3 | Unchanged |
+
+### 27.6 Governance
+
+- Δ2 is a pre-experiment source clarification. **No market data or outcomes were read.**
+- **No RFA, TRAIN/HOLDOUT, backtest or parameter fit.** **Nothing frozen.**
+- §§0–26 are unedited. The supplied PDFs are not committed (copyright uncertain).

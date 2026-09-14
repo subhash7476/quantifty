@@ -6,6 +6,11 @@
 parameter was chosen, no market data or outcome read, and no RFA, TRAIN/HOLDOUT or backtest run. See
 §6.
 
+**Addendum (§12, after register delta Δ2 — *45 Years in Wall Street*):** proposes GF-8, GF-9 and
+GF-10 and adds 1949 primary bases to GF-4T to GF-7. §§0–11 are unedited. GF-10 contradicts operator
+ruling 7 and is **pending operator acceptance**. Design choices are in
+`PTMS_GANN_PREREG_DESIGN_DECISIONS_2026-09-14.md`.
+
 **Inputs:**
 - `PTMS_GANN_PRIMARY_SOURCE_CLAIM_REGISTER_2026-09-14.md` — F0 §§0–25 and delta Δ1 §26. Claim IDs
   cited as `TIM-03`, `Δ-07` etc. are from there.
@@ -394,3 +399,95 @@ arithmetic that closed C5, C4 and F1 applies to whatever *m* is pinned.
   predictive power.
 - Arm 2 reinterpretations (GA-3 / GS-5 and scaled angles) are **not** faithful tests of Gann's
   documented method and must be labelled so if ever run.
+
+---
+
+## 12. Addendum — Δ2 candidates and 1949 updates
+
+**Source key:** **[45Y]** — *45 Years in Wall Street*, 1949 (reprint scan; register §27.1). Claim IDs
+`Δ2-nn` are register §27.2.
+
+### 12.1 Cross-cutting slots now given a Gann basis
+
+| Slot | §1 status | 1949 basis | Candidate pin (recommendation, not frozen) |
+|---|---|---|---|
+| **K** — swing detector | Open (SWG-05/06) | 3-Day Chart rule, [45Y] p. 63 (Δ2-10) | **K3**: strict 3-Day Chart. The 2-day exception near extremes is discretionary, so it is **not** applied (declared departure) |
+| **T** — time unit | Calendar or market days | "All of these moves are based on calendar days", p. 61; ch. VI tables in calendar days | **Calendar days** for every 1949 rule. GF-1 (1953, both admissible) is pinned to calendar days for one convention across the battery |
+| **O** — change in trend | O1–O4 | Rule 10, p. 13 (Δ2-11) | **O-R10**: on K3, a break of the last swing low (trend was up) or a cross of the last swing top (trend was down) |
+| **Market state** | Unspecified | Rule 9, p. 12: higher tops and bottoms = main trend up | **S9**: the last two K3 tops and bottoms both rising = bull state; both falling = bear state; otherwise no state |
+| **Tolerance *w*** | Free | Rule 8 day windows carry widths (Δ2-06) | Gann's widths for GF-4T/R8; exact date (next session if a holiday) where Gann gives none |
+| **Price basis** | CA-POL | Averages carry split-ups; a true average uses actual prices, p. 60 (Δ2-16) | Stage 1 (ratios and durations): an as-of-*t* ratio-adjusted series. Stage 2 (levels): as-traded, CA-POL |
+
+### 12.2 GF-8 — Percentage of the stock's own high and low
+
+| # | Field | Definition |
+|---|---|---|
+| 1 | Primary basis | [45Y] p. 8 (Rule 3); pp. 30–38 (ch. IV); pp. 94–95. Register Δ2-09; supersedes RET-01 |
+| 2 | Source claim | A 50% decline from any high, or a 50% advance from any low, with the main trend, is a buying or selling point; the listed percentage bands and 100% act as resistance; 50% of the highest selling price and the halfway point of extreme high and low matter most |
+| 3 | Specified by Gann | Bands {3–5, 10–12, 20–25, 33–37, 45–50, 62–67, 72–78, 85–87}%; 50% and 100% most important; with the main trend; importance ranking in ch. IV |
+| 4 | Unspecified | Which high or low ("any"); the time dependence ch. IV mentions but does not quantify; what "resistance" does (hold vs reverse); horizon |
+| 5 | Implementation assumptions | Anchor = to-date extreme high (decline leg) / extreme low (advance leg), left-censored (§1.3); band 45–50% as Gann gives it; S9 main trend; O-R10 or a K3 turn inside the band; *h* |
+| 6 | Faithfully mechanizable? | **Yes, with declared assumptions.** Scale-free: no translation ruling |
+| 7 | Stock / index | Per stock (Rule 3 names individual stocks); index-compatible |
+| 8 | Corporate actions | Ratio-invariant on an as-of-*t* adjusted series. Exclude windows spanning non-ratio events |
+| 9 | Dimensional / scale | Dimensionless |
+| 10 | Causal / PIT | Anchor to date; band entry at close *t* |
+| 11 | Null / controls | (i) **Placebo bands** at non-Gann percentages with equal width (e.g. 38–43%, 53–58%); (ii) surrogate price paths per stock; (iii) momentum and σ; (iv) price-level strata (diagnostic). **Also the price-only control for GF-10** |
+| 12 | Multiplicity | Illustrative: band {50% of high, halfway of range} 2 × leg {decline, advance} 2 × outcome 2 → **8 cells** |
+
+### 12.3 GF-9 — Modal swing duration
+
+| # | Field | Definition |
+|---|---|---|
+| 1 | Primary basis | [45Y] p. 57 (ch. VI); swing tables in calendar days. Register Δ2-14 |
+| 2 | Source claim | Record the time of each important swing; watch for a change in trend at the end of the time cycle that has repeated most often |
+| 3 | Specified by Gann | Per-market history of swing durations; the mode; calendar days |
+| 4 | Unspecified | "Important" swings; binning of durations; minimum history; tolerance |
+| 5 | Implementation assumptions | K3 swings; bins (declared, e.g. Rule 8 window bands reused as bins — a textual, not fitted, choice); expanding history to date; *w* = bin width |
+| 6 | Faithfully mechanizable? | Yes, with assumptions. **Literal on an index** (chapter title: swings on the averages). **Per-stock = declared extension** |
+| 7 | Stock / index | Index literal; stock extension |
+| 8 | Corporate actions | Anchor identification only |
+| 9 | Dimensional / scale | Calendar time |
+| 10 | Causal / PIT | Mode from swings completed before *t* |
+| 11 | Null / controls | (i) surrogate swings; (ii) placebo quantile (median, 75th percentile); (iii) time-only hazard |
+| 12 | Multiplicity | Illustrative: binning 2 × direction 2 → **4 cells** |
+
+### 12.4 GF-10 — Rule 8 time overbalance (PENDING operator acceptance; ruling 7)
+
+| # | Field | Definition |
+|---|---|---|
+| 1 | Primary basis | [45Y] pp. 11–12 (Rule 8, *Market Over-Balanced*); p. 39 (greatest time period); p. 62. Register Δ2-01, Δ2-02, Δ2-04, Δ2-15 |
+| 2 | Source claim | In an advancing market, when the time of a decline exceeds the time of the previous decline, a change in trend is indicated; in a long decline, the first rally exceeding the previous rally in time signals a change, at least temporarily. Price overbalance is the parallel rule, and the time change is the more important |
+| 3 | Specified by Gann | Current vs previous counter-move **duration**; bull and bear mirrors; "first time"; time ranked above price |
+| 4 | Unspecified | Swing detector (K3 now available); "previous" = immediately preceding vs greatest prior (p. 39); market state; outcome and horizon |
+| 5 | Implementation assumptions | K3; S9 state; primary comparison = **immediately preceding** counter-move (Rule 8's paired price clause says "the previous decline"); greatest-prior as robustness; event = first session the current counter-move's calendar-day duration exceeds the previous one's; O-R10; *h* |
+| 6 | Faithfully mechanizable? | **Yes, with declared assumptions** |
+| 7 | Stock / index | Per stock ("Averages or individual stocks", p. 11); index-compatible |
+| 8 | Corporate actions | Durations immune. Price leg ratio-invariant on an as-of-*t* series |
+| 9 | Dimensional / scale | Time : time. Price leg points : points within one stock — no translation |
+| 10 | Causal / PIT | Durations from confirmed K3 turning points; the current counter-move's start is confirmed before *t* |
+| 11 | Null / controls | (i) **Surrogate price paths** through identical K3 machinery. **This is the pass criterion, not zero**: a longer decline is mechanically more likely to break the last low; (ii) **price overbalance** (Δ2-02) as Gann's own contrast — time should outrank it; (iii) GF-8 price-only; (iv) time-only hazard; (v) momentum and σ |
+| 12 | Multiplicity | Illustrative: comparison {previous, greatest} 2 × leg {time, price} 2 × direction 2 → **8 cells** |
+
+### 12.5 Updates to GF-4T to GF-7 (additional primary bases)
+
+| Construct | 1949 addition | Effect on the definition |
+|---|---|---|
+| GF-4T | **R8 windows**: 7–12, 18–21, 28–31, 42–49, 57–65, 85–92, 112–120, 150–157, 175–185 days from any high or low; importance weighting ([45Y] p. 11) | Candidate primary basis **GF-4T/R8**: Gann gives the unit and the widths. Counted with the [MMPTC] circle divisions as one family (register §27.4 item 5) |
+| GF-5 | Ch. IX anniversary **months** of extreme highs and lows, each year (pp. 92–93); Rule 10 exactly 1–5 years and 15, 22, 34, 42, 48, 49 months (p. 13) | Resolution = month (the rule sentence); exact-date and month-count forms are robustness |
+| GF-6 | Rule 4: 3-week reaction; after 30+ days next window about 6–7 weeks; after 45–49+ days about 60–65 days, the greatest average bull reaction (pp. 8–9) | Adds an R-49 cell (reaction beyond 65 calendar days). WSSS, NSTD and 45Y agree on about two months |
+| GF-7 | Rule 5: 3–4 sections (p. 9). Rule 8: at the 3rd–4th section, a smaller price gain **and** a shorter time than the previous section = change due (p. 12) | Adds **R8S**: section = a K3 upswing; section count ≥ 3; both gain and duration below the previous section's |
+| TIM-10 and point rules | Rule 2 (2–3 points), Rule 6, Rule 12 (1 point per day), 9-Point Chart, 5-point rule | Join GF-3 / GF-4P in the translation-dependent stage 2 |
+
+### 12.6 Not for an N100 cross-section
+
+- Rule 8 seasonal dates, Rule 10 holiday dates, ch. VIII months of extreme highs: identical for every
+  stock. Index design only (Family C/D).
+- GF-2 (angles): excluded from the first faithful experiment (decision B).
+
+### 12.7 Governance
+
+- **CANDIDATE DEFINITIONS ONLY.** Nothing selected, frozen or approved. GF-10 pending operator
+  acceptance.
+- No market data or outcome read; no RFA, TRAIN/HOLDOUT, backtest or parameter fit. Thresholds are
+  Gann's text.

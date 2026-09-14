@@ -1555,3 +1555,34 @@ selected, not frozen.**
 - No outcome read; no RFA; no TRAIN/HOLDOUT; nothing frozen.
 - No family definition modified.
 - This addendum does not suggest Gann has predictive power.
+
+---
+
+## 22. Addendum — construct status after primary-source delta Δ2 (*45 Years in Wall Street*)
+
+**Authority:** `PTMS_GANN_PRIMARY_SOURCE_CLAIM_REGISTER_2026-09-14.md` §27;
+`PTMS_GANN_PREREG_DESIGN_DECISIONS_2026-09-14.md`. §§1–21 are preserved unedited.
+
+**Rows marked PENDING contradict an operator ruling of 2026-09-14 and are recommendations only.**
+Until the operator accepts them, §21 governs those rows.
+
+### 22.1 Status changes
+
+| ID | Status after §21 | Recommended status | Basis | Pending? |
+|---|---|---|---|---|
+| GO-2 | Relative form Arm 2; absolute durations → GF-6 | **Relative time form → Arm 1 as GF-10.** Price leg (points vs previous decline) → GF-10's Gann-sourced contrast. Modern additions (log depth, session counts, "longest prior" as primary, *k* ∈ {1, 2}) stay Arm 2 | [45Y] pp. 11–12 (Rule 8); p. 39 | **PENDING** (ruling 7) |
+| GO-1 | Partly Arm 1 (halfway anchors) | **Arm 1 as GF-8**: percentage of the stock's own high / low with Gann's bands | [45Y] p. 8 (Rule 3); ch. IV | PENDING (ruling 5, set extension) |
+| GO-5 | Hold | **Arm 1 detector K** = the 3-Day Chart, calendar days. Descriptive, not a test. *k* ∈ {1, 2} remain Arm 2 | [45Y] pp. 61, 63 | No (detector slot, not a construct) |
+| GT-7 | Arm 2 | **Arm 1 as GF-9** (modal swing duration). Literal on an index; a per-stock version is a declared extension | [45Y] p. 57 | PENDING (ruling 5) |
+| GT-4 | Faithful at index level | Unchanged; **strengthened** by the Rule 8 seasonal dates. Market-wide, so never an N100 cross-section | [45Y] pp. 10–11 | No |
+| GT-3 / GF-4T | Arm 1 | Unchanged; adds the Rule 8 day windows (with widths) as a second primary basis. Same family for multiplicity | [45Y] p. 11 | No |
+| GT-1 / GF-5 | Arm 1, month/year | Unchanged; adds Ch. IX anniversary dates and Rule 10 exact years / months | [45Y] pp. 13, 92–93 | No |
+| GF-6 | Arm 1 | Unchanged; adds Rule 4 day norms | [45Y] pp. 8–9 | No |
+| GF-7 | Arm 1 | Unchanged; adds Rule 5 sections and the Rule 8 diminishing-section rule | [45Y] pp. 9, 12 | No |
+| GF-2 | Arm 1 (framework), conditional | **Excluded from the first faithful experiment** (decision B) | Register §26.4 item 3 | No (sequencing) |
+| GF-3, GF-4P, TIM-10 | Arm 1 conditional / held | **Second-stage pre-registration**, conditional on the translation ruling; joined by the [45Y] point rules | Register §27.2 Δ2-17 | No (sequencing) |
+
+### 22.2 Governance
+
+- No outcome read; no RFA; no TRAIN/HOLDOUT; nothing frozen; no family definition modified.
+- This addendum does not suggest Gann has predictive power.
