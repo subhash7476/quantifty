@@ -426,7 +426,7 @@ arithmetic that closed C5, C4 and F1 applies to whatever *m* is pinned.
 | 2 | Source claim | A 50% decline from any high, or a 50% advance from any low, with the main trend, is a buying or selling point; the listed percentage bands and 100% act as resistance; 50% of the highest selling price and the halfway point of extreme high and low matter most |
 | 3 | Specified by Gann | Bands {3–5, 10–12, 20–25, 33–37, 45–50, 62–67, 72–78, 85–87}%; 50% and 100% most important; with the main trend; importance ranking in ch. IV |
 | 4 | Unspecified | Which high or low ("any"); the time dependence ch. IV mentions but does not quantify; what "resistance" does (hold vs reverse); horizon |
-| 5 | Implementation assumptions | Anchor = to-date extreme high (decline leg) / extreme low (advance leg), left-censored (§1.3); band 45–50% as Gann gives it; S9 main trend; O-R10 or a K3 turn inside the band; *h* |
+| 5 | Implementation assumptions | Anchor = a confirmed K3 top formed in S9 bull state (decline leg) / K3 bottom in bear state (advance leg) — Rule 3's "any high level" governs; the to-date extreme high (ch. IV "of greater importance") is robustness; band 45–50% as Gann gives it; O-R10 or a K3 turn inside the band; *h* |
 | 6 | Faithfully mechanizable? | **Yes, with declared assumptions.** Scale-free: no translation ruling |
 | 7 | Stock / index | Per stock (Rule 3 names individual stocks); index-compatible |
 | 8 | Corporate actions | Ratio-invariant on an as-of-*t* adjusted series. Exclude windows spanning non-ratio events |

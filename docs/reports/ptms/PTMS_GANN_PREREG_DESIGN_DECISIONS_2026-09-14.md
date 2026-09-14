@@ -13,7 +13,9 @@ priority list A–E from textual Gann evidence and outcome-independent reasoning
   Wall Street*)**.
 - `PTMS_GANN_FAITHFUL_CONSTRUCT_DEFINITION_2026-09-14.md` — §§0–11 and **addendum §12**.
 - `PTMS_GANN_CONSTRUCT_CATALOGUE_2026-09-14.md` §§21–22.
-- `scripts/research/ptms_gann/gf_power_sketch.py` (this commit) — pure arithmetic.
+- `scripts/research/ptms_gann/gf_power_sketch.py` — pure arithmetic.
+- `scripts/research/ptms_gann/phi_null_check.py` — synthetic random numbers only (null sd and
+  attenuation of a binary-on-binary IC).
 - Operator acceptance message of 2026-09-14 (rulings 1–12).
 
 **The research question:** does Gann's documented price-time framework contain a reproducible
@@ -30,7 +32,7 @@ convenient modern proxy.
 | **B** | Keep GF-2 partial or exclude it? | **Exclude GF-2 from the first faithful experiment.** Gann defers the angle rules to a course not supplied, and GF-2 needs the translation ruling. A partial test would be misread as "Gann angles fail" |
 | **C** | Price / chart-space translation for GF-2 / GF-3 / GF-4P | **The text cannot resolve it.** Gann never converts his point rules across price levels or currencies, though he notes they depend on price level. **Design resolution: two stages.** Stage 1 is translation-free. Stage 2 (GF-3, GF-4P, TIM-10, the 1949 point rules) needs the U-LIT ruling. Recommendation: admit U-LIT as a declared literal assumption for stage 2 only |
 | **D** | Primary cell per surviving construct | **Seven stage-1 primaries:** GF-1, GF-4T/R8, GF-5, GF-6, GF-7, GF-8, GF-10. GF-9 is secondary. Shared pins: 3-Day Chart detector, calendar days, Rule 10 outcome, Rule 9 market state, weekly formations with a 5-session horizon, and a **surrogate-differenced IC as the pass statistic** (§D.3). m = 7 |
-| **E** | Enough power to justify an RFA before any outcome read? | **No — not for a confirmatory test on any forward window the programme can realistically wait for.** At the CB-N50-anchored central band, no primary reaches 0.80 inside 3 forward years. The dense constructs need ~5.3 years; the state constructs 11–13; GF-5 23. Only the undefended optimistic corner clears within 1–3 years. The gate would print PROCEED, but that means only "not provably infeasible". **Recommendation:** do not declare an RFA now. The operator should choose between a declared non-confirmatory kill-screen on the development span, a ≥5-year forward design, or stopping (§E.5) |
+| **E** | Enough power to justify an RFA before any outcome read? | **No.** Every stage-1 score and Gann's Rule 10 outcome are binary, which attenuates any borrowed effect size by 0.26–0.61 (§E.2). At the central band no primary reaches 0.80 inside 10 forward years: the best (GF-4T/R8, GF-1) need 14–16 years; GF-7 and GF-10 33–38; GF-5, GF-6 and GF-8 88–350. **At the optimistic corner, GF-5, GF-6 and GF-8 fail on any forward window of 10 years or less** (10.0, 13.3 and 39.0 years). **Recommendation:** no RFA declaration now. The development span can test only whether effects of the optimistic size exist — the size a forward test would need — for GF-1, GF-4T/R8, GF-7 and GF-10 (§E.5) |
 
 **Rulings affected.** §A's reading contradicts accepted ruling 7 ("Keep relative time-overbalance
 unresolved / Arm 2") on primary evidence (register §27.5). GF-10 is carried here **pending operator
@@ -174,7 +176,7 @@ No choice below uses, or could have used, a market outcome.
 | Anchors | "Any high or low" = confirmed K3 turning points; "extreme" = to-date extreme in the store, left-censored at 2011-03-25 with listing date disclosed | Rule 8, ch. IX; definition §1.3 |
 | Formation | Last session of each calendar week; eligible names per construct | Weekly cadence with non-overlapping outcomes |
 | Horizon *h* | **5 sessions** (the next week) | Statistical design, not Gann: *h* equal to the formation spacing keeps outcomes non-overlapping, which the power arithmetic assumes. Longer *h* (15 sessions ≈ Rule 4's 3 weeks) is robustness only |
-| Statistic | Per-date cross-sectional Spearman IC of construct score vs O-R10, **minus the same IC computed on per-stock surrogate price paths through identical K3 machinery** (§D.3) | Swing mechanics produce duration and timing regularities in noise |
+| Statistic | Per-date cross-sectional Spearman IC of construct score vs O-R10, **minus the same IC computed on per-stock surrogate price paths through identical K3 machinery** (§D.3). Both sides are binary, so the IC is φ (§E.2) | Swing mechanics produce duration and timing regularities in noise |
 | Pooling | N100 PIT, per-stock construction, date-clustered inference | Definition §1.8; ruling 9 |
 | Multiplicity | **m = 7** primaries, Bonferroni α = 0.05/7 one-sided | One cell per construct |
 
@@ -198,7 +200,7 @@ placebo windows (definition §1.7) are an additional control, not a substitute.
 | **GF-10** time overbalance *(pending ruling 7)* | Stock in S9 bull state, in a K3 decline. Score 1 from the first session its calendar-day duration exceeds the **immediately preceding** K3 decline's duration. Bear mirror pooled with sign | Rule 8 verbatim; "the previous decline" in the paired price clause | Greatest prior decline (p. 39); price overbalance leg; *h* = 15 | Surrogates; price overbalance (Gann ranks time above it); GF-8; momentum, σ |
 | **GF-6** reaction duration | Bull-state K3 reaction exceeding **65 calendar days** without a new high | Three texts agree on about two months: WSSS monthly rule, NSTD p. 38, [45Y] Rule 4 "60 to 65 days … the greatest average time" | 3–4 weeks (WSSS weekly; needs the "active" filter); 6–7 weeks | Surrogates; placebo thresholds (40 / 90 days) |
 | **GF-7** culmination | Rule 8 diminishing section: bull-state K3 upswing number ≥ 3 whose price gain **and** duration are both below the previous upswing's. Score at confirmation | [45Y] p. 12 states it with both legs; Rule 5 p. 9 gives the 3–4 count | 3rd/4th move alone (WSSS); 6–7 weeks fast move | Surrogates; placebo counts (2nd, 5th); one leg only |
-| **GF-8** percentage | Close within 45–50% below the to-date extreme high while S9 is bull; score = inside the band | Rule 3's band; "most important resistance levels are 50%"; 50% of the highest selling price ranked highest in ch. IV | Halfway of extreme range; 100% advance from low; other bands | Placebo bands (38–43%, 53–58%); surrogates |
+| **GF-8** percentage | Close within 45–50% below a confirmed K3 top formed while S9 was bull (the reaction's own high); score = inside the band | **Anchor chosen on wording:** Rule 3 says "a 50% decline from **any** high level", so the rule sentence governs over ch. IV's importance ranking. The wider anchor does not rescue power — the flag stays sparse (§E) | To-date extreme high (ch. IV "of greater importance"); halfway of extreme range; 100% advance from low; other bands | Placebo bands (38–43%, 53–58%); surrogates |
 | **GF-4T/R8** day windows | Score 1 if next week's sessions fall inside any Rule 8 window counted from the **last confirmed** K3 top or bottom | Gann supplies the unit and widths (p. 11) — no free tolerance | All K3 turns in the last 185 days; [MMPTC] circle tier D1 + quarters; importance weighting | Coverage-matched placebo windows; surrogates |
 | **GF-1** Master Square | Score 1 if next week contains a date *n* ∈ P4 = {36, 48, 72, 96, 108, 144} calendar days (repeating every 144) from the to-date extreme high or low | [MMPTC] p. 4 names P4 as where "most changes in trend occur"; P8 is the broader "strongest points" list | P8; weeks and months as units; K3 turns as anchors | Placebo fractions of 144; coverage-matched null; surrogates |
 | **GF-5** anniversary | Monthly: score 1 if the calendar month is the month of the stock's to-date extreme high or low, anchor ≥ 12 months old. **Outcome variant:** an "important" change — an O-R10 signal whose following K3 swing outlasts the preceding swing (Rule 8's own importance criterion) | Ch. IX rule sentence is at month resolution; WSSS p. 55 and NSTD p. 14 agree on yearly repetition | Rule 10 exact 1–5 years at day resolution; 15/22/34/42/48/49 months | Random-anchor anniversaries (seasonality); placebo lags (10 / 14 months) |
@@ -230,41 +232,59 @@ placebo windows (definition §1.7) are an additional control, not a substitute.
   the √T wall that killed RS-MOM.
 - Noncentral t, ncp = δ·√n/sd (`scripts/rfa/power.py`), one-sided, α = 0.05/7 = 0.00714.
 
-### E.2 Bands (arithmetic assumptions, not estimates)
+### E.2 Bands and the binary-statistic correction
 
 | Input | Optimistic | Central | Pessimistic | Defence |
 |---|---|---|---|---|
-| δ (mean surrogate-differenced IC) | 0.06 | **0.03** | 0.01 | Central anchored on CB-N50 HOLDOUT IC +0.029 — the repo's best out-of-sample cross-sectional association, **on a different hypothesis**. It is borrowed; **there is no independent Gann-specific effect-size evidence** |
-| sd of per-date IC | 1/√(k−1) | ×1.5 | ×2 | The optimistic value is the independence floor. **Date clustering and surrogate differencing both raise sd**, so the "optimistic" corner assumes away known dependence |
-| k eligible names | 100 for flag constructs; 40–50 for state constructs (names in a qualifying swing) | | | Design estimates, not measured |
-| n | Formation dates per year × years | | | Weekly (52) except GF-5 (12) |
+| Latent δ | 0.06 | **0.03** | 0.01 | Central anchored on CB-N50 HOLDOUT IC +0.029 — a continuous feature vs a continuous forward return, **on a different hypothesis**. Borrowed; **no independent Gann-specific effect-size evidence exists** |
+| Attenuation to φ | × *a*(*p*, *q*) | same | same | Stage-1 scores are Gann's binary rules and O-R10 is binary. Under a bivariate-normal threshold model, φ ≈ ρ·φ(*z_p*)·φ(*z_q*)/√(*p*(1−*p*)*q*(1−*q*)). Checked on synthetic data (`phi_null_check.py`): simulated vs analytic means agree within 0.001 except at *p* = 0.02 |
+| sd of per-date IC | 1/√(*k*−1) | ×1.5 | ×2 | The permutation-null sd of a correlation is 1/√(*k*−1) for **any** margins. Simulated 0.0995–0.1607 against 0.1005–0.1601; a margin-dependent formula was checked and rejected. The multipliers stand in for date clustering and surrogate differencing |
+| Defined dates | × P(defined) | | | A date counts only if both score and outcome vary across the *k* names. Sparse flags lose dates (44% at *p* = 0.02, *k* = 40) |
+| *k*, *p*, *q* | per construct | | | **Design assumptions, never measured.** *q* = 0.30 for all constructs (5-session Rule 10 base rate, assumed). *p* from construct geometry for GF-1, GF-4T/R8 and GF-5; from symmetry for GF-10; assumed for GF-6, GF-7, GF-8 and GF-9 |
 
-### E.3 Results (script output, `scripts/research/ptms_gann/gf_power_sketch.py`)
+**Correction record.** The first commit of this document (`cb7886e`) computed power as if the IC were
+graded, with no attenuation and no undefined dates. It understated the required years by roughly 3× for
+the dense constructs and far more for sparse ones. §E.3 supersedes it. The first version also gave
+GF-8 *k* = 100, which was inconsistent with its sparse state definition.
 
-Power at forward horizons (optimistic / central):
+### E.3 Results (script output, `scripts/research/ptms_gann/gf_power_sketch.py`; α = 0.05/7 one-sided; *q* = 0.30)
 
-| Construct | role | k | fwd 1y | fwd 2y | fwd 3y | fwd 5y | dev 15.5y (info only) |
-|---|---|---|---|---|---|---|---|
-| GF-1 | primary | 100 | 0.96 / 0.15 | 1.00 / 0.33 | 1.00 / 0.50 | 1.00 / 0.77 | 1.00 / 1.00 |
-| GF-4T/R8 | primary | 100 | 0.96 / 0.15 | 1.00 / 0.33 | 1.00 / 0.50 | 1.00 / 0.77 | 1.00 / 1.00 |
-| GF-5 | primary | 100 | 0.26 / 0.03 | 0.61 / 0.06 | 0.84 / 0.10 | 0.98 / 0.17 | 1.00 / 0.60 |
-| GF-6 | primary | 40 | 0.57 / 0.06 | 0.91 / 0.12 | 0.99 / 0.18 | 1.00 / 0.33 | 1.00 / 0.86 |
-| GF-7 | primary | 50 | 0.69 / 0.07 | 0.96 / 0.15 | 1.00 / 0.24 | 1.00 / 0.42 | 1.00 / 0.94 |
-| GF-8 | primary | 100 | 0.96 / 0.15 | 1.00 / 0.33 | 1.00 / 0.50 | 1.00 / 0.77 | 1.00 / 1.00 |
-| GF-10 | primary | 45 | 0.63 / 0.06 | 0.94 / 0.13 | 0.99 / 0.21 | 1.00 / 0.37 | 1.00 / 0.90 |
-| GF-9 | secondary | 100 | 0.96 / 0.15 | 1.00 / 0.33 | 1.00 / 0.50 | 1.00 / 0.77 | 1.00 / 1.00 |
-| GF-6m (month-end cadence) | rejected | 40 | 0.09 / 0.02 | 0.23 / 0.03 | 0.38 / 0.04 | 0.65 / 0.07 | 1.00 / 0.22 |
-| GF-7m (4-week cadence) | rejected | 50 | 0.13 / 0.02 | 0.33 / 0.04 | 0.53 / 0.05 | 0.80 / 0.09 | 1.00 / 0.32 |
+| Construct | role | *k* | *p* (basis) | attenuation | P(defined) | φ at central |
+|---|---|---|---|---|---|---|
+| GF-1 | primary | 100 | 0.29 (geometry) | 0.57 | 1.00 | 0.0172 |
+| GF-4T/R8 | primary | 100 | 0.50 (geometry) | 0.61 | 1.00 | 0.0182 |
+| GF-5 | primary | 100 | 0.17 (geometry) | 0.51 | 1.00 | 0.0153 |
+| GF-6 | primary | 40 | 0.05 (assumed) | 0.36 | 0.87 | 0.0108 |
+| GF-7 | primary | 50 | 0.20 (assumed) | 0.53 | 1.00 | 0.0159 |
+| GF-8 | primary | 40 | 0.02 (assumed) | 0.26 | 0.55 | 0.0079 |
+| GF-10 | primary | 45 | 0.40 (symmetry) | 0.60 | 1.00 | 0.0180 |
+| GF-9 | secondary | 100 | 0.20 (assumed) | 0.53 | 1.00 | 0.0159 |
 
-Formations required for power 0.80:
+Power (optimistic / central):
+
+| Construct | fwd 1y | fwd 3y | fwd 5y | fwd 10y | dev 15.5y (info only) |
+|---|---|---|---|---|---|
+| GF-1 | 0.47 / 0.05 | 0.96 / 0.15 | 1.00 / 0.27 | 1.00 / 0.55 | 1.00 / 0.78 |
+| GF-4T/R8 | 0.52 / 0.05 | 0.98 / 0.17 | 1.00 / 0.30 | 1.00 / 0.61 | 1.00 / 0.83 |
+| GF-5 | 0.06 / 0.02 | 0.23 / 0.03 | 0.43 / 0.05 | 0.80 / 0.09 | 0.95 / 0.14 |
+| GF-6 | 0.06 / 0.02 | 0.18 / 0.03 | 0.33 / 0.04 | 0.66 / 0.07 | 0.87 / 0.10 |
+| GF-7 | 0.18 / 0.03 | 0.62 / 0.06 | 0.87 / 0.10 | 1.00 / 0.22 | 1.00 / 0.37 |
+| GF-8 | 0.03 / 0.01 | 0.06 / 0.02 | 0.10 / 0.02 | 0.21 / 0.03 | 0.35 / 0.04 |
+| GF-10 | 0.21 / 0.03 | 0.69 / 0.07 | 0.91 / 0.12 | 1.00 / 0.26 | 1.00 / 0.42 |
+| GF-9 | 0.40 / 0.04 | 0.93 / 0.13 | 1.00 / 0.22 | 1.00 / 0.48 | 1.00 / 0.71 |
+
+Formations (defined dates) for power 0.80 and forward years:
 
 | Construct | opt: n / years | **cen: n / years** | pes: n / years |
 |---|---|---|---|
-| GF-1, GF-4T/R8, GF-8, GF-9 | 34 / 0.7 | **277 / 5.3** | 4,381 / 84.2 |
-| GF-5 | 34 / 2.8 | **277 / 23.1** | 4,381 / 365.1 |
-| GF-6 | 81 / 1.6 | **698 / 13.4** | 11,116 / 213.8 |
-| GF-7 | 65 / 1.2 | **556 / 10.7** | 8,848 / 170.2 |
-| GF-10 | 72 / 1.4 | **619 / 11.9** | 9,853 / 189.5 |
+| GF-4T/R8 | 86 / 1.7 | **750 / 14.4** | 11,949 / 229.8 |
+| GF-1 | 96 / 1.8 | **839 / 16.1** | 13,367 / 257.1 |
+| GF-9 | 111 / 2.1 | **974 / 18.7** | 15,527 / 298.6 |
+| GF-10 | 195 / 3.8 | **1,723 / 33.1** | 27,515 / 529.1 |
+| GF-7 | 221 / 4.3 | **1,964 / 37.8** | 31,368 / 603.2 |
+| GF-5 | 120 / 10.0 | **1,051 / 87.6** | 16,760 / 1,396.7 |
+| GF-6 | 602 / 13.3 | **5,391 / 119.0** | 86,206 / 1,902.3 |
+| GF-8 | 1,124 / 39.0 | **10,091 / 350.1** | 161,396 / 5,599.4 |
 
 ### E.4 Reading
 
@@ -274,44 +294,55 @@ Formations required for power 0.80:
      E-1/E-2).
    - Historical N100 EOD may be used, but not as pristine confirmation (operator exposure ruling).
    - The operator adjudicates; this document assumes forward-only confirmation.
-2. **At the central band, no primary reaches 0.80 inside 3 forward years.**
-   - The dense constructs need about 5.3 years.
-   - The state constructs (GF-6, GF-7, GF-10) need 11–13 years; GF-5 needs 23.
-   - Monthly cadence for GF-6 or GF-7 would need 43–58 years, which is why weekly is pinned. This is
-     not a claim that cadence buys power — per-date IC dispersion is set by k, not by cadence. Weekly
-     is simply the densest non-overlapping schedule available.
-3. **The optimistic corner clears quickly** (0.7–2.8 years), so the formal gate would print
-   **PROCEED**. That corner combines a doubled borrowed effect with the independence floor on sd, and
-   the design itself (§D.3) says sd will be higher. PROCEED would mean "not provably infeasible" and
-   nothing more — the O1 lesson.
+2. **Central band: no primary reaches 0.80 inside 10 forward years.** The best are 14–16 years.
+3. **Optimistic corner.**
+   - The gate's verdict corner. **GF-5, GF-6 and GF-8 fail it on any forward window of 10 years or
+     less.** The formal gate would return **ABANDON** for them on such a window.
+   - GF-6's and GF-8's flag fractions are assumptions. At *k* = 40 and *q* = 0.30, the optimistic
+     corner needs 13.3 years at *p* = 0.05 and 9.0 years at *p* = 0.08. A flag fraction of at least
+     about 0.08 would bring either within 10 years (arithmetic from the same functions, not in the
+     committed tables).
+   - GF-1, GF-4T/R8, GF-7 and GF-10 would print **PROCEED** on a 2–5 year window. That means "not
+     provably infeasible" only: the corner doubles a borrowed effect and puts the sd at the independence
+     floor, and §D.3 says the true sd is higher.
 4. **The figures are upper bounds.** They assume independent per-date ICs. Persistent state flags
-   (GF-10, GF-6) and market-wide swing synchronisation make adjacent dates dependent, and surrogate
+   (GF-10, GF-6) and market-wide swing synchronisation make adjacent dates dependent; surrogate
    differencing adds variance.
-5. **The demonstrability wall again.** This is its fourth appearance (C5, C4, F1, now PTMS-Gann). It is
-   arithmetic about δ, sd and calendar time. A better Gann construct cannot escape it, because the
-   effect-size band is borrowed and the only lever is years.
-6. **The development span is not confirmation, but it can kill.** At the central corner, 15.5 years of
-   history gives power 0.86–1.00 for six of seven primaries (GF-5: 0.60).
-   - A construct that shows no surrogate-differenced effect there, at that power, does not justify a
-     multi-year forward wait.
-   - A construct that does show one earns only the right to pre-register a forward test.
-   - The read is asymmetric: it can refute and cannot confirm.
+5. **Why the binary statistic stays.** A graded score or a continuous forward-return outcome would
+   escape the attenuation. Neither is Gann's: his rules are thresholds and his change-in-trend signal is
+   an event. Swapping them in is the "convenient modern proxy" the brief rules out. If ever used, label
+   it Arm 2.
+6. **The demonstrability wall, fourth appearance** (C5, C4, F1, PTMS-Gann). It is arithmetic about δ,
+   sd and calendar time. The binary nature of faithful Gann rules makes it steeper here than for a
+   graded cross-sectional signal.
+7. **What the development span can and cannot do.**
+   - At the central corner, 15.5 years gives power of only 0.78–0.83 (GF-1, GF-4T/R8), 0.37–0.42
+     (GF-7, GF-10) and ≤ 0.14 (GF-5, GF-6, GF-8). It **cannot** cleanly kill a central-sized effect.
+   - At the optimistic corner it gives 1.00 for GF-1, GF-4T/R8, GF-7 and GF-10. Effects of that size
+     are exactly what a feasible forward test would need.
+   - So a development read can rule out the only effect size that would make forward confirmation
+     practical. It cannot confirm anything.
 
 ### E.5 Answer and recommendation
 
-**The constructs do not have enough power to justify a confirmatory RFA on any realistic forward
-window.** Do **not** write an RFA declaration now. The operator's options, in the order recommended:
+**The constructs do not have enough power to justify a confirmatory RFA.** Do **not** write an RFA
+declaration now. Operator options, in the order recommended:
 
-1. **Declared non-confirmatory kill-screen on 2011-03-25 → 2026-09-11** (recommended next step,
-   **requires explicit operator authorization** because it reads outcomes):
-   - freeze the §D cells first;
-   - pre-state that a pass is development evidence only and a fail retires the construct from forward
-     testing;
-   - label every number non-confirmatory.
-2. **Forward-only confirmatory design of 5 years or more**, restricted to the dense constructs
-   (GF-1, GF-4T/R8, GF-8). A smaller m would shorten it; that is not computed here, to avoid tuning
-   the window.
-3. **Stop** the faithful Gann battery at the definition stage, recording the power finding as the
+1. **Declared non-confirmatory feasibility screen on 2011-03-25 → 2026-09-11** for GF-1, GF-4T/R8,
+   GF-7 and GF-10 only. **Requires explicit operator authorization** (it reads outcomes).
+   - Freeze the §D cells, the surrogate method and the decision rule first.
+   - Pre-state the rule: a construct whose surrogate-differenced φ is not distinguishable from zero is
+     retired from forward testing (the screen has power ≈ 1.00 against optimistic-size effects).
+   - A pass earns only the right to pre-register a forward test.
+   - **Two-stage selection:** the forward test's α must be pinned before the screen, over **all
+     constructs entering the screen** (m = 4 here), not only the survivors.
+   - Label every number non-confirmatory.
+2. **Record GF-5, GF-6 and GF-8 as power-infeasible** under faithful binary scoring at the design
+   assumptions in §E.2. The p values behind GF-6 and GF-8 are assumptions; revisiting them requires
+   a written rationale that does not come from outcomes.
+3. **Forward-only confirmatory design** without a screen: at least 15 years for the best constructs at
+   the central band. Not recommended.
+4. **Stop** the faithful Gann battery at the definition stage, recording the power finding as the
    reason.
 
 Stage 2 (translation-dependent) has sparser events and should not be considered until stage 1 has
@@ -323,8 +354,11 @@ concluded.
 
 - **Nothing frozen, selected or approved.** Every pin above is a recommendation.
 - No market data or outcome read; no RFA declaration, TRAIN/HOLDOUT, backtest or parameter fit.
-- §E numbers are script output from pure arithmetic. `gf_power_sketch.py` sets `power.ALPHA` in its
-  own process and is not on any declaration path.
+- §E numbers are script output from pure arithmetic and synthetic random numbers
+  (`gf_power_sketch.py`, `phi_null_check.py`). The sketch sets `power.ALPHA` in its own process and
+  is not on any declaration path.
+- SHA-256 values reported for these files are over the LF bytes as committed. Reproduce them with
+  `git show HEAD:<path> | sha256sum`; a Windows checkout may convert to CRLF.
 - Rulings 7 (GF-10) and 5 (GF-8, GF-9 additions) are affected and **pending operator acceptance**.
   Rulings 1–4, 6 and 8–12 are respected unchanged.
 - The supplied PDFs are not committed. No family definition was modified. Nothing here states or
