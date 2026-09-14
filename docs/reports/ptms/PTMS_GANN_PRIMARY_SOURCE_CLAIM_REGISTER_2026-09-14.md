@@ -12,6 +12,8 @@ statement above that the catalogue was not modified. Where §§0–25 and §26 c
 **Delta Δ2:** §27 is a second primary-source delta (*45 Years in Wall Street*, 1949). Where §26 and
 §27 conflict, **§27 governs**. Several §27 dispositions contradict operator rulings of 2026-09-14 and
 are **recommendations pending operator acceptance** (§27.5).
+**Delta Δ3:** §28 completes the reading of *45 Years* (pp. 46–148) and corrects §27.4 item 2. Where §27
+and §28 conflict, **§28 governs**.
 
 ---
 
@@ -1787,3 +1789,50 @@ F0 TOB-02. Quotations are short; everything else is paraphrase with printed page
 - Δ2 is a pre-experiment source clarification. **No market data or outcomes were read.**
 - **No RFA, TRAIN/HOLDOUT, backtest or parameter fit.** **Nothing frozen.**
 - §§0–26 are unedited. The supplied PDFs are not committed (copyright uncertain).
+
+---
+
+## 28. PRIMARY-SOURCE DELTA Δ3 — *45 Years in Wall Street*, remaining pages
+
+**Recorded:** 2026-09-14, after commit `1247b8c`. **Trigger:** operator instruction to finish the
+supplied book before any Stage-1 freeze. No new source searched or downloaded.
+**Coverage:** printed pp. 46–55, 60–81, 84–99, 102–148 viewed on renders of the same scan
+(SHA-256 `183ed235…`). With §27, every printed page 1–148 has now been viewed. Design consequences
+are in `PTMS_GANN_STAGE1_PREREG_COMPLETION_2026-09-14.md` §1.
+
+### 28.1 New verified claims
+
+| ID | Claim (paraphrase unless quoted) | Locator | Status | Op. |
+|---|---|---|---|---|
+| Δ3-01 | 3-day moves are the record "except when extreme highs or lows are reached and we wish to catch a turn"; then "we sometimes use 1 and 2-day moves" | [45Y] p. 61 | VERIFIED | Exception discretionary — NOT OPERATIONAL |
+| Δ3-02 | Gann's published 3-Day record includes swings shorter than the strict rule allows: 7 of 61 consecutive swings 1912-09-30 → 1914-03-06 are fewer than 3 Mon–Sat sessions apart (arithmetic on printed dates; holidays ignored, so a lower bound) | [45Y] pp. 66–67 | VERIFIED (arithmetic on the record) | Strict rule does not reproduce the record |
+| Δ3-03 | A broken 3-day bottom indicates lower prices, but all other rules must be applied; major swings are of greater importance; until a stock or the averages break out of the trading range the main trend must not be considered changed | [45Y] pp. 61–62 | VERIFIED | Minor signal operational; "trading range" undefined |
+| Δ3-04 | After a recorded 3-day reaction, crossing the top of that first reaction indicates the main trend has turned up | [45Y] p. 66 | VERIFIED | Operational |
+| Δ3-05 | Worked examples cite Rule 8 periods as 60–67 days (p. 46), 90–98 days (p. 48), 60–72 days (p. 55); the printed list (p. 11) gives 57–65 and 85–92 | [45Y] pp. 11, 46, 48, 55 | CONTRADICTORY (internal) | Tolerance is a declared choice |
+| Δ3-06 | Day counts in the worked examples are calendar-day differences, start date excluded (42 of 48 printed pairs exact; none closer to a session count) | [45Y] pp. 46–55 | VERIFIED (arithmetic) | Operational |
+| Δ3-07 | Percentage of the "highest selling price" applied from campaign tops (1937 top, 1946 top; Electric Bond & Share 1946 high) | [45Y] pp. 50, 54, 125 | VERIFIED | Anchor ("campaign") undefined |
+| Δ3-08 | Record and watch the dates of each **calendar year's** extreme high and low; watch around the same dates for future changes | [45Y] pp. 85–88 | VERIFIED | Operational (yearly extreme) |
+| Δ3-09 | Time-swing statistics on the averages over "mostly the major swings when there was a rapid advance or a rapid decline"; bins overlap | [45Y] pp. 88–89 | VERIFIED | Population discretionary — NOT OPERATIONAL to Gann's standard |
+| Δ3-10 | Point rules judged relative to price level without conversion ("as prices were low below $100.00"; "normal decline for the prices at which the Averages were selling") | [45Y] pp. 48, 51 | VERIFIED | Supports translation deferral |
+| Δ3-11 | Level breaks judged on the close in examples ("should they ever close below 160"; GM "closes below") | [45Y] pp. 98, 124 | VERIFIED | Stage 2 |
+| Δ3-12 | Apply all rules to individual stocks as well as the averages; study past time periods for individual stocks | [45Y] pp. 84, 96–97 | VERIFIED | Principle |
+| Δ3-13 | A "Master Time cycle" used for forecasts is named and not disclosed | [45Y] p. 130 | VERIFIED | NOT OPERATIONAL (withheld) |
+| Δ3-14 | NYSE sessions on Saturdays in the record era (e.g. 1913-01-18) | [45Y] p. 67 | VERIFIED | 3-day construction on a 5-day week is a transfer |
+
+### 28.2 Corrections and dispositions
+
+| Disposition | Item | Change |
+|---|---|---|
+| **CORRECTED** | §27.4 item 2 ("Gann supplies tolerances in 1949 … *w* is no longer a free slot") | Overstated. Gann's own usage is wider and inconsistent (Δ3-05); *w* is a declared choice |
+| **QUALIFIED** | Δ2-10 (3-Day Chart rule) | Rule text verified; Gann's practice is discretionary (Δ3-01, Δ3-02). A strict mechanization is an approximation, not Gann's detector |
+| **QUALIFIED** | Δ2-09 (Rule 3 percentages) | Rule says "any high level"; every worked example uses a campaign top (Δ3-07) |
+| **QUALIFIED** | Δ2-11 (Rule 10 signal) | A minor / temporary change; main-trend change needs a trading-range breakout (Δ3-03) |
+| **QUALIFIED** | Δ2-13 (anniversary dates) | "Extreme" used in three senses: all-time, calendar-year, campaign (Δ3-08; §27 Δ2-13) |
+| **QUALIFIED** | Δ2-14 (modal cycle) | Population hand-selected; bins overlap (Δ3-09) |
+| **CONFIRMED** | Δ2-01, Δ2-02 (Rule 8 overbalance) | Nothing in pp. 46–148 qualifies or withdraws them |
+| **STILL UNRESOLVED** | ANN-05 (360-day year), SQ9-01 to 03, CA-04 | Not in pp. 46–148 |
+
+### 28.3 Governance
+
+No market data or outcomes read; arithmetic only on dates printed in the book. Nothing frozen. §§0–27
+unedited.

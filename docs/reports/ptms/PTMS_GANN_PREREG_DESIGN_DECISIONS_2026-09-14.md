@@ -8,6 +8,12 @@ priority list A–E from textual Gann evidence and outcome-independent reasoning
 - No RFA declaration was written or run; §E is arithmetic from `scripts/rfa/power.py` only.
 - No TRAIN/HOLDOUT read, backtest or parameter fit.
 
+**Follow-up (added after `1247b8c`):** `PTMS_GANN_STAGE1_PREREG_COMPLETION_2026-09-14.md` completes the
+*45 Years* reading and recommends changes to §D.4 (GF-7, GF-8 and GF-9 excluded from Stage 1), §E.4
+item 1 (2023–2026 freshness unresolved, not indicated spent), §E.5 option 1 (screen window ends
+2022-12-30) and §E.5 option 2 ("deferred, not retired"). The text below is unedited; those
+recommendations await operator ruling.
+
 **Inputs:**
 - `PTMS_GANN_PRIMARY_SOURCE_CLAIM_REGISTER_2026-09-14.md` — F0, Δ1 (§26), **Δ2 (§27, *45 Years in
   Wall Street*)**.
