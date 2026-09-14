@@ -99,6 +99,15 @@ because the N100 table is built directly from the N50 and Next50 streams.
   fail, so they are load-bearing. The monthly gate constrains them, though not below a month.
 - **Status:** this is the historical official constituent record, not an approximation. The residual
   imprecision is only in dating, below.
+- **Independence caveat against the EOD store.** The membership **sets** are external (PRs + MCWB).
+  Parts of the **dating and labelling** are not:
+  - era labels come from `equity_bhavcopy:symbol_changes`;
+  - the G6 pre-listing screen tests first trade in `equity_bhavcopy`;
+  - R8 dates JIOFIN's and ITCHOTELS' entries to their first trade there.
+
+  So against the EOD store, "0 pre-listing intervals" and "0 label mismatches" (§D, §F) are partly
+  **self-consistent by construction**, not independent confirmations. Against the 1m store they are
+  independent. This is the A1 circularity class, confined to dating and labels.
 
 ### C.3 Earliest date, latest date, daily resolution
 
@@ -194,7 +203,22 @@ series EQ 6,596,242 / BE 562,201. Source format by era (`ingest_meta`): `legacy`
 | 2012-11-11 (Sunday) | `equity_store`, 14 symbols | 14 gold-ETF rows only | 100 |
 | 2016-04-19 | `source = 'unresolved'`, no count | **No rows.** Raw archive holds `legacy_20160419.404` | 101 |
 
-Both are calendar defects, not missing prices. CLAUDE.md already lists 2012-11-11 as an operator
+**2012-11-11 is proven a non-session:** a Sunday with gold-ETF rows only.
+
+**2016-04-19 rests on concurring absence, not on a positive holiday record.** A `.404` alone would
+not suffice — the repo has recorded downloadable sessions as false gaps before. But three separately
+ingested stores all hold **0 rows** that day while both neighbours are full:
+
+| Store | 2016-04-18 | 2016-04-19 | 2016-04-20 |
+|---|---:|---:|---:|
+| `futures_bhavcopy` | 555 | 0 | 555 |
+| index `option_bhavcopy` | 2,132 | 0 | 2,136 |
+| `stock_options_bhavcopy` | 28,838 | 0 | 29,014 |
+
+There is also no `candles/1d` or `candles/1m` file. `core/market/nse_holidays.py` covers only 2026,
+so no in-repo holiday table confirms it. **Read as a market holiday pending confirmation against
+NSE's official 2016 holiday list.** On that reading both dates are calendar defects, not missing
+prices. CLAUDE.md already lists 2012-11-11 as an operator
 pre-freeze calendar item. They are excluded from the counts below and must be declared.
 
 ### D.2 Observation table (real sessions)
@@ -403,9 +427,9 @@ Other boundaries worth knowing (descriptions only): `secfull` format era from 20
 
 | | **EOD N100** (`equity_bhavcopy` × `n100_membership`) | **1m N100** (canonical 1m store × `n100_membership`) |
 |---|---|---|
-| Historical depth | 2011-03-25 → 2026-09-11 · **15.5 y · 3,834 sessions** | 2023-01-02 → 2026-09-11 · **3.7 y · 917 files** (913 OK, 4 GAP). Vendor 1m 2015–2025 is uncertified and survivorship-shaped (56/100 members in 2015) |
+| Historical depth | 2011-03-25 → 2026-09-11 · **15.5 y · 3,834 sessions**. **But 2011-03-25 → 2022-12-30 is already signal-read on this surface** (Q-1/Q-2/Q-5 dev ≤ 2022, Q-3 2011–2018; §K). Under GR-1.2/1.3 that extra 11.8 years is specification/development material only. **The span with any confirmatory argument left, 2023-01-02 → 2026-09-11, is identical to the 1m route's** | 2023-01-02 → 2026-09-11 · **3.7 y · 917 files** (913 OK, 4 GAP). Vendor 1m 2015–2025 is uncertified and survivorship-shaped (56/100 members in 2015) |
 | Cross-sectional coverage | 383,795 / 383,796 member-days; 1 source-side miss | 0 absent cells after the 2026-09-13 backfill, except HDFC on 130 sessions (accepted 99/100) |
-| PIT quality | Same table. Carries R1–R8 and the lower-assurance 2011–2018 span | Same table, restricted to 2023+ (only the R8 inferences apply) |
+| PIT quality | Same membership sets. Carries R1–R8 and the lower-assurance 2011–2018 span. Labels, G6 and R8 entry dates are taken **from this store**, so parts of the join's cleanliness are self-consistent rather than independently confirmed (§C.2) | Same membership sets, restricted to 2023+ (only the R8 inferences apply); fully external to the 1m store |
 | Provenance | NSE official bhavcopy (exchange close, as-traded); raw archive retained with `.404` markers; whole panel certified under PSB-1 (four-arm contract), then HALTed on the 2026-09-12 PTMS re-run on residue outside N100/N200 scope. **No PTMS scoped certificate for EOD** | Upstox historical API, re-fetched; basis unflagged in schema; **PTMS scoped certificate issued 2026-09-13** (C1–C4) |
 | Corporate-action handling | As-traded plus an explicit, auditable, entity-time-aware factor table (bonus/split complete for members). Spin-offs, rights, special and ordinary dividends unadjusted. Backward view has level look-ahead | Vendor back-adjusted to fetch date, verified 32/32 on bonus/split. Treatment of demergers/special dividends by the vendor is unknown. Same level look-ahead, with no factor table to audit |
 | Observation count | ~**384k** stock-days (OHLC, 1 print/day) | ~**92k** stock-days (~34M bars) |
@@ -413,7 +437,10 @@ Other boundaries worth knowing (descriptions only): `secfull` format era from 20
 | Scientific suitability | A materially deeper substrate for **any price-time construct expressible at daily (or coarser) resolution** across several market regimes. **Cannot** carry intraday time structure | The only substrate for intraday time structure; too short for multi-regime evidence |
 
 **Honest reading.** For a question whose time axis is sessions, weeks or months, EOD gives ~4.2× the
-calendar and ~4.2× the stock-days of 1m, on an equally clean PIT join. For a question whose time axis
+calendar and ~4.2× the stock-days of 1m, on an equally clean PIT join. **That depth buys richer
+specification and development across several market regimes. It does not buy confirmatory evidence**:
+both routes share the same 3.7-year span with any remaining confirmatory argument, and whether even
+that span is fresh is unresolved (§K). For a question whose time axis
 is minutes within the session, EOD is not a substitute at all. **The original N100 "test" was never
 defined** (`PTMS_N100_INTENDED_EXPERIMENT_AUDIT_2026-09-14.md`), so which axis it needs is itself
 unresolved.
@@ -489,10 +516,22 @@ because register writes are the operator's. Proposed row, for the operator to ap
 | §5b clusters | `scripts/signal_engine/` (19 equity-EOD readers → rows F-1…F-5, fences through SEALED 2023 →) and `scripts/mrlc_test/` (→ E-3, 2023 →). **The register does not state the equity-EOD windows of these reads separately** | signal |
 | D-2 | CB-N50 on Nifty-50 constituents, 2016–2022 (surface recorded as the 1d index store) | signal |
 
-Under GR-1.2 and GR-1.3, and pending the open file-shaped vs observation-shaped ruling, **it is
-possible that no historical EOD window for these names can be confirmatory for a new hypothesis**;
-any confirmatory evidence would then have to come from forward sessions. This audit does not decide
-that. It is a governance constraint on **use** of the substrate, not a defect **in** it.
+**What the rules as written imply** (operator adjudicates):
+
+- **2011-03-25 → 2022-12-30.** This span has been read at **signal** level on this same surface by
+  cross-sectional equity price constructs. Their universe held a median 94/100 N100 members, so the
+  file-shaped and observation-shaped readings agree here. GR-1.2 says a new hypothesis does not
+  restore freshness; GR-1.3 says a spent window can never be confirmatory. **Under the rules as
+  written, this span cannot be confirmatory, cannot enter `n_available`, and cannot sit on a gate's
+  pass path**, whatever the future construct is.
+- **2023-01-02 → 2026-09-11** (917 sessions, 91,750 obs — the same span as the 1m route) **is the
+  only span with any argument left.** Q-6 is unread only for CSMP (lineage-local). **The single
+  register item the confirmatory answer turns on** is recording the equity-EOD windows actually read
+  by the 19 `scripts/signal_engine/` readers (fences through SEALED 2023 →) and the
+  `scripts/mrlc_test/` readers (E-3, "2023-01-01 → present"). If those reads touched these names,
+  2023 → 2026 is spent too, and confirmatory evidence can come only from sessions after the freeze.
+
+This is a governance constraint on **use** of the substrate, not a defect **in** it.
 
 ---
 
@@ -510,14 +549,19 @@ dishonest in principle. Several items would make it dishonest if left implicit.
    - Settle file-shaped vs observation-shaped exposure.
    - State which of windows A/B/C, if any, may serve as non-confirmatory development evidence, and
      which could ever be confirmatory under GR-1.3.
-   - Record the equity-EOD windows of the §5b `signal_engine` / `mrlc_test` readers.
+   - **Record the equity-EOD windows of the §5b `signal_engine` / `mrlc_test` readers. This is the
+     single item the confirmatory answer turns on:** 2011-03-25 → 2022-12-30 is already
+     signal-spent under the rules as written, and only these unrecorded windows decide whether
+     2023-01-02 → 2026-09-11 is spent too.
    - Append this audit's meta row.
    This comes first, because it decides whether the history is evidence or only a training ground.
 2. **Scoped EOD substrate certification (operator decision)** for N100 × `equity_bhavcopy`
    (± adjusted view) over the chosen window. It should include:
    - a scoped contract-suite run;
    - persisting G1/G3/G5 into `n100_audit`;
-   - declaring the two calendar artifacts (2012-11-11, 2016-04-19);
+   - declaring the two calendar artifacts (2012-11-11; 2016-04-19, after confirming it against
+     NSE's official 2016 holiday list — if it was a session, the 101 member-days become a backfill
+     item, not an artifact);
    - declaring the source-side DMART 2020-04-13 miss.
 3. **Non-factor corporate-action enumeration from an authoritative external source** for every
    member inside membership: spin-offs, schemes, rights issues, special dividends.
@@ -539,7 +583,7 @@ dishonest in principle. Several items would make it dishonest if left implicit.
 |---|---|
 | **Earliest defensible date** | **2011-03-25** (daily PIT N100 membership begins; EOD prices from 2010-01-04 available as warm-up only) |
 | **Latest available date** | **2026-09-11** (membership anchor and last EOD session; the Sep-30-2026 review is parsed and excluded) |
-| **Recommended historical window (substrate)** | **A: 2011-03-25 → 2026-09-11**, carrying 2011-03-25 → 2018-06-28 as a disclosed lower-assurance segment, with **B (2018-06-29 → 2026-09-11)** as the higher-assurance subset. How any of it may be used is condition 1, not a substrate property |
+| **Recommended historical window (substrate)** | **A: 2011-03-25 → 2026-09-11**, carrying 2011-03-25 → 2018-06-28 as a disclosed lower-assurance segment, with **B (2018-06-29 → 2026-09-11)** as the higher-assurance subset. **Use is constrained by condition 1:** under GR-1.2/1.3 as written, 2011-03-25 → 2022-12-30 is development/specification material only. The only span with a remaining confirmatory argument is 2023-01-02 → 2026-09-11, the same as the 1m route, and whether it is fresh turns on the unrecorded `signal_engine` / `mrlc_test` equity-EOD windows |
 
 ### Unresolved scientific questions — deliberately NOT decided here
 
