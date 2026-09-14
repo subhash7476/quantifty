@@ -60,9 +60,11 @@ modified here.
    - **Arm 1 (faithful, price-time scope):**
      - GT-1 in its verified monthly form;
      - the weekly/monthly reaction-duration rules;
-     - the 3rd/4th-move and 6–7-week culmination rules, with the joint 85–100-point clause.
+     - the 3rd/4th-move and 6–7-week culmination rules.
 
-     All are faithful but under-specified, with the mechanization declared as an assumption.
+     All are faithful but under-specified, with the mechanization declared as an assumption. The joint
+     85–100-points-in-a-short-time clause (TIM-10) is held outside Arm 1, pending the operator's
+     nominal-to-modern translation ruling.
    - **Arm 2 (Gann-inspired):**
      - GA-3/GS-5;
      - GO-2 relative-duration form;
@@ -135,6 +137,20 @@ leads, not evidence.
 
 Sections 2.1–2.11 cover brief topics §4–§13; §2.12 collects Gann's explicit time rules, which touch
 §5 and §6. The entry format follows brief §14.
+
+| Brief section | Register location |
+|---|---|
+| §4 1×1 / price-time angles | 2.1 (F0-1X1) |
+| §5 time overbalance | 2.2 (F0-TOB); 2.12 (F0-TIM) |
+| §6 pivot anniversaries / time cycles | 2.3 (F0-ANN); 2.12 (F0-TIM) |
+| §7 Square of Nine / 360° circle | 2.4 (F0-SQ9) |
+| §8 square of range / price-time squaring | 2.5 (F0-SQR) |
+| §9 swing / pivot definition | 2.6 (F0-SWG) |
+| §10 price basis | 2.7 (F0-PRB) |
+| §11 corporate actions / stock price scale | 2.8 (F0-CA) |
+| §12 arithmetic vs log scale | 2.9 (F0-SCL) |
+| §13 cross-sectional N100 question | 2.11 (F0-XS) |
+| (additional) retracement divisions | 2.10 (F0-RET) |
 
 "Op." = operational implication. "Reinterp. risk" = modern reinterpretation risk.
 
@@ -1139,7 +1155,9 @@ Sections 2.1–2.11 cover brief topics §4–§13; §2.12 collects Gann's explic
 The ground is stronger than under-specification. **No equity 1×1 rule appears in the primary stock
 corpus inspected**, and the scale conventions that do exist are per-instrument commodity units
 reported only by secondary sources. The one verified joint price-time statement (TIM-10: 85–100
-points in a short time) is an exhaustion flag, not a rate. Any equity 1×1 — in ₹ per day, % per
+points in a short time) is an exhaustion flag, not a rate. But its point magnitude needs the same
+nominal-to-modern translation, so it differs from the 1×1 in degree, not kind, and it is held out of
+Arm 1 pending that ruling (§22). Any equity 1×1 — in ₹ per day, % per
 day, σ or ATR per session, prior-swing rate, or log price — would be a researcher invention.
 
 **This closes the fidelity review's §6.6 route**, pending one condition: reading the unread later
@@ -1242,7 +1260,8 @@ Consequences:
 | GO-4 astrology | Novel context only | No | — | — | **Reject from Gann battery** |
 | GO-5 *k*-day swing chart | Secondary only (SWG-06) | No | — | — | **Not enough evidence** |
 | *F0: absolute reaction-duration rules* (uncatalogued) | **VERIFIED** (TIM-03, TIM-04) | Thresholds: yes. Filters: no | "Active" / "strong"; reaction start; week mapping | Filter and calendar mapping | **Faithful but under-specified** |
-| *F0: culmination rules — 3rd/4th move, 6–7 weeks, 85–100 points in a short time* (uncatalogued) | **VERIFIED** (TIM-01, TIM-09, TIM-10) | Counts and weeks: yes. "Move", "fast", "short time": no | Segmentation; nominal points | Segmentation; point translation | **Faithful but under-specified** |
+| *F0: culmination rules — 3rd/4th move, 6–7 weeks* (uncatalogued) | **VERIFIED** (TIM-01, TIM-09) | Counts and weeks: yes. "Move", "fast": no | Segmentation | Segmentation | **Faithful but under-specified** |
+| *F0: 85–100 points in a short time* (uncatalogued) | **VERIFIED** (TIM-10) | No ("short time" undefined) | Nominal 1920s points; elapsed time | Point translation (same kind as the 1×1 unit problem) | **Faithful but under-specified — held pending the translation ruling** |
 | *F0: N-period range breakout weighted by time* (uncatalogued) | **VERIFIED** (TOB-07, TIM-11) | No | Range, breakout, size | Yes | **Generic market hypothesis** (Gann endorses it, but the construct is not Gann-distinctive) |
 | *F0: three-close trend rule* (uncatalogued) | **VERIFIED** (TOB-10, PRB-02) | **Yes** | "Strong trend" condition | Minimal | **Faithful candidate** (not price-time) |
 | *F0: 2–3 day halt; 3-week time stop* (uncatalogued) | **VERIFIED** (TIM-02, TIM-07) | Partly | "Halted"; "indication" | Minimal | **Faithful but under-specified** (execution rules, not price-time hypotheses) |
@@ -1302,8 +1321,8 @@ assumptions → testable construct**. It supports that chain for:
   assumptions: anchor detector, outcome for "minor-trend change" → construct.
 - **Absolute reaction-duration rules** (TIM-03/04). Weeks or months of reaction in active or strong
   stocks → assumptions: activity filter, reaction start, calendar mapping, outcome → construct.
-- **Culmination rules** (TIM-01/09/10). Assumptions: move segmentation, "fast", "short time",
-  nominal-point translation.
+- **Culmination rules** (TIM-01/09). Assumptions: move segmentation, "fast". TIM-10 additionally
+  needs "short time" and a nominal-point translation, and is held pending that ruling.
 - **Non-price-time rules:** greatest reaction (TOB-04), three-close rule (TOB-10), even figures
   (PRB-04), date bands and calendar dates (ANN-04, TIM-05/06).
 
@@ -1334,9 +1353,10 @@ never presented as Gann's rule.
   1. **GT-1, monthly pivot-anniversary form** (ANN-01), with the 3/6/9/12-month checkpoints of the
      same passage (ANN-02).
   2. **Absolute reaction-duration rules** (TIM-03 weekly, TIM-04 monthly).
-  3. **Culmination rules:** 3rd/4th move (TIM-01), 6–7-week fast move (TIM-09), and 85–100 points in
-     a short time (TIM-10). TIM-10 is the only joint price-time clause and carries the heaviest
-     translation assumption.
+  3. **Culmination rules:** 3rd/4th move (TIM-01) and 6–7-week fast move (TIM-09).
+- **Held pending the translation ruling (operator question 4):** 85–100 points in a short time
+  (TIM-10). It is the only joint price-time clause. Its nominal-point translation differs from the
+  1×1's unit problem in degree, not kind, so it is not placed in Arm 1 until that ruling is made.
 - **Faithful Gann rules outside price × time** (operator decides scope):
   - three-consecutive-closes trend rule (TOB-10) — directly operational;
   - greatest-reaction watch and stop distance (TOB-04);
@@ -1398,7 +1418,7 @@ never presented as Gann's rule.
    - the 1920s 6-day-week to NSE 5-day-week mapping (ANN-09).
 4. **Nominal-to-modern translation** of point magnitudes (TOB-04, TIM-10, PRB-03/04): Gann gives
    nominal 1920s NYSE points only. Any translation is a declared assumption, and it bears on whether
-   TIM-10 can stay in Arm 1.
+   TIM-10 can enter Arm 1.
 5. **Evidential standing of the 1927 novel:** this register treats it as UNCERTAIN, never as rule
    evidence.
 6. **Fixed date bands (ANN-04):** market-wide, so admissible only as an index-level hypothesis
