@@ -30,8 +30,9 @@ research question.
 
 1. **PTMS did not start as one hypothesis.** It started as a programme: a battery of hypothesis
    families, with Gann/price-time on the **index** as the first family. **Options appeared in the
-   charter only as a later "derivatives / market-state" family**, and as a *trading-layer* choice
-   that the charter explicitly said not to jump to (§17).
+   charter as the third, "derivatives / market-state" family (§12)**, asking whether positioning
+   predicts *underlying* behaviour. Separately, §17 places option selection in the eventual trading
+   layer.
 2. **The N100 PIT effort served Family F**, a stock-level cross-sectional family. F was **introduced
    on day one by the operator's ruling, following a steer in the assistant's alignment record**
    (cross-sectional `rank_ic` is the only shape that clears the power gate).
@@ -54,6 +55,14 @@ research question.
    mechanism and label **without recording that a change was being made.** PTSQ was then designed
    by the assistant to fit that surface's constraints.
 
+**The open ruling that may decide everything else.** Families B/C were budget-blocked because the
+NIFTY index path is spent on both candidate windows (I-5/I-8/D-2 on 2021–2022; I-2/I-3 on 2026).
+PTMS-G-PTSQ's construct is a function of that same path, observed through option prices. The P3
+prompt itself said "Do not manufacture freshness by changing names." If exposure is ruled
+**observation-shaped**, PTMS-G-PTSQ has **no unspent window, whichever family owns it**. If it is
+ruled **file-shaped**, the options windows are fresh and the family-ownership question (§J item 1)
+is live. That ruling is open since `2980acc` §1.2.
+
 **Research-surface drift occurred, and the evidence for it is strong.** It is not misconduct: every
 step was individually governed and documented. What is missing is a record, at each surface change,
 that **the question had changed**. The single-index power wall that made the Gann family "likely
@@ -71,7 +80,7 @@ section.
 |---|---|
 | What were we trying to test? | **Not one hypothesis.** A "research battery" to discover whether price, time, price×time relationships, cross-market structure and derivatives/market-state data carry genuine out-of-sample predictive information (§1). **First family: PRICE–TIME STRUCTURE** (§10: time alone, price × elapsed time, Gann-style geometry, temporal cycles, interactions). Second: cross-market, starting Nifty↔Bank (§11). Third: derivatives/market-state (§12) |
 | Stated economic mechanism | **None.** Gann concepts are listed as "hypotheses, not facts" (§2A). No mechanism is proposed for any family |
-| Intended market / instrument | Index: "2012 → 2024-10-16 = index-pair intraday research only" (§4); Nifty↔Bank (§11); EOD options/futures/OI "where appropriate" (§12). **Options as a traded instrument are explicitly downstream:** "Do NOT jump to options implementation before the underlying signal itself has demonstrated edge" (§17) |
+| Intended market / instrument | Index: "2012 → 2024-10-16 = index-pair intraday research only" (§4); Nifty↔Bank (§11); EOD options/futures/OI "where appropriate" (§12). §17 ("EVENTUAL TRADING LAYER") says "Do NOT jump to options implementation before the underlying signal itself has demonstrated edge", with the example "Given an equity signal, which option should be bought?" **Ambiguous for this audit:** it clearly bars options as the *execution vehicle* of an unvalidated signal. Whether it also bars an option-P&L *research outcome* under §12 is not settled by the text, and is the operator's reading to make |
 | Intended observation unit | **Not specified** |
 | Intended outcome | "Future market behavior" (§1); for derivatives, "future **underlying** behavior" and "price vs price + derivatives" (§12) |
 | Data surface required | 1m index pair (2012→), 1d cross-index (2016→), EOD derivatives. The charter believed equity breadth began 2024-10-17 and called it "too short / regime-limited for many proper TRAIN/HOLDOUT experiments" (§4) |
@@ -146,8 +155,11 @@ Why N200 and then N100 were chosen instead is **not recorded**.
 - **E-3**: MRLC, signal-level, "2023-01-01 → present";
 - the unread-surface table: breadth 1m 2024-12-01 → present "touched by E-3 (MRLC, signal)".
 
-The catalogue marked F CONDITIONAL, "must be negotiated against the register, not assumed". **That
-negotiation was not done before the PIT build.** The adopted sequence placed it after P2
+E-3's window was recorded open-ended ("→ present"). Its full extent — 229 symbols, four
+timeframes, a parameter grid, a live scanner — was measured only in `2980acc`. So *that* F's window
+was touched at signal level was on record; *how badly* was not. The catalogue marked F CONDITIONAL,
+"must be negotiated against the register, not assumed". **That negotiation was not done before the
+PIT build.** The adopted sequence placed it after P2
 certification (#9, #10). When it was done (`2980acc`), F's window turned out to be spent and
 multiply selected.
 
@@ -197,7 +209,7 @@ availability and the assistant's recommendation.**
 
 | Question | Finding | Evidence strength |
 |---|---|---|
-| Were options part of the original programme? | **As a family, yes**: charter §12 "derivatives / market-state", with questions about positioning predicting *underlying* behaviour. **As the outcome instrument, no**: charter §17 places option choice in the trading layer and says not to jump there before an underlying edge exists | Direct text |
+| Were options part of the original programme? | **As a family, yes**: charter §12 "derivatives / market-state", with questions about positioning predicting *underlying* behaviour. **As the outcome instrument, not stated**: §12's outcomes are underlying behaviour, and §17 places option selection in the trading layer. Whether §17 reaches a research outcome is ambiguous (§B) | Direct text; §17 reading ambiguous |
 | When did options become the primary PTMS surface? | **2026-09-13 22:00 IST** (#61), made explicit at 22:17 (#62: "GO AHEAD with PTMS Family G — NIFTY INDEX-OPTIONS EOD") | Direct |
 | What introduced it? | The P3 window reconciliation `2980acc` (21:51 IST), §5 recommendation 1: G is "the only one worth spending effort on now. Its blocker is certification, which is work you can commission." | Direct; nine minutes separate report and instruction |
 | What problem was it meant to solve? | **Research budget.** Every other family was blocked on budget (A–F) or on certification plus budget; G's index options held unread 2021–2022 and 2026 windows | Direct (`2980acc` §3, §5) |
@@ -238,8 +250,9 @@ scientific-question rationale is retrospective.**
 - **When did the mismatch become apparent?** It was **introduced by the P3 prompt** on 09-14 13:20
   IST. It **was not flagged** in `a47fd61` (which only states that OI is excluded, §4). It was
   **first flagged** in `7a15a62` at 14:19 IST, 59 minutes after the prompt and 37 minutes after
-  `a47fd61`. Charter §17's prohibition on
-  option outcomes has **never been flagged before this audit**.
+  `a47fd61`. The departure from
+  charter §12's outcome (underlying behaviour) was never flagged before this audit. Whether §17 also
+  applies is ambiguous (§B).
 - **Power was knowable before design.** The assistant computed n = 35 → ABANDON during orientation,
   before writing the definition (session summary, 09-14 13:33 IST). This is the same single-index
   wall recorded on day one (alignment record §7 L5; catalogue C row at `e9a4cd9`), now at
@@ -252,7 +265,7 @@ scientific-question rationale is retrospective.**
 | # | Where | What drifted | Evidence strength |
 |---|---|---|---|
 | **D-1** | 09-12 17:58 IST → 09-13 21:40 IST | **Substrate work detached from a hypothesis.** A1 was pursued after F was ruled removed, with no F hypothesis recorded, and F's recorded budget exposure (E-1/E-2/E-3) was never adjudicated first. The objective became a *fixable problem* (A1) rather than a *question*. The operator named a "test" and a "construct" on 09-13 without defining either | **Strong** on the absence of a hypothesis record and on the budget being on record beforehand. **Motive not established** |
-| **D-2** | 09-13 21:51 IST → 09-14 13:42 IST | **The price-time question relocated to the unblocked surface, and its outcome changed.** Budget reconciliation → G recommended → G certified → G redefined as price×time with an option outcome → PTSQ built to fit | **Strong.** Each link is a dated document or message. The absence of any record acknowledging the change of G's mechanism, label or charter §17 is itself documentary |
+| **D-2** | 09-13 21:51 IST → 09-14 13:42 IST | **The price-time question relocated to the unblocked surface, and its outcome changed.** Budget reconciliation → G recommended → G certified → G redefined as price×time with an option outcome → PTSQ built to fit | **Strong.** Each link is a dated document or message. The absence of any record acknowledging the change of G's mechanism, its label, or the departure from charter §12's underlying-behaviour outcome is itself documentary |
 
 **Not drift:**
 - The day-one architecture (charter → alignment → catalogue): explicit and justified.
