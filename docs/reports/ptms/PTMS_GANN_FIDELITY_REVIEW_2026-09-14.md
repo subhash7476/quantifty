@@ -3,6 +3,10 @@
 **Date:** 2026-09-14 · **Branch:** `research/ptms-price-time-market-structure`
 **Reviews:** `PTMS_GANN_CONSTRUCT_CATALOGUE_2026-09-14.md` (commits `561d524`, `bb5d3aa`).
 **The catalogue is not modified by this review.** Corrections it will need are listed in §9, not applied.
+**Supersession notice:** the catalogue as committed contains claims this review corrects — §1 item 3
+and §8 ("the only dimensionally valid square"), §17.0 list A (GA-3/GS-5 and GT-2 as "most faithful"),
+and the GA-1/GS-2 "dimensionally invalid" wording. **Until K1–K8 are authorized and applied, this
+review governs on fidelity and classification wherever the two documents conflict.**
 **Type:** governance review. No data store was queried, no outcome read, no RFA / test / backtest
 run, no TRAIN/HOLDOUT created, nothing frozen, no family definition touched.
 
@@ -192,6 +196,16 @@ across stocks. Those are date-clustered, macro-calendar events.
 | Random-anchor anniversaries | Activity-matched anchors | **"Event-day annual recurrence"** — not Gann |
 | Activity-matched anchors, at 365.25 days | The 360-day contrast (360 no stronger than 365.25) | **"Pivot-anchored annual recurrence, compatible with but not specific to Gann"** |
 | Activity-matched anchors **and** 360 days ≥ 365.25 days with separable windows | — | **"Supports the mechanized Gann anniversary / circle rule"** |
+
+**Caveat on the contrast's feasibility (not settled here).** At *n* = 1 the 360 / 365.25 gap is
+5.25 calendar days, about 3–4 sessions. Two windows of half-width *w* = 1 are each 3 sessions wide
+with centres ~3.5 sessions apart, so they abut or overlap. **Strict non-overlap at *n* = 1
+effectively forces *w* = 0**: one session per pivot-year. The gap widens with *n* (~10.5 days at
+*n* = 2, ~15.75 at *n* = 3), so the contrast is cleanest exactly where qualifying pivots are
+scarcest. **Whether enough events survive a separable design is a pre-registration feasibility
+question.** If they do not, GT-1 cannot discriminate Gann from calendar, and its classification
+falls to "compatible with but not specific to Gann" at best. No event count or power is computed
+here.
 
 **Classification: A. FAITHFUL GANN TEST, with the expectation recorded in advance that the most
 likely positive outcome is class C (annual / event calendar).** It is worth testing because its
