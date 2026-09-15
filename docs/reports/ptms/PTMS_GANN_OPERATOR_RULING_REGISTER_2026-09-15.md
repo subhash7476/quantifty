@@ -144,7 +144,8 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
-| **RULING (operator, 2026-09-15)** | **ACCEPTED.** The reader-date / exposure audit is to be performed from code, date filters and saved artifacts only; **no outcome statistics**. **Not yet performed.** The freshness ruling on 2023-01-02 → 2026-09-11 follows the audit; until then the span stays UNRESOLVED |
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** The reader-date / exposure audit is to be performed from code, date filters and saved artifacts only; **no outcome statistics**. **Not yet performed.** *(as of the ruling — superseded by the Status update row below.)* The freshness ruling on 2023-01-02 → 2026-09-11 follows the audit; until then the span stays UNRESOLVED |
+| **Status update (2026-09-15)** | **Audit performed — complete.** `PTMS_GANN_R11_READER_DATE_AUDIT_2026-09-15.md`. **Finding: 2023-01-02 → 2026-09-11 equity EOD is signal-spent** — Carry/TS-Basis/IVOL SEALED evaluations consumed equity-EOD-derived forward returns on 2023+ formations; Trend/LAG/TS-Basis-Daily stores carry the score↔forward-return linkage on 2023+ dates; the MRLC scanner 1d track read bhavcopy 2026-04-27 → 2026-09-02. **The audit itself is complete; the formal freshness ruling remains an operator decision.** Until ruled, the span's register standing stays UNRESOLVED |
 | **Question** | Will the operator commission a reader-date audit (code and artifacts only, no outcomes) recording which equity-EOD dates the 19 `scripts/signal_engine/` and 4 `scripts/mrlc_test/` readers actually touched, and then rule whether 2023-01-02 → 2026-09-11 is fresh or spent for Gann? |
 | **Primary basis** | Governance, not Gann: `RESEARCH_EXPOSURE_REGISTER.md` §5b (reader clusters), §6 ("largely unread at signal level by the cash-equity batteries"), GR-1.2/1.3; EOD feasibility audit §K–§L ("the single item the confirmatory answer turns on") |
 | **Recommendation** | Commission the audit before any confirmatory design; rule after it |
@@ -166,7 +167,8 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
-| **RULING (operator, 2026-09-15)** | **ACCEPTED.** Scoped N100 EOD certification and corporate-action enumeration with exclusion windows are required before any outcome read. **Neither exists yet** |
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** Scoped N100 EOD certification and corporate-action enumeration with exclusion windows are required before any outcome read. **Neither exists yet** *(as of the ruling — superseded by the Status update row below.)* |
+| **Status update (2026-09-15)** | **Store-level N100 EOD certification: COMPLETE** (all gates PASS) and **in-store CA enumeration: COMPLETE** — `PTMS_GANN_R13_N100_EOD_SCOPED_CERTIFICATION_2026-09-15.md` (runner: `scripts/research/ptms_gann/certify_eod_n100.py`, read-only). **External CA enumeration: OUTSTANDING — requires operator authorization** (the store cannot prove absence pre-2022 and omits the 2023 RELIANCE→JIOFIN demerger). **G-7 exclusion-window rule: still OPEN.** Remaining items: G1/G3/G5 persistence into `n100_audit`, 2016-04-19 holiday confirmation, and the ±1-month boundary / BE-series / DVR dispositions if the cadence requires them |
 | **Question** | Is a scoped N100 × EOD substrate certification, plus an external enumeration of spin-offs, demergers, rights and special dividends with exclusion windows, required before any outcome read? |
 | **Primary basis** | Governance/data: EOD feasibility audit §L condition 2; store omits the 2023 RELIANCE/JIOFIN demerger and treats special dividends inconsistently; Gann silent on adjustment ([45Y] p. 60, p. 123; Δ4 none) |
 | **Recommendation** | Require both |
@@ -222,5 +224,7 @@ It supersedes the parenthetical in R-2's RULING row and resolves freeze checklis
   literally explicit in Gann's text. No family definition changed. The exposure
   register was not edited — G-S1 remains a draft for the operator to append. **Nothing is frozen.**
 - Exposure status preserved: equity EOD 2011-03-25 → 2022-12-30 signal-spent (a spent window can
-  host only non-confirmatory use); 2023-01-02 → 2026-09-11 UNRESOLVED pending the R-11 audit.
+  host only non-confirmatory use); 2023-01-02 → 2026-09-11: the R-11 audit (2026-09-15) found the
+  span **signal-spent**; the formal freshness ruling is still the operator's, so the span's register
+  standing stays UNRESOLVED until ruled.
 - No market data or outcomes read; no backtest, RFA, screen or optimization.

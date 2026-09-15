@@ -57,9 +57,9 @@ freeze only when every row in §3 is SATISFIED and the operator approves it.
 | R-6, R-7, R-8 | Accepted | None |
 | R-9 | Accepted | Transcribe with design-choice label |
 | R-10 | Accepted | Contrast p-value formula not written (**G-4**) |
-| R-11 | Accepted | **Audit not performed** (**P-1**) |
+| R-11 | Accepted | **Audit performed 2026-09-15** (`PTMS_GANN_R11_READER_DATE_AUDIT_2026-09-15.md`) — finding: 2023-01-02 → 2026-09-11 signal-spent; audit complete; **freshness ruling still the operator's** |
 | R-12 | Accepted in principle only; not to be run | Sub-question not ruled (**G-1**); preconditions P-1 to P-5 |
-| R-13 | Accepted | **Certification and CA enumeration not done** (**P-2**) |
+| R-13 | Accepted | **Store-level N100 EOD certification + in-store CA enumeration COMPLETE 2026-09-15** (`PTMS_GANN_R13_N100_EOD_SCOPED_CERTIFICATION_2026-09-15.md`); external CA enumeration **OUTSTANDING** (operator authorization); G-7 open |
 | R-14 | Accepted for finalization only; not to be executed | Placebo sets, missing-bar rule, seed, size-check failure rule (**G-3, G-5, G-8, G-9**) |
 | R-15 | Open | Stage 2 only |
 
@@ -83,7 +83,7 @@ Status key:
 | 4 | S9 state rule; O-R10 (direction, penetration, intraday basis, 5-session horizon) | All elements ruled, including direction (**G-2**, 2026-09-15): contemporaneous K3-line-state anchor for GF-1/GF-4T/R8 (S9 not used); state-conditioned binary pooling for GF-10 — **RULED — TO TRANSCRIBE** | Ruling register, G-2 block | Research |
 | 5 | Anchors (sense, left-censoring, replacement, confirmation lag), time unit, window lists | **RULED — TO TRANSCRIBE** (R-3, R-4, R-9; K3 lag memo §5 row 4) | Freeze doc | Research |
 | 6 | Formation schedule; eligibility (PIT N100, listing start, burn-in, minimum names per date) | Weekly formation and PIT N100 specified; burn-in and minimum names **OPEN — DEFINITION MISSING** | G-6 | Operator |
-| 7 | Price basis and CA handling; external CA enumeration with exclusion windows; scoped certification | Price basis ruled (ratio-adjusted as-of-*t*). Enumeration and certification **OUTSTANDING TASK**; exclusion-window rule **OPEN** | P-2; G-7 | Data certification / operator |
+| 7 | Price basis and CA handling; external CA enumeration with exclusion windows; scoped certification | Price basis ruled (ratio-adjusted as-of-*t*). **Store-level certification + in-store CA enumeration COMPLETE** (2026-09-15); **external CA enumeration OUTSTANDING** (requires operator authorization); exclusion-window rule **OPEN** | P-2 (external part); G-7 | Operator |
 | 8 | Surrogate spec: bar vector, synchronized stationary bootstrap, mean block 20, missing-bar rule, B = 1999, seed | Bar vector, synchronization, block 20 (5 and 60 off-path), B = 1999 ruled. Missing-bar neighbourhood **OPEN**; seed value not recorded | G-5; G-8 | Operator |
 | 9 | Placebo sets (GF-1, GF-4T/R8) and the GF-10 contrast | GF-10 contrast ruled in principle; placebo sets and contrast p **OPEN — DEFINITION MISSING** | G-3; G-4 | Operator |
 | 10 | Statistic, IUT pass rule, α, one-sidedness, blind size-check procedure and threshold | Statistic T_c, IUT (confirmatory), α = 0.05/3, one-sided, 200 panels ≤ 2α ruled. Size-check inner draws and failure action **OPEN** | G-9 | Operator |
@@ -93,7 +93,7 @@ Status key:
 | 14 | Code committed from a clean tree; outputs written by script only | **OUTSTANDING TASK** — no Stage-1 code exists | P-3 | Research |
 | 15 | Exposure register row G-S1 appended **by the operator** before any read | **OUTSTANDING TASK** — draft row in memo §10 | P-4 | **Operator only** |
 | 16 | GR-1.5 disclosure text for any later confirmatory pre-registration | **OUTSTANDING TASK** | Freeze doc | Research |
-| 17 | R-11 reader-date audit performed and freshness of 2023-01-02 → 2026-09-11 ruled (R-12 precondition) | **OUTSTANDING TASK** | P-1 | Research (audit) → operator (ruling) |
+| 17 | R-11 reader-date audit performed and freshness of 2023-01-02 → 2026-09-11 ruled (R-12 precondition) | **AUDIT DONE** (2026-09-15, finding: signal-spent); **freshness ruling PENDING** | P-1 → `PTMS_GANN_R11_READER_DATE_AUDIT_2026-09-15.md` | Operator (ruling) |
 | 18 | Freeze document committed, SHA-256 recorded, operator-approved | **OUTSTANDING TASK** — blocked by the rows above | P-5 | Operator |
 
 **Screen preconditions (R-12), all unmet:** items 1–18 SATISFIED, including R-11 frozen after its
@@ -152,8 +152,11 @@ results cannot be declared off-path.
 > specification itself:** as written, the specificity leg for GF-1 and GF-4T/R8 cannot reject.
 >
 > **Tasks outstanding:**
-> - P-1: R-11 reader-date audit and freshness ruling.
-> - P-2: R-13 scoped N100 EOD certification and CA enumeration.
+> - P-1: R-11 **audit performed 2026-09-15** (`PTMS_GANN_R11_READER_DATE_AUDIT_2026-09-15.md`; finding:
+>   2023-01-02 → 2026-09-11 signal-spent). **The freshness ruling remains the operator's.**
+> - P-2: R-13 **store-level certification and in-store CA enumeration COMPLETE 2026-09-15**
+>   (`PTMS_GANN_R13_N100_EOD_SCOPED_CERTIFICATION_2026-09-15.md`); **external CA enumeration and the
+>   remaining certification items remain** (operator authorization required).
 > - P-3: Stage-1 code committed from a clean tree (after the definitions are fixed, not run).
 > - P-4: operator appends G-S1.
 > - P-5: freeze document committed, hashed and approved.
@@ -172,7 +175,8 @@ closes the **ruling** gate, not the **freeze** gate.
 - No family definition modified. No construct called faithful because of a result.
 - Exposure status preserved:
   - Equity EOD 2011-03-25 → 2022-12-30 is signal-spent, so it can host only non-confirmatory use.
-  - 2023-01-02 → 2026-09-11 stays UNRESOLVED until the R-11 audit and ruling.
+  - 2023-01-02 → 2026-09-11: the R-11 audit (2026-09-15) found the span **signal-spent**; the formal
+    freshness ruling is still the operator's, so the span stays UNRESOLVED until ruled.
   - Observations are spent; the Stage-1 hypotheses are fresh.
 - The exposure register was not edited. G-S1 is operator-owned.
 - The screen, if it is ever run, is never confirmation. A positive result from any Arm-2 variant is
