@@ -95,6 +95,9 @@ every other feed optional"* (`eod_decision.decide()` fires on futures alone).
 2. **Instrument-master refresh is coupled to the OAuth callback, not to startup.**
    Reuse a still-valid token across a restart and the master silently never refreshes
    that day. Preflight checks master freshness **independently** of token freshness.
+   *(Resolved 2026-09-15: `start_sequence` now refreshes the master itself at step 1b,
+   before Flask, once per day and non-blocking — see `OPS_POST_CLOSE_FIX_TASK_2026-09-09.md` §B.
+   The callback refresh stays as a backstop.)*
 3. **Poller must precede runner, and "file exists" is not enough.**
    `ChainSnapshotMarksSource.check_available()` runs at driver construction; a
    *valid-but-empty* cache passes it and yields `{}` marks → the runner prices
