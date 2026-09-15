@@ -5,7 +5,9 @@
 **Status (2026-09-15): OPERATOR RULINGS RECORDED — NOT A FREEZE.** The operator ruled R-1 → R-14 on
 2026-09-15; each ruling is the **RULING** row of its block, in the operator's terms. R-1 to R-11 and
 R-13 accepted; **R-14 accepted for finalization only** (not to be executed); **R-12 accepted in
-principle only** (not to be run). R-15 remains open, Stage 2 only. **This record is authoritative for
+principle only** (not to be run). R-15 remains open, Stage 2 only. **G-2 (O-R10 direction for
+GF-1/GF-4T/R8 and GF-10 bear-mirror pooling) ruled 2026-09-15** — see the G-2 block after R-15.
+**This record is authoritative for
 the rulings; other PTMS-Gann documents point here.** Accepted rulings are not a freeze: nothing is
 frozen until the freeze document is committed, hashed and operator-approved. Freeze status and the
 gaps found while applying the rulings: `PTMS_GANN_STAGE1_FREEZE_CHECKLIST_2026-09-15.md`.
@@ -192,11 +194,32 @@ GF-3, GF-4P, TIM-10 and the point rules? Basis: [MMPTC] pp. 1, 5; [45Y] pp. 8, 4
 
 ---
 
+## G-2 — O-R10 direction (GF-1 / GF-4T/R8) and GF-10 bear-mirror pooling
+
+**RULED by the operator 2026-09-15** — closes freeze checklist G-2. Recorded as the operator's
+**pre-result specification**: it is **not** an empirical result, and it is **not claimed to have
+been literally explicit in Gann's original text**. It was chosen because it is compatible with the
+existing frozen constraints (R-1 K3, R-2 binary O-R10, memo §8.2 single pooled T_c, R-5 GF-10 cell).
+It supersedes the parenthetical in R-2's RULING row and resolves freeze checklist §4 G-2.
+
+| Field | Entry |
+|---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** (a) **GF-1 and GF-4T/R8:** the **contemporaneous K3 line state** determines the O-R10 direction — **K3 UP** → outcome = 1 iff the last K3 swing low is penetrated intraday within the next 5 sessions; **K3 DOWN** → outcome = 1 iff the last K3 swing top is penetrated intraday within the next 5 sessions; **K3 NO STATE** → no eligible directional outcome. **S9 is not used for GF-1/GF-4T/R8 direction.** (b) **GF-10:** the state-conditioned binary pooling (audit formulation A1) — **S9 bull + K3 decline** → bull GF-10 score/outcome; **S9 bear + K3 rally** → mirrored bear GF-10 score/outcome; the score stays binary {0,1}; the outcome stays binary {0,1}; bull outcome = break of the last K3 swing low within 5 sessions; bear outcome = cross of the last K3 swing top within 5 sessions; an O-R10 event opposite to the construct's direction is outcome **0**; S9 no-state stocks and stocks not in the required counter-move are **ineligible, not zero**; bull and bear observations pool into **one per-date cross-sectional Spearman IC**; GF-10 remains **one construct, m stays 3** |
+| **Basis** | Freeze checklist §4 G-2; definition §12.1 (O-R10, S9); R-2 ("binary outcome"); memo §8.2 (single pooled per-date T_c); claim register Δ2-01 (Gann's bear-mirror sentence); the G-2(b) pooling audit of 2026-09-15 (A1 identified as the formulation consistent with all frozen constraints) |
+| **Recorded observation (not a challenge to the ruling)** | The two limbs anchor the direction differently, by design: GF-1/GF-4T/R8 use the **contemporaneous** K3 line state, while GF-10's outcome follows its ruled cell — for a bull-eligible GF-10 stock the K3 line is DOWN (mid-decline) yet the outcome is the **break of the last swing low** (O-R10's "(trend was up)" reading, i.e. the last **completed** swing direction). The freeze transcription must state each construct's anchor explicitly so the two cannot drift together |
+| **Frozen if accepted** | Exactly the RULING text above, transcribed verbatim into the freeze document's items 2 and 4 (primary cells + O-R10 definition), with no further choice |
+
+**Multiplicity:** m remains 3. GF-10's bear mirror adds no multiplicity — GF-10 remains one construct.
+
+---
+
 ## Governance
 
 - As first committed (`bf6b0a5`): no ruling made; nothing frozen.
 - **2026-09-15:** operator rulings recorded in the RULING rows. Ruling 7 superseded by R-5 on the
-  operator's instruction; no other prior ruling changed. No family definition changed. The exposure
+  operator's instruction; no other prior ruling changed. **G-2 ruled the same day (see the G-2 block
+  above)** — recorded as a pre-result specification, not as a claim that the formulation was
+  literally explicit in Gann's text. No family definition changed. The exposure
   register was not edited — G-S1 remains a draft for the operator to append. **Nothing is frozen.**
 - Exposure status preserved: equity EOD 2011-03-25 → 2022-12-30 signal-spent (a spent window can
   host only non-confirmatory use); 2023-01-02 → 2026-09-11 UNRESOLVED pending the R-11 audit.

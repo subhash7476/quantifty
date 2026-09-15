@@ -50,7 +50,7 @@ freeze only when every row in §3 is SATISFIED and the operator approves it.
 | Ruling | Operator decision | What it still leaves to do |
 |---|---|---|
 | R-1 | Accepted | Transcribe §5 rows 1–13 into the freeze |
-| R-2 | Accepted | Outcome direction for GF-1 / GF-4T/R8 and GF-10 bear pooling not defined (**G-2**) |
+| R-2 | Accepted | Outcome direction for GF-1 / GF-4T/R8 and GF-10 bear pooling **ruled 2026-09-15** (ruling register, G-2 block) — transcribe |
 | R-3 | Accepted | Transcribe |
 | R-4 | Accepted | Transcribe |
 | R-5 | Accepted; ruling 7 superseded | Transcribe |
@@ -78,9 +78,9 @@ Status key:
 | # | Item | Status | Closed by | Owner |
 |---|---|---|---|---|
 | 1 | Rulings R-1 → R-14 recorded in writing | **SATISFIED**, except R-12's sub-question | Ruling register; G-1 | Operator (G-1) |
-| 2 | Construct set, m, primary cell per construct | Set and m **SATISFIED**; cells **OPEN — DEFINITION MISSING** | G-2 | Operator |
+| 2 | Construct set, m, primary cell per construct | Set and m **SATISFIED**; cells **RULED — TO TRANSCRIBE** (G-2 ruled 2026-09-15) | Ruling register, G-2 block | Research |
 | 3 | Complete K3 algorithm incl. every IMPLEMENTATION ASSUMPTION | **RULED — TO TRANSCRIBE** (memo §5 rows 1–13; symmetric switch as robustness) | Freeze doc | Research |
-| 4 | S9 state rule; O-R10 (direction, penetration, intraday basis, 5-session horizon) | S9, penetration, basis, horizon ruled; direction **OPEN — DEFINITION MISSING** | G-2 | Operator |
+| 4 | S9 state rule; O-R10 (direction, penetration, intraday basis, 5-session horizon) | All elements ruled, including direction (**G-2**, 2026-09-15): contemporaneous K3-line-state anchor for GF-1/GF-4T/R8 (S9 not used); state-conditioned binary pooling for GF-10 — **RULED — TO TRANSCRIBE** | Ruling register, G-2 block | Research |
 | 5 | Anchors (sense, left-censoring, replacement, confirmation lag), time unit, window lists | **RULED — TO TRANSCRIBE** (R-3, R-4, R-9; K3 lag memo §5 row 4) | Freeze doc | Research |
 | 6 | Formation schedule; eligibility (PIT N100, listing start, burn-in, minimum names per date) | Weekly formation and PIT N100 specified; burn-in and minimum names **OPEN — DEFINITION MISSING** | G-6 | Operator |
 | 7 | Price basis and CA handling; external CA enumeration with exclusion windows; scoped certification | Price basis ruled (ratio-adjusted as-of-*t*). Enumeration and certification **OUTSTANDING TASK**; exclusion-window rule **OPEN** | P-2; G-7 | Data certification / operator |
@@ -111,7 +111,7 @@ existing committed document already names them, and none is recommended.
 | ID | Gap | Where the ruling text stops | Why it matters |
 |---|---|---|---|
 | **G-1** | May a construct that passes the surrogate leg but fails the specificity leg proceed to a confirmatory test? | R-12 was accepted in principle; this sub-question, posed in the ruling sheet, was not answered | Must be fixed before the screen is read. Deciding it after the results would be a post-result selection |
-| **G-2** | O-R10 **direction** for GF-1 and GF-4T/R8, and GF-10's **bear-mirror pooling** | O-R10 is "break of the last swing low (trend was up) or cross of the last swing top (trend was down)" with "direction by construct". GF-1 and GF-4T/R8 have no direction of their own. Whether "trend" means the K3 line state or the S9 state is not written: definition §12.1 says "on K3", while GF-10 uses S9. S9 can be "no state". GF-10's "bear mirror pooled with sign" does not say how a binary score and a direction-specific binary outcome are pooled in one per-date IC | It changes the outcome variable itself, for all three primaries |
+| **G-2 — RESOLVED (operator ruling 2026-09-15; ruling register, G-2 block)** | O-R10 **direction** for GF-1 and GF-4T/R8, and GF-10's **bear-mirror pooling** | O-R10 is "break of the last swing low (trend was up) or cross of the last swing top (trend was down)" with "direction by construct". GF-1 and GF-4T/R8 have no direction of their own. Whether "trend" means the K3 line state or the S9 state is not written: definition §12.1 says "on K3", while GF-10 uses S9. S9 can be "no state". GF-10's "bear mirror pooled with sign" does not say how a binary score and a direction-specific binary outcome are pooled in one per-date IC | It changes the outcome variable itself, for all three primaries |
 | **G-3** | **Placebo sets** for GF-1 and GF-4T/R8 | Memo §8.2 says "non-Gann fractions of 144" and "window set with identical widths, centres shifted to non-Gann day counts", with matched coverage. Definition §2 (GF-1) row 11 gives fractions only as "e.g. 0.29, 0.41, 0.59, 0.71, 0.83". No committed text pins the fractions, the shifted centres, the coverage-matching rule, or the **number of placebo sets** | p_plac is "rank of T_c among the placebo sets". **Arithmetic:** under R-14's one-sided +1 rank p-values, a rank p over N sets is at least 1/(N+1). To reach α = 0.05/3 = 1/60 needs **N ≥ 59**. Five exemplary fractions could never reject. This binds **GF-1 and GF-4T/R8 only**: GF-10's contrast takes its p from the B = 1999 surrogate draws (G-4). Consequences: for those two constructs the confirmatory IUT (p_sur ≤ α **and** p_plac ≤ α) cannot pass as specified, and every one would be a specificity-fail by construction, which makes G-1 more urgent. **G-3 is a rule that cannot fire, not merely a missing value** |
 | **G-4** | GF-10 time-over-price **contrast p-value** | R-10: "contrast statistic = T(time) − T(price); one-sided p from the surrogate joint distribution". No formula names the reference quantity or the null it tests | The one GF-10 specificity decision must be computable exactly as frozen |
 | **G-5** | **Missing-bar rule** | Memo §8.2: a drawn bar that does not exist "is redrawn from that stock's own bars in the same block neighbourhood (IA)". "Neighbourhood" is undefined | Changes every surrogate panel |
@@ -119,6 +119,11 @@ existing committed document already names them, and none is recommended.
 | **G-7** | CA **exclusion-window** rule | R-13 requires exclusion windows; their length and anchoring (around ex-date) are not specified. Nor is the enumeration source | Changes the eligible panel. Belongs to the R-13 certification task |
 | **G-8** | **Seed value** for B = 1999 | R-14 says "seed"; no value is recorded | Clerical, not scientific. Any fixed integer, recorded in the freeze document before any run |
 | **G-9** | Blind size check: **inner draws and failure action** | R-14 accepts "200 pseudo-real panels, rejection ≤ 2α". Not written: whether each pseudo-real test uses its own B = 1999 surrogates; whether the check is per construct or joint; **what happens if the rejection rate exceeds 2α** (stop, respecify, or proceed with disclosure) | Without a failure rule, a failed size check would force a post-hoc decision |
+
+**G-2 was resolved by operator ruling on 2026-09-15** and is recorded in the ruling register (G-2
+block); its row above is preserved as the gap history. The ruling is a **pre-result specification**
+compatible with the frozen constraints — it is not claimed to have been literally explicit in Gann's
+text.
 
 ---
 
@@ -142,7 +147,8 @@ results cannot be declared off-path.
 
 > **NOT READY TO FREEZE.**
 >
-> **Definitions missing (operator):** G-1, G-2, G-3, G-4, G-5, G-6, G-7, G-9; G-8 is clerical. **G-3 blocks the
+> **Definitions missing (operator):** G-1, G-3, G-4, G-5, G-6, G-7, G-9; G-8 is clerical. **G-2 is
+> ruled** (2026-09-15; ruling register, G-2 block). **G-3 blocks the
 > specification itself:** as written, the specificity leg for GF-1 and GF-4T/R8 cannot reject.
 >
 > **Tasks outstanding:**

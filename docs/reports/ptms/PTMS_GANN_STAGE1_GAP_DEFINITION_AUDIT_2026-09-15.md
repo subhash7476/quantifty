@@ -23,11 +23,12 @@ definition, design decisions, catalogue, feasibility audits), `governance/exposu
 | Closest committed text | Memo §10 kill rule: *"whether it proceeds to a confirmatory IUT pre-registration is an operator decision (R-12)"*; R-12 ruling: *"Not ruled: whether a surrogate-pass / specificity-fail construct may proceed to a confirmatory test (freeze checklist G-1)"* |
 | Disposition | **Operator decision (scientific).** Must precede the screen read — deciding after results would be post-result selection (checklist §4) |
 
-### G-2 — O-R10 direction for GF-1 and GF-4T/R8; GF-10 bear-mirror pooling
+### G-2 — O-R10 direction for GF-1 and GF-4T/R8; GF-10 bear-mirror pooling — **RULED 2026-09-15**
 
 | | |
 |---|---|
-| Already defined? | **No.** |
+| **Status update (2026-09-15)** | **RULED by the operator** — recorded in `PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md`, G-2 block. GF-1/GF-4T/R8: contemporaneous **K3 line state** gives the direction (UP → break of last K3 swing low; DOWN → cross of last K3 swing top; NO STATE → ineligible); S9 is not used for their direction. GF-10: state-conditioned binary pooling (audit formulation A1); score and outcome stay binary; opposite-direction events = 0; no-state / wrong-counter-move stocks ineligible, not zero; one per-date pooled Spearman IC; m stays 3. Recorded as a **pre-result specification**, not as literal Gann text |
+| Already defined? | **No** at audit time (row above supersedes this row as of 2026-09-15). |
 | Closest committed text | Definition §12.1: O-R10 is *"on K3, a break of the last swing low (trend was up) or a cross of the last swing top (trend was down)"* — no direction for constructs without their own direction. R-2 ruling: *"direction by construct"*, and its RULING row explicitly notes the gap. GF-10: *"bear mirror pooled with sign"* (R-5, memo §11.F) without a pooling formula. Whether "trend" is the K3 line state or the S9 state (which can be "no state") is not written |
 | Disposition | **Operator decision (scientific).** Changes the outcome variable for all three primaries |
 
@@ -95,9 +96,11 @@ definition, design decisions, catalogue, feasibility audits), `governance/exposu
 |---|---|
 | **Already defined (transcription only)** | Contrast *statistic* T(time) − T(price) (part of G-4) · all "RULED — TO TRANSCRIBE" checklist rows (items 3, 4-minus-direction, 5, 11-minus-G-1) · the exclusion *policy* concept behind G-7 |
 | **Objectively auditable / engineering (this or a later session)** | R-11 audit (**done — finding: 2023-01-02 → 2026-09-11 equity EOD signal-spent; ruling still the operator's**) · R-13 store-level certification + in-store CA enumeration (**done**; G1/G3/G5 persistence and external enumeration remain) · checklist items 12, 13, 14, 16 (research work with fixed wording) |
-| **Genuinely requiring operator/scientific decision** | **G-1, G-2, G-3, G-4 (null + p-formula), G-5, G-6, G-7, G-8, G-9** · R-11 freshness ruling · R-13 external-enumeration authorization · G-S1 register append (operator-owned) · freeze approval (item 18) |
+| **Genuinely requiring operator/scientific decision** | **G-1, G-3, G-4 (null + p-formula), G-5, G-6, G-7, G-8, G-9** (**G-2 ruled 2026-09-15** — ruling register, G-2 block) · R-11 freshness ruling · R-13 external-enumeration authorization · G-S1 register append (operator-owned) · freeze approval (item 18) |
 
-No gap above can be closed by this audit without inventing a definition; none is filled.
+No gap above can be closed by this audit without inventing a definition; none is filled by this
+audit. **G-2 was subsequently closed by operator ruling on 2026-09-15** (ruling register, G-2 block;
+checklist §4 row marked RESOLVED).
 
 ---
 
