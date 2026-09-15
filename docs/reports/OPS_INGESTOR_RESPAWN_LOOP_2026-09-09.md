@@ -151,4 +151,37 @@ handle, which means Ctrl+C on this orchestrator will still leave 12140 running. 
 
 ---
 
+## 9. Recurrence — 2026-09-15, and §7 item 1 fixed
+
+Same fault, same shape. Orchestrator started 09:15:05; the real ingestor (PID 11628,
+09:15:11) held port 5555 with `status=CONNECTED` and a sub-second heartbeat, while
+`data/ops/market_ingestor.pid` was rewritten every ~20 s (observed 15864 → 18188 → 22348
+→ 24408 → 18204, each a dead duplicate). The loop was already running at 11:35:26 (pidfile
+mtime at the morning health check); the original trigger is again unattributable because the
+supervisor's restart log goes only to its console.
+
+A probe of the supervisor's own test: `pidfile pid 24408 lock_alive=False`,
+`status pid 11628 pid_alive=True hb age 0.65 s`, `status_fresh=True`, **`child_alive=False`**.
+
+**Breaker applied 12:22:13** via `pidfile.write_pid(..., 11628)` after asserting 11628 was
+alive and was the status file's pid (not `echo >` — PowerShell writes a BOM that `read_pid`
+parses as no pid). Verified over 30 s: pidfile held 11628, `child_alive=True` on every sample;
+the process list shows exactly one `market_ingestor.py` (11628).
+
+**§7 item 1 — DONE.** `child_alive` now takes the pid from the child's self-published status
+file when one exists (`_published_pid`), falling back to the pidfile only when the status file
+is absent or carries no pid. A clobbered pidfile can no longer outvote the live child, so the
+loop converges on the next tick after any false negative. Verified live against the real
+status file with a scratch pidfile holding a dead pid: `child_alive=True`. Tests:
+`test_child_alive_trusts_the_published_pid_over_a_clobbered_pidfile`,
+`test_child_alive_false_when_the_published_pid_is_dead`.
+
+Still outstanding: **§7 item 2** (the ingestor's own singleton lock is commented out; the
+two-lock-namespace decision in the startup audit §5 is unmade), the **stale
+`_started["ingestor"]` handle** (Ctrl+C on the 09:15 orchestrator will leave 11628 running —
+confirm it is dead before restarting), and the **trigger** itself — a false negative is now
+survivable, but nothing records why it happened.
+
+---
+
 **Companion audit:** the rest of the 2026-09-09 startup sequence (live-buffer purge, catch-up download, CAS marking, instrument master) is audited in `OPS_STARTUP_SEQUENCE_AUDIT_2026-09-09.md`. Note that its §5 **corrects §7 item 2 above**: `_acquire_lock()` is commented out, so the fix is not a reorder.

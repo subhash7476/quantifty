@@ -61,9 +61,28 @@ def _status_fresh(spec: ChildSpec) -> bool:
     return (datetime.now() - hb).total_seconds() <= spec.status_max_age_s
 
 
+def _published_pid(spec: ChildSpec) -> Optional[int]:
+    """The pid a child publishes about itself in its status file, if any.
+
+    spawn() overwrites the pidfile with every new PID — including a duplicate that
+    dies on the port-5555 bind — so one false negative left the pidfile naming a
+    dead process and the supervisor respawning beside a healthy ingestor forever
+    (2026-09-09, 2026-09-15). The supervisor never writes the status file.
+    """
+    if spec.status_path is None:
+        return None
+    try:
+        return int(json.loads(spec.status_path.read_text(encoding="utf-8"))["pid"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def child_alive(spec: ChildSpec) -> bool:
     lock = spec.native_lock or spec.pid_path
-    return bool(lock) and pidfile.lock_alive(lock) and _status_fresh(spec)
+    pid = _published_pid(spec)
+    if pid is None:
+        pid = pidfile.read_pid(lock) if lock else None
+    return pid is not None and pidfile.pid_alive(pid) and _status_fresh(spec)
 
 
 def spawn(spec: ChildSpec, *, popen: Callable = subprocess.Popen):
