@@ -101,6 +101,10 @@ class EventType(Enum):
     # the lines an operator reads to answer "what sized this?" and "what did we
     # lose?", and diluting either with diagnostics destroys that signal.
     ENTRY_DIAGNOSTIC = "ENTRY_DIAGNOSTIC"
+    # The exit bracket a NiftyShield structure was sized with (take-profit and
+    # stop at spot +/-1 sigma over the hold), or CRITICAL when none could be
+    # sized and the structure runs without either.
+    ENTRY_BRACKET = "ENTRY_BRACKET"
 
 
 # Normative default severity per event type (section 15.4). BROKER_ERROR is
@@ -130,6 +134,7 @@ _DEFAULT_SEVERITY: Dict["EventType", "Severity"] = {
     EventType.FACT_PUBLISH_SKIPPED: Severity.WARNING,
     EventType.ENTRY_MARGIN: Severity.INFO,
     EventType.ENTRY_DIAGNOSTIC: Severity.INFO,
+    EventType.ENTRY_BRACKET: Severity.INFO,
     EventType.ENTRY_SKIPPED: Severity.WARNING,
     EventType.STRUCTURE_CLOSE: Severity.INFO,
 }

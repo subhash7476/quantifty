@@ -66,6 +66,11 @@ What moved the spread in those two minutes was not measured for this note.
    item 5 of `NIFTY_SHIELD_REMEDIATION_2026-09-08.md`, and the stop side of that trade-off
    (Rs 121 target vs a stop 25× larger) is unmeasured.
 
+**Follow-up (same day):** the operator chose to replace both exits with a ±1σ bracket —
+`docs/superpowers/specs/2026-09-15-nifty-shield-sigma-bracket-design.md`, recorded as
+§4.7 of `NIFTY_SHIELD_REMEDIATION_2026-09-08.md`. The paragraph below is the note's
+position before that decision.
+
 **Not changed.** The parameter was pinned by a derivation that deliberately reads no trades
 (`derive_anchoring_params.py` §3), and the remediation's rule is not to refit on n=1 — now
 n=2. A change that is *not* a refit is available if the operator wants one: a take-profit

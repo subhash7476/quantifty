@@ -23,7 +23,13 @@ the two errors compound in the credit. Full measurement:
 from __future__ import annotations
 
 import math
-from typing import Dict, Iterable, Optional
+from dataclasses import dataclass
+from typing import Dict, Iterable, Optional, Tuple
+
+# Bisection bounds for implied vol. The upper bound is far above any index
+# option vol; a price outside [bs(lo), bs(hi)] has no Black-Scholes vol at all.
+_IV_LO, _IV_HI = 1e-4, 5.0
+_LEG_KEYS = ("side", "strike", "option_type", "price", "qty")
 
 
 def _norm_cdf(x: float) -> float:
@@ -91,3 +97,94 @@ def marked_structure_credit(legs: Iterable[Dict],
         sign = 1.0 if str(leg.get("side")).upper() == "SELL" else -1.0
         total += sign * float(marks[symbol])
     return total
+
+
+def implied_vol(price: float, spot: float, strike: float, t_years: float,
+                rate: float, option_type: str) -> Optional[float]:
+    """Black-Scholes implied vol by bisection, or None when no vol reproduces
+    the price (e.g. a premium below discounted intrinsic value)."""
+    if price <= 0 or spot <= 0 or strike <= 0 or t_years <= 0:
+        return None
+    lo, hi = _IV_LO, _IV_HI
+    if not (bs_price(spot, strike, t_years, rate, lo, option_type) <= price
+            <= bs_price(spot, strike, t_years, rate, hi, option_type)):
+        return None
+    for _ in range(100):
+        mid = 0.5 * (lo + hi)
+        if bs_price(spot, strike, t_years, rate, mid, option_type) < price:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+@dataclass(frozen=True)
+class Bracket:
+    """A structure's take-profit and stop in Rs, sized at entry.
+
+    `tp_rs` is the book's gain and `sl_rs` its loss at spot -/+ sigma_mult x
+    sigma over the hold. `tp_enabled` is False when the gain side does not
+    clear the fee floor (or does not exist, as for a straddle)."""
+    tp_rs: float
+    sl_rs: float
+    sigma_pts: float
+    leg_ivs: Tuple[float, ...]
+    fee_floor_rs: float
+    tp_enabled: bool
+
+
+def sigma_bracket(legs: Iterable[Dict], spot: float, dte_days: float, rate: float,
+                  sigma_mult: float, hold_hours: float, session_hours: float,
+                  fee_floor_rs: float) -> Optional[Bracket]:
+    """Size the exit bracket as the structure's P&L at spot +/-1 sigma.
+
+    A 13:00-15:35 hold on a 2-8 DTE structure decays only a few percent of its
+    premium, so its P&L is the index move, and the exits are sized in that unit
+    (docs/superpowers/specs/2026-09-15-nifty-shield-sigma-bracket-design.md).
+    Each leg's vol is solved from its own fill `price`, so the bracket depends
+    only on what was paid and recomputes identically after a restart. Sigma is
+    taken from the SELL legs' vols; the structure is repriced with vols and time
+    held fixed.
+
+    `legs` carry `side`, `strike`, `option_type`, `price` (the fill) and `qty`.
+    Returns None when any input cannot support a price, or when the structure
+    has no loss side — the caller must treat that as "no bracket", never
+    substitute one.
+    """
+    legs = list(legs)
+    if (spot <= 0 or dte_days <= 0 or hold_hours <= 0 or session_hours <= 0
+            or not legs or any(leg.get(k) is None for leg in legs for k in _LEG_KEYS)):
+        return None
+    t_years = float(dte_days) / 365.0
+    priced = []
+    for leg in legs:
+        iv = implied_vol(float(leg["price"]), spot, float(leg["strike"]), t_years,
+                         rate, leg["option_type"])
+        if iv is None:
+            return None
+        sign = 1.0 if str(leg["side"]).upper() == "SELL" else -1.0
+        priced.append((sign, float(leg["strike"]), leg["option_type"], iv,
+                       float(leg["qty"])))
+    short_ivs = [iv for sign, _, _, iv, _ in priced if sign > 0]
+    if not short_ivs:
+        return None
+
+    sigma_pts = (spot * (sum(short_ivs) / len(short_ivs))
+                 * math.sqrt(hold_hours / (252.0 * session_hours)))
+
+    def value(s: float) -> float:
+        return sum(sign * bs_price(s, strike, t_years, rate, iv, opt) * qty
+                   for sign, strike, opt, iv, qty in priced)
+
+    shift = sigma_mult * sigma_pts
+    base = value(spot)
+    gain_down = base - value(spot - shift)
+    gain_up = base - value(spot + shift)
+    tp_rs = max(gain_down, gain_up, 0.0)
+    sl_rs = max(-min(gain_down, gain_up), 0.0)
+    if sl_rs <= 0.0:
+        return None    # gains both ways (an arbitrage-priced fill): a Rs 0 stop fires at flat marks
+    return Bracket(tp_rs=tp_rs, sl_rs=sl_rs, sigma_pts=sigma_pts,
+                   leg_ivs=tuple(iv for _, _, _, iv, _ in priced),
+                   fee_floor_rs=float(fee_floor_rs),
+                   tp_enabled=tp_rs > 0.0 and tp_rs >= fee_floor_rs)

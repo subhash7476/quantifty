@@ -130,9 +130,11 @@ def test_all_event_types_present():
         # Observe-only evidence around an entry that neither sized nor blocked
         # it -- kept distinct so ENTRY_MARGIN and ENTRY_SKIPPED stay readable.
         "ENTRY_DIAGNOSTIC",
+        # The exit bracket a NiftyShield structure was sized with.
+        "ENTRY_BRACKET",
     }
     assert {e.value for e in EventType} == expected
-    assert len(EventType) == 25
+    assert len(EventType) == 26
 
 
 def test_default_severity_defined_for_every_event_type():

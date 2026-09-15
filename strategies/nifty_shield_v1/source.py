@@ -136,7 +136,6 @@ class NiftyShieldSignalSource(SignalSource):
         sl_distance, risk_r = self._risk_declaration(structure, base_lots, legs)
         dte = max((date.fromisoformat(legs[0]["expiry"])
                    - self._session_date).days, 1)
-        avail_decay = structures.available_decay_frac(dte, self._cfg)
         group_id = str(uuid.uuid5(
             _GROUP_NS, f"{STRATEGY_ID}:{self._session_date}:{structure}"))
 
@@ -181,14 +180,12 @@ class NiftyShieldSignalSource(SignalSource):
                 "spot": float(bar.close),
                 "iv": iv,
                 "exit": {
-                    # Take-profit is a fraction of the decay AVAILABLE to this
-                    # structure over the hold, not of the credit -- see config.
-                    "tp_decay_frac": float(
-                        self._cfg.get("profit_target_decay_frac", 0.50)),
-                    "available_decay_frac": avail_decay,
-                    "sl_mult": float(self._cfg.get("stop_loss_multiplier", 2.0)),
-                    "sl_frac": float(
-                        self._cfg.get("stop_loss_max_loss_frac", 0.50)),
+                    # Execution sizes take-profit and stop from the fills as
+                    # the structure's P&L at spot +/- bracket_sigma x sigma
+                    # over the hold -- see config.
+                    "bracket_sigma": float(self._cfg.get("bracket_sigma", 1.0)),
+                    "tp_min_fee_multiple": float(
+                        self._cfg.get("tp_min_fee_multiple", 3.0)),
                     # Derived from config, not a literal: the exit manager
                     # reads `exit_time` and a hardcoded string here could
                     # advertise a flatten time the driver does not honour.

@@ -157,18 +157,16 @@ def test_leg_encoding_and_risk_metadata(facts_db):
         md = s.metadata
         for key in ("group_id", "structure", "leg_role", "strike", "expiry",
                     "option_type", "base_lots", "regime_mult", "vix_reduce",
-                    "sl_distance", "risk_r", "exit"):
+                    "sl_distance", "risk_r", "exit", "spot", "dte"):
             assert key in md, f"missing metadata key {key}"
         assert md["sl_distance"] > 0 and md["risk_r"] > 0
-        # Take-profit is a fraction of the decay available over the hold now,
-        # not of the credit; the source carries both halves so the exit manager
-        # can scale the threshold to this structure's own DTE.
-        assert md["exit"]["tp_decay_frac"] == 0.50
-        assert 0.0 < md["exit"]["available_decay_frac"] < 1.0
-        # sl_mult is the stop for the undefined structures only; the defined
-        # ones stop on sl_frac x max_loss (a credit multiple cannot bound them).
-        assert md["exit"]["sl_mult"] == 2.0
-        assert md["exit"]["sl_frac"] == 0.50
+        # Execution sizes the exit bracket from fills at the signal's spot and
+        # DTE (spot +/-1 sigma over the hold); the source carries only its two
+        # parameters, and none of the rules it replaced.
+        assert md["exit"]["bracket_sigma"] == 1.0
+        assert md["exit"]["tp_min_fee_multiple"] == 3.0
+        for removed in ("tp_decay_frac", "available_decay_frac", "sl_mult", "sl_frac"):
+            assert removed not in md["exit"]
         # 15:35, from config: the structure is managed by its own TP/SL for
         # the whole session and the derivatives segment trades past the 15:29
         # cash auction print.
