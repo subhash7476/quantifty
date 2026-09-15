@@ -14,6 +14,8 @@ statement above that the catalogue was not modified. Where §§0–25 and §26 c
 are **recommendations pending operator acceptance** (§27.5).
 **Delta Δ3:** §28 completes the reading of *45 Years* (pp. 46–148) and corrects §27.4 item 2. Where §27
 and §28 conflict, **§28 governs**.
+**Delta Δ4:** §29 records the reading of *How to Make Profits Trading in Puts and Calls* (all pages).
+It changes no Stage-1 disposition.
 
 ---
 
@@ -1836,3 +1838,49 @@ are in `PTMS_GANN_STAGE1_PREREG_COMPLETION_2026-09-14.md` §1.
 
 No market data or outcomes read; arithmetic only on dates printed in the book. Nothing frozen. §§0–27
 unedited.
+
+---
+
+## 29. PRIMARY-SOURCE DELTA Δ4 — *How to Make Profits Trading in Puts and Calls*
+
+**Recorded:** 2026-09-15, after commit `ad35b85`. **Trigger:** operator instruction to read the
+remaining pages before any freeze. No new source searched or downloaded.
+
+### 29.1 Source
+
+| Key | Work | Copy | Reading status |
+|---|---|---|---|
+| **[PC37]** | *How to Make Profits Trading in Puts and Calls*, typescript pp. 1–18, signed "W. D. Gann", dated May 26, 1937 | Operator-supplied PDF, SHA-256 `d8ad4cb0751e26c3d3815b7aa75e4109f43ea35632614334bf5b79dfe507ea67`, 22 PDF pages, image-only | **All pages read** (PDF pp. 1–19: cover + pp. 1–18) |
+| **[SPC41]** | *How to Sell Puts and Calls*, pp. 1–3, signed "W. D. Gann", dated February 1941 | Same PDF, PDF pp. 20–22. **Set in a different, modern typeface** — re-typeset; edition identity UNCERTAIN | **All pages read** |
+
+### 29.2 Claims
+
+| ID | Claim (paraphrase unless quoted) | Locator | Status | Op. |
+|---|---|---|---|---|
+| Δ4-01 | Options run 7 days, two weeks, 30, 60 or 90 days; Gann favours 30 days | [PC37] pp. 4–5 | VERIFIED | Not a market rule |
+| Δ4-02 | Timing is to follow the rules in *Truth of the Stock Tape*, *Wall Street Stock Selector* and *New Stock Trend Detector*; seven rules given | [PC37] p. 8, p. 18 | VERIFIED | Pointer to texts already in F0/Δ1 |
+| Δ4-03 | Rules 1–5: double/triple bottoms and tops; buy when old tops are crossed after a narrow trading range of "several weeks, several months, or even several years"; a third lower top after tops "many months previous or many years previous"; second or third higher bottom "several weeks or months apart"; holding several months without breaking the first support point; reaction back to a crossed old top | [PC37] pp. 8–9 | VERIFIED | Level-based; "narrow" in points → translation-dependent |
+| Δ4-04 | Rule 6: bull-market reactions of 5, 10 or 12 points; bear-market rallies of 5, 7, 10 or 12 points | [PC37] p. 9 | VERIFIED | Nominal points — Stage 2 |
+| Δ4-05 | Rule 7: "Buy a Call when a stock reacts 40 to 50% of the last advance"; mirror in bear markets; after fast moves "the reaction runs one-half or 50%" | [PC37] p. 10 (U. S. Steel, March 1937); p. 14 | VERIFIED | Scale-free retracement of the **last move**; "last advance" scale undefined |
+| Δ4-06 | "Stocks always move faster at higher levels than they do at low levels"; price bands ($5–10, $20–36, above $36–40, $60–75, $75–150) with different behaviour | [PC37] pp. 11–12, 17 | VERIFIED | Price-level dependence without conversion |
+| Δ4-07 | Low-priced stocks: wait until a stock holds in a narrow trading range 4 to 6 months, or several years, then crosses the old tops | [PC37] p. 16 | VERIFIED | Range narrowness undefined (points) |
+| Δ4-08 | A narrow range held for months ("an 8-point range") precedes a big move; "when activity follows a long period of dullness there are big opportunities" | [PC37] pp. 15–16 | VERIFIED | Qualitative |
+| Δ4-09 | Keep up monthly and weekly high and low charts; worked examples read weekly charts (e.g. "crossed 8 weeks' tops") | [PC37] pp. 12, 18 | VERIFIED | Chart timeframe for these examples: weekly/monthly |
+| Δ4-10 | Option-selling mechanics; no timing rule | [SPC41] pp. 1–3 | VERIFIED (re-typeset copy) | Not design-relevant |
+
+**Not present in either document:** the 3-Day Chart, Rule 8 time overbalance, day-count windows,
+anniversary rules, the 144 square, circle divisions, or any calendar-day count rule.
+
+### 29.3 Dispositions
+
+| Disposition | Item | Change |
+|---|---|---|
+| **CONFIRMED** | Stage-1 constructs GF-1, GF-4T/R8, GF-10; K3 findings (§28) | Nothing in [PC37]/[SPC41] bears on them |
+| **QUALIFIED** | Δ2-09 / Δ3-07 (percentage anchor) | A **fourth** percentage sense: retracement of the last advance or move (Δ4-05), beside percentage of the highest selling price, of a campaign top, and of "any high level" |
+| **QUALIFIED** | Δ3-03 ("trading range" undefined) | Gann describes trading ranges by duration (weeks to years; 4–6 months for low-priced stocks) and narrowness in **points** (Δ4-03, Δ4-07). Still not mechanizable scale-free |
+| **STRENGTHENED** | Δ3-10 (point rules depend on price level) | Explicit price-level behaviour bands (Δ4-06) |
+| **STILL UNRESOLVED** | Translation (U-LIT), trading-range definition, campaign/section scale | Unchanged |
+
+### 29.4 Governance
+
+No market data or outcomes read. Nothing frozen. §§0–28 unedited. The PDF is not committed.

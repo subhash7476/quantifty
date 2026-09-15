@@ -83,6 +83,17 @@ on Stage 1 are not listed.
 by F3–F12, F16. **Nothing in the remaining pages changes the Rule 8 overbalance sentences (register
 Δ2-01/02), Rule 4 norms, or the Rule 5 section count.**
 
+### 1.3 *Puts and Calls* (added 2026-09-15)
+
+Read in full after the memo's first commit (register §29). Design-relevant only:
+
+| # | Source | What Gann says | Changes a design decision? | Mechanizable? | Faithful / assumption |
+|---|---|---|---|---|---|
+| F21 | [PC37] p. 10, p. 14 | Rule 7: "Buy a Call when a stock reacts 40 to 50% of the last advance"; after fast moves the reaction "runs one-half or 50%" | No — adds a **fourth** percentage anchor sense (last move) and deepens the GF-8 anchor conflict; GF-8 stays excluded. Not added as a construct | Only with a defined "last advance" scale (rides on R-1) | Arm-1 claim; not in Stage 1 |
+| F22 | [PC37] pp. 8–9, 15–16 | Trading ranges described by duration ("several weeks, several months, or even several years"; 4–6 months for low-priced stocks) and narrowness in points | No — R-2's main-trend outcome stays unmechanizable scale-free | No | Stage 2 |
+| F23 | [PC37] pp. 11–12, 17 | "Stocks always move faster at higher levels than they do at low levels", with price bands | No — reinforces Stage-2 deferral and the price-level strata diagnostic (§11.H item 12) | — | — |
+| F24 | [PC37]; [SPC41] | No 3-Day Chart, Rule 8 overbalance, day-count windows, anniversary, 144 square or circle divisions | Confirms GF-1, GF-4T/R8, GF-10 and the K3 findings unchanged | — | — |
+
 ---
 
 ## 2. Source-to-mechanization table
@@ -373,11 +384,11 @@ below.** Not authorized here; requires an operator ruling (**R-12**).
 - Stock price translation (U-LIT) — no textual resolution.
 
 **Reading complete:** [45Y] pp. 1–148. *Commodities* copy is a translation (inadmissible for wording).
-*How to Make Profits Trading in Puts and Calls* (SHA-256 `d8ad4cb0…`): a 22-page typescript with no
-contents page. The cover and pp. 1–3 were viewed — option mechanics only (calls, puts, spreads, how
-options are sold). **pp. 4–22 not inspected.** Its relevance to stock price-time rules is therefore
-**not established** and stays an open item (reading, not a ruling); it does not block Stage-1 design
-on anything read so far, but should be checked before any freeze.
+*How to Make Profits Trading in Puts and Calls* (1937, pp. 1–18) and the re-typeset *How to Sell Puts
+and Calls* (1941, pp. 1–3), SHA-256 `d8ad4cb0…`: **all pages read** (register §29, Δ4). They change no
+Stage-1 disposition. They add a fourth percentage sense (40–50% of the last advance, Rule 7), describe
+trading ranges by duration and point width (still not scale-free), and state that stocks move faster
+at higher price levels.
 
 ### B. Arm 1 — Gann-faithful (Stage-1 candidates)
 
@@ -466,7 +477,7 @@ score–outcome association is computed on real data, including the screen:
 11. Screen window 2011-03-25 → 2022-12-30; kill rule and its report wording; confirmatory α pinned at
     0.05/m_entered; prohibition on using screen estimates in any later δ band.
 12. Robustness list (off the pass path), declared in full, with **pre-specified diagnostics**:
-    anchor-age strata (GF-1's early "all-time-to-date extremes" are left-censoring artifacts of the
+    price-level strata ([PC37] pp. 11–12), anchor-age strata (GF-1's early "all-time-to-date extremes" are left-censoring artifacts of the
     2011-03-25 data start and listing dates), per-stock heterogeneity, and the realized burn-in
     haircut to n.
 13. Report template with the NON-CONFIRMATORY label and the §8.2 limitation statement.
@@ -484,8 +495,9 @@ score–outcome association is computed on real data, including the screen:
 > (construct exclusions and cell pins), R-11 (freshness of 2023-01-02 → 2026-09-11), R-13 (scoped
 > substrate certification and CA enumeration), R-14 (surrogate/inference specification).
 
-These are operator rulings, not further research. One reading item also remains open: *Puts and Calls*
-pp. 4–22 (§11.A). **No further primary-source reading can close the rulings above**: the remaining gaps are either undefined in Gann's text or withheld by Gann. Once they are
+These are operator rulings, not further research. The supplied primary texts have now been read in
+full (*Puts and Calls* closed 2026-09-15, register §29). **No further primary-source reading can close
+the rulings above**: the remaining gaps are either undefined in Gann's text or withheld by Gann. Once they are
 ruled, the §H freeze can be written and the screen (R-12) considered.
 
 ---
