@@ -17,20 +17,22 @@ class SafeConsoleHandler(logging.StreamHandler):
     """
 
     def emit(self, record):
+        # StreamHandler.emit swallows its own exceptions via handleError, so the
+        # encoding fallback has to wrap the write itself, not super().emit().
         try:
-            super().emit(record)
-        except UnicodeEncodeError:
+            msg = self.format(record)
+            stream = self.stream if self.stream is not None else sys.stderr
             try:
-                msg = self.format(record)
-                stream = self.stream if self.stream is not None else sys.stderr
-                encoding = stream.encoding or "utf-8"
-                safe = msg.encode(encoding, errors="backslashreplace").decode(
-                    encoding, errors="ignore"
-                )
+                stream.write(msg + self.terminator)
+            except UnicodeEncodeError:
+                encoding = getattr(stream, "encoding", None) or "utf-8"
+                safe = msg.encode(encoding, errors="backslashreplace").decode(encoding)
                 stream.write(safe + self.terminator)
-                self.flush()
-            except Exception:
-                self.handleError(record)
+            self.flush()
+        except RecursionError:
+            raise
+        except Exception:
+            self.handleError(record)
 
 
 def setup_logger(
@@ -92,7 +94,8 @@ def setup_logger(
     file_handler = RotatingFileHandler(
         str(log_file),
         maxBytes=10 * 1024 * 1024,  # 10MB
-        backupCount=5
+        backupCount=5,
+        encoding="utf-8",  # log_reader decodes UTF-8; the Windows locale default is cp1252
     )
     file_formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
