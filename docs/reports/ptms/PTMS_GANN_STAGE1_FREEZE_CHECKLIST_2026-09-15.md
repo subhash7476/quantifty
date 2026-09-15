@@ -58,7 +58,7 @@ freeze only when every row in §3 is SATISFIED and the operator approves it.
 | R-9 | Accepted | Transcribe with design-choice label |
 | R-10 | Accepted | Contrast p-value formula not written (**G-4**) |
 | R-11 | Accepted | **Audit not performed** (**P-1**) |
-| R-12 | Accepted in principle only; not to be run | Sub-question not ruled (**G-1**); preconditions P-1 to P-7 |
+| R-12 | Accepted in principle only; not to be run | Sub-question not ruled (**G-1**); preconditions P-1 to P-5 |
 | R-13 | Accepted | **Certification and CA enumeration not done** (**P-2**) |
 | R-14 | Accepted for finalization only; not to be executed | Placebo sets, missing-bar rule, seed, size-check failure rule (**G-3, G-5, G-8, G-9**) |
 | R-15 | Open | Stage 2 only |
