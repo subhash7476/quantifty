@@ -15,11 +15,12 @@ definition, design decisions, catalogue, feasibility audits), `governance/exposu
 
 ## 1. Gap-by-gap disposition
 
-### G-1 — may a surrogate-pass / specificity-fail construct proceed to confirmation?
+### G-1 — may a surrogate-pass / specificity-fail construct proceed to confirmation? — **RULED 2026-09-15**
 
 | | |
 |---|---|
-| Already defined? | **No.** |
+| **Status update (2026-09-15)** | **RULED by the operator** — recorded in `PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md`, G-1 block. **A Stage-1 construct that passes the surrogate leg but fails the Gann-specificity leg is retired and may NOT proceed to a confirmatory test.** Rationale: Stage 1 must establish evidence for the specified Gann-faithful construct, not merely a generic temporal/market phenomenon; a specificity failure means the construct has not demonstrated the required Gann-specific property. Recorded as a **pre-result specification** |
+| Already defined? | **No** at audit time (row above supersedes this row as of 2026-09-15). |
 | Closest committed text | Memo §10 kill rule: *"whether it proceeds to a confirmatory IUT pre-registration is an operator decision (R-12)"*; R-12 ruling: *"Not ruled: whether a surrogate-pass / specificity-fail construct may proceed to a confirmatory test (freeze checklist G-1)"* |
 | Disposition | **Operator decision (scientific).** Must precede the screen read — deciding after results would be post-result selection (checklist §4) |
 
@@ -94,13 +95,13 @@ definition, design decisions, catalogue, feasibility audits), `governance/exposu
 
 | Class | Items |
 |---|---|
-| **Already defined (transcription only)** | Contrast *statistic* T(time) − T(price) (part of G-4) · all "RULED — TO TRANSCRIBE" checklist rows (items 3, 4-minus-direction, 5, 11-minus-G-1) · the exclusion *policy* concept behind G-7 |
+| **Already defined (transcription only)** | Contrast *statistic* T(time) − T(price) (part of G-4) · all "RULED — TO TRANSCRIBE" checklist rows (items 2, 3, 4, 5, 11 — the G-1 and G-2 rulings closed the two former exceptions) · the exclusion *policy* concept behind G-7 |
 | **Objectively auditable / engineering (this or a later session)** | R-11 audit (**done — finding: 2023-01-02 → 2026-09-11 equity EOD signal-spent; ruling still the operator's**) · R-13 store-level certification + in-store CA enumeration (**done**; G1/G3/G5 persistence and external enumeration remain) · checklist items 12, 13, 14, 16 (research work with fixed wording) |
-| **Genuinely requiring operator/scientific decision** | **G-1, G-3, G-4 (null + p-formula), G-5, G-6, G-7, G-8, G-9** (**G-2 ruled 2026-09-15** — ruling register, G-2 block) · R-11 freshness ruling · R-13 external-enumeration authorization · G-S1 register append (operator-owned) · freeze approval (item 18) |
+| **Genuinely requiring operator/scientific decision** | **G-3, G-4 (null + p-formula), G-5, G-6, G-7, G-8, G-9** (**G-1 and G-2 ruled 2026-09-15** — ruling register, G-1 and G-2 blocks) · R-11 freshness ruling · R-13 external-enumeration authorization · G-S1 register append (operator-owned) · freeze approval (item 18) |
 
 No gap above can be closed by this audit without inventing a definition; none is filled by this
-audit. **G-2 was subsequently closed by operator ruling on 2026-09-15** (ruling register, G-2 block;
-checklist §4 row marked RESOLVED).
+audit. **G-1 and G-2 were subsequently closed by operator rulings on 2026-09-15** (ruling register,
+G-1 and G-2 blocks; checklist §4 rows marked RESOLVED).
 
 ---
 

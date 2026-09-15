@@ -5,8 +5,9 @@
 **Status (2026-09-15): OPERATOR RULINGS RECORDED — NOT A FREEZE.** The operator ruled R-1 → R-14 on
 2026-09-15; each ruling is the **RULING** row of its block, in the operator's terms. R-1 to R-11 and
 R-13 accepted; **R-14 accepted for finalization only** (not to be executed); **R-12 accepted in
-principle only** (not to be run). R-15 remains open, Stage 2 only. **G-2 (O-R10 direction for
-GF-1/GF-4T/R8 and GF-10 bear-mirror pooling) ruled 2026-09-15** — see the G-2 block after R-15.
+principle only** (not to be run). R-15 remains open, Stage 2 only. **G-1 (surrogate-pass /
+specificity-fail path: retired, no confirmatory test) and G-2 (O-R10 direction for
+GF-1/GF-4T/R8 and GF-10 bear-mirror pooling) ruled 2026-09-15** — see the G-1 and G-2 blocks after R-15.
 **This record is authoritative for
 the rulings; other PTMS-Gann documents point here.** Accepted rulings are not a freeze: nothing is
 frozen until the freeze document is committed, hashed and operator-approved. Freeze status and the
@@ -156,7 +157,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
-| **RULING (operator, 2026-09-15)** | **ACCEPTED IN PRINCIPLE ONLY.** The non-confirmatory 2011-03-25 → 2022-12-30 screen may proceed only after R-1 → R-11, R-13 and R-14 are fully frozen **and** the operator has appended register row G-S1. **Not to be run now.** **Not ruled:** whether a surrogate-pass / specificity-fail construct may proceed to a confirmatory test (freeze checklist G-1) |
+| **RULING (operator, 2026-09-15)** | **ACCEPTED IN PRINCIPLE ONLY.** The non-confirmatory 2011-03-25 → 2022-12-30 screen may proceed only after R-1 → R-11, R-13 and R-14 are fully frozen **and** the operator has appended register row G-S1. **Not to be run now.** **Not ruled:** whether a surrogate-pass / specificity-fail construct may proceed to a confirmatory test (freeze checklist G-1) *(as of the ruling — since ruled by G-1, 2026-09-15; see the G-1 block.)* |
 | **Question** | Is a non-confirmatory development screen on **2011-03-25 → 2022-12-30 only** authorized in principle, to run only after R-1–R-11, R-13, R-14 and the §11.H freeze — with retirement decided by the surrogate check alone, and a separate decision on whether a surrogate-pass / specificity-fail construct may proceed to a confirmatory test? Not to be run now |
 | **Primary basis** | Governance: GR-1.1, GR-1.4 (non-confirmatory use of a spent window; register row first); register Q-1–Q-3, Q-5 (window already signal-spent); memo §10 |
 | **Recommendation** | Authorize in principle with those preconditions; operator appends row G-S1 before any read |
@@ -196,6 +197,21 @@ GF-3, GF-4P, TIM-10 and the point rules? Basis: [MMPTC] pp. 1, 5; [45Y] pp. 8, 4
 
 ---
 
+## G-1 — Surrogate-pass / specificity-fail path
+
+**RULED by the operator 2026-09-15** — closes freeze checklist G-1. A **pre-result
+scientific/operator specification**. Stage 1 is intended to establish evidence for the specified
+Gann-faithful construct, not merely evidence of a generic temporal/market phenomenon.
+
+| Field | Entry |
+|---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED: A Stage-1 construct that passes the surrogate leg but fails the Gann-specificity leg is retired and may NOT proceed to a confirmatory test.** Rationale: failure of the pre-specified specificity leg means the construct has not demonstrated the required Gann-specific property |
+| **Basis** | Freeze checklist §4 G-1; R-12 (the sub-question posed in the ruling sheet was not ruled there); memo §10 (the screen's kill rule rests on the surrogate leg alone and a surrogate-pass / specificity-fail construct was labelled *"timing effect not shown to be Gann-specific"*, with the onward path left to the operator) — this ruling decides that path |
+| **Frozen if accepted** | A construct reaches a confirmatory IUT pre-registration only if both legs pass. Report wording for a surrogate-pass / specificity-fail construct: the memo's label plus the retirement disposition — *"timing effect not shown to be Gann-specific — RETIRED; may not proceed to a confirmatory test"* |
+| **Recorded interaction (no new definition)** | G-3 remains OPEN and this ruling does not define G-3, change any placebo set, or change α or m. As the checklist §4 G-3 row records, the specificity leg as written cannot reach p_plac ≤ α for GF-1/GF-4T/R8 — so under this G-1 ruling those constructs would be retired by construction unless G-3 is fixed before the freeze |
+
+---
+
 ## G-2 — O-R10 direction (GF-1 / GF-4T/R8) and GF-10 bear-mirror pooling
 
 **RULED by the operator 2026-09-15** — closes freeze checklist G-2. Recorded as the operator's
@@ -219,8 +235,9 @@ It supersedes the parenthetical in R-2's RULING row and resolves freeze checklis
 
 - As first committed (`bf6b0a5`): no ruling made; nothing frozen.
 - **2026-09-15:** operator rulings recorded in the RULING rows. Ruling 7 superseded by R-5 on the
-  operator's instruction; no other prior ruling changed. **G-2 ruled the same day (see the G-2 block
-  above)** — recorded as a pre-result specification, not as a claim that the formulation was
+  operator's instruction; no other prior ruling changed. **G-1 and G-2 ruled the same day (see the
+  G-1 and G-2 blocks
+  above)** — each recorded as a pre-result specification, not as a claim that the formulation was
   literally explicit in Gann's text. No family definition changed. The exposure
   register was not edited — G-S1 remains a draft for the operator to append. **Nothing is frozen.**
 - Exposure status preserved: equity EOD 2011-03-25 → 2022-12-30 signal-spent (a spent window can
