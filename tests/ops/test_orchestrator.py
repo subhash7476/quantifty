@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -61,10 +62,11 @@ from datetime import datetime
 
 
 def _deps(**over):
-    calls = {"spawned": [], "catchup": 0, "login": 0, "adopted": []}
+    calls = {"spawned": [], "catchup": 0, "login": 0, "adopted": [], "events": []}
 
     def spawn(spec, **kw):
         calls["spawned"].append(spec.name)
+        calls["events"].append(spec.name)
         return _FakePopen(spec.argv)
 
     base = dict(
@@ -76,6 +78,7 @@ def _deps(**over):
         marks_warm=lambda: True,
         vix_warm=lambda: True,
         dispatch_catchup=lambda: calls.__setitem__("catchup", calls["catchup"] + 1),
+        refresh_master=lambda: calls["events"].append("refresh_master"),
         stop_present=lambda: False,
         market_open=lambda: True,
         # The session's gate is the DERIVATIVES segment, not cash — cash closes
@@ -502,3 +505,82 @@ def test_shutdown_skips_an_adopted_child_with_no_handle():
                           stopper=lambda spec, proc: stopped.append(spec.name))
     sup.shutdown()
     assert stopped == ["session"]
+
+
+# --------------------------------------------------------------------------- #
+# Instrument-master refresh (2026-09-15): run_refresh had no caller, and the
+# OAuth-callback backstop is skipped by a surviving token or a CLI login, so
+# snapshots stopped at 2026-09-08 while four sessions ran.
+# --------------------------------------------------------------------------- #
+def test_master_refreshed_before_any_child_spawns():
+    """The chain poller resolves expiries from the master, and Flask's OAuth
+    callback writes it — refresh before either exists."""
+    deps, calls = _deps()
+    assert orch.start_sequence(deps) == "started"
+    events = calls["events"]
+    assert events[0] == "refresh_master"
+    assert events.count("refresh_master") == 1
+    assert events.index("refresh_master") < events.index("flask") < events.index("poller")
+
+
+def test_stop_file_refuses_before_master_refresh():
+    deps, calls = _deps(stop_present=lambda: True)
+    assert orch.start_sequence(deps) == "blocked:stop"
+    assert calls["events"] == []
+
+
+def _master(tmp_path, mtime: datetime) -> Path:
+    db = tmp_path / "nse_fo_instruments.duckdb"
+    db.write_bytes(b"")
+    os.utime(db, (mtime.timestamp(), mtime.timestamp()))
+    return db
+
+
+def test_refresh_master_runs_when_master_is_from_a_previous_day(tmp_path):
+    db = _master(tmp_path, datetime(2026, 9, 8, 9, 27))
+    seen = []
+    orch._refresh_master(db_path=db, run=lambda db_path: seen.append(db_path) or 0,
+                         now=datetime(2026, 9, 15, 9, 10))
+    assert seen == [db]
+
+
+def test_refresh_master_runs_when_master_is_absent(tmp_path):
+    seen = []
+    orch._refresh_master(db_path=tmp_path / "absent.duckdb",
+                         run=lambda db_path: seen.append(db_path) or 0,
+                         now=datetime(2026, 9, 15, 9, 10))
+    assert len(seen) == 1
+
+
+def test_refresh_master_skips_when_already_refreshed_today(tmp_path):
+    """A mid-session restart must not rewrite the store under live readers."""
+    db = _master(tmp_path, datetime(2026, 9, 15, 9, 5))
+    seen = []
+    orch._refresh_master(db_path=db, run=lambda db_path: seen.append(db_path) or 0,
+                         now=datetime(2026, 9, 15, 11, 40))
+    assert seen == []
+
+
+def test_refresh_master_failure_is_non_blocking(tmp_path, caplog):
+    db = _master(tmp_path, datetime(2026, 9, 8, 9, 27))
+
+    def boom(db_path):
+        raise OSError("database is locked")
+
+    orch._refresh_master(db_path=db, run=boom, now=datetime(2026, 9, 15, 9, 10))
+    orch._refresh_master(db_path=db, run=lambda db_path: 3, now=datetime(2026, 9, 15, 9, 10))
+    warnings = [r.getMessage() for r in caplog.records if r.levelname == "WARNING"]
+    assert any("database is locked" in w for w in warnings)
+    assert any("exit 3" in w for w in warnings)
+
+
+def test_refresh_master_survives_a_broken_import(tmp_path, monkeypatch, caplog):
+    """The refresh module pulls in duckdb/pyarrow; a broken install must cost one
+    refresh, not raise out of start_sequence before Flask exists."""
+    import scripts
+    # `from scripts import x` reads the package attribute first, which an earlier
+    # test's import leaves behind — clear both so the import really fails.
+    monkeypatch.setitem(sys.modules, "scripts.fetch_instrument_master", None)
+    monkeypatch.delattr(scripts, "fetch_instrument_master", raising=False)
+    orch._refresh_master(db_path=tmp_path / "absent.duckdb", now=datetime(2026, 9, 15, 9, 10))
+    assert any(r.levelname == "WARNING" for r in caplog.records)

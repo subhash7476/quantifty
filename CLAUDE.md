@@ -74,7 +74,7 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 ## Ops — Trading-Window Orchestrator
 
 One-command foreground supervisor for the NiftyShield PAPER window:
-`python scripts/ops/orchestrator.py` (Flask → Upstox login → ingestor → poller →
+`python scripts/ops/orchestrator.py` (instrument-master refresh → Flask → Upstox login → ingestor → poller →
 session → EOD; Ctrl+C stops cleanly). Read-only health: `python scripts/ops/preflight.py`
 (BLOCK: token/STOP/marks/VIX; WARN: SPAN/master/feeds/EOD-worker). Full contract:
 `docs/superpowers/specs/2026-08-09-ops-orchestrator-preflight-design.md`;

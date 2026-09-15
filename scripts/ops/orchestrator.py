@@ -114,6 +114,7 @@ class Deps:
     marks_warm: Callable[[], bool]
     vix_warm: Callable[[], bool]
     dispatch_catchup: Callable[[], None]
+    refresh_master: Callable[[], None]
     stop_present: Callable[[], bool]
     market_open: Callable[[], bool]
     # The session trades F&O, which runs to 15:40 post-CAS, while `market_open`
@@ -158,6 +159,11 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     #    silently clear an operator kill switch.
     if deps.stop_present():
         return "blocked:stop"
+
+    # 1b. Instrument master (non-blocking on failure). Before Flask, whose OAuth
+    #     callback also writes the store, and before the poller, which resolves
+    #     expiries from it. Needs no token — the source is a public CDN file.
+    deps.refresh_master()
 
     # 2. Flask (needed for the OAuth handshake).
     _ensure(deps, "flask")
@@ -414,6 +420,35 @@ def _dispatch_catchup(*, stamp_path: Path = CATCHUP_STAMP, log_dir: Path = CATCH
         _logger.warning("catch-up dispatch failed (non-blocking): %s", exc)
 
 
+def _refresh_master(*, db_path: Optional[Path] = None, run: Optional[Callable] = None,
+                    now: Optional[datetime] = None) -> None:
+    """Publish today's instrument-master snapshot before anything reads the store.
+
+    `run_refresh` had no caller, and the OAuth-callback backstop is skipped by a
+    surviving token or a CLI login — snapshots stopped at 2026-09-08 while four
+    sessions ran. Once per day, so a mid-session restart does not rewrite the store
+    under live readers; never fatal, since every failed run keeps the prior snapshot.
+    """
+    try:
+        # The import (duckdb/pyarrow) and the stat are inside the guard too — a broken
+        # install must cost one refresh, not the whole window start.
+        from scripts import fetch_instrument_master as fim
+        db_path = Path(db_path or fim.DB_PATH)
+        today = (now or datetime.now()).date()
+        if db_path.exists() and datetime.fromtimestamp(db_path.stat().st_mtime).date() == today:
+            _logger.info("instrument master already refreshed today — skipping")
+            return
+        rc = (run or fim.run_refresh)(db_path=db_path)
+    except Exception as exc:  # noqa: BLE001 — a failed refresh must never block the window
+        _logger.warning("instrument-master refresh failed (non-blocking, prior snapshot kept): %s", exc)
+        return
+    if rc != fim.EXIT_OK:
+        _logger.warning("instrument-master refresh refused with exit %s "
+                        "(non-blocking, prior snapshot kept)", rc)
+    else:
+        _logger.info("instrument-master refresh done")
+
+
 def _live_deps(started: dict) -> Deps:
     from scripts.ops import preflight
     from core.auth.credentials import credentials
@@ -462,6 +497,7 @@ def _live_deps(started: dict) -> Deps:
         preflight=lambda: preflight.verdict(preflight.run_preflight(preflight.build_context())),
         marks_warm=_marks_warm, vix_warm=_vix_warm,
         dispatch_catchup=_dispatch_catchup,
+        refresh_master=_refresh_master,
         stop_present=lambda: (ROOT / "STOP").exists(),
         market_open=lambda: MarketHours.is_market_open(),
         derivatives_open=lambda: MarketHours.is_derivatives_open(),

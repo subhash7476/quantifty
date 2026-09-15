@@ -120,6 +120,16 @@ a failed fix.
 
 ## B. Instrument-master refresh — wiring, not writing
 
+> **DONE 2026-09-15.** `orchestrator._refresh_master` is step 1b of `start_sequence` — after
+> the STOP check, before Flask (whose OAuth callback also writes the store) and so before the
+> poller. Once per day (skips when the store's mtime is today, so a mid-session restart does
+> not write under live readers); exceptions and non-zero exits log a warning and continue.
+> A second hole this note did not name: a **CLI login** (`scripts/auth_upstox_cli.py`) saves
+> the token without refreshing, so the callback backstop is skipped even on a fresh-token day
+> — 2026-09-15's token was saved at 09:14:54, before Flask started, and the store stayed at
+> 2026-09-08. Tests: `tests/ops/test_orchestrator.py` (`test_master_refreshed_*`,
+> `test_refresh_master_*`).
+
 ### B1. What already exists
 
 `fetch_instrument_master.run_refresh()` is a finished scheduled-job entry point: IST
