@@ -362,10 +362,20 @@ class _StoppablePopen(_FakePopen):
         self._alive = False
 
 
-def _status(path: Path, age_s: float) -> Path:
+def _status(path: Path, age_s: float, pid: int = None) -> Path:
     hb = datetime.now() - timedelta(seconds=age_s)
-    path.write_text(json.dumps({"last_heartbeat": hb.isoformat()}), encoding="utf-8")
+    payload = {"last_heartbeat": hb.isoformat()}
+    if pid is not None:
+        payload["pid"] = pid
+    path.write_text(json.dumps(payload), encoding="utf-8")
     return path
+
+
+def _dead_pid() -> int:
+    import subprocess
+    proc = subprocess.Popen([sys.executable, "-c", "pass"])
+    proc.wait()
+    return proc.pid
 
 
 def test_stop_child_removes_the_child_pid_file(tmp_path):
@@ -422,6 +432,29 @@ def test_child_alive_falls_back_to_pid_when_status_file_absent(tmp_path):
                           status_path=tmp_path / "absent.json")
     pidfile.write_pid(pidp, os.getpid())
     assert orch.child_alive(spec) is True
+
+
+def test_child_alive_trusts_the_published_pid_over_a_clobbered_pidfile(tmp_path):
+    """2026-09-09 and 2026-09-15: one false negative made the supervisor spawn a
+    duplicate ingestor, spawn() overwrote the pidfile with its PID, the duplicate
+    died on the port-5555 bind, and the pidfile named a dead process forever —
+    a respawn every ~20 s beside a healthy incumbent. The status file is written
+    by the child about itself and never by the supervisor."""
+    pidp = tmp_path / "market_ingestor.pid"
+    pidfile.write_pid(pidp, _dead_pid())          # clobbered by a doomed duplicate
+    spec = orch.ChildSpec(name="ingestor", argv=[], pid_path=pidp,
+                          status_path=_status(tmp_path / "s.json", 1.0, pid=os.getpid()))
+    assert orch.child_alive(spec) is True
+
+
+def test_child_alive_false_when_the_published_pid_is_dead(tmp_path):
+    """The mirror: a fresh heartbeat from a child that has since exited is dead,
+    even if the pidfile's PID was recycled by another live process."""
+    pidp = tmp_path / "market_ingestor.pid"
+    pidfile.write_pid(pidp, os.getpid())
+    spec = orch.ChildSpec(name="ingestor", argv=[], pid_path=pidp,
+                          status_path=_status(tmp_path / "s.json", 1.0, pid=_dead_pid()))
+    assert orch.child_alive(spec) is False
 
 
 # --------------------------------------------------------------------------- #
