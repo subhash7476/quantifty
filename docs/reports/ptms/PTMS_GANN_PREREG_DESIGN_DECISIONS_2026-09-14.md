@@ -15,6 +15,23 @@ item 1 (2023–2026 freshness unresolved, not indicated spent), §E.5 option 1 (
 2022-12-30) and §E.5 option 2 ("deferred, not retired"). The text below is unedited; those
 recommendations await operator ruling.
 
+**Operator rulings (2026-09-15) — the following parts below are SUPERSEDED** (record:
+`PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md`; freeze status: `PTMS_GANN_STAGE1_FREEZE_CHECKLIST_2026-09-15.md`):
+
+| Part below | Superseded by |
+|---|---|
+| §0 row D (seven primaries, m = 7); §D.2 Multiplicity row | **m = 3: GF-1, GF-4T/R8, GF-10** (R-5 to R-8) |
+| §0 "Rulings affected"; §D.4 GF-10 row "pending ruling 7" | Ruling 7 **superseded**; GF-10 = GANN-FAITHFUL (R-5) |
+| §D.2 K3 row ("declared departure") | Admitted as an explicitly labelled approximation of Gann's discretionary detector (R-1) |
+| §D.2 Statistic row; §D.3 candidate per-stock surrogate | Completion memo §8.2 (Monte Carlo rank test, synchronized bar bootstrap) — accepted **for finalization only** (R-14) |
+| §D.4 GF-7, GF-8 rows; GF-9 row | Excluded from Stage 1 (R-7, R-6); GF-8 / GF-9 retained as Arm-1 claims |
+| §D.4 GF-5, GF-6 rows | Deferred, not retired (R-8) |
+| §E.4 item 1 | 2023-01-02 → 2026-09-11 freshness UNRESOLVED pending the reader-date audit (R-11) |
+| §E.5 option 1 | Screen window 2011-03-25 → 2022-12-30, in principle only, not to be run now (R-12) |
+| §E.5 option 2 | "Deferred, not retired" (R-8) |
+
+Accepted rulings are not a freeze. Nothing is frozen.
+
 **Inputs:**
 - `PTMS_GANN_PRIMARY_SOURCE_CLAIM_REGISTER_2026-09-14.md` — F0, Δ1 (§26), **Δ2 (§27, *45 Years in
   Wall Street*)**.

@@ -3,6 +3,13 @@
 **Date:** 2026-09-14 · **Branch:** `research/ptms-price-time-market-structure`
 
 **Status:** PRE-REGISTRATION DESIGN COMPLETION. **Recommendations for operator ruling. Nothing frozen.**
+
+**Operator rulings applied (2026-09-15):** R-1 → R-11 and R-13 accepted; R-14 accepted for
+finalization only; R-12 accepted in principle only; R-15 open (Stage 2). The rulings of record are
+`PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md`; freeze status is
+`PTMS_GANN_STAGE1_FREEZE_CHECKLIST_2026-09-15.md` (**NOT READY TO FREEZE**). Stage-1 primary set:
+GF-1, GF-4T/R8, GF-10 (m = 3). The body below is preserved as written; where it says "recommend" or
+"pending", read the ruling register. Accepted rulings are not a freeze.
 - No market data, historical outcome or signal incidence was read. No backtest, TRAIN/HOLDOUT read,
   parameter fit, threshold tuning or RFA declaration.
 - Power figures are arithmetic (`scripts/research/ptms_gann/gf_power_sketch.py`, `gf_screen_power.py`).
@@ -40,7 +47,7 @@ Page numbers are printed page numbers. Quotations are short.
 | 9. Power / RFA | **Accept "no RFA now"**, for three reasons besides power. **Correct** the earlier wording: GF-5/6/8 are under-powered under stated assumptions, **not** permanently infeasible |
 | 10. Screen | **Admissible only if confined to 2011-03-25 → 2022-12-30.** The earlier proposal reached 2026-09-11 and would have spent the one span whose freshness is unresolved |
 | 11. Memo | §11 A–H |
-| 12. Verdict | **NOT READY — unresolved operator rulings (§11.E)** |
+| 12. Verdict | **NOT READY — unresolved operator rulings (§11.E)**. *2026-09-15: rulings made; freeze verdict NOT READY TO FREEZE (freeze checklist)* |
 
 ---
 
@@ -126,7 +133,7 @@ assumption (Gann silent or discretionary).
 | **Old ruling** | Operator ruling 7, 2026-09-14: "Keep relative time-overbalance unresolved / Arm 2". Based on F0 TOB-02 (NOT FOUND in [TST]/[WSSS]) and TOB-03 (secondary-only) |
 | **New evidence** | [45Y] p. 11, Rule 8, *Market Over-Balanced*: "When a Time period on a decline exceeds the Time period of a previous decline it indicates a change in trend"; bear-market mirror; p. 12 "The Time change is more important than reversal in price". Read at two resolutions (register §27). Nothing in pp. 46–148 qualifies or withdraws it |
 | **Exact contradiction** | Ruling 7 treats the relative form as unestablished in Gann's corpus. [45Y] states it as a numbered rule, for averages **and individual stocks** (p. 11), with a time-over-price ranking |
-| **Recommended new ruling** | **GF-10 = GANN-FAITHFUL (Arm 1).** The rule text is sufficient. Its Stage-1 **mechanization** is not independent: it is admissible only if R-1 (K3) is accepted |
+| **Recommended new ruling** | **GF-10 = GANN-FAITHFUL (Arm 1).** The rule text is sufficient. Its Stage-1 **mechanization** is not independent: it is admissible only if R-1 (K3) is accepted. **Ruled 2026-09-15: accepted (R-5), ruling 7 superseded; R-1 accepted** |
 | **What remains ambiguous** | (1) "a previous decline" (p. 11) vs "the greatest TIME PERIOD" (p. 39) and "sharpest reaction since" (p. 53) — both Gann; (2) the swing scale of a "decline" — Gann gives no detector in Rule 8; (3) "advancing" market state (S9 is IA); (4) the outcome scale (R-2). None is resolvable from primary text; (1) is pinned by design reason, (2)–(4) by operator ruling |
 
 The catalogue's old GO-2 modern additions (log depth, session counts, "longest prior" as primary,
@@ -146,6 +153,9 @@ The catalogue's old GO-2 modern additions (log depth, session counts, "longest p
 
 **The design doc's §D.4 GF-8 cell (anchor "any K3 top") is withdrawn as a recommendation.** It rested
 on the rule wording alone, which the worked examples contradict.
+
+**Ruled 2026-09-15 (R-6):** GF-8 and GF-9 excluded from Stage 1; retained as Arm-1 claims / deferred
+research items.
 
 ---
 
@@ -178,6 +188,10 @@ ignore 2-day rallies except near extreme highs or lows, especially in very wide 
 detector as practised: his record shows discretionary short swings (F2), on a 6-day week (F20). Every
 Stage-1 construct consumes K3 through the outcome O-R10, so **R-1 gates the whole of Stage 1**.
 
+**Ruled 2026-09-15 (R-1):** strict K3 admitted as an explicitly labelled approximation of Gann's
+discretionary detector, all implementation assumptions above preserved, with the ≥ 7 of 61 disclosure.
+Row 7's "declared departure" is to be read as that label.
+
 ---
 
 ## 6. Stage-1 construct set reassessment
@@ -195,7 +209,8 @@ Stage-1 construct consumes K3 through the outcome O-R10, so **R-1 gates the whol
 | GF-2 angles | Arm 1 framework | No (course withheld) | — | Excluded (unchanged, decision B) |
 | GF-3, GF-4P, TIM-10, point rules | Arm 1 conditional | Needs U-LIT | — | **Stage 2 — not in the Stage-1 experiment** |
 
-**Pinned multiplicity if accepted: m = 3.** The earlier four-construct proposal included GF-7; it is
+**Pinned multiplicity if accepted: m = 3.** *(Ruled 2026-09-15 — R-5 to R-8: primaries GF-1, GF-4T/R8,
+GF-10; GF-7, GF-8, GF-9 excluded from Stage 1; GF-5, GF-6 deferred, not retired.)* The earlier four-construct proposal included GF-7; it is
 removed on fidelity grounds. If the operator re-admits GF-7, m = 4 and the §9–§10 figures (computed at
 m = 4) apply directly.
 
@@ -236,7 +251,7 @@ confirmed K3 state and the construct's anchor available.
 | 6. Resolvable? | **No** for *w* (Gann inconsistent) and anchor scope ("any" is literal but, over every recent swing point, flags nearly every date) |
 | 7. Exclude rather than pin? | Pinning is defensible only because the alternatives are either Gann's own printed rule (window list) or degenerate (all turns → coverage near 1, no contrast). **Operator ruling R-4 and R-9**; if the operator judges the last-turn choice arbitrary, exclude |
 
-### 7.3 GF-10 — Rule 8 time overbalance (pending §3)
+### 7.3 GF-10 — Rule 8 time overbalance (pending §3 — accepted 2026-09-15, R-5)
 
 | Question | Answer |
 |---|---|
@@ -422,6 +437,10 @@ as-traded prices and a CA policy, and they must not enter the Stage-1 experiment
 
 ### E. Open governance rulings (operator)
 
+**Ruled 2026-09-15** — see the RULING rows of `PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md`. The
+Recommendation column is preserved. R-12's sub-question (may a surrogate-pass / specificity-fail
+construct proceed to a confirmatory test?) was not ruled. R-15 remains open.
+
 | # | Ruling | Recommendation |
 |---|---|---|
 | **R-1** | Admit strict K3 (§5, incl. IA items 5, 6, 8, 11–13) as a *declared approximation* of Gann's discretionary 3-Day detector on a 5-day NSE week — or exclude all K3-consuming constructs (all of Stage 1) | Admit, labelled "approximation; Gann's own record departs in ≥ 7 of 61 swings" |
@@ -489,6 +508,9 @@ score–outcome association is computed on real data, including the screen:
 
 ## 12. Verdict
 
+**2026-09-15:** the rulings listed below were made. The freeze verdict is now kept in
+`PTMS_GANN_STAGE1_FREEZE_CHECKLIST_2026-09-15.md`: **NOT READY TO FREEZE**. The original verdict is preserved:
+
 > **NOT READY — unresolved issue(s):** R-1 (K3 is not reproducible as Gann's detector; admissibility
 > as a declared approximation), R-2 (outcome scale), R-3 (sense of "extreme"), R-4 (Rule 8
 > tolerances inconsistent in Gann's own usage), R-5 (supersede ruling 7 for GF-10), R-6 to R-10
@@ -507,5 +529,7 @@ ruled, the §H freeze can be written and the screen (R-12) considered.
 - No market data, outcome, signal count or incidence read. No backtest, TRAIN/HOLDOUT, fit, tuning or
   RFA declaration. The screen was not run.
 - No prior operator ruling changed; every conflict is a recommendation (§11.E).
+- 2026-09-15 addendum: operator rulings recorded; ruling 7 superseded by R-5 on the operator's
+  instruction. The exposure register was still not edited.
 - No family definition modified. The exposure register was not edited (row G-S1 is a draft).
 - Nothing here states or implies that any Gann construct has predictive power.

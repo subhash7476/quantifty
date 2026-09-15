@@ -16,6 +16,9 @@ are **recommendations pending operator acceptance** (§27.5).
 and §28 conflict, **§28 governs**.
 **Delta Δ4:** §29 records the reading of *How to Make Profits Trading in Puts and Calls* (all pages).
 It changes no Stage-1 disposition.
+**Operator rulings 2026-09-15:** §27.5 ruling-7 row resolved — the relative time-overbalance form is
+Arm 1 as GF-10 (R-5; ruling 7 superseded). §27.5 ruling-5 row: GF-8 and GF-9 retained as Arm-1 claims,
+excluded from Stage 1 (R-6). Record: `PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md`. §§0–29 unedited.
 
 ---
 

@@ -1,8 +1,17 @@
-# PTMS — Gann Stage-1 Operator Ruling Register (R-1 → R-14, R-15 open)
+# PTMS — Gann Stage-1 Operator Ruling Register (R-1 → R-14 RULED, R-15 open)
 
 **Date:** 2026-09-15 · **Branch:** `research/ptms-price-time-market-structure`
 
-**Status:** RULING SHEET. **No ruling is made here. Nothing is frozen.** Each "recommendation" is the
+**Status (2026-09-15): OPERATOR RULINGS RECORDED — NOT A FREEZE.** The operator ruled R-1 → R-14 on
+2026-09-15; each ruling is the **RULING** row of its block, in the operator's terms. R-1 to R-11 and
+R-13 accepted; **R-14 accepted for finalization only** (not to be executed); **R-12 accepted in
+principle only** (not to be run). R-15 remains open, Stage 2 only. **This record is authoritative for
+the rulings; other PTMS-Gann documents point here.** Accepted rulings are not a freeze: nothing is
+frozen until the freeze document is committed, hashed and operator-approved. Freeze status and the
+gaps found while applying the rulings: `PTMS_GANN_STAGE1_FREEZE_CHECKLIST_2026-09-15.md`.
+
+**Original status (as first committed, `bf6b0a5`, preserved):** RULING SHEET. No ruling was made in
+the sheet. Each "recommendation" is the
 research recommendation of `PTMS_GANN_STAGE1_PREREG_COMPLETION_2026-09-14.md` §11.E (commit `3d4a300`),
 which is authoritative. "Frozen if accepted" states what the ruling would *allow* to be written into the
 §11.H freeze; nothing is frozen until that freeze document is itself committed and approved.
@@ -23,6 +32,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** Strict 3-Day Chart / K3 admitted as an **explicitly labelled approximation of Gann's discretionary historical detector**. Every implementation assumption in the "Frozen if accepted" row below is preserved, with the disclosure *"Gann's own record departs from the strict rule in ≥ 7 of 61 swings (1912–14)"* (a lower bound: holidays ignored). Memo §5 row 7's "declared departure" is read as this label |
 | **Question** | Is a strict 3-Day Chart, run on NSE's 5-session week, admissible as an explicitly labelled *approximation* of Gann's discretionary 3-Day detector — or are all constructs that depend on it excluded? |
 | **Primary basis** | [45Y] p. 63 (construction rule); p. 61 ("except when extreme highs or lows are reached … we sometimes use 1 and 2-day moves"; "based on calendar days"); pp. 66–67 record: ≥ 7 of 61 swings (1912–14) shorter than the strict rule allows; 6-day NYSE week (register Δ3-01, Δ3-02, Δ3-14) |
 | **Recommendation** | Admit, labelled *"approximation of a discretionary Gann detector; Gann's own record departs in ≥ 7 of 61 swings"* |
@@ -33,6 +43,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** Rule 10 is the Stage-1 minor / temporary change-in-trend outcome. **No main-trend trading-range outcome is invented.** (Direction for GF-1 and GF-4T/R8, and GF-10's bear pooling, are not fixed by the text accepted — freeze checklist G-2) |
 | **Question** | Is the Stage-1 outcome Gann's Rule 10 minor-trend signal — break of the last K3 swing low (trend up) or cross of the last K3 swing top (trend down) — with no main-trend / trading-range rule invented? |
 | **Primary basis** | [45Y] p. 13 (Rule 10); p. 63; p. 66 (signal after a recorded 3-day reaction); pp. 61–62 (main trend unchanged until a trading-range breakout — "trading range" undefined); [PC37] pp. 8–9, 15–16 (ranges described by duration and point width) (Δ3-03, Δ3-04, Δ4-03, Δ4-07) |
 | **Recommendation** | Accept Rule 10 as a *minor / "at least temporary"* change; no main-trend outcome |
@@ -43,6 +54,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** GF-1 anchors are the running highest high and lowest low to date; left-censoring (2011-03-25 or listing) disclosed |
 | **Question** | For GF-1, is the anchor the stock's highest high and lowest low **to date**? (Gann uses "extreme" as all-time, calendar-year, and campaign extreme.) |
 | **Primary basis** | [MMPTC] p. 4 wheat example counts from the all-time low 28 and high 325; [45Y] pp. 85–88 (calendar-year extremes), pp. 92–93 and pp. 50, 54, 131 (campaign extremes) (Δ-07, Δ3-07, Δ3-08) |
 | **Recommendation** | GF-1: highest/lowest to date. GF-5 and GF-8 stay deferred/excluded until a separate ruling |
@@ -53,6 +65,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** The complete nine-window printed Rule 8 set is primary. Worked-example windows are robustness only |
 | **Question** | Is the primary window set Rule 8's **printed** list — 7–12, 18–21, 28–31, 42–49, **57–65**, **85–92**, 112–120, 150–157, 175–185 calendar days — with the worked-example windows (60–67, 90–98, 60–72) as robustness only? |
 | **Primary basis** | [45Y] p. 11 (printed list); pp. 46, 48, 55 (inconsistent citations of "Rule 8") (Δ2-06, Δ3-05) |
 | **Recommendation** | Printed list primary; worked-example windows robustness. **Note:** the recommendation is the whole printed list; 57–65 and 85–92 are the two windows where Gann's examples disagree, not the complete primary set |
@@ -63,6 +76,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** Ruling 7 is **SUPERSEDED**. GF-10 = **GANN-FAITHFUL**. Primary comparison: current decline vs the immediately preceding decline |
 | **Question** | Does Rule 8 supersede ruling 7 ("keep relative time-overbalance unresolved / Arm 2"), making GF-10 Gann-faithful, with the current decline compared against the **immediately preceding** decline? |
 | **Primary basis** | [45Y] p. 11 ("When a Time period on a decline exceeds the Time period of a previous decline it indicates a change in trend"; bear mirror); p. 12 ("The Time change is more important than reversal in price"); alternatives p. 39 ("greatest TIME PERIOD"), p. 53 ("sharpest reaction since") (Δ2-01, Δ2-02, Δ2-04) |
 | **Recommendation** | Accept: GF-10 = GANN-FAITHFUL; "previous" primary, "greatest" robustness. Mechanization conditional on R-1 |
@@ -73,6 +87,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** GF-8 and GF-9 excluded from Stage 1; retained as Arm-1 claims / deferred research items |
 | **Question** | Are GF-8 (percentage levels) and GF-9 (modal swing duration) recorded as Arm-1 *claims* but excluded from the Stage-1 experiment? |
 | **Primary basis** | GF-8: [45Y] p. 8 Rule 3 ("any high level"), pp. 50, 54, 125 (campaign tops), [PC37] p. 10 Rule 7 (40–50% of last advance) — four anchor senses (Δ2-09, Δ3-07, Δ4-05). GF-9: [45Y] p. 57; pp. 88–89 ("mostly the major swings"; overlapping bins) (Δ2-14, Δ3-09) |
 | **Recommendation** | Exclude both from Stage 1; keep both as Arm-1 claims |
@@ -83,6 +98,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** GF-7 excluded from Stage 1, because "sections" cannot be faithfully mapped to K3 swings |
 | **Question** | Is GF-7 (Rule 5/Rule 8 culmination: smaller price and shorter time at the 3rd/4th section) excluded from Stage 1 because "sections" cannot be faithfully mapped to 3-Day swings? |
 | **Primary basis** | [45Y] p. 9 Rule 5 ("Stock market campaigns move in 3 to 4 Sections"); p. 12 (diminishing section); p. 49 (a 56-month bull campaign) (Δ2-05) |
 | **Recommendation** | Exclude from Stage 1; remains an Arm-1 claim |
@@ -93,6 +109,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** GF-5 and GF-6 are **DEFERRED, NOT RETIRED**. They must not be described as permanently power-infeasible |
 | **Question** | Are GF-5 (anniversary) and GF-6 (absolute reaction duration) recorded as "deferred — under-powered under declared assumptions; not retired", replacing the earlier "power-infeasible" wording? |
 | **Primary basis** | GF-5: [WSSS] p. 55; [NSTD] p. 14; [45Y] pp. 13, 85–88, 92–93. GF-6: [45Y] pp. 8–9 Rule 4; [WSSS] p. 50; [NSTD] p. 38. Power: design doc §E.3 (optimistic corner > 10 years under assumed δ, *q*, *k*, *p*) |
 | **Recommendation** | Accept the deferral wording; neither is declared permanently infeasible |
@@ -103,6 +120,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** (a) GF-1 uses calendar days. (b) GF-4T/R8 uses only the most recent confirmed K3 swing. Both are labelled **design choices where Gann does not uniquely specify them** |
 | **Question** | (a) Does GF-1 count in calendar days (Gann admits calendar or market days)? (b) Does GF-4T/R8 count only from the most recent confirmed K3 swing high or low? |
 | **Primary basis** | (a) [MMPTC] p. 6 ("144 market days or 144 calendar days"); [45Y] p. 61 and pp. 46–55 arithmetic (calendar days in 1949 usage) (Δ-10, Δ3-06). (b) [45Y] p. 11 ("from any high or low"; importance weighting not mechanizable) |
 | **Recommendation** | (a) Calendar days. (b) Most recent K3 swing only — a design choice, because "any" over all recent swings flags nearly every date |
@@ -113,6 +131,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** GF-10 specificity uses Gann's own time-over-price contrast, not ratio placebos. (The contrast's p-value mechanics are not written as a formula — freeze checklist G-4) |
 | **Question** | Is GF-10's Gann-specificity check Gann's own claim that time outranks price — the time-overbalance statistic must exceed the price-overbalance statistic — rather than ratio placebos (0.75× / 1.33× the previous decline)? |
 | **Primary basis** | [45Y] p. 12 ("The Time change is more important than reversal in price"); price overbalance p. 11 (Δ2-02) |
 | **Recommendation** | Time-over-price contrast (uses no invented threshold) |
@@ -123,6 +142,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** The reader-date / exposure audit is to be performed from code, date filters and saved artifacts only; **no outcome statistics**. **Not yet performed.** The freshness ruling on 2023-01-02 → 2026-09-11 follows the audit; until then the span stays UNRESOLVED |
 | **Question** | Will the operator commission a reader-date audit (code and artifacts only, no outcomes) recording which equity-EOD dates the 19 `scripts/signal_engine/` and 4 `scripts/mrlc_test/` readers actually touched, and then rule whether 2023-01-02 → 2026-09-11 is fresh or spent for Gann? |
 | **Primary basis** | Governance, not Gann: `RESEARCH_EXPOSURE_REGISTER.md` §5b (reader clusters), §6 ("largely unread at signal level by the cash-equity batteries"), GR-1.2/1.3; EOD feasibility audit §K–§L ("the single item the confirmatory answer turns on") |
 | **Recommendation** | Commission the audit before any confirmatory design; rule after it |
@@ -133,6 +153,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED IN PRINCIPLE ONLY.** The non-confirmatory 2011-03-25 → 2022-12-30 screen may proceed only after R-1 → R-11, R-13 and R-14 are fully frozen **and** the operator has appended register row G-S1. **Not to be run now.** **Not ruled:** whether a surrogate-pass / specificity-fail construct may proceed to a confirmatory test (freeze checklist G-1) |
 | **Question** | Is a non-confirmatory development screen on **2011-03-25 → 2022-12-30 only** authorized in principle, to run only after R-1–R-11, R-13, R-14 and the §11.H freeze — with retirement decided by the surrogate check alone, and a separate decision on whether a surrogate-pass / specificity-fail construct may proceed to a confirmatory test? Not to be run now |
 | **Primary basis** | Governance: GR-1.1, GR-1.4 (non-confirmatory use of a spent window; register row first); register Q-1–Q-3, Q-5 (window already signal-spent); memo §10 |
 | **Recommendation** | Authorize in principle with those preconditions; operator appends row G-S1 before any read |
@@ -143,6 +164,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** Scoped N100 EOD certification and corporate-action enumeration with exclusion windows are required before any outcome read. **Neither exists yet** |
 | **Question** | Is a scoped N100 × EOD substrate certification, plus an external enumeration of spin-offs, demergers, rights and special dividends with exclusion windows, required before any outcome read? |
 | **Primary basis** | Governance/data: EOD feasibility audit §L condition 2; store omits the 2023 RELIANCE/JIOFIN demerger and treats special dividends inconsistently; Gann silent on adjustment ([45Y] p. 60, p. 123; Δ4 none) |
 | **Recommendation** | Require both |
@@ -153,6 +175,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED FOR FINALIZATION ONLY — do NOT execute.** The synchronized block-bootstrap design, specificity checks, B = 1999 with a recorded seed, placebo definitions and the blind 200-panel size check are to be finalized. **Finalization is incomplete:** the GF-1 and GF-4T/R8 placebo sets, the GF-10 contrast p-value, the missing-bar neighbourhood, the seed value and the size-check failure rule are not specified in the text accepted (freeze checklist G-3 to G-5, G-8, G-9). Not filled here |
 | **Question** | Is the memo §8.2 specification accepted for finalization (not execution): average per-date Spearman IC of binary score vs outcome; Monte Carlo test against 1,999 synchronized stationary block-bootstrap panels of daily bar vectors (high/low/close relative to prior close, mean block 20 sessions, real calendar); specificity check per construct; both checks required in confirmatory tests; blind size check (200 pseudo-real panels, rejection ≤ 2α) before unblinding? |
 | **Primary basis** | Methodological. Block scale cites [45Y] p. 89 ("11 to 35 days" most common swing band); per-date differencing rejected as ill-defined (memo §8.1) |
 | **Recommendation** | Accept for finalization; do not execute |
@@ -165,11 +188,16 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 Is "1 quoted point = ₹1 per chart space (daily chart)" admissible as a declared assumption for
 GF-3, GF-4P, TIM-10 and the point rules? Basis: [MMPTC] pp. 1, 5; [45Y] pp. 8, 48, 51; [PC37] pp. 11–12,
-17 (point rules depend on price level without conversion). **Not needed for Stage 1. Not ruled here.**
+17 (point rules depend on price level without conversion). **Not needed for Stage 1. Remains OPEN (operator, 2026-09-15) — Stage 2 only.**
 
 ---
 
 ## Governance
 
-- No ruling made; nothing frozen; no family definition, exposure register row or prior ruling changed.
+- As first committed (`bf6b0a5`): no ruling made; nothing frozen.
+- **2026-09-15:** operator rulings recorded in the RULING rows. Ruling 7 superseded by R-5 on the
+  operator's instruction; no other prior ruling changed. No family definition changed. The exposure
+  register was not edited — G-S1 remains a draft for the operator to append. **Nothing is frozen.**
+- Exposure status preserved: equity EOD 2011-03-25 → 2022-12-30 signal-spent (a spent window can
+  host only non-confirmatory use); 2023-01-02 → 2026-09-11 UNRESOLVED pending the R-11 audit.
 - No market data or outcomes read; no backtest, RFA, screen or optimization.

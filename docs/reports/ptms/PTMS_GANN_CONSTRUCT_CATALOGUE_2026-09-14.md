@@ -1570,7 +1570,7 @@ Until the operator accepts them, §21 governs those rows.
 
 | ID | Status after §21 | Recommended status | Basis | Pending? |
 |---|---|---|---|---|
-| GO-2 | Relative form Arm 2; absolute durations → GF-6 | **Relative time form → Arm 1 as GF-10.** Price leg (points vs previous decline) → GF-10's Gann-sourced contrast. Modern additions (log depth, session counts, "longest prior" as primary, *k* ∈ {1, 2}) stay Arm 2 | [45Y] pp. 11–12 (Rule 8); p. 39 | **PENDING** (ruling 7) |
+| GO-2 | Relative form Arm 2; absolute durations → GF-6 | **Relative time form → Arm 1 as GF-10.** Price leg (points vs previous decline) → GF-10's Gann-sourced contrast. Modern additions (log depth, session counts, "longest prior" as primary, *k* ∈ {1, 2}) stay Arm 2 | [45Y] pp. 11–12 (Rule 8); p. 39 | ~~PENDING~~ **ACCEPTED 2026-09-15** (R-5; ruling 7 superseded — §23) |
 | GO-1 | Partly Arm 1 (halfway anchors) | **Arm 1 as GF-8**: percentage of the stock's own high / low with Gann's bands | [45Y] p. 8 (Rule 3); ch. IV | PENDING (ruling 5, set extension) |
 | GO-5 | Hold | **Arm 1 detector K** = the 3-Day Chart, calendar days. Descriptive, not a test. *k* ∈ {1, 2} remain Arm 2 | [45Y] pp. 61, 63 | No (detector slot, not a construct) |
 | GT-7 | Arm 2 | **Arm 1 as GF-9** (modal swing duration). Literal on an index; a per-stock version is a declared extension | [45Y] p. 57 | PENDING (ruling 5) |
@@ -1586,3 +1586,25 @@ Until the operator accepts them, §21 governs those rows.
 
 - No outcome read; no RFA; no TRAIN/HOLDOUT; nothing frozen; no family definition modified.
 - This addendum does not suggest Gann has predictive power.
+
+---
+
+## 23. Addendum — construct status after operator rulings of 2026-09-15
+
+**Authority:** `PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md` (RULING rows). §§1–22 are preserved;
+where §22 marks a row PENDING, this table records what was ruled.
+
+| ID | Status after §22 | Operator ruling 2026-09-15 | Stage-1 role |
+|---|---|---|---|
+| GF-1 | Arm 1 | R-3 (running to-date extremes, left-censoring disclosed); R-9(a) calendar days — a design choice | **Primary** |
+| GT-3 / GF-4T/R8 | Arm 1 | R-4 (nine printed windows primary); R-9(b) most recent confirmed K3 swing only — a design choice | **Primary** |
+| GO-2 / GF-10 | PENDING (ruling 7) | R-5: **GANN-FAITHFUL**; ruling 7 superseded; previous-decline comparison; R-10 time-over-price specificity | **Primary** |
+| GO-5 / K3 | Arm 1 detector | R-1: admitted as an explicitly labelled approximation of Gann's discretionary detector | Detector (not a construct) |
+| GO-1 / GF-8 | PENDING (ruling 5) | R-6: Arm-1 claim, excluded from Stage 1, deferred research item | Excluded. Stays PENDING (ruling 5) only for the separate question of extending the candidate set beyond Stage 1 |
+| GT-7 / GF-9 | PENDING (ruling 5) | R-6: as GF-8 | Excluded (same note) |
+| GF-7 | Arm 1 | R-7: excluded from Stage 1; a K3-upswing "section" version is Arm 2 | Excluded |
+| GT-1 / GF-5; GF-6 | Arm 1 | R-8: **deferred, not retired**; not permanently power-infeasible | Deferred |
+| GF-2; GF-3, GF-4P, TIM-10, point rules | Excluded / Stage 2 | Unchanged; R-15 open (Stage 2 only) | Not in Stage 1 |
+
+**Governance:** rulings recorded, nothing frozen, no outcome read, no family definition modified. A
+Stage-1 result, whatever its sign, is not by itself evidence about Gann constructs outside this set.

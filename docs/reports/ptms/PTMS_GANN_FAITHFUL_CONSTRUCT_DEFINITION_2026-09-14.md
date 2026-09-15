@@ -11,6 +11,12 @@ GF-10 and adds 1949 primary bases to GF-4T to GF-7. §§0–11 are unedited. GF-
 ruling 7 and is **pending operator acceptance**. Design choices are in
 `PTMS_GANN_PREREG_DESIGN_DECISIONS_2026-09-14.md`.
 
+**Operator rulings (2026-09-15):** GF-10 **accepted as GANN-FAITHFUL (R-5); ruling 7 superseded.**
+Stage-1 primaries: GF-1, GF-4T/R8, GF-10 (m = 3). GF-8 and GF-9 excluded from Stage 1, retained as
+Arm-1 claims (R-6). GF-7 excluded from Stage 1 (R-7). GF-5 and GF-6 deferred, not retired (R-8). §12.1's
+K3 "declared departure" is admitted as an explicitly labelled approximation (R-1). Record:
+`PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md`. Nothing frozen.
+
 **Inputs:**
 - `PTMS_GANN_PRIMARY_SOURCE_CLAIM_REGISTER_2026-09-14.md` — F0 §§0–25 and delta Δ1 §26. Claim IDs
   cited as `TIM-03`, `Δ-07` etc. are from there.
@@ -452,7 +458,7 @@ arithmetic that closed C5, C4 and F1 applies to whatever *m* is pinned.
 | 11 | Null / controls | (i) surrogate swings; (ii) placebo quantile (median, 75th percentile); (iii) time-only hazard |
 | 12 | Multiplicity | Illustrative: binning 2 × direction 2 → **4 cells** |
 
-### 12.4 GF-10 — Rule 8 time overbalance (PENDING operator acceptance; ruling 7)
+### 12.4 GF-10 — Rule 8 time overbalance (PENDING operator acceptance; ruling 7) — ACCEPTED 2026-09-15 (R-5), ruling 7 superseded
 
 | # | Field | Definition |
 |---|---|---|
@@ -489,5 +495,7 @@ arithmetic that closed C5, C4 and F1 applies to whatever *m* is pinned.
 
 - **CANDIDATE DEFINITIONS ONLY.** Nothing selected, frozen or approved. GF-10 pending operator
   acceptance.
+- 2026-09-15: GF-10 accepted as GANN-FAITHFUL (R-5). Stage-1 membership ruled (R-6 to R-8). Still
+  nothing frozen.
 - No market data or outcome read; no RFA, TRAIN/HOLDOUT, backtest or parameter fit. Thresholds are
   Gann's text.
