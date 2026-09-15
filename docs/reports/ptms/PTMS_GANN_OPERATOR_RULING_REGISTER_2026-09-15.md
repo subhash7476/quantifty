@@ -6,8 +6,9 @@
 2026-09-15; each ruling is the **RULING** row of its block, in the operator's terms. R-1 to R-11 and
 R-13 accepted; **R-14 accepted for finalization only** (not to be executed); **R-12 accepted in
 principle only** (not to be run). R-15 remains open, Stage 2 only. **G-1 (surrogate-pass /
-specificity-fail path: retired, no confirmatory test) and G-2 (O-R10 direction for
-GF-1/GF-4T/R8 and GF-10 bear-mirror pooling) ruled 2026-09-15** — see the G-1 and G-2 blocks after R-15.
+specificity-fail path: retired, no confirmatory test), G-2 (O-R10 direction for GF-1/GF-4T/R8 and
+GF-10 bear-mirror pooling) and G-3's GF-1 placebo family ruled 2026-09-15** — see the G-1, G-2 and
+G-3 blocks after R-15.
 **This record is authoritative for
 the rulings; other PTMS-Gann documents point here.** Accepted rulings are not a freeze: nothing is
 frozen until the freeze document is committed, hashed and operator-approved. Freeze status and the
@@ -180,7 +181,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
-| **RULING (operator, 2026-09-15)** | **ACCEPTED FOR FINALIZATION ONLY — do NOT execute.** The synchronized block-bootstrap design, specificity checks, B = 1999 with a recorded seed, placebo definitions and the blind 200-panel size check are to be finalized. **Finalization is incomplete:** the GF-1 and GF-4T/R8 placebo sets, the GF-10 contrast p-value, the missing-bar neighbourhood, the seed value and the size-check failure rule are not specified in the text accepted (freeze checklist G-3 to G-5, G-8, G-9). Not filled here |
+| **RULING (operator, 2026-09-15)** | **ACCEPTED FOR FINALIZATION ONLY — do NOT execute.** The synchronized block-bootstrap design, specificity checks, B = 1999 with a recorded seed, placebo definitions and the blind 200-panel size check are to be finalized. **Finalization is incomplete:** the GF-1 and GF-4T/R8 placebo sets *(GF-1 family since ruled by G-3, 2026-09-15; GF-4T/R8 still open)*, the GF-10 contrast p-value, the missing-bar neighbourhood, the seed value and the size-check failure rule are not specified in the text accepted (freeze checklist G-3 to G-5, G-8, G-9). Not filled here |
 | **Question** | Is the memo §8.2 specification accepted for finalization (not execution): average per-date Spearman IC of binary score vs outcome; Monte Carlo test against 1,999 synchronized stationary block-bootstrap panels of daily bar vectors (high/low/close relative to prior close, mean block 20 sessions, real calendar); specificity check per construct; both checks required in confirmatory tests; blind size check (200 pseudo-real panels, rejection ≤ 2α) before unblinding? |
 | **Primary basis** | Methodological. Block scale cites [45Y] p. 89 ("11 to 35 days" most common swing band); per-date differencing rejected as ill-defined (memo §8.1) |
 | **Recommendation** | Accept for finalization; do not execute |
@@ -208,7 +209,7 @@ Gann-faithful construct, not merely evidence of a generic temporal/market phenom
 | **RULING (operator, 2026-09-15)** | **ACCEPTED: A Stage-1 construct that passes the surrogate leg but fails the Gann-specificity leg is retired and may NOT proceed to a confirmatory test.** Rationale: failure of the pre-specified specificity leg means the construct has not demonstrated the required Gann-specific property |
 | **Basis** | Freeze checklist §4 G-1; R-12 (the sub-question posed in the ruling sheet was not ruled there); memo §10 (the screen's kill rule rests on the surrogate leg alone and a surrogate-pass / specificity-fail construct was labelled *"timing effect not shown to be Gann-specific"*, with the onward path left to the operator) — this ruling decides that path |
 | **Frozen if accepted** | A construct reaches a confirmatory IUT pre-registration only if both legs pass. Report wording for a surrogate-pass / specificity-fail construct: the memo's label plus the retirement disposition — *"timing effect not shown to be Gann-specific — RETIRED; may not proceed to a confirmatory test"* |
-| **Recorded interaction (no new definition)** | G-3 remains OPEN and this ruling does not define G-3, change any placebo set, or change α or m. As the checklist §4 G-3 row records, the specificity leg as written cannot reach p_plac ≤ α for GF-1/GF-4T/R8 — so under this G-1 ruling those constructs would be retired by construction unless G-3 is fixed before the freeze |
+| **Recorded interaction (no new definition)** | G-3 was OPEN when this ruling was made and this ruling does not define G-3, change any placebo set, or change α or m. As the checklist §4 G-3 row records, the specificity leg as written cannot reach p_plac ≤ α for GF-1/GF-4T/R8 — so under this G-1 ruling those constructs would be retired by construction unless G-3 is fixed before the freeze *(GF-1's part was subsequently fixed by the G-3 ruling of the same date — 132-set phase-shift family; GF-4T/R8 remains open)* |
 
 ---
 
@@ -231,12 +232,28 @@ It supersedes the parenthetical in R-2's RULING row and resolves freeze checklis
 
 ---
 
+## G-3 — GF-1 placebo family
+
+**RULED by the operator 2026-09-15 (GF-1 part only — the GF-4T/R8 placebo construction remains
+OPEN).** A **pre-result scientific/operator specification**.
+
+| Field | Entry |
+|---|---|
+| **RULING (operator, 2026-09-15)** | **ACCEPTED.** The GF-1 specificity placebo family is the **exhaustive phase-shift orbit of P4 modulo 144**, exactly: real P4 offsets are `{36, 48, 72, 96, 108, 144}` calendar days; 144 is represented as residue 0 modulo 144 for phase construction; for every integer `d ∈ {0,…,143}`, `P4_d = {(p + d) mod 144 : p ∈ P4}`; **exclude every `d` for which `P4_d ∩ P4 ≠ ∅`**; therefore the family contains exactly **132 distinct placebo sets** — exhaustive, no subset selection. Each placebo has exactly six distinct offsets per 144-day cycle and repeats with the same unbounded `+144*k` structure as the real GF-1 construct. The real residue-0 point is expanded as `144, 288, 432, …`; it is never interpreted as day 0. No decimal fractions and no rounding convention are used. The null is **P4 phase-specificity**; other Gann day counts, including P8 `{54, 90, 126}`, are NOT excluded from the placebo family. Coverage is structurally matched by construction (same six points per 144-day cycle, same 7-day score window, same repetition and eligibility rules); actual realized coverage is reported as a diagnostic. The 132-placebo family is fixed by this mathematical rule and involves no RNG or seed |
+| **Basis** | Freeze checklist §4 G-3; memo §8.2 (*"non-Gann fractions of 144"*, matched coverage, *"p_plac = rank of T_c among the placebo sets"*); definition §2 row 11 (*"avoiding Gann fractions"*); the G-3 family verification of 2026-09-15 (144 − 12 = 132; forbidden shifts = `P4 − P4` = 12ℤ₁₄₄; the disjointness exclusion is the reading that yields 132 and keeps every placebo free of P4 points) |
+| **Operator disclosure (recorded)** | The phase-shift null tests whether the specific P4 **phase** is special. It is **not** a test of whether the P4 spacing pattern itself is unique among arbitrary six-point patterns |
+| **Statistical consequence** | Under the frozen one-sided +1 rank-p convention, `N = 132` gives minimum placebo p = `1/133 ≈ 0.00752`, below `α = 0.05/3 = 1/60 ≈ 0.01667`; the real statistic must rank first or second of 133 to reject |
+| **Frozen if accepted** | Exactly the RULING text above, transcribed verbatim into the freeze document's item 9 (GF-1 placebo sets); the family is computed by the rule, not stored as a hand-written list |
+| **Not ruled** | **GF-4T/R8's placebo construction remains OPEN** — its own family and coverage rule must be specified separately. G-4 (GF-10 contrast p-value) is untouched by this ruling |
+
+---
+
 ## Governance
 
 - As first committed (`bf6b0a5`): no ruling made; nothing frozen.
 - **2026-09-15:** operator rulings recorded in the RULING rows. Ruling 7 superseded by R-5 on the
-  operator's instruction; no other prior ruling changed. **G-1 and G-2 ruled the same day (see the
-  G-1 and G-2 blocks
+  operator's instruction; no other prior ruling changed. **G-1, G-2 and G-3's GF-1 part ruled the same
+  day (see the G-1, G-2 and G-3 blocks
   above)** — each recorded as a pre-result specification, not as a claim that the formulation was
   literally explicit in Gann's text. No family definition changed. The exposure
   register was not edited — G-S1 remains a draft for the operator to append. **Nothing is frozen.**
