@@ -7,8 +7,8 @@
 R-13 accepted; **R-14 accepted for finalization only** (not to be executed); **R-12 accepted in
 principle only** (not to be run). R-15 remains open, Stage 2 only. **G-1 (surrogate-pass /
 specificity-fail path: retired, no confirmatory test), G-2 (O-R10 direction for GF-1/GF-4T/R8 and
-GF-10 bear-mirror pooling) and G-3's GF-1 placebo family ruled 2026-09-15** — see the G-1, G-2 and
-G-3 blocks after R-15.
+GF-10 bear-mirror pooling) and G-3 (GF-1 and GF-4T/R8 placebo families) ruled 2026-09-15** — see the
+G-1, G-2 and G-3 blocks after R-15.
 **This record is authoritative for
 the rulings; other PTMS-Gann documents point here.** Accepted rulings are not a freeze: nothing is
 frozen until the freeze document is committed, hashed and operator-approved. Freeze status and the
@@ -181,7 +181,7 @@ R-13, R-14 (data, exposure, method) → R-12 last.
 
 | Field | Entry |
 |---|---|
-| **RULING (operator, 2026-09-15)** | **ACCEPTED FOR FINALIZATION ONLY — do NOT execute.** The synchronized block-bootstrap design, specificity checks, B = 1999 with a recorded seed, placebo definitions and the blind 200-panel size check are to be finalized. **Finalization is incomplete:** the GF-1 and GF-4T/R8 placebo sets *(GF-1 family since ruled by G-3, 2026-09-15; GF-4T/R8 still open)*, the GF-10 contrast p-value, the missing-bar neighbourhood, the seed value and the size-check failure rule are not specified in the text accepted (freeze checklist G-3 to G-5, G-8, G-9). Not filled here |
+| **RULING (operator, 2026-09-15)** | **ACCEPTED FOR FINALIZATION ONLY — do NOT execute.** The synchronized block-bootstrap design, specificity checks, B = 1999 with a recorded seed, placebo definitions and the blind 200-panel size check are to be finalized. **Finalization is incomplete:** the GF-1 and GF-4T/R8 placebo sets *(both since ruled by G-3, 2026-09-15)*, the GF-10 contrast p-value, the missing-bar neighbourhood, the seed value and the size-check failure rule are not specified in the text accepted (freeze checklist G-3 to G-5, G-8, G-9). Not filled here |
 | **Question** | Is the memo §8.2 specification accepted for finalization (not execution): average per-date Spearman IC of binary score vs outcome; Monte Carlo test against 1,999 synchronized stationary block-bootstrap panels of daily bar vectors (high/low/close relative to prior close, mean block 20 sessions, real calendar); specificity check per construct; both checks required in confirmatory tests; blind size check (200 pseudo-real panels, rejection ≤ 2α) before unblinding? |
 | **Primary basis** | Methodological. Block scale cites [45Y] p. 89 ("11 to 35 days" most common swing band); per-date differencing rejected as ill-defined (memo §8.1) |
 | **Recommendation** | Accept for finalization; do not execute |
@@ -209,7 +209,7 @@ Gann-faithful construct, not merely evidence of a generic temporal/market phenom
 | **RULING (operator, 2026-09-15)** | **ACCEPTED: A Stage-1 construct that passes the surrogate leg but fails the Gann-specificity leg is retired and may NOT proceed to a confirmatory test.** Rationale: failure of the pre-specified specificity leg means the construct has not demonstrated the required Gann-specific property |
 | **Basis** | Freeze checklist §4 G-1; R-12 (the sub-question posed in the ruling sheet was not ruled there); memo §10 (the screen's kill rule rests on the surrogate leg alone and a surrogate-pass / specificity-fail construct was labelled *"timing effect not shown to be Gann-specific"*, with the onward path left to the operator) — this ruling decides that path |
 | **Frozen if accepted** | A construct reaches a confirmatory IUT pre-registration only if both legs pass. Report wording for a surrogate-pass / specificity-fail construct: the memo's label plus the retirement disposition — *"timing effect not shown to be Gann-specific — RETIRED; may not proceed to a confirmatory test"* |
-| **Recorded interaction (no new definition)** | G-3 was OPEN when this ruling was made and this ruling does not define G-3, change any placebo set, or change α or m. As the checklist §4 G-3 row records, the specificity leg as written cannot reach p_plac ≤ α for GF-1/GF-4T/R8 — so under this G-1 ruling those constructs would be retired by construction unless G-3 is fixed before the freeze *(GF-1's part was subsequently fixed by the G-3 ruling of the same date — 132-set phase-shift family; GF-4T/R8 remains open)* |
+| **Recorded interaction (no new definition)** | G-3 was OPEN when this ruling was made and this ruling does not define G-3, change any placebo set, or change α or m. As the checklist §4 G-3 row records, the specificity leg as written cannot reach p_plac ≤ α for GF-1/GF-4T/R8 — so under this G-1 ruling those constructs would be retired by construction unless G-3 is fixed before the freeze *(GF-1's part was subsequently fixed by the G-3 ruling of the same date — 132-set phase-shift family; GF-4T/R8 was fixed by the same day's G-3 GF-4T/R8 ruling — 162-set rigid-translation family)* |
 
 ---
 
@@ -234,8 +234,8 @@ It supersedes the parenthetical in R-2's RULING row and resolves freeze checklis
 
 ## G-3 — GF-1 placebo family
 
-**RULED by the operator 2026-09-15 (GF-1 part only — the GF-4T/R8 placebo construction remains
-OPEN).** A **pre-result scientific/operator specification**.
+**RULED by the operator 2026-09-15.** A **pre-result scientific/operator specification**. (The
+GF-4T/R8 part of G-3 was ruled the same day — see the G-3 GF-4T/R8 block below.)
 
 | Field | Entry |
 |---|---|
@@ -244,7 +244,183 @@ OPEN).** A **pre-result scientific/operator specification**.
 | **Operator disclosure (recorded)** | The phase-shift null tests whether the specific P4 **phase** is special. It is **not** a test of whether the P4 spacing pattern itself is unique among arbitrary six-point patterns |
 | **Statistical consequence** | Under the frozen one-sided +1 rank-p convention, `N = 132` gives minimum placebo p = `1/133 ≈ 0.00752`, below `α = 0.05/3 = 1/60 ≈ 0.01667`; the real statistic must rank first or second of 133 to reject |
 | **Frozen if accepted** | Exactly the RULING text above, transcribed verbatim into the freeze document's item 9 (GF-1 placebo sets); the family is computed by the rule, not stored as a hand-written list |
-| **Not ruled** | **GF-4T/R8's placebo construction remains OPEN** — its own family and coverage rule must be specified separately. G-4 (GF-10 contrast p-value) is untouched by this ruling |
+| **Not ruled at the time** | GF-4T/R8's placebo construction was OPEN when this part was ruled — **since ruled by the G-3 GF-4T/R8 block below** (162-set rigid-translation family). G-4 (GF-10 contrast p-value) is untouched by this ruling |
+
+---
+
+## G-3 — GF-4T/R8 placebo family
+
+**RULED by the operator 2026-09-15 — G-3 GF-4T/R8 is CLOSED; G-3 is therefore CLOSED for the
+complete Stage-1 primary set.** A **pre-result scientific/operator specification**. Recorded
+verbatim:
+
+### Construction
+
+The GF-4T/R8 specificity placebo family is the **rigid whole-pattern integer translation** of the
+complete nine-window Rule-8 pattern.
+
+Let P be the union of:
+
+[7–12], [18–21], [28–31], [42–49], [57–65],
+[85–92], [112–120], [150–157], [175–185]
+
+calendar days relative to the most recent confirmed K3 swing.
+
+For integer d:
+
+```
+P_d = {[a_i + d, b_i + d]}
+```
+
+The nine windows are translated as one rigid object.
+
+Independent per-window shifts are NOT permitted.
+
+Reflection is NOT permitted.
+
+### Translation domain
+
+The placebo translation domain is:
+
+```
+d ∈ {1, 2, ..., 179}
+```
+
+d = 0 is the real construct and is excluded.
+
+The upper bound 179 is operator-selected because it is also the intrinsic first full-span /
+first-disjoint translation of the construct:
+
+```
+P − P = [−178, 178]
+```
+
+Therefore d = 179 is the smallest positive integer translation for which the translated pattern is
+fully disjoint from the original.
+
+The domain is deliberately bounded at this first full-span displacement.
+
+This is NOT imported from GF-1's 144-periodicity and does NOT imply any periodicity for GF-4T/R8.
+
+### Non-Gann / centre-avoidance rule
+
+Exclude any translation d for which any translated window centre equals any of the nine original
+Rule-8 window centres.
+
+The nine original centres are:
+
+9.5, 19.5, 29.5, 45.5, 61, 88.5, 116, 153.5, 180.
+
+For integer d this excludes exactly:
+
+{10, 16, 20, 26, 36, 43, 55, 59, 64, 65, 69, 79, 108, 119, 124, 134, 144}.
+
+Thus:
+
+```
+179 candidate translations
+− 17 forbidden centre-collision translations
+= 162 distinct placebo sets.
+```
+
+N = 162.
+
+The confirmatory minimum N ≥ 59 is therefore satisfied.
+
+### Overlap
+
+Placebo windows MAY overlap the original Rule-8 windows in covered calendar days.
+
+Covered-day disjointness is NOT required.
+
+This is intentional.
+
+The specificity null tests whether the exact Rule-8 placement is special relative to other
+placements of the same rigid nine-window structure, including nearby translations that share some
+covered days.
+
+Overlap is therefore part of the pre-specified null and is not leakage, post-result selection, or
+double-counting.
+
+### Interpretation
+
+The null tested by this family is:
+
+**Rule-8 phase specificity within the positive integer rigid-translation domain d = 1…179, with
+centre-collision translations excluded.**
+
+It does NOT test:
+
+- uniqueness of the nine-window spacing pattern;
+- all possible non-Gann calendars;
+- all documented Gann day counts;
+- the complete Gann methodology.
+
+The scientific interpretation is:
+
+Does the exact documented Rule-8 placement outperform other positive integer placements of the
+identical nine-window structure through the first full-span displacement?
+
+A generic effect of the nine-window pattern that is also present in nearby translations should
+therefore not pass this specificity leg.
+
+### Coverage
+
+Primary structural coverage is 67 calendar days per anchor.
+
+Every rigid translation preserves exactly 67 covered calendar days.
+
+No clipping, wraparound, modulo operation, or coverage tolerance is introduced.
+
+Realized coverage differences caused by anchor replacement or data-span truncation are reported
+only as diagnostics and do not alter the placebo-family definition.
+
+### Periodicity
+
+GF-4T/R8 has NO periodicity.
+
+No modulo arithmetic or +k repetition is permitted.
+
+The placebo pattern is one-shot from the anchor, exactly as the primary construct is one-shot.
+
+### Reproducibility
+
+No RNG.
+
+No seed.
+
+No subset selection.
+
+No researcher-selected placebo sample.
+
+The family is deterministically generated from the fixed nine-window pattern and the fixed integer
+domain d = 1…179, followed by the fixed centre-collision exclusion rule.
+
+All surviving translated sets are distinct.
+
+### Disclosure
+
+Record explicitly that this test is a **phase-specificity test for the Rule-8 window placement**,
+not a test of the uniqueness of the Rule-8 spacing pattern.
+
+Also record explicitly that the use of centre avoidance rather than covered-day disjointness
+permits overlap between placebo and real Rule-8 windows by design.
+
+### STATUS
+
+G-3 GF-4T/R8 is now CLOSED.
+
+G-3 GF-1 remains CLOSED.
+
+G-3 is therefore CLOSED for the complete Stage-1 primary set.
+
+Do not make any other scientific rulings.
+
+| Field | Entry |
+|---|---|
+| **Basis** | Freeze checklist §4 G-3; memo §8.2 (*"window set with identical widths, centres shifted to non-Gann day counts"*, matched coverage); R-14 (*"GF-4T/R8 shifted windows of equal width"*); the G-3 GF-4T/R8 design and domain audits of 2026-09-15 (`P − P = [−178, 178]`; 17 centre-collision shifts; N = 162 ≥ 59) |
+| **Frozen if accepted** | Exactly the RULING text above, transcribed verbatim into the freeze document's item 9 (GF-4T/R8 placebo sets); the family is computed by the rule, not stored as a hand-written list |
+| **Not ruled** | G-4, G-5, G-6, G-7, G-8 and G-9 are untouched by this ruling; no other scientific definition changed |
 
 ---
 
@@ -252,9 +428,9 @@ OPEN).** A **pre-result scientific/operator specification**.
 
 - As first committed (`bf6b0a5`): no ruling made; nothing frozen.
 - **2026-09-15:** operator rulings recorded in the RULING rows. Ruling 7 superseded by R-5 on the
-  operator's instruction; no other prior ruling changed. **G-1, G-2 and G-3's GF-1 part ruled the same
-  day (see the G-1, G-2 and G-3 blocks
-  above)** — each recorded as a pre-result specification, not as a claim that the formulation was
+  operator's instruction; no other prior ruling changed. **G-1, G-2 and G-3 (both placebo families)
+  ruled the same day (see the G-1, G-2 and G-3 blocks above)** — each recorded as a pre-result
+  specification, not as a claim that the formulation was
   literally explicit in Gann's text. No family definition changed. The exposure
   register was not edited — G-S1 remains a draft for the operator to append. **Nothing is frozen.**
 - Exposure status preserved: equity EOD 2011-03-25 → 2022-12-30 signal-spent (a spent window can

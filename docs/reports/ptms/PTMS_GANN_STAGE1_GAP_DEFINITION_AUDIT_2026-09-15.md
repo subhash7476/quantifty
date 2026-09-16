@@ -33,12 +33,12 @@ definition, design decisions, catalogue, feasibility audits), `governance/exposu
 | Closest committed text | Definition §12.1: O-R10 is *"on K3, a break of the last swing low (trend was up) or a cross of the last swing top (trend was down)"* — no direction for constructs without their own direction. R-2 ruling: *"direction by construct"*, and its RULING row explicitly notes the gap. GF-10: *"bear mirror pooled with sign"* (R-5, memo §11.F) without a pooling formula. Whether "trend" is the K3 line state or the S9 state (which can be "no state") is not written |
 | Disposition | **Operator decision (scientific).** Changes the outcome variable for all three primaries |
 
-### G-3 — placebo sets for GF-1 and GF-4T/R8 — **GF-1 PART RULED 2026-09-15; GF-4T/R8 OPEN**
+### G-3 — placebo sets for GF-1 and GF-4T/R8 — **RULED 2026-09-15 (GF-1 and GF-4T/R8)**
 
 | | |
 |---|---|
-| **Status update (2026-09-15)** | **GF-1 part RULED by the operator** — recorded in `PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md`, G-3 block. The GF-1 specificity placebo family is the **exhaustive phase-shift orbit of P4 modulo 144**: for every d ∈ {0,…,143}, `P4_d = {(p + d) mod 144 : p ∈ P4}`, excluding every d with `P4_d ∩ P4 ≠ ∅` → exactly **132 distinct placebo sets**; six distinct offsets per cycle; unbounded `+144*k` repetition; residue 0 expands as 144, 288, …; no fractions, rounding, RNG or seed; null = **P4 phase-specificity** (P8 and other Gann day counts not excluded); coverage structurally matched, realized c reported as a diagnostic. Disclosed: phase-specificity, not a test of the P4 spacing pattern's uniqueness. N = 132 → p_min = 1/133 ≈ 0.00752 < α = 1/60. **GF-4T/R8's placebo construction is NOT ruled and remains part of this gap** |
-| Already defined? | **No** at audit time for the family as a whole (row above supersedes for GF-1; GF-4T/R8 remains open). |
+| **Status update (2026-09-15)** | **RULED by the operator for both families** — recorded in `PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md`, G-3 blocks. **GF-1:** the **exhaustive phase-shift orbit of P4 modulo 144** — for every d ∈ {0,…,143}, `P4_d = {(p + d) mod 144 : p ∈ P4}`, excluding every d with `P4_d ∩ P4 ≠ ∅` → exactly **132 distinct placebo sets**; six distinct offsets per cycle; unbounded `+144*k` repetition; residue 0 expands as 144, 288, …; no fractions, rounding, RNG or seed; null = **P4 phase-specificity** (P8 and other Gann day counts not excluded); coverage structurally matched, realized c reported as a diagnostic. Disclosed: phase-specificity, not a test of the P4 spacing pattern's uniqueness. N = 132 → p_min = 1/133 ≈ 0.00752 < α = 1/60. **GF-4T/R8:** the **rigid whole-pattern integer translation** of the nine Rule-8 windows, domain `d ∈ {1,…,179}`, excluding the 17 centre-collision translations {10, 16, 20, 26, 36, 43, 55, 59, 64, 65, 69, 79, 108, 119, 124, 134, 144} → exactly **162 distinct placebo sets**; independent per-window shifts and reflection NOT permitted; overlap with the real windows is permitted by design (centre avoidance, not covered-day disjointness); no periodicity, modulo, RNG or seed; coverage structurally 67 days per anchor, realized differences reported as diagnostics. N = 162 → p_min = 1/163 < α = 1/60. Both families are deterministic pre-result specifications; **G-3 is CLOSED for the complete Stage-1 primary set** |
+| Already defined? | **No** at audit time (row above supersedes as of 2026-09-15 for both families). |
 | Closest committed text | Memo §8.2: GF-1 *"non-Gann fractions of 144"*, GF-4T/R8 *"window set with identical widths, centres shifted to non-Gann day counts"*, both *"matched coverage"*; R-14 *"placebo definitions … not specified"*. Definition §2 row 11 lists fractions only as *"e.g. 0.29, 0.41, 0.59, 0.71, 0.83"* — illustrative. Catalogue §1085/§1162 name "equal-coverage placebo sets" generically; no fractions, centres, coverage-matching rule or **count** N is pinned |
 | Disposition | **Operator decision (scientific).** Under R-14's one-sided +1 rank p, rank-p ≥ 1/(N+1) ⇒ N ≥ 59 to reach α = 0.05/3 (checklist §4). Binds GF-1 and GF-4T/R8 only; GF-10's p comes from the B = 1999 surrogate draws (G-4) |
 
@@ -96,14 +96,14 @@ definition, design decisions, catalogue, feasibility audits), `governance/exposu
 
 | Class | Items |
 |---|---|
-| **Already defined (transcription only)** | Contrast *statistic* T(time) − T(price) (part of G-4) · all "RULED — TO TRANSCRIBE" checklist rows (items 2, 3, 4, 5, 11 — the G-1 and G-2 rulings closed the two former exceptions) · item 9's GF-1 part (G-3, 2026-09-15) · the exclusion *policy* concept behind G-7 |
+| **Already defined (transcription only)** | Contrast *statistic* T(time) − T(price) (part of G-4) · all "RULED — TO TRANSCRIBE" checklist rows (items 2, 3, 4, 5, 11 — the G-1 and G-2 rulings closed the two former exceptions) · item 9 (G-3, 2026-09-15 — both placebo families ruled) · the exclusion *policy* concept behind G-7 |
 | **Objectively auditable / engineering (this or a later session)** | R-11 audit (**done — finding: 2023-01-02 → 2026-09-11 equity EOD signal-spent; ruling still the operator's**) · R-13 store-level certification + in-store CA enumeration (**done**; G1/G3/G5 persistence and external enumeration remain) · checklist items 12, 13, 14, 16 (research work with fixed wording) |
-| **Genuinely requiring operator/scientific decision** | **G-3 (GF-4T/R8 part), G-4 (null + p-formula), G-5, G-6, G-7, G-8, G-9** (**G-1, G-2 and G-3's GF-1 part ruled 2026-09-15** — ruling register, G-1/G-2/G-3 blocks) · R-11 freshness ruling · R-13 external-enumeration authorization · G-S1 register append (operator-owned) · freeze approval (item 18) |
+| **Genuinely requiring operator/scientific decision** | **G-4 (null + p-formula), G-5, G-6, G-7, G-8, G-9** (**G-1, G-2 and G-3 ruled 2026-09-15** — ruling register, G-1/G-2/G-3 blocks) · R-11 freshness ruling · R-13 external-enumeration authorization · G-S1 register append (operator-owned) · freeze approval (item 18) |
 
 No gap above can be closed by this audit without inventing a definition; none is filled by this
-audit. **G-1, G-2, and the GF-1 part of G-3 were subsequently closed by operator rulings on
-2026-09-15** (ruling register, G-1/G-2/G-3 blocks; checklist §4 rows marked RESOLVED or partially
-resolved). **G-3's GF-4T/R8 part remains open.**
+audit. **G-1, G-2, and G-3 (both placebo families) were subsequently closed by operator rulings on
+2026-09-15** (ruling register, G-1/G-2/G-3 blocks; checklist §4 rows marked RESOLVED). **G-3 is
+closed for the complete Stage-1 primary set.**
 
 ---
 
