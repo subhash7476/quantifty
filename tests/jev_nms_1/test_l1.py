@@ -41,3 +41,14 @@ def test_planned_requests_cover_every_preregistered_payload():
     assert sum(1 for s, t, _ in p if s == "development" and t == "h15") == 1000
     assert sum(1 for s, t, _ in p if s == "development" and t in ("h5", "h30")) == 600
     assert slots
+
+
+def test_store_guard_refuses_an_eligible_in_set_date_whose_file_is_absent(tmp_path):
+    (tmp_path / "2024-06-03.duckdb").write_bytes(b"")
+    elig = {"sessions": {"d_fit": [{"date": "2024-06-03", "eligible": True},
+                                   {"date": "2024-06-05", "eligible": True}],
+                         "d_eval": [], "h_exposed": []}}
+    f = Fence(elig, tmp_path)
+    f.check("S0", "2024-06-03|10:00")
+    with pytest.raises(FenceViolation, match="beyond the store"):
+        f.check("S0", "2024-06-05|10:00")
