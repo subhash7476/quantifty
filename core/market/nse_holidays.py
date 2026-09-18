@@ -22,7 +22,7 @@ NSE_HOLIDAYS: frozenset[date] = frozenset({
     date(2023, 4, 7),    # Good Friday
     date(2023, 4, 14),   # Dr. Baba Saheb Ambedkar Jayanti
     date(2023, 5, 1),    # Maharashtra Day
-    date(2023, 6, 28),   # Bakri Id
+    date(2023, 6, 29),   # Bakri Id (observed Thursday; extraction had 06-28)
     date(2023, 8, 15),   # Independence Day
     date(2023, 9, 19),   # Ganesh Chaturthi
     date(2023, 10, 2),   # Mahatma Gandhi Jayanti
