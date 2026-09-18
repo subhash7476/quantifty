@@ -8,9 +8,12 @@ list/grid order.
 
 Stage `equivalence` runs the full selection under each fold-allocation
 convention for 442 sessions (Q2): A = np.array_split (first blocks larger),
-B = last blocks larger, C = boundaries floor(i*n/5 + 1/2). Stage `fit` refuses
-to run unless every convention selected the same hyperparameters, then refits
-on all D-fit and persists the models. Both artifacts are create-only.
+B = last blocks larger, C = boundaries floor(i*n/5 + 1/2). The conventions
+disagreed on B3; operator ruling Q2 (2026-09-18) fixes convention A (extra
+sessions to the earliest blocks: 89, 89, 88, 88, 88) as a reproducibility
+resolution of §14, not a performance choice. Stage `fit` uses convention A's
+selection only, checks it against the recorded expectation, refits on all D-fit
+and persists the models. Both artifacts are create-only.
 """
 from __future__ import annotations
 
@@ -47,6 +50,10 @@ FIELDS = ("minutes_since_open", "gap_bp", "ret_open_bp", "ret_15_bp", "ret_30_bp
           "rv_30_bp", "range_30_bp", "er_30", "twap_dist_bp")
 SLOTS = ("10:00", "10:30", "11:00", "11:30", "12:00", "12:30", "13:00", "13:30", "14:00", "14:30")
 CONVENTIONS = ("A", "B", "C")
+RULED_CONVENTION = "A"
+# Verification expectation from the operator's Q2 ruling; never forced.
+EXPECTED_A = {"5": (0.01, 0), "15": (0.1, 0), "30": (0.1, 3)}
+CLIP = 1e-4
 K = 5
 
 
@@ -96,7 +103,7 @@ def fold_of_state(dates: list[str], convention: str) -> np.ndarray:
 def clipped(proba: np.ndarray, classes: np.ndarray) -> np.ndarray:
     """Columns reordered by class NAME into CLASSES order; clip >= 1e-4; renormalize."""
     idx = [list(classes).index(c) for c in CLASSES]
-    p = np.maximum(proba[:, idx], 1e-4)
+    p = np.maximum(proba[:, idx], CLIP)
     return p / p.sum(axis=1, keepdims=True)
 
 
@@ -177,13 +184,22 @@ def equivalence() -> dict:
 
 
 def fit() -> dict:
-    eq = _load(EQUIVALENCE_NAME, _ledger_sha(EQUIVALENCE_NAME))
-    if not eq["all_equal"]:
-        raise SystemExit("fold conventions disagree; a Q2 ruling is required before fitting")
+    eq_sha = _ledger_sha(EQUIVALENCE_NAME)
+    eq = _load(EQUIVALENCE_NAME, eq_sha)
+    sel = eq["conventions"][RULED_CONVENTION]["horizons"]
+    got = {h: (v["b2_selected_C"], v["b3_selected_index"]) for h, v in sel.items()}
+    if got != {h: tuple(v) for h, v in EXPECTED_A.items()}:
+        raise SystemExit(f"convention A selection {got} differs from the expectation {EXPECTED_A}")
     cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
     dates, X, y = dataset()
     Xs, mean, sd = standardize(X)
-    sel = eq["conventions"]["A"]["horizons"]
+    folds = fold_of_state(dates, RULED_CONVENTION)
+    for h, v in sel.items():  # re-derive A's selection end to end; must match the artifact
+        l2 = [oof_loss(lambda c=c: b2(cfg, c), Xs, y[int(h)], folds, [], "recheck")
+              for c in cfg["B2"]["C_grid"]]
+        l3 = oof_loss(lambda: b3(cfg, v["b3_selected"]), X, y[int(h)], folds, [], "recheck")
+        if l2 != list(v["b2_oof_log_loss"].values()) or l3 != v["b3_oof_log_loss"][v["b3_selected_index"]]:
+            raise RuntimeError(f"h{h}: OOF losses do not reproduce the equivalence artifact")
     log: list = []
     out = {"b2": {}, "b3": {}}
     for h in HORIZONS:
@@ -208,7 +224,23 @@ def fit() -> dict:
         out["b2"][str(h)]["d_fit_in_sample_log_loss"] = mean_log_loss(
             clipped(m2.predict_proba(Xs), m2.classes_), y[h])
     out["standardization"] = {"fields": list(FIELDS), "mean": mean.tolist(), "sd_ddof0": sd.tolist()}
-    out["selection_convention"] = "A (np.array_split); equivalent to B and C per fold_equivalence_step2.json"
+    sessions = sorted(set(dates))
+    out["folds"] = {"convention": RULED_CONVENTION, "ruling": "Q2, operator 2026-09-18",
+                    "sizes": fold_sizes(len(sessions), RULED_CONVENTION),
+                    "blocks": [[s for s, f in zip(dates[::len(SLOTS)], folds[::len(SLOTS)]) if f == k]
+                               for k in range(K)]}
+    out["selection"] = {h: {"b2_oof_log_loss": v["b2_oof_log_loss"],
+                            "b2_selected_C": v["b2_selected_C"],
+                            "b3_oof_log_loss": v["b3_oof_log_loss"],
+                            "b3_selected_index": v["b3_selected_index"]} for h, v in sel.items()}
+    out["equivalence_artifact_sha256"] = eq_sha
+    out["probabilities"] = {"mapping": "by class name into " + ",".join(CLASSES),
+                            "clip_floor": CLIP, "renormalize": True,
+                            "selection_loss": "mean -ln p(true) over all OOF observations (Q4)"}
+    out["b2_spec"] = {"passed_params": cfg["B2"]["passed_params_only"], "solver": cfg["B2"]["solver"],
+                      "max_iter": cfg["B2"]["max_iter"], "tol": cfg["B2"]["tol"],
+                      "standardize": "full D-fit mean, population SD ddof=0 (G-5, Q3)"}
+    out["b3_spec"] = {"fixed": cfg["B3"]["fixed"], "grid_order": cfg["B3"]["grid_order"]}
     out["warnings"] = log
     return out
 

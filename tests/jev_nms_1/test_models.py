@@ -40,3 +40,23 @@ def test_pooled_log_loss_and_first_in_order_tie_break():
 def test_population_sd():
     _, _, sd = standardize(np.array([[1.0], [3.0]]))
     assert sd[0] == 1.0
+
+
+def test_committed_fit_uses_convention_a_and_the_models_reload():
+    import hashlib
+    import json
+    import pickle
+
+    import pytest
+
+    from scripts.jev_nms_1.models import EXPECTED_A, OUT
+    path = OUT / "b2_b3_step2.json"
+    if not path.exists():
+        pytest.skip("fit artifact not present")
+    art = json.loads(path.read_text(encoding="utf-8"))
+    assert art["folds"]["sizes"] == [89, 89, 88, 88, 88]
+    for h, (c, idx) in EXPECTED_A.items():
+        assert art["b2"][h]["C"] == c and art["b3"][h]["grid_index"] == idx
+        blob = (OUT / art["b3"][h]["pickle"]).read_bytes()
+        assert hashlib.sha256(blob).hexdigest() == art["b3"][h]["pickle_sha256"]
+        assert list(pickle.loads(blob).classes_) == art["b3"][h]["classes"]
