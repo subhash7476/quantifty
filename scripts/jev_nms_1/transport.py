@@ -65,8 +65,8 @@ def transport_id(transport_config: dict) -> str:
                                      separators=(",", ":")).encode("utf-8")).hexdigest()
 
 
-def validate_response(raw: bytes, question_id: str) -> dict:
-    """Schema/validity of a 200 body. Never raises; returns {'valid', 'reason', ...}."""
+def validate_response(raw: bytes, question_id: str, classes: tuple = CLASSES) -> dict:
+    """Schema/validity of a 200 body against the template's classes. Never raises."""
     out = {"valid": False, "reason": None, "choice": None, "probabilities": None,
            "confidence": None, "model": None, "usage": None, "probability_sum": None}
     try:
@@ -85,17 +85,17 @@ def validate_response(raw: bytes, question_id: str) -> dict:
     if out["model"] != MODEL:
         out["reason"] = f"model identifier mismatch: {out['model']!r}"
         return out
-    if not isinstance(probs, dict) or set(probs) != set(CLASSES):
+    if not isinstance(probs, dict) or set(probs) != set(classes):
         out["reason"] = f"probability keys {sorted(probs) if isinstance(probs, dict) else probs!r}"
         return out
-    values = [probs[k] for k in CLASSES]
+    values = [probs[k] for k in classes]
     if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
                and 0.0 <= v <= 1.0 for v in values):
         out["reason"] = "probability value outside [0, 1] or non-numeric"
         return out
-    out["probabilities"] = dict(zip(CLASSES, values))
+    out["probabilities"] = dict(zip(classes, values))
     out["probability_sum"] = math.fsum(values)
-    if choice not in CLASSES:
+    if choice not in classes:
         out["reason"] = f"choice {choice!r} is not a frozen class"
         return out
     out["choice"] = choice
