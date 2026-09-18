@@ -9,6 +9,14 @@ incorporation into the repository. Weekday market-closed dates only. Holidays
 that fell on a weekend, Diwali Muhurat dates, and the 2024-01-22 special trading
 holiday are deliberately not listed here; special sessions and weekend trading
 days are a separate mechanism.
+
+Circular provenance (verified against NSE archives 2026-09-18):
+2023 annual schedule NSE/CMTR/54757 (2022-12-08), subsequently revised by
+NSE/CMTR/57285 (2023-06-27) moving Bakri Id from Jun 28 to Jun 29;
+2024 annual schedule NSE/CMTR/59722 (2023-12-12) — the May 20 and Nov 20
+2024 election closures (NSE/CMTR/61518, Apr 2024; NSE/CMTR/64960,
+2024-11-08) are ad-hoc special closures, not ordinary entries here;
+2025 annual schedule NSE/CMTR/65587 (2024-12-13).
 """
 from __future__ import annotations
 
