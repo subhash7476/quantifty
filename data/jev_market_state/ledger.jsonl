@@ -2,3 +2,5 @@
 {"event": "draws_made", "at": "2026-09-18T11:36:47Z", "artifact": "draws_step2.json", "sha256": "e4c1f3c957b49ebfcfb0915ff0f5675467a953e58a9b82546a9ba4e007733de8"}
 {"event": "r1_report", "at": "2026-09-18T11:39:52Z", "stop": false, "artifact": "dfit_constants_step2.json"}
 {"event": "dfit_constants", "at": "2026-09-18T11:39:52Z", "base_rate_gate_passed": true, "artifact": "dfit_constants_step2.json", "sha256": "656ed4ddf3ee19d264c2dc8183844f329881bf14ca2e77c7dfb87e6d8bafe88d"}
+{"event": "features_built", "at": "2026-09-18T11:49:30Z", "artifact": "features_step2.json", "sha256": "29997617dba1888c4f66ff28da85e4ad42f3866b8b5bcd59d2b43e0404049eb3"}
+{"event": "b2_b3_equivalence", "at": "2026-09-18T12:16:00Z", "artifact": "fold_equivalence_step2.json", "sha256": "e8a2e38634d75953d2da33ddf4b1d39fc9c8cdbc838ccc0cf3236ae1f24e5d13", "warnings": 0}
