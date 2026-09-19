@@ -1,0 +1,159 @@
+entity,symbol,ex_date,class,series,purpose,source_file,in_membership,g7_event
+ACC,ACC,2011-03-29,SPECIAL_DIVIDEND,EQ,Final Dividend Rs.13/- Per Share And One Time Special Dividend Rs.7.50/- Per Share,CF-CA-equities-01-01-2011-to-31-12-2011.csv,True,True
+TORNTPHARM,TORNTPHARM,2011-06-06,SPECIAL_DIVIDEND,EQ,Final Dividend Rs.6/- Per Share And Special Dividend Rs.2/- Per Share (Purpose Revised),CF-CA-equities-01-01-2011-to-31-12-2011.csv,False,True
+ITC,ITC,2011-06-10,SPECIAL_DIVIDEND,EQ,Dividend Final Rs 2.80 And Special Rs 1.65 Per Share,CF-CA-equities-01-01-2011-to-31-12-2011.csv,True,True
+TORNTPOWER,TORNTPOWER,2011-06-16,SPECIAL_DIVIDEND,EQ,Final Dividend Rs.3/- Per Share And Special Dividend Rs.2.50 Per Share,CF-CA-equities-01-01-2011-to-31-12-2011.csv,True,True
+BOSCHLTD,BOSCHLTD,2011-06-23,SPECIAL_DIVIDEND,EQ,Special Dividend Rs.85/- Per Share,CF-CA-equities-01-01-2011-to-31-12-2011.csv,False,True
+M&M,M&M,2011-07-14,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Final Dividend Rs.10.50 Per Share And Special Dividend Re.1/- Per Share,CF-CA-equities-01-01-2011-to-31-12-2011.csv,True,True
+HCLTECH,HCLTECH,2011-10-21,SPECIAL_DIVIDEND,EQ,Final Dividend Rs.2/- Per Share/Interim Dividend Rs.2/- Per Share/Special Dividend Rs.2/- Per Share/Annual General Meeting (Purpose Revised),CF-CA-equities-01-01-2011-to-31-12-2011.csv,True,True
+MINDTREE,MINDTREE,2011-10-31,SPECIAL_DIVIDEND,EQ,Interim Dividend Rs.1.50 Per Share And Special Dividend Re.1 Per Share,CF-CA-equities-01-01-2011-to-31-12-2011.csv,False,True
+INFOSYSTCH,INFY,2012-05-24,SPECIAL_DIVIDEND,EQ,Annual General Meeting / Dividend - Final Rs 22 + Special Rs 10,CF-CA-equities-01-01-2012-to-31-12-2012.csv,True,True
+TCS,TCS,2012-06-07,SPECIAL_DIVIDEND,EQ,Annual General Meeting / Final Dividend - Rs.8/- / Special Dividend - Rs.8/-,CF-CA-equities-01-01-2012-to-31-12-2012.csv,True,True
+EMAMILTD,EMAMILTD,2012-08-02,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Final Dividend Rs.4/- Per Share/Special Dividend Rs.4/- Per Share,CF-CA-equities-01-01-2012-to-31-12-2012.csv,False,True
+BAJAJFINSV,BAJAJFINSV,2012-09-06,RIGHTS,EQ,Rights 1:10 @ Premium Rs.645/- Per Share,CF-CA-equities-01-01-2012-to-31-12-2012.csv,False,True
+RELCAPITAL,RELCAPITAL,2012-10-04,SPECIAL_DIVIDEND,EQ,Special Interim Dividend Rs.5/- Per Share,CF-CA-equities-01-01-2012-to-31-12-2012.csv,True,True
+HINDLEVER,HINDUNILVR,2012-11-01,SPECIAL_DIVIDEND,EQ,Interim Dividend Rs.4.50 Per Share And Special Dividend Rs.8 Per Share (Purpose Revised),CF-CA-equities-01-01-2012-to-31-12-2012.csv,True,True
+BAJAUTOFIN,BAJFINANCE,2013-01-23,RIGHTS,EQ,Rights 3:19 @ Premium Rs 1090 Per Share,CF-CA-equities-01-01-2013-to-31-12-2013.csv,False,True
+WIPRO,WIPRO,2013-04-09,SCHEME,EQ,Scheme Of Arrangement,CF-CA-equities-01-01-2013-to-31-12-2013.csv,False,True
+TORNTPHARM,TORNTPHARM,2013-06-10,SPECIAL_DIVIDEND,EQ,Final Dividend Rs.7/- Per Share And Special Dividend Rs.10/- Per Share,CF-CA-equities-01-01-2013-to-31-12-2013.csv,False,True
+M&MFIN,M&MFIN,2013-07-04,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Final Rs.3.40 + Special Re.0.20 Per Share,CF-CA-equities-01-01-2013-to-31-12-2013.csv,False,True
+BIOCON,BIOCON,2013-07-11,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Final Dividend Rs 5/- Per Share + Special Dividend Rs 2.5/- Per Share,CF-CA-equities-01-01-2013-to-31-12-2013.csv,False,True
+M&M,M&M,2013-07-18,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend 12.50/-+Special Dividend 0.50/- Per Share,CF-CA-equities-01-01-2013-to-31-12-2013.csv,True,True
+NTPC,NTPC,2013-09-05,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Final Dividend Re.0.75 Per Share And Special Dividend Rs.1.25 Per Share,CF-CA-equities-01-01-2013-to-31-12-2013.csv,True,True
+MARICO,MARICO,2013-11-01,SCHEME,EQ,Scheme Of Arrangement And First Interim Dividend,CF-CA-equities-01-01-2013-to-31-12-2013.csv,False,True
+NHPC,NHPC,2013-11-07,BUYBACK,EQ,Buy Back-Tender Offer,CF-CA-equities-01-01-2013-to-31-12-2013.csv,False,False
+ZEEL,ZEEL,2014-03-03,IN_KIND,EQ,Bonus Preference Shares 21:1,CF-CA-equities-01-01-2014-to-31-12-2014.csv,True,True
+TATAPOWER,TATAPOWER,2014-03-19,RIGHTS,EQ,Rights 7:50 @ Premium Rs.59/- Per Equity Share,CF-CA-equities-01-01-2014-to-31-12-2014.csv,True,True
+MINDTREE,MINDTREE,2014-07-09,SPECIAL_DIVIDEND,EQ,Annual General Meeting / Final Dividend - Rs 2.5/- Per Share And Special Dividend - Rs 2.5/- Per Share,CF-CA-equities-01-01-2014-to-31-12-2014.csv,False,True
+M&M,M&M,2014-07-17,SPECIAL_DIVIDEND,EQ,Annual General Meeting / Dividend - Rs 13.50/- Per Share + Special Dividend - Re 0.50/- Per Share,CF-CA-equities-01-01-2014-to-31-12-2014.csv,True,True
+INDHOTEL,INDHOTEL,2014-07-18,IN_KIND,EQ,9 Ccds For Every 40 Equity Shares,CF-CA-equities-01-01-2014-to-31-12-2014.csv,False,True
+TCS,TCS,2014-07-28,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 5/- Per Share + Special Dividend - Rs 40/- Per Share,CF-CA-equities-01-01-2014-to-31-12-2014.csv,True,True
+NTPC,NTPC,2015-03-20,IN_KIND,EQ,Scheme Of Arrangement - Bonus Debentures 1:1,CF-CA-equities-01-01-2015-to-31-12-2015.csv,True,True
+NTPC,NTPC,2015-03-20,SCHEME,EQ,Scheme Of Arrangement - Bonus Debentures 1:1,CF-CA-equities-01-01-2015-to-31-12-2015.csv,True,True
+TATAMTRDVR,TATAMTRDVR,2015-04-06,RIGHTS,EQ,Rights 6:109 @ Premium Rs.269/- Per Share,CF-CA-equities-01-01-2015-to-31-12-2015.csv,False,True
+ADANIENT,ADANIENT,2015-06-03,SCHEME,EQ,Scheme Of Arrangement,CF-CA-equities-01-01-2015-to-31-12-2015.csv,False,True
+TATACHEM,TATACHEM,2015-07-31,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend Rs 10/- Per Share And Special Dividend Rs.2.50/-Per Share,CF-CA-equities-01-01-2015-to-31-12-2015.csv,True,True
+IDFC,IDFC,2015-10-01,DEMERGER,EQ,Demerger,CF-CA-equities-01-01-2015-to-31-12-2015.csv,False,True
+HINDZINC,HINDZINC,2015-10-23,SPECIAL_DIVIDEND,EQ,Interim Dividend Rs.1.90 Per Share And Special Interim Dividend Rs.1.90 Per Share (Purpose Revised),CF-CA-equities-01-01-2015-to-31-12-2015.csv,False,True
+ABIRLANUVO,ABIRLANUVO,2016-01-20,SCHEME,EQ,Scheme Of Arrangement,CF-CA-equities-01-01-2016-to-31-12-2016.csv,False,True
+SIEMENS,SIEMENS,2016-01-21,SPECIAL_DIVIDEND,EQ,Final Dividend Rs 6/- Plus Special Dividend Rs 4/- Per Share,CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,True
+HAVELLS,HAVELLS,2016-02-10,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 3/- Per Share (Purpose Revised),CF-CA-equities-01-01-2016-to-31-12-2016.csv,False,True
+HINDZINC,HINDZINC,2016-04-06,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 24/- Per Share (Purpose Revised),CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,True
+WIPRO,WIPRO,2016-05-05,BUYBACK,EQ,Buyback Of Shares,CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,False
+ITC,ITC,2016-05-30,SPECIAL_DIVIDEND,EQ,Dividend-Rs.8.50 Per Share (Including Special Dividend Of Rs.2/- Per Share).,CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,True
+SUNPHARMA,SUNPHARMA,2016-07-14,BUYBACK,EQ,Buy Back,CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,False
+TECHM,TECHM,2016-07-28,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Final Dividend Rs 6/- Per Share And Special Dividend Rs 6/- Per Share,CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,True
+NMDC,NMDC,2016-08-18,BUYBACK,EQ,Buy Back,CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,False
+BOSCHLTD,BOSCHLTD,2016-09-02,BUYBACK,EQ,Buy Back,CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,False
+COALINDIA,COALINDIA,2016-09-08,BUYBACK,EQ,Buyback Of Shares,CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,False
+BEL,BEL,2016-09-26,BUYBACK,EQ,Buy Back Of Share,CF-CA-equities-01-01-2016-to-31-12-2016.csv,True,False
+SHREECEM,SHREECEM,2017-02-06,SPECIAL_DIVIDEND,EQ,Special Dividend Rs 100/- Per Share (Purpose Revised),CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,True
+CANBK,CANBK,2017-02-17,RIGHTS,EQ,Rights 1:10 @ Prem Rs 197/- Per Share,CF-CA-equities-01-01-2017-to-31-12-2017.csv,False,True
+NHPC,NHPC,2017-02-17,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,False
+BPCL,BPCL,2017-02-28,SPECIAL_DIVIDEND,EQ,Interim Dividend Rs 15.50 Per Share + Special Dividend Rs 4/- Per Share,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,True
+CASTROL,CASTROLIND,2017-03-07,SPECIAL_DIVIDEND,EQ,Special Dividend Rs 2/- Per Share,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,True
+BPCL,BPCL,2017-03-24,SPECIAL_DIVIDEND,EQ,Special Interim Dividend Rs 12/- Per Share,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,True
+HINDZINC,HINDZINC,2017-03-29,SPECIAL_DIVIDEND,EQ,Special Interim Dividend Rs 27.50 Per Share (Purpose Revised),CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,True
+BFLSOFTWAR,MPHASIS,2017-03-30,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2017-to-31-12-2017.csv,False,False
+OIL,OIL,2017-04-03,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,False
+TCS,TCS,2017-05-05,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,False
+P&G,PGHH,2017-05-17,SPECIAL_DIVIDEND,EQ,Special Interim Dividend Rs 362/- Per Share,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,True
+HCLTECH,HCLTECH,2017-05-24,BUYBACK,EQ,Buyback/Interim Dividend Rs 6/- Per Share (Purpose Revised),CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,False
+ASIANPAINT,ASIANPAINT,2017-06-15,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend Rs 5.65 Per Share + Special Dividend Rs 2/- Per Share,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,True
+ICICIPRULI,ICICIPRULI,2017-07-07,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 2.30/- Per Share/Special Dividend Rs 1.20/- Per Share,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,True
+MINDTREE,MINDTREE,2017-07-10,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2017-to-31-12-2017.csv,False,False
+GRASIM,GRASIM,2017-07-19,SCHEME,EQ,Scheme Of Arrangement,CF-CA-equities-01-01-2017-to-31-12-2017.csv,False,True
+RELCAPITAL,RELCAPITAL,2017-09-05,SCHEME,EQ,Scheme Of Arrangement,CF-CA-equities-01-01-2017-to-31-12-2017.csv,False,True
+WIPRO,WIPRO,2017-09-14,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,False
+INDHOTEL,INDHOTEL,2017-10-04,RIGHTS,EQ,Rights 1:5 @ Premium Rs 74/-,CF-CA-equities-01-01-2017-to-31-12-2017.csv,False,True
+INFOSYSTCH,INFY,2017-10-31,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,False
+ICICIPRULI,ICICIPRULI,2017-11-02,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 2.30 Per Share/ Special Dividend Rs 1.10 Per Share (Purpose Revised),CF-CA-equities-01-01-2017-to-31-12-2017.csv,True,True
+MINDTREE,MINDTREE,2017-11-02,SPECIAL_DIVIDEND,EQ,Interim Dividend -   Rs 2/- Per Share/ Special Dividend Rs 2/- Per Share (Purpose Revised),CF-CA-equities-01-01-2017-to-31-12-2017.csv,False,True
+NICOLASPIR,PEL,2018-01-31,RIGHTS,EQ,Rights 1:23 @ Premium Rs 2378/-,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,True
+TATASTEEL,TATASTEEL,2018-01-31,RIGHTS,EQ,Rights - 4:25 Fully Paid Up Shares @ Premium Rs 500/- Per Share / 2:25 Partly Paid Up Shares @ Premium Rs 605/- Per Share,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,True
+SUNDARMFIN,SUNDARMFIN,2018-02-01,SCHEME,EQ,Scheme Of Arrangement,CF-CA-equities-01-01-2018-to-31-12-2018.csv,False,True
+BEL,BEL,2018-02-08,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+PIDILITIND,PIDILITIND,2018-02-09,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+ADANIENT,ADANIENT,2018-04-05,SCHEME,EQ,Scheme Of Arrangement,CF-CA-equities-01-01-2018-to-31-12-2018.csv,False,True
+COLPAL,COLPAL,2018-05-29,SPECIAL_DIVIDEND,EQ,Special Interim Dividend - Rs 11/- Per Share (Purpose Revised),CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,True
+INFOSYSTCH,INFY,2018-06-14,SPECIAL_DIVIDEND,EQ,Annual General Meeting/ Final Dividend Rs 20.50 Per Shar/ Special Dividend - Rs 10 Per Share,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,True
+ICICIPRULI,ICICIPRULI,2018-06-18,SPECIAL_DIVIDEND,EQ,Annual General Meeting / Final Dividend- Rs 2.20 Per Share / Special Dividend- Rs 1.10 Per Share,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,True
+DABUR,DABUR,2018-07-04,SPECIAL_DIVIDEND,EQ,Annual General Meeting/ Final Dividend- Rs 1.25 Per Share/ Special Dividend- Rs 5 Per Share,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,True
+ABBOTINDIA,ABBOTINDIA,2018-07-10,SPECIAL_DIVIDEND,EQ,Annual General Meeting / Final Dividend- Rs 50 Per Share / Special Dividend- Rs 5 Per Share,CF-CA-equities-01-01-2018-to-31-12-2018.csv,False,True
+TATACHEM,TATACHEM,2018-07-16,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Final Dividend- Rs 11 Per Share/ Special Dividend- Rs 11 Per Share,CF-CA-equities-01-01-2018-to-31-12-2018.csv,False,True
+TCS,TCS,2018-08-14,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+HCLTECH,HCLTECH,2018-08-30,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+ADANIENT,ADANIENT,2018-09-06,SCHEME,EQ,Scheme Of Arrangement,CF-CA-equities-01-01-2018-to-31-12-2018.csv,False,True
+LT,LT,2018-10-12,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+BFLSOFTWAR,MPHASIS,2018-10-24,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,False,False
+BHEL,BHEL,2018-11-05,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+PAGEIND,PAGEIND,2018-11-20,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 110 Per Share,CF-CA-equities-01-01-2018-to-31-12-2018.csv,False,True
+NHPC,NHPC,2018-11-29,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+OIL,OIL,2018-11-30,BUYBACK,EQ,Buy Back,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+BOSCHLTD,BOSCHLTD,2018-12-20,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+IOC,IOC,2018-12-21,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2018-to-31-12-2018.csv,True,False
+ONGC,ONGC,2019-01-03,BUYBACK,EQ,Buy Back,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,False
+NMDC,NMDC,2019-01-17,BUYBACK,EQ,Buy Back,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,False
+INFOSYSTCH,INFY,2019-01-24,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 4 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,True
+COALINDIA,COALINDIA,2019-02-14,BUYBACK,EQ,Buy Back,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,False
+PAGEIND,PAGEIND,2019-02-21,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 41 Per Share And Special Dividend - Rs 70 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,False,True
+TECHM,TECHM,2019-03-05,BUYBACK,EQ,Buy Back,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,False
+IDEA,IDEA,2019-03-29,RIGHTS,EQ,Rights 87:38 @ Premium Of Rs 2.50 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,True
+BHARTI,BHARTIARTL,2019-04-23,RIGHTS,EQ,Rights 19:67 @ Premium Rs 215 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,True
+ADANIPORTS,ADANIPORTS,2019-06-20,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,False
+WIPRO,WIPRO,2019-06-20,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,False
+SUNDARMFIN,SUNDARMFIN,2019-07-03,SPECIAL_DIVIDEND,EQ,Agm/Spl Div- Rs.5/- Div-7.5/-,CF-CA-equities-01-01-2019-to-31-12-2019.csv,False,True
+MINDTREE,MINDTREE,2019-07-08,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend Rs 4 Per Share/Special Dividend Rs 20 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,False,True
+M&MFIN,M&MFIN,2019-07-15,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 4 Per Share/ Special Dividend - Rs 2.5 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,False,True
+HDFCBANK,HDFCBANK,2019-08-01,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 5 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,True
+NESTLEIND,NESTLEIND,2019-08-09,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 23 Per Share/ Special Dividend - Rs180 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,False,True
+ABBOTINDIA,ABBOTINDIA,2019-08-13,SPECIAL_DIVIDEND,EQ,Annual General Meeting/ Final Dividend - Rs 50 Per Share/ Special Dividend - Rs 15 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,False,True
+BRITANNIA,BRITANNIA,2019-08-22,IN_KIND,EQ,Scheme Of Arangement- Bonus - 1 Debenture For 1 Equity Share Held,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,True
+BRITANNIA,BRITANNIA,2019-08-22,SCHEME,EQ,Scheme Of Arangement- Bonus - 1 Debenture For 1 Equity Share Held,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,True
+TCS,TCS,2019-10-17,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 5 Per Share And Special Dividend - Rs 40 Per Share,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,True
+ABB,ABB,2019-12-20,DEMERGER,EQ,Demerger,CF-CA-equities-01-01-2019-to-31-12-2019.csv,False,True
+NICOLASPIR,PEL,2019-12-30,RIGHTS,EQ,Rights 11:83 @ Premium Rs 1298/-,CF-CA-equities-01-01-2019-to-31-12-2019.csv,True,True
+TATACHEM,TATACHEM,2020-03-04,DEMERGER,EQ,Demerger,CF-CA-equities-01-01-2020-to-31-12-2020.csv,False,True
+TORNTPHARM,TORNTPHARM,2020-03-18,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 17 Per Share Special Dividend - Rs 15 Per Share,CF-CA-equities-01-01-2020-to-31-12-2020.csv,False,True
+CIPLA,CIPLA,2020-03-19,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 3 Per Share Special Dividend - Re 1 Per Share,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,True
+RELIANCE,RELIANCE,2020-05-13,RIGHTS,EQ,Rights 1:15 @ Premium Rs 1247,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,True
+GLAXO,GLAXO,2020-07-17,SPECIAL_DIVIDEND,EQ,Dividend - Rs 20 And Special Dividend - Rs 20 Per Share,CF-CA-equities-01-01-2020-to-31-12-2020.csv,False,True
+M&MFIN,M&MFIN,2020-07-22,RIGHTS,EQ,Rights 1:1 @ Premium Rs 48/-,CF-CA-equities-01-01-2020-to-31-12-2020.csv,False,True
+HINDLEVER,HINDUNILVR,2020-07-30,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 9.50 Per Share,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,True
+ABBOTINDIA,ABBOTINDIA,2020-08-28,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 107 Per Share And Special Dividend - Rs 143 Per Share,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,True
+TECHM,TECHM,2020-10-29,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 15 Per Share,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,True
+LT,LT,2020-11-04,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 18 Per Share,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,True
+NTPC,NTPC,2020-11-12,BUYBACK,EQ,Buy-Back,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,False
+NMDC,NMDC,2020-11-20,BUYBACK,EQ,Buy Back,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,False
+TCS,TCS,2020-11-26,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,False
+WIPRO,WIPRO,2020-12-10,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2020-to-31-12-2020.csv,True,False
+GAIL,GAIL,2021-01-27,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,False
+HEROHONDA,HEROMOTOCO,2021-02-15,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 65 Per Share Special Dividend - Rs 5 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+HCLTECH,HCLTECH,2021-04-29,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 6 Per Share Special Interim Dividend - Rs 10 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+P&G,PGHH,2021-05-11,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 150 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+BRITANNIA,BRITANNIA,2021-05-25,IN_KIND,EQ,Scheme Of Arangement- Bonus - 1 Debenture For 1 Equity Share Held,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+BRITANNIA,BRITANNIA,2021-05-25,SCHEME,EQ,Scheme Of Arangement- Bonus - 1 Debenture For 1 Equity Share Held,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+ABBOTINDIA,ABBOTINDIA,2021-07-19,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 120 Per Share Special Dividend 155 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+HEROHONDA,HEROMOTOCO,2021-07-22,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 25 Per Share/ Special Dividend - Rs 10 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+TECHM,TECHM,2021-07-23,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 15 Per Share Special Dividend 15 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+MRF,MRF,2021-08-04,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 94 Per Share/Special Dividend - Rs 50 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+GRASIM,GRASIM,2021-08-12,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 5  Per Share/ Special Dividend - Rs 4 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+BFLSOFTWAR,MPHASIS,2021-09-13,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 38 Per Share/Special Dividend - Rs 27 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,False,True
+BPCL,BPCL,2021-09-16,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 23 Per Share/Special Dividend - Rs 35 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+BHARTI,BHARTIARTL,2021-09-27,RIGHTS,EQ,Rights 1:14 @ Premium Rs 530/-,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+TECHM,TECHM,2021-11-02,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 15 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+INDHOTEL,INDHOTEL,2021-11-11,RIGHTS,EQ,Rights 1:9 @ Premium Rs 149/-,CF-CA-equities-01-01-2021-to-31-12-2021.csv,False,True
+PETRONET,PETRONET,2021-11-17,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 7 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,False,True
+POWERGRID,POWERGRID,2021-12-22,SPECIAL_DIVIDEND,EQ,Interim Dividend - Rs 4 Per Share/ Special Dividend - Rs 3 Per Share,CF-CA-equities-01-01-2021-to-31-12-2021.csv,True,True
+TCS,TCS,2022-02-22,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2022-to-31-12-2022.csv,True,False
+GAIL,GAIL,2022-04-21,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2022-to-31-12-2022.csv,True,False
+CADILAHC,ZYDUSLIFE,2022-06-01,BUYBACK,EQ,Buyback,CF-CA-equities-01-01-2022-to-31-12-2022.csv,True,False
+GLAXO,GLAXO,2022-07-07,SPECIAL_DIVIDEND,EQ,Dividend - Rs 30  Per Share/Special Dividend- Rs 60 Per Share,CF-CA-equities-01-01-2022-to-31-12-2022.csv,False,True
+BOSCHLTD,BOSCHLTD,2022-07-14,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 110 Per Share/Special Dividend - Rs 100 Per Share,CF-CA-equities-01-01-2022-to-31-12-2022.csv,True,True
+TECHM,TECHM,2022-07-21,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Special Dividend - Rs 15 Per Share/Dividend - Rs 15 Per Share,CF-CA-equities-01-01-2022-to-31-12-2022.csv,True,True
+ABBOTINDIA,ABBOTINDIA,2022-08-02,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 145 Per Share/Special Dividend- 130 Per Share,CF-CA-equities-01-01-2022-to-31-12-2022.csv,False,True
+GRASIM,GRASIM,2022-08-11,SPECIAL_DIVIDEND,EQ,Annual General Meeting/Dividend - Rs 5 Per Share/Special Dividend - Rs 5 Per Share,CF-CA-equities-01-01-2022-to-31-12-2022.csv,True,True
+NICOLASPIR,PEL,2022-08-30,DEMERGER,EQ,Demerger,CF-CA-equities-01-01-2022-to-31-12-2022.csv,False,True
+NMDC,NMDC,2022-10-27,DEMERGER,EQ,Demerger,CF-CA-equities-01-01-2022-to-31-12-2022.csv,False,True
+TECHM,TECHM,2022-11-09,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 18 Per Share,CF-CA-equities-01-01-2022-to-31-12-2022.csv,True,True
+PETRONET,PETRONET,2022-11-21,SPECIAL_DIVIDEND,EQ,Special Dividend - Rs 7 Per Share,CF-CA-equities-01-01-2022-to-31-12-2022.csv,False,True

@@ -79,6 +79,19 @@
 - **OPEN-M = exclude.** Because this exclusion depends only on the calendar, the last formation weeks
   of the screen (O_5 > 2022-12-30) are dropped for all three primaries.
 
+**P-2 addendum (same day, after the enumeration ran — `PTMS_GANN_P2_CA_ENUMERATION_2026-09-19.md`):**
+
+| ID | Question | RULING | Options not chosen |
+|---|---|---|---|
+| **P2-a** | Are buybacks (40 events) non-ratio G-7 events? | **Not non-ratio.** Listed for completeness only | Non-ratio (exclude) |
+| **P2-b** | Are in-kind distributions non-ratio G-7 events? These are bonus debentures via scheme, bonus preference shares and CCDs (5 rows) | **Non-ratio (exclude)** | Not non-ratio |
+| **P2-c** | Special dividends identified by the exchange's "special" label only (no size screen, which would need prices) | **Accept text-only** | Add a size screen later |
+| **P2-d** | NSE CF-CA as the single authoritative source that closes P-2 | **Accept.** The limitation is disclosed | Require a second source |
+
+Result: **115 distinct (entity, ex-date) G-7 events** among 179 member entities, 2011-03-25 →
+2022-12-30. The enumeration is script-generated (`scripts/ptms/enumerate_nonratio_ca.py`) with
+SHA-256 provenance for every raw file.
+
 ## 3. What remains before the freeze
 
 No open **definition** remains among the items listed in the checklist as of this session. What
