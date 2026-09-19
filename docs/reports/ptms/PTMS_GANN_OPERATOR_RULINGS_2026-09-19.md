@@ -134,3 +134,31 @@ count or statistic was read before or during these rulings.
 P-5 (approval and digest).
 
 **NO DATA READ. NO CODE. NOT A FREEZE.**
+
+---
+
+## 5. P-3 addendum (same day, while the Stage-1 code was written)
+
+Writing the Stage-1 code (P-3; `PTMS_GANN_P3_BUILD_NOTE_2026-09-19.md`) exposed the items below. Each is
+a place where the frozen text does not reach the level of code. The operator ruled them interactively,
+choosing from the options put. The code was tested on synthetic bars only. **No store price, outcome,
+count or statistic was read before or during these rulings.**
+
+| ID | Question | RULING | Options not chosen |
+|---|---|---|---|
+| **PENDING-1** | GF-1 / GF-4T/R8 O-R10 in a stock's **first K3 line**, before any swing of the needed type is confirmed (G-2(a)'s "last K3 swing low/top" is undefined). GF-4T/R8 has no anchor there and is ineligible anyway; GF-1 is affected | **(b) y = 0.** The stock-week is eligible and scores y = 0. Its G-7 span starts at its anchors | (a) Ineligible, not 0 |
+| **PENDING-2** | GF-10: on which session must the stock be a PIT member for a score-1 week to count? (OPEN-K(a) left it to G-6, which did not rule it) | **D_e, the event session.** A contrast week whose only contributors ended before D_L uses its first P3/P4 instant in the week. P1 detection and the latch λ run on the stock's own series whatever its membership | D_L |
+| **IR-1** | K3 swing date when the line's extreme is **equalled** within the line | **First occurrence** (as v0.8 OPEN-4.5 for GF-10) | Last occurrence |
+| **IR-2** | Which sessions are "while UP" for the swing high (memo §5 row 2); mirror for lows | The sessions whose **post-close state** is UP: from the session that set UP (inclusive) to the down-switch session (exclusive). The down-switch session belongs to DOWN | The switching session belongs to the old line |
+| **IR-3** | GF-1: does a high **equal** to the running highest high replace the anchor and restart its count? Mirror for lows | **No.** Only a strictly higher high (strictly lower low) replaces the anchor; the anchor date is the first occurrence | An equal value restarts the count |
+| **IR-4** | GF-1 / GF-4T/R8: a session of O_1 … O_5 on which the stock has no bar | It contributes **no penetration**. The window is still the five sessions of 𝒟 after D_L (R-2) | Extend the window to five of the stock's own bars |
+| **IR-5** | G-7: does the span "contain" an ex-date on its first or last day? | **Inclusive at both ends**: an ex-date on the span-start date or on O_5 (O_15 for V10-H15) excludes | Exclusive ends |
+| **RB-1** | V1-MD (market days): the robustness specs give no specification | Points P4 + 144*k* are counted in **sessions of 𝒟** from the anchor session. The look-ahead stays the **calendar** dates cal(D_L) + 1 … + 7 (RR-7); each session in it is scored by its elapsed session count. Everything else as the GF-1 primary | The look-ahead becomes the next 7 sessions |
+| **RB-2** | V4-AS: which anchors set the G-7 span start (OC-1, "every anchor date the score uses")? | Only swings whose windows **can reach the look-ahead** count as used: extreme within **184 calendar days** of D_L (S-4 derived note). Span start = min(earliest such extreme, d_ref) | Every confirmed swing (the stock's first-ever swing) |
+| **RB-3** | D-BH (exclusion-loss share): the denominator, and the "left-censoring" limb (R-3 left-censoring is a label, not an exclusion) | GF-1, GF-4T/R8: base = **PIT-member stock-weeks on D_L**, partitioned into state-rule ineligibility (no K3 state or no anchor yet: the burn-in G-6a replaced), OPEN-M, G-7, the G-6b floor and entering; counts and shares of the base. GF-10: base = the **A1 set before exclusions**; no state-rule limb | Base = eligible observations; state-rule losses as a separate count |
+| **RB-4** | Diagnostic edge cases | D-PL: a close equal to the per-date median goes to the **low** half; a stock-week with no as-traded bar on D_L is left out of both halves and counted. D-AA: the G-6b floor (20) applies per stratum-date; depth runs from the stock's first bar in the window. D-PS: a qualifying stock whose outcome never varies has undefined φ and is left out and counted | D-PL ties to the high half |
+
+**Consequence:** every reading the P-3 code relies on is ruled. What remains is P-4 (G-S1, operator) and
+P-5 (approval and digest).
+
+**NO DATA READ. CODE WRITTEN AND TESTED ON SYNTHETIC BARS ONLY; NOT RUN. NOT A FREEZE.**
