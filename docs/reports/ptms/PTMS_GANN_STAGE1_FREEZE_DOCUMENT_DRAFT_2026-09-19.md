@@ -1,6 +1,6 @@
 # PTMS — Gann Stage-1 Freeze Document — DRAFT FOR OPERATOR REVIEW (P-5)
 
-**Date:** 2026-09-19 · **Branch:** `research/ptms-price-time-market-structure` · **Drafted at:** `5e41889`
+**Date:** 2026-09-19 · **Branch:** `research/ptms-price-time-market-structure` · **Drafted at:** `ea2bad4`
 
 **Status: DRAFT. NOT FROZEN. NOT APPROVED. NOT HASHED.**
 - This document transcribes every freeze-checklist row marked RULED — TO TRANSCRIBE
@@ -8,7 +8,7 @@
 - No market data, outcome, signal count, IC, p-value or event count was read to write it. No code was
   run except the text-assembly step that copies the verbatim excerpts (§0.2).
 - It becomes the Stage-1 freeze only when **all** of the following hold:
-  1. every item in §0.3 is ruled or confirmed by the operator and written into this file;
+  1. every item in §0.3 is ruled or confirmed by the operator and written into this file (**done 2026-09-19**);
   2. items 14 (P-3 code) and 15 (P-4 G-S1) are done;
   3. the operator approves this file.
 
@@ -35,53 +35,52 @@ commit in §0.4. Inside them only heading levels were lowered, to nest under thi
 No other character was changed. Where a verbatim block and this document's own text differ, **the
 verbatim block governs**, and the difference is a transcription error to be corrected before approval.
 
-### 0.3 Items the operator must settle before approval (freeze review)
+### 0.3 Freeze-review rulings (operator, 2026-09-19)
 
-Transcribing the ruled rows exposed the items below. None is chosen here. Each is either a
-confirmation the rulings already reserved for freeze review, or a place where the committed text stops
-short of what the code needs. The same pattern was used for RR-1 … RR-3.
+Transcribing the ruled rows (draft `b32f5d8`) exposed two unruled definitions (OPEN-P, OPEN-Q), five
+readings for ratification (RR-4 … RR-8) and the two confirmations reserved for freeze review (OC-1,
+OC-2). **The operator ruled all of them on 2026-09-19.** The rulings are recorded in
+`PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md` §4, reproduced verbatim below, and applied in the sections
+cited. **No open definition remains.**
 
-**A. Confirmations reserved for freeze review by earlier rulings**
+| ID | Ruling in brief | Applied in |
+|---|---|---|
+| OPEN-P | Undefined per-date IC ⇒ **drop the date**; the count of dropped dates is reported | §10, §13 |
+| OPEN-Q | Missing bar ⇒ K3 **skips the session** (comparisons over the stock's own bars) | §3, §8 |
+| OC-1 | G-7 span start = the **earliest of every anchor date the score uses and d_ref**; end O_5 | §7 |
+| OC-2 | Robustness set **confirmed complete** | §12 |
+| RR-4 | GF-1 / GF-4T/R8 state, anchors and reference read **as of close(D_L), including D_L** | §2.2, §2.3, §4 |
+| RR-5 | GF-1 / GF-4T/R8 penetration **strictly beyond** | §4 |
+| RR-6 | GF-1 / GF-4T/R8: **no prior-penetration rule** (literal G-2(a)); asymmetry with GF-10 disclosed | §4, §13 |
+| RR-7 | "Next 7 days" = cal(D_L) + 1 … + 7; **PIT member on D_L** | §2.2, §2.3, §6 |
+| RR-8 | **All masks travel** into surrogate and pseudo-real panels; size-check inner surrogates are resampled **from the pseudo-real panel** | §8, §10 |
 
-| ID | Item | Reading on the table | Alternative(s) | Source |
-|---|---|---|---|---|
-| **OC-1** | G-7 dependency-span **start**, per construct | Rulings §2: GF-1 = the date of the running all-time extreme it counts from; GF-4T/R8 = the date of the confirmed K3 swing anchor; GF-10 = the earliest of d_ref and the start date d_h′ of the earliest member of 𝒰_T ∪ 𝒰_P (v0.8 §3.12). Span end = O_5 for all | See the note below | Rulings file §2; v0.8 §3.12 |
-| **OC-2** | The robustness set (§12) is **complete** | Set as ruled and ratified 2026-09-19 | Add a variant now. Nothing can be added after a read | Checklist §5 last paragraph |
+**VERBATIM — operator rulings, §4 freeze-review addendum:**
 
-*Note on OC-1 (transcription finding, not a choice).* G-7's ruling text is: "from its earliest
-**anchor or reference** date through O_5". Two points in the per-construct reading differ from that
-text:
-- **(i) The reference date.** GF-1 and GF-4T/R8 outcomes use the O-R10 reference swing (§4). Its date
-  d_ref can be earlier than the anchor. For example, a GF-4T/R8 stock in K3 UP whose most recent swing
-  is a swing **high**: the O-R10 reference is the earlier swing **low**. The reading on the table does
-  not include d_ref for these two constructs. The GF-10 reading does.
-- **(ii) Two anchors.** GF-1 scores against **both** running extremes (§2). "The running all-time
-  extreme" (singular) does not say which of the two.
+<!-- VERBATIM PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md lines 115-134 -->
+#### 4. Freeze-review addendum (same day, after the freeze-document draft `b32f5d8`)
 
-The options are:
-- **(a)** the reading as tabled;
-- **(b)** the literal G-7 text: span start = the earliest of every anchor date the score uses and
-  d_ref. For GF-1 that is min(high-anchor date, low-anchor date, d_ref). For GF-4T/R8 it is
-  min(anchor date, d_ref). For GF-10 it is as tabled, which already includes d_ref.
+Transcribing the ruled rows into `PTMS_GANN_STAGE1_FREEZE_DOCUMENT_DRAFT_2026-09-19.md` (§0.3)
+exposed the items below. The operator ruled them interactively, choosing from the options put. No data,
+count or statistic was read before or during these rulings.
 
-**B. Readings for ratification (the committed text reads one way literally; the code needs it pinned)**
+| ID | Question | RULING | Options not chosen |
+|---|---|---|---|
+| **OPEN-P** | Per-date Spearman IC undefined (every eligible name has the same score, or the same outcome) | **(a) Drop the date** from T_c for that panel. The number of dropped dates is reported per construct, per leg and per panel type (real, surrogate median). Applies to every primary, placebo set, contrast leg, variant and surrogate panel | (b) IC = 0, date kept |
+| **OPEN-Q** | K3 when a listed member stock has no bar on a session of 𝒟 (real: 2020-04-13; surrogate: G-5 "missing") | **(a) Skip the session.** Day-over-day comparisons and run counts use the stock's own bars, so a missing session neither extends nor breaks a run. Calendar-day durations are unaffected | (b) A missing session breaks every run in progress |
+| **OC-1** | G-7 dependency-span start | **(b) The literal G-7 text.** Span start = the earliest of every anchor date the score uses and the O-R10 reference date d_ref. GF-1: min(high-anchor date, low-anchor date, d_ref). GF-4T/R8: min(anchor date, d_ref). GF-10: the earliest of d_ref and d_h′ of the earliest member of 𝒰_T ∪ 𝒰_P (v0.8 §3.12, confirmed). Span end = O_5 (the window end used by the observation) | (a) Per-construct reading of §2 (anchor only) |
+| **OC-2** | Is the robustness set complete? | **Confirmed complete.** It closes at the freeze | Add a variant |
+| **RR-4** | GF-1 / GF-4T/R8: instant at which the K3 state, anchors and O-R10 reference are read | **Ratified: as of close(D_L), including D_L's bar.** A swing confirmed at close(D_L) counts | The D−1 state on D_L |
+| **RR-5** | GF-1 / GF-4T/R8: is equality a penetration? | **Ratified: no — strictly beyond** (L < x_ref; bear H > x_ref), as GF-10's RR-1 | Touch counts |
+| **RR-6** | GF-1 / GF-4T/R8: does a penetration before O_1 force y = 0? | **Ratified: no (literal G-2(a)).** y = 1 iff the reference is penetrated within O_1 … O_5. The asymmetry with GF-10 (OPEN-12d) is disclosed in the report | GF-10's first-penetration rule |
+| **RR-7** | GF-1 / GF-4T/R8: "the next 7 days"; the membership instant | **Ratified:** the calendar dates cal(D_L) + 1 … cal(D_L) + 7; PIT member on D_L | Other spans or instants |
+| **RR-8** | Masks in surrogate / pseudo-real panels; the size check's inner surrogates | **Ratified:** (a) every panel is scored by identical code with the real calendar, real PIT and listing masks, G-7 on the real ex-dates, OPEN-M and the G-6b floor; (b) each pseudo-real panel's own B = 1999 surrogates are resampled **from that pseudo-real panel** | (a) G-7 not in surrogates; (b) inner surrogates from the real panel |
 
-| ID | Scope | Question | Literal reading on the table | Alternative | Why it is needed |
-|---|---|---|---|---|---|
-| **RR-4** | GF-1, GF-4T/R8 | Instant at which the K3 state, the anchors and the O-R10 reference are read at formation week *w* | **As of close(D_L), including D_L's bar.** Memo §5 row 4: a swing is "usable from the close of the 3rd qualifying session"; G-2(a): the **contemporaneous** K3 line state; memo §11.F: "anchor usable only once established" | The D−1-frozen state on D_L (≤ close(D_L⁻)), as GF-10 uses (OPEN-K(b)) | G-2(a) and memo §7 fix the state and the reference but not whether D_L's own bar counts. RR-1 … RR-3 and OPEN-K were ruled for GF-10 only |
-| **RR-5** | GF-1, GF-4T/R8 | Is a low **equal** to the reference (bear: a high equal) a penetration? | **No — strictly beyond.** "Penetrated" read as for GF-10 (RR-1) | Touch counts (≤ / ≥) | RR-1 is a GF-10 lock. R-2's "any penetration" fixes the amount (any), not equality |
-| **RR-6** | GF-1, GF-4T/R8 | Does a penetration of the reference **before** O_1 make y = 0? | **No.** G-2(a) literally: "outcome = 1 iff the last K3 swing low is penetrated intraday within the next 5 sessions". There is no prior-penetration clause. This is the "memo §7 as written" option that OPEN-K(b) declined **for GF-10 only** | GF-10's rule (OPEN-12d at f_w): a penetration in (d_ref, f_w] gives y = 0 | Without it the two GF-10-style readings could leak across constructs. If ratified, the asymmetry with GF-10 is disclosed (report X-6 already discloses the anchor difference) |
-| **RR-7** | GF-1, GF-4T/R8 | (a) "The next 7 days"; (b) the PIT-membership instant | (a) The calendar dates cal(D_L) + 1 … cal(D_L) + 7. (b) PIT member on D_L, which is GF-10's A1 instant (OPEN-K(a)) | (a) Other 7-day spans. (b) Member on any session of *w* | Memo §11.F says "next 7 days" after week-end *t*; memo §7 says "PIT member" without an instant |
-| **RR-8** | Surrogate and size check (all) | What "identical code" (memo §8.2) means for panel masks and for the size check's inner test | **(a)** Every surrogate and pseudo-real panel is scored by the same code, with the real calendar, real PIT and listing masks, **real** ex-dates for G-7, OPEN-M and the G-6b floor. **(b)** In the size check, each pseudo-real panel is tested exactly like the real panel: its own B = 1999 surrogates are resampled **from that pseudo-real panel** | (a) G-7 masks not applied inside surrogate panels. (b) Inner surrogates resampled from the real panel | Memo §8.2 says "identical code" and "run the full test", and G-9a says "exactly as the real test", but neither says which masks travel |
+**Consequence:** no open definition remains. What remains is P-3 (code), P-4 (G-S1, operator) and
+P-5 (approval and digest).
+<!-- END VERBATIM PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md -->
 
-**C. Open definitions (no literal reading exists; options only, no recommendation)**
-
-| ID | Scope | Gap | Options named | Why it matters |
-|---|---|---|---|---|
-| **OPEN-P** | All three primaries, the placebos, the contrast legs, every surrogate | The **per-date Spearman IC is undefined** when, on a formation date, every eligible name has the same score (for example, a GF-10 week with no P1 event) or the same outcome. Memo §8.2 defines T_c as "the mean over formation weeks of the per-date Spearman IC" and does not say what happens on such a date | (a) The date is dropped from T_c (the count is reported); (b) the date's IC is set to 0 and it stays in T_c | It changes T_c, and therefore p_sur, p_plac and Δ, on every panel. The G-6b floor (20 names) does not prevent it. **For GF-10 this is expected to be a common case, not an edge case.** Persistence A allows at most one P1 event per episode, and A1 keeps every active candidate eligible as a 0. So a formation date can carry ≥ 20 eligible names and no 1 at all. Options (a) and (b) therefore change which weeks make up GF-10's T_c substantially, not marginally. No count is estimated here, because that would need data |
-| **OPEN-Q** | K3 (all), in real and surrogate panels | A stock with **no bar on a session of 𝒟** while listed and a member. Real data: one declared case, 2020-04-13 (R-13 certification, "unpriced member-days"). Surrogates: G-5 leaves "the stock missing on that surrogate date". Memo §5 row 12 compares "each session vs the previous session" and does not say what happens across a missing bar | (a) The missing session is skipped: comparisons run over the stock's own bars; (b) a missing session breaks every K3 run in progress | K3 is upstream of every score and outcome. G-5 makes this case reachable in every surrogate panel |
-
-**D. Tasks and approvals (not definitions)**
+**Tasks and approvals still outstanding (not definitions)**
 - Item 14 (P-3): Stage-1 code committed from a clean tree, not run. Its path and commit go in §14.
 - Item 15 (P-4): the **operator** appends G-S1 to the exposure register. The row text is in §15.
 - Item 18 (P-5): operator approval, and the digest recorded **outside** this file (§18).
@@ -92,8 +91,8 @@ Every source below was read at the commit shown. SHA-256 is of the file bytes at
 
 | File (`docs/reports/ptms/`) | Last commit | SHA-256 |
 |---|---|---|
+| `PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md` | `ea2bad4` | `835d3ad46cd74961ad715f18f2cc636ae5118ea7db43bbde1c654addf97c7017` |
 | `PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md` | `0d6a3b5` | `3ebb2c0d46b67d965c2a53eb426ace3963f31bbc88db1a8be71ff5efb23ac05c` |
-| `PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md` | `156a2ce` | `fe7be5dfa6744ff3e8143959c71fd81bae86b0080751a4f7a8618bddfe5c53c0` |
 | `GF10_MECHANICAL_DECISION_RECORD_v0.8_2026-09-19.md` | `c894a64` | `59dab2dff0060e2e424922556c9c34852ba7d28162cb1b0942ea207aef7e83bf` |
 | `PTMS_GANN_STAGE1_PREREG_COMPLETION_2026-09-14.md` | `cdf2b06` | `86ce713cbe1c7327430fb46a9a63b7b9808cd7d7390d1f7095e2c38fe8672474` |
 | `PTMS_GANN_P2_CA_ENUMERATION_2026-09-19.md` | `156a2ce` | `89a6ad91349b91cdc691da7206311d19a4dc5027db5b02ba3e2cead731677d6d` |
@@ -352,9 +351,9 @@ Robustness variants are not entries in the multiplicity register (§12).
 - **Points.** anchor date + *n* calendar days, *n* ∈ P4 + 144*k* with P4 = {36, 48, 72, 96, 108, 144}
   and *k* = 0, 1, 2, … (R-9(a); calendar days is a **design choice where Gann does not uniquely
   specify one**). The residue-0 point is 144, 288, …, never day 0 (G-3 GF-1).
-- **Score** at formation week *w*: 1 if any calendar date in the next 7 days (RR-7) equals a point of
-  either anchor, else 0.
-- **Eligibility.** A PIT N100 member (RR-7) with a confirmed K3 state (**K3 NO STATE ⇒ ineligible**,
+- **Score** at formation week *w*: 1 if any calendar date in cal(D_L) + 1 … cal(D_L) + 7 (RR-7) equals
+  a point of either anchor, else 0. Anchors are read as of close(D_L), including D_L's bar (RR-4).
+- **Eligibility.** A PIT N100 member on D_L (RR-7) with a confirmed K3 state (**K3 NO STATE ⇒ ineligible**,
   not 0) and an established anchor.
 - **Outcome.** O-R10 per §4 (G-2(a)), window = the five NSE sessions after D_L.
 
@@ -365,7 +364,8 @@ Robustness variants are not entries in the multiplicity register (§12).
 - **Windows.** The nine printed Rule 8 windows, inclusive, in calendar days from the anchor date, with
   no additional tolerance (R-4): {7–12, 18–21, 28–31, 42–49, 57–65, 85–92, 112–120, 150–157, 175–185}.
   They are one-shot from the anchor: no periodicity, no repetition (G-3 GF-4T/R8).
-- **Score** at *w*: 1 if any calendar date in the next 7 days (RR-7) falls inside a window, else 0.
+- **Score** at *w*: 1 if any calendar date in cal(D_L) + 1 … cal(D_L) + 7 (RR-7) falls inside a window,
+  else 0. The anchor is the most recent swing confirmed at or before close(D_L) (RR-4).
 - **Eligibility and outcome:** as GF-1 (K3 NO STATE ⇒ ineligible; O-R10 per §4).
 
 ### 2.4 GF-10 primary cell — transcribed from GF-10 record v0.8, NOT from R-5's sentence
@@ -873,8 +873,12 @@ Statistic and inference for all: §8.2, α = 0.05/m, m = 3.
 
 **Frozen:** memo §5 rows 1–13, the "proposed pin" column, as accepted by R-1. The primary is the
 literal switch reading of row 11. The symmetric reading is a robustness variant (V-K3, §12). Row 7's
-"declared departure" is read as R-1's label. Two open items bear on K3: OPEN-Q (a stock with a missing
-bar) and RR-4 (the formation-instant reading).
+"declared departure" is read as R-1's label.
+
+**Missing bar (OPEN-Q = a).** If a listed member stock has no bar on a session of 𝒟 (in real data or
+in a surrogate panel), K3 **skips the session**. Day-over-day comparisons and run counts use the
+stock's own bars, so a missing session neither extends nor breaks a run. Calendar-day durations are
+unaffected.
 
 **Label (travels with every report):** *K3 is an explicitly labelled approximation of Gann's
 discretionary historical detector. Gann's own record departs from the strict rule in ≥ 7 of 61 swings
@@ -916,14 +920,14 @@ construct's anchor explicitly so the two cannot drift together"):**
 
 | | GF-1 and GF-4T/R8 | GF-10 |
 |---|---|---|
-| Direction set by | **Contemporaneous K3 line state** at *w* (RR-4). **S9 not used** | The observation's candidate: **S9 BULL ∧ K3 decline** → bull; **S9 BEAR ∧ K3 rally** → bear (G-2(b)) |
+| Direction set by | **Contemporaneous K3 line state** as of close(D_L) (RR-4). **S9 not used** | The observation's candidate: **S9 BULL ∧ K3 decline** → bull; **S9 BEAR ∧ K3 rally** → bear (G-2(b)) |
 | Reference, "up" case | K3 UP → the last K3 **swing low** | Bull → the K3 swing low immediately preceding the current decline's starting high. The K3 **line** is DOWN at this point, but the reference is still the swing **low** (G-2 recorded observation) |
 | Reference, "down" case | K3 DOWN → the last K3 **swing top** | Bear → the swing high immediately preceding the current rally's starting low |
 | K3 NO STATE / S9 NONE | Ineligible, not 0 | Ineligible, not 0 |
-| Reference read as of | close(D_L) including D_L (RR-4, for ratification) | Confirmation close ≤ close(D_e⁻) for a 1; ≤ close(D_L⁻) for a 0 and for contrast weeks (OPEN-12c; OPEN-K(b)) |
+| Reference read as of | close(D_L), including D_L's bar (**RR-4**) | Confirmation close ≤ close(D_e⁻) for a 1; ≤ close(D_L⁻) for a 0 and for contrast weeks (OPEN-12c; OPEN-K(b)) |
 | Window anchored at | D_L: O_1 … O_5 = the five sessions after D_L | Score 1: D_e (OPEN-12a/b). Score 0 and contrast: D_L (OPEN-K(b), OPEN-L) |
-| Penetration | Any amount, intraday basis (R-2); strictness per **RR-5** (for ratification) | **Strictly beyond** (RR-1) |
-| Prior penetration | Per **RR-6** (literal G-2(a): none; for ratification) | A penetration in (d_ref, t_e] (or (d_ref, f_w]) gives y = 0 (OPEN-12d; OPEN-K(b)); RR-2 literal |
+| Penetration | Any amount, intraday basis (R-2); **strictly beyond** (**RR-5**) | **Strictly beyond** (RR-1) |
+| Prior penetration | **None** (**RR-6**, literal G-2(a)): y = 1 iff the reference is penetrated in O_1 … O_5, whatever happened before. The asymmetry with GF-10 is disclosed (§13, X-8) | A penetration in (d_ref, t_e] (or (d_ref, f_w]) gives y = 0 (OPEN-12d; OPEN-K(b)); RR-2 literal |
 | Opposite-direction O-R10 event | Not applicable (one direction per stock-week) | Outcome **0** (G-2(b)) |
 | Pooling | One per-date IC per construct | Bull and bear pooled into **one** per-date Spearman IC. GF-10 stays one construct |
 
@@ -975,7 +979,7 @@ does not uniquely specify them* (R-9). GF-1 anchors are left-censored at 2011-03
 | Session calendar | 𝒟 = NSE sessions, **including special sessions**. Known in-window artifacts: **2012-11-11 is a non-session** (Sunday, 14 gold-ETF rows) and is dropped. **2016-04-19 is a holiday** (NSE/CMTR/31297, 7 Dec 2015). **2016-10-30 (Sunday) is a Muhurat session.** It is the last session of its ISO week. Its session window must come from a stated source, because `SPECIAL_SESSIONS` covers only 2023–2025. That is a **P-3 implementation obligation**, not a definition | R-13 certification; R-13 closure §2; CAL-1 |
 | Burn-in | **None beyond the state rules.** A stock enters as soon as its state rules make it eligible. Left-censoring is carried by the R-3 labels | G-6a |
 | Minimum names | A formation date enters T_c only if **≥ 20** names are eligible for that construct. GF-10: counted on the A1 set (1s plus A1-eligible 0s), per profile. The same floor applies to each GF-10 contrast leg | G-6b; v0.8 §3.12; RR-3 |
-| Eligibility | GF-1 / GF-4T/R8: §2.2, §2.3 (K3 NO STATE ⇒ ineligible). GF-10: OPEN-K(a) = A1, K(a)-P1, K(a)-P2 (v0.8 §3.9) | As cited |
+| Eligibility | GF-1 / GF-4T/R8: §2.2, §2.3 (PIT member on D_L, RR-7; K3 NO STATE ⇒ ineligible). GF-10: OPEN-K(a) = A1, K(a)-P1, K(a)-P2 (v0.8 §3.9) | As cited |
 | Membership boundaries | The ±1-month boundaries R5 (2017-05-26) and R7 (2020-09-25 / 2020-11-02) use **the recorded dates**, and this is disclosed. R8 lies outside the window | R-13 closure §3.1 |
 | BE series | The 304 BE-series member-days are **eligible sessions** | R-13 closure §3.1 |
 | TATAMTRDVR | Included **as its own stock** (2016-04-01 → 2017-09-29), with its close tracking of TATAMOTORS disclosed. The implementation **must not** filter through `universe_eligibility`, which classes it `non_equity_isin` | R-13 closure §3.1 |
@@ -999,7 +1003,7 @@ confirmed K3 state and the construct's anchor available.
 | Substrate | Store-level N100 × EOD certification complete (2026-09-15; all gates PASS). G1/G3/G5 membership-build gates persisted (`54ef174`), and the rebuild was identity-verified (263 = 263 intervals) | R-13 certification; R-13 closure §1 |
 | Non-ratio CA list | **115 distinct (entity, ex-date) G-7 events**, 2011-03-25 → 2022-12-30, from NSE CF-CA. Script `scripts/ptms/enumerate_nonratio_ca.py` (`156a2ce`); the event list `PTMS_GANN_P2_CA_EVENTS_2026-09-19.csv` (the rows with `g7_event = True`) is frozen by the SHA-256 in §0.4 | P-2; P2-a … P2-d |
 | Classes | G-7 events: DEMERGER, SCHEME, RIGHTS, SPECIAL_DIVIDEND (the exchange's "special" label only, with no size screen; P2-c), IN_KIND (P2-b). **Buybacks are not G-7 events** (P2-a). Single source NSE CF-CA accepted, limitation disclosed (P2-d) | P2 addendum |
-| Exclusion | **Full span.** Exclude any observation whose full dependency span, from its earliest anchor or reference date through O_5, contains a non-ratio ex-date. **Span start per construct: OC-1 (pending)** | G-7 |
+| Exclusion | **Full span.** Exclude any observation whose full dependency span, from its earliest anchor or reference date through O_5, contains a non-ratio ex-date. **Span start (OC-1 = b):** the earliest of every anchor date the score uses and the O-R10 reference date d_ref. GF-1: min(high-anchor date, low-anchor date, d_ref). GF-4T/R8: min(anchor date, d_ref). GF-10: the earliest of d_ref and d_h′ of the earliest member of 𝒰_T ∪ 𝒰_P (v0.8 §3.12). **Span end:** O_5 of the observation's window (O_15 for V10-H15). A variant uses its own anchors | G-7; OC-1 |
 | Ratio CAs | Bonus, split and consolidation are handled by the ratio-adjusted basis and are **not** exclusions | R-13 |
 
 **VERBATIM — P-2 enumeration, classes and notes:**
@@ -1049,10 +1053,10 @@ confirmed K3 state and the construct's anchor available.
 | Bar vector | For each session and stock, (ln H/C₋₁, ln L/C₋₁, ln C/C₋₁) | Memo §8.2 |
 | Resampling | **Synchronized stationary block bootstrap**: the same resampled date blocks for every stock. Paths are rebuilt per stock from its first observed close and placed on the **real** trading calendar | Memo §8.2; R-14 |
 | Mean block length | **20 sessions**, a priori. 5 and 60 are off-path (V-B5, V-B60, §12) | Memo §8.2; R-14 |
-| Missing bars | PIT membership and listing masks come from the real calendar. A drawn bar that does not exist is replaced by the **nearest existing bar of that stock within the same drawn block**, ties to the earlier bar. If the block holds none, the stock is missing on that surrogate date (then OPEN-Q applies) | G-5 |
+| Missing bars | PIT membership and listing masks come from the real calendar. A drawn bar that does not exist is replaced by the **nearest existing bar of that stock within the same drawn block**, ties to the earlier bar. If the block holds none, the stock is missing on that surrogate date, and K3 skips the session (OPEN-Q = a) | G-5; OPEN-Q |
 | Draws | **B = 1999**, no extension after seeing p | Memo §8.2; R-14 |
 | Seed | **42.** Every random stream is derived deterministically from it. The stream layout is fixed in the P-3 code at its commit | G-8 |
-| Identical code | Surrogate panels go through the same K3, anchors, scores, outcomes and exclusions as the real panel (memo §8.2). Which masks travel: **RR-8** | Memo §8.2 |
+| Identical code | Every surrogate and pseudo-real panel goes through the same K3, anchors, scores, outcomes and exclusions as the real panel, with the real calendar, real PIT and listing masks, **G-7 on the real ex-dates**, OPEN-M and the G-6b floor (**RR-8a**) | Memo §8.2; RR-8 |
 | p_sur | (1 + #{b : T_c(b) ≥ T_c}) / (B + 1), one-sided | Memo §8.2 |
 
 **VERBATIM — memo §8.2 table and limitation statement:**
@@ -1296,13 +1300,13 @@ Do not make any other scientific rulings.
 
 | Element | Frozen text | Source |
 |---|---|---|
-| Statistic | **T_c = the mean over formation weeks of the per-date cross-sectional Spearman IC of the binary score vs the binary O-R10** across eligible names. For binary–binary data, with average ranks, this equals φ. Undefined per-date IC: **OPEN-P** | Memo §8.2; R-14 |
-| Dates entering | Formation dates with ≥ 20 eligible names (G-6b), after all exclusions | G-6b |
+| Statistic | **T_c = the mean over formation weeks of the per-date cross-sectional Spearman IC of the binary score vs the binary O-R10** across eligible names. For binary–binary data, with average ranks, this equals φ. **A date whose IC is undefined (every eligible name has the same score, or the same outcome) is dropped from T_c** for that panel, and the number of dropped dates is reported (**OPEN-P = a**). The same rule applies to every placebo set, contrast leg, variant and surrogate panel | Memo §8.2; R-14; OPEN-P |
+| Dates entering | Formation dates with ≥ 20 eligible names (G-6b), after all exclusions, and with a defined IC (OPEN-P) | G-6b; OPEN-P |
 | α | **0.05/3** per construct, **one-sided** | R-12; m = 3 |
 | Confirmatory pass rule (IUT; not used in Stage 1) | Pass iff p_sur ≤ α **and** specificity p ≤ α | Memo §8.2 |
 | Screen kill rule | **Surrogate leg only.** A construct survives the screen iff p_sur ≤ 0.05/3. The specificity leg is computed and reported | Memo §10; R-12 |
 | Surrogate-pass / specificity-fail | **Retired; may NOT proceed to a confirmatory test** | **G-1** (supersedes memo §10's "operator decision") |
-| Size check | After the freeze and **before** the real statistic is computed: 200 surrogate panels are treated as pseudo-real, and each is run through the full test with **its own B = 1999** surrogates (G-9a; RR-8). This is done per construct. The rejection rate must be ≤ 2α. The result is **recorded before unblinding** | Memo §8.2; R-14; G-9a |
+| Size check | After the freeze and **before** the real statistic is computed: 200 surrogate panels are treated as pseudo-real, and each is run through the full test with **its own B = 1999** surrogates, **resampled from that pseudo-real panel** (G-9a; RR-8b). This is done per construct. The rejection rate must be ≤ 2α. The result is **recorded before unblinding** | Memo §8.2; R-14; G-9a |
 | Size-check failure | Rejection > 2α ⇒ **that construct is stopped**: not screened, failure recorded, no respecification in Stage 1 | G-9b |
 | Effect size | T_c − median T_c(b), with the 2.5–97.5% surrogate interval. **Descriptive only** | Memo §8.2 |
 
@@ -1345,7 +1349,7 @@ Do not make any other scientific rulings.
 
 **Frozen:** the ruled set and the ratified specifications, verbatim below. Every variant and
 diagnostic is **off the pass path**. None enters the multiplicity register. Each changes **only** its
-named element. **The set is closed at freeze** (OC-2).
+named element. **The set is confirmed complete and closes at the freeze** (OC-2, 2026-09-19).
 
 | Construct | Variants and controls | Diagnostics |
 |---|---|---|
@@ -1507,6 +1511,13 @@ With these rulings, the robustness list (item 12) is **fully specified** and clo
 `{{…}}` fields are filled **by the screen script only**. These include `{{freeze document path}}` and
 `{{digest}}`, which take the values recorded under §18.
 
+**Additions ruled at freeze review (2026-09-19; template text otherwise unchanged):**
+
+| # | Addition | Source |
+|---|---|---|
+| X-8 | **The O-R10 prior-penetration rule differs across primaries.** GF-10 scores 0 when its reference was already penetrated before the window (OPEN-12d). GF-1 and GF-4T/R8 score 1 whenever the reference is penetrated inside O_1 … O_5, whatever happened before (RR-6, literal G-2(a)) | RR-6 |
+| A.3-3a | In the panel-and-exclusions section, for each construct and leg: **formation dates dropped because the per-date IC was undefined** `{{n}}` (real panel), with the surrogate median `{{n}}` | OPEN-P |
+
 **VERBATIM — template §A:**
 
 <!-- VERBATIM PTMS_GANN_STAGE1_REPORT_TEMPLATE_AND_GR15_DISCLOSURE_2026-09-19.md lines 17-103 -->
@@ -1622,7 +1633,7 @@ The specificity leg is:
 | Commit (clean tree) | `{{P-3: sha}}` |
 | Run | **Not run.** Outputs are written by the script only; no hand-edited numbers |
 
-P-3 must implement this document as frozen, including the operator's rulings on §0.3, and nothing
+P-3 must implement this document as frozen, including the freeze-review rulings of §0.3, and nothing
 else. Implementation obligations carried from the rulings:
 - the 2016-10-30 Muhurat session window comes from a stated source (§6);
 - `universe_eligibility` is not used as a filter (§6, TATAMTRDVR);
@@ -1708,7 +1719,7 @@ on 2026-09-19 that 2023-01-02 → 2026-09-11 is **signal-spent**. The consequenc
 ## 19. GF-10 mechanical definition — LOCKED, transcribed in §2.4
 
 The record is v0.8 (72 locks; audit PASS; OPEN-N and RR-3 ruled 2026-09-19). No GF-10 definition is
-open. The GF-10 part of OC-1 (the G-7 span start) is pending. **v0.8 governs over R-5's sentence**
+open. The GF-10 G-7 span start was confirmed at freeze review (OC-1 = b, 2026-09-19). **v0.8 governs over R-5's sentence**
 (§2.4).
 
 ---
