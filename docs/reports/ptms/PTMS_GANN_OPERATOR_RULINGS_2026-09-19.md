@@ -40,6 +40,13 @@
   candidates stay out of P3/P4 (NC-8). The primary and contrast 0 populations therefore differ by
   design (NC-13/NC-14).
 
+**Addendum (same day, after the GF-10 v0.8 audit):**
+
+| ID | Question | RULING | Options not chosen |
+|---|---|---|---|
+| **OPEN-N** | Direction of a contrast stock-week whose contributing candidates have opposite directions | **Exclude** the stock-week from the contrast | First contrast instant; A1 state on D_L |
+| **RR-3** | What T(·) is in R-10's contrast T(time) − T(price) | **Ratified:** T(leg) = the T_c formula on the leg's score and the shared y, per profile, 20-name floor | Another statistic |
+
 ## 2. Rulings for all three primaries
 
 | ID | Question | RULING | Options not chosen |

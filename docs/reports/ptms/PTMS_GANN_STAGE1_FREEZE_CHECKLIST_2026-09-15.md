@@ -96,7 +96,7 @@ Status key:
 | 16 | GR-1.5 disclosure text for any later confirmatory pre-registration | **OUTSTANDING TASK** | Freeze doc | Research |
 | 17 | R-11 reader-date audit performed and freshness of 2023-01-02 → 2026-09-11 ruled (R-12 precondition) | **AUDIT DONE** (2026-09-15) and **freshness RULED 2026-09-19: signal-spent** — **SATISFIED** | P-1 → `PTMS_GANN_R11_READER_DATE_AUDIT_2026-09-15.md` | Operator (ruled) |
 | 18 | Freeze document committed, SHA-256 recorded, operator-approved | **OUTSTANDING TASK** — blocked by the rows above | P-5 | Operator |
-| 19 | GF-10 mechanical definition complete (detector, ledger, legs, latches, P1–P4 populations, formal contrast, timestamps, weekly score, outcome) | **LOCKED — TO TRANSCRIBE.** v0.7 (62 locks) plus the 2026-09-19 rulings OPEN-K(a) = A1, K(a)-P1/P2 = eligible → 0, OPEN-K(b) = OPEN-12 at f_w, OPEN-K(c) = first event, OPEN-L = shared f_w outcome, OPEN-M = exclude, RR-1 = strict, RR-2 = literal. **OUTSTANDING TASK:** GF-10 record v0.8 recording them. Item 2 caution stands (transcribe from v0.7 §11.2, not R-5) | §4 OPEN-K, OPEN-L, OPEN-M; RR-1, RR-2 | Research |
+| 19 | GF-10 mechanical definition complete (detector, ledger, legs, latches, P1–P4 populations, formal contrast, timestamps, weekly score, outcome) | **LOCKED — TO TRANSCRIBE** from `GF10_MECHANICAL_DECISION_RECORD_v0.8_2026-09-19.md` (70 GF-10 locks; audit PASS; primary score complete at the definitional level). OPEN-N (exclude) and RR-3 (ratified) **RULED 2026-09-19** — no GF-10 definition open. GF-10 G-7 span start for confirmation at freeze review (v0.8 §3.12). Item 2 caution stands (transcribe from v0.8 §11.2, not R-5) | §4 OPEN-N; RR-3 | Research |
 
 **Screen preconditions (R-12), all unmet:** items 1–19 SATISFIED, including R-11 frozen after its
 audit, R-13 complete, and R-14 finalized; G-S1 appended by the operator. The screen then still needs the
@@ -129,6 +129,8 @@ existing committed document already names them, and none is recommended.
 | **OPEN-L** (GF-10; added 2026-09-19, v0.7 audit) — **RESOLVED (operator ruling 2026-09-19; `PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md`)** | **Outcome input to the P3/P4 contrast** | GF-10 record v0.7 §5.3. OPEN-12 is worded on the P1 event. P3/P4 instants differ from P1 (A-ii) and from each other, and s = 0 candidates have none. Which outcome T(time) and T(price) use is not ruled | Changes both terms of the only GF-10 specificity decision; coupled to G-4 |
 | **OPEN-M** (GF-10; added 2026-09-19, v0.7 audit) — **RESOLVED (operator ruling 2026-09-19; `PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md`)** | **Outcome windows past the evaluation-sample end** | GF-10 record v0.7 §5.3 (spec draft X16). An event in the last five sessions before 2022-12-30 has a window into 2023, a span R-12 keeps out of the screen. OPEN-J covers P3/P4 candidate spans only | Changes the P1 observation set at every window boundary and touches exposure (R-11/R-12) |
 | **CAL-1** (all primaries; added 2026-09-19, from GF-10 record v0.7 §5.5) — **RESOLVED (operator ruling 2026-09-19; `PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md`)** | **Calendar-week convention for the formation instant** | Memo §7: "last NSE session of each calendar week". The convention for a week containing a **Sunday** session (e.g. some Diwali Muhurat sessions) is not recorded, whether ISO Monday–Sunday or another. `SPECIAL_SESSIONS` covers only 2023–2025, so earlier special sessions need an explicit session-window source | Sets f_w, and so every weekly score, for GF-1, GF-4T/R8 and GF-10 |
+| **OPEN-N** (GF-10; added 2026-09-19, v0.8 audit) — **RESOLVED (operator ruling 2026-09-19: exclude)** | **Direction of a contrast stock-week whose legs disagree** | GF-10 record v0.8 §5.3. OPEN-L gives each contrast stock-week one shared y, which needs one direction. If S9 changes inside the week, the P3 instant, the P4 instant and the A1 state on D_L can belong to opposite-direction candidates. OPEN-K(c) covers P1 only, and the contrast may not read P1 | Without it the shared y is undefined for those stock-weeks. Options (v0.8 §5.3): first contrast instant; A1 state on D_L; exclude |
+| **RR-3** (GF-10; added 2026-09-19, v0.8 audit) — **RESOLVED (ratified 2026-09-19)** | **T(·) in R-10's contrast** (ratification of a reading) | R-10 names T(time) − T(price); G-4 fixed its p; no text defines T(·). v0.8 reads T(leg) = the T_c formula (mean weekly Spearman IC) on the leg's score and the shared y, with the 20-name floor | Fixes Δ and so the G-4 p-value |
 
 **G-1, G-2, and G-3 (both placebo families) were resolved by operator rulings on 2026-09-15** and are
 recorded in the ruling register (G-1, G-2 and G-3 blocks); their rows above are preserved as the gap
@@ -156,7 +158,9 @@ results cannot be declared off-path.
 
 ## 6. Verdict
 
-> **NOT READY TO FREEZE — but no open definition remains (2026-09-19).** All the listed operator
+> **NOT READY TO FREEZE — no open definition remains.** The GF-10 v0.8 audit surfaced OPEN-N and RR-3, and both were ruled on 2026-09-19 (exclude; ratified). Remaining: tasks and approvals only.
+>
+> **Earlier the same day: no open definition remained (2026-09-19).** All the listed operator
 > definitions were ruled on 2026-09-19 (`PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md`): G-4 … G-9, OPEN-K/L/M, RR-1/RR-2, CAL-1 and
 > the R-11 freshness ruling. What remains is tasks and approvals: P-2 external CA enumeration
 > (authorized), items 12/13/16, GF-10 record v0.8, P-3 code, P-4 G-S1 (operator), P-5 freeze
