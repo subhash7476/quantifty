@@ -31,7 +31,7 @@ frozen, and nothing else.
 | `pipeline.py` | §8 "identical code": one path for real, surrogate and pseudo-real panels (K3, anchors, scores, outcomes, exclusions); k panels stacked as columns with T_c per panel; surrogate panels drawn and evaluated in batches | **Done** |
 | `robustness.py` | §12: V-K3 (`run_k3(symmetric=True)`: a down run needs LL and LH); V1-MD, V1-P8, V1-WK, V1-MO, V1-K3; V4-WE67, V4-WE72, V4-AS, V4-CT; V10-IP, V10-H15, ratio placebos, N-DIR, N-SZ; D-PL, D-AA, D-PS, D-BH. Readings RB-1 … RB-4 (§3.4) | **Done** |
 | `report.py` | §13: fixed text (A.0, F-1 … F-9, A.2, X-1 … X-8) read from the **frozen document's committed bytes**, never retyped; A.2 wording chosen by rule; A.5 asserted on every script-generated line | **Done** |
-| `run_screen.py` | Guarded entry point, two phases (§6 of this note). V-B5 / V-B60 surrogate runs; placebo families; GF-10 contrast on the joint surrogates; A.3-3a dropped-date counts; D-ES | **Done** (never run) |
+| `run_screen.py` | Guarded entry point, two phases (§5 of this note). V-B5 / V-B60 surrogate runs; placebo families; GF-10 contrast on the joint surrogates; A.3-3a dropped-date counts; D-ES | **Done** (never run) |
 
 ## 2. Findings from reading code and metadata (no price rows read)
 
