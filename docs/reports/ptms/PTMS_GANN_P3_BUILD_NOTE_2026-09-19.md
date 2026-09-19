@@ -95,12 +95,13 @@ each one as recommended; the code implements them and the tests pin them.
 | **RB-3** | D-BH denominator and the "left-censoring" limb | GF-1, GF-4T/R8: base = **PIT-member stock-weeks on D_L**, partitioned into state-rule ineligibility (no K3 state or no anchor yet: the burn-in G-6a replaced), OPEN-M, G-7, the G-6b floor and entering. GF-10: base = the A1 set before exclusions; no state-rule limb. The code asserts the limbs sum to the base |
 | **RB-4** | Diagnostic edges | D-PL: a close equal to the per-date median goes to the **low** half; a stock-week with no as-traded bar on D_L is left out of both halves and counted. D-AA: the G-6b floor applies per stratum-date; depth runs from the stock's first bar in the window. D-PS: a qualifying stock whose outcome never varies has undefined φ and is left out and counted |
 
-**Still to do before P-5:** write into the freeze document, then re-verify its verbatim blocks:
-- PENDING-1, PENDING-2 and IR-1 … IR-5 (§3, §4, §7);
-- RB-1 … RB-4 (§12). §12 has **no V1-MD specification at all** today; RB-1 is it;
-- findings F-1 … F-5 (§7, §6);
-- in §14's implementation obligations: the two-phase order (size-check record committed before the
-  screen phase) and the rule that the digest is taken over the git blob.
+**Written into the freeze document (2026-09-19):** PENDING-1, PENDING-2, IR-1 … IR-5, the further
+ruling **IR-4b** (GF-10: a session with no bar contributes no penetration, in the window and in the
+prior-penetration span; v0.8 was silent) and RB-1 … RB-4 are recorded in the rulings file §5 and quoted
+verbatim in the draft's §0.5, then applied in §2.2, §3, §4, §6, §7 and §12. The findings in §2 above are
+in §0.5 as P3-F1 … P3-F5 (renamed so they cannot be confused with the report's fixed statements
+F-1 … F-9). §14 names the code and carries the two-phase and blob-digest obligations. All 22 verbatim
+blocks re-verified.
 
 ## 4. Compute budget (engineering, not a definition)
 

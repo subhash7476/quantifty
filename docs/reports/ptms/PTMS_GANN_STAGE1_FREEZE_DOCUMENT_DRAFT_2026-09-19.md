@@ -6,10 +6,12 @@
 - This document transcribes every freeze-checklist row marked RULED — TO TRANSCRIBE
   (`PTMS_GANN_STAGE1_FREEZE_CHECKLIST_2026-09-15.md` §3). It makes **no** new scientific choice.
 - No market data, outcome, signal count, IC, p-value or event count was read to write it. No code was
-  run except the text-assembly step that copies the verbatim excerpts (§0.2).
+  run except the text-assembly step that copies the verbatim excerpts (§0.2). The Stage-1 code (§14)
+  was tested on synthetic bars only and has never been run on the store.
 - It becomes the Stage-1 freeze only when **all** of the following hold:
-  1. every item in §0.3 is ruled or confirmed by the operator and written into this file (**done 2026-09-19**);
-  2. items 14 (P-3 code) and 15 (P-4 G-S1) are done;
+  1. every item in §0.3 and §0.5 is ruled or confirmed by the operator and written into this file
+     (**done 2026-09-19**);
+  2. items 14 (P-3 code: **done 2026-09-19, not run**) and 15 (P-4 G-S1) are done;
   3. the operator approves this file.
 
 **Construct set:** GF-1, GF-4T/R8, GF-10. **m = 3.** Screen α = 0.05/3 per construct, one-sided.
@@ -81,7 +83,8 @@ P-5 (approval and digest).
 <!-- END VERBATIM PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md -->
 
 **Tasks and approvals still outstanding (not definitions)**
-- Item 14 (P-3): Stage-1 code committed from a clean tree, not run. Its path and commit go in §14.
+- Item 14 (P-3): **done.** Stage-1 code committed from a clean tree, not run (§14). The readings it
+  needed were ruled by the operator and are in §0.5.
 - Item 15 (P-4): the **operator** appends G-S1 to the exposure register. The row text is in §15.
 - Item 18 (P-5): operator approval, and the digest recorded **outside** this file (§18).
 
@@ -91,7 +94,7 @@ Every source below was read at the commit shown. SHA-256 is of the file bytes at
 
 | File (`docs/reports/ptms/`) | Last commit | SHA-256 |
 |---|---|---|
-| `PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md` | `ea2bad4` | `835d3ad46cd74961ad715f18f2cc636ae5118ea7db43bbde1c654addf97c7017` |
+| `PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md` | `e473814` | `04a0d3161b9e483f0b2fa6a6aac073563ccb5d4ff08ce6e8d7e57c9449af4446` |
 | `PTMS_GANN_OPERATOR_RULING_REGISTER_2026-09-15.md` | `0d6a3b5` | `3ebb2c0d46b67d965c2a53eb426ace3963f31bbc88db1a8be71ff5efb23ac05c` |
 | `GF10_MECHANICAL_DECISION_RECORD_v0.8_2026-09-19.md` | `c894a64` | `59dab2dff0060e2e424922556c9c34852ba7d28162cb1b0942ea207aef7e83bf` |
 | `PTMS_GANN_STAGE1_PREREG_COMPLETION_2026-09-14.md` | `cdf2b06` | `86ce713cbe1c7327430fb46a9a63b7b9808cd7d7390d1f7095e2c38fe8672474` |
@@ -103,6 +106,73 @@ Every source below was read at the commit shown. SHA-256 is of the file bytes at
 | `PTMS_GANN_P2_CA_EVENTS_2026-09-19.csv` | `156a2ce` | `2d9c14cbb3cd7f27a317b66750b79a2c13c6f315547dd8427690143f59ae3ada` |
 | `PTMS_GANN_R13_N100_EOD_SCOPED_CERTIFICATION_2026-09-15.md` | `df3aae2` | `1f9a519d730aa36388943ece7de0c325e877a3a27b7ecf99ddb470e672424e7e` |
 | `PTMS_GANN_R11_READER_DATE_AUDIT_2026-09-15.md` | `df3aae2` | `6ff0e4979f709f1b1e002961354d14d59d58822afaaf2e9f934bfbc515580d87` |
+
+**Manifest note (P-3 write-in).** The rulings file was extended with its §5 (P-3 addendum) after the
+draft was assembled. §4's lines 115–134 are unchanged, so the §0.3 block still verifies; the row above
+pins the extended file.
+
+### 0.5 P-3 rulings (operator, 2026-09-19)
+
+Writing the Stage-1 code (item 14) exposed places where the frozen text does not reach the level of
+code: two gaps (PENDING-1, PENDING-2), six implementation readings (IR-1 … IR-5, IR-4b) and four
+robustness readings (RB-1 … RB-4). **The operator ruled all of them on 2026-09-19**, with no store
+price, outcome, count or statistic read. They are recorded in `PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md`
+§5, reproduced verbatim below, and applied in the sections cited. The code implements them and its
+tests pin them (`PTMS_GANN_P3_BUILD_NOTE_2026-09-19.md` §3).
+
+| ID | Ruling in brief | Applied in |
+|---|---|---|
+| PENDING-1 | GF-1 / GF-4T/R8 before any reference swing of the needed type (a stock's first K3 line): **eligible, y = 0**; G-7 span starts at the anchors | §2.2, §4 |
+| PENDING-2 | GF-10 score-1 week counts if the stock is a **PIT member on the event session D_e**; P1 and λ run whatever the membership | §6 |
+| IR-1 | K3 swing date on equal extremes: **first occurrence** | §3 |
+| IR-2 | "While UP" = sessions whose **post-close state** is UP; the down-switch session belongs to DOWN | §3 |
+| IR-3 | GF-1 anchor replaced only by a **strictly** new extreme | §2.2 |
+| IR-4, IR-4b | A session with **no bar** contributes **no penetration** (all three primaries, both GF-10 spans) | §4 |
+| IR-5 | G-7 span **inclusive at both ends** | §7 |
+| RB-1 | **V1-MD** specified: P4 + 144*k* in sessions of 𝒟; calendar look-ahead kept | §12 |
+| RB-2 | V4-AS G-7 span starts at the earliest swing that **can reach** the look-ahead (≤ 184 days) | §12 |
+| RB-3 | D-BH base = PIT-member stock-weeks on D_L (GF-10: the A1 set before exclusions), with limbs | §12 |
+| RB-4 | D-PL ties to the low half, missing as-traded bar left out and counted; D-AA floor 20 per stratum-date; D-PS constant outcome left out and counted | §12 |
+
+**VERBATIM — operator rulings, §5 P-3 addendum:**
+
+<!-- VERBATIM PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md lines 140-163 -->
+#### 5. P-3 addendum (same day, while the Stage-1 code was written)
+
+Writing the Stage-1 code (P-3; `PTMS_GANN_P3_BUILD_NOTE_2026-09-19.md`) exposed the items below. Each is
+a place where the frozen text does not reach the level of code. The operator ruled them interactively,
+choosing from the options put. The code was tested on synthetic bars only. **No store price, outcome,
+count or statistic was read before or during these rulings.**
+
+| ID | Question | RULING | Options not chosen |
+|---|---|---|---|
+| **PENDING-1** | GF-1 / GF-4T/R8 O-R10 in a stock's **first K3 line**, before any swing of the needed type is confirmed (G-2(a)'s "last K3 swing low/top" is undefined). GF-4T/R8 has no anchor there and is ineligible anyway; GF-1 is affected | **(b) y = 0.** The stock-week is eligible and scores y = 0. Its G-7 span starts at its anchors | (a) Ineligible, not 0 |
+| **PENDING-2** | GF-10: on which session must the stock be a PIT member for a score-1 week to count? (OPEN-K(a) left it to G-6, which did not rule it) | **D_e, the event session.** A contrast week whose only contributors ended before D_L uses its first P3/P4 instant in the week. P1 detection and the latch λ run on the stock's own series whatever its membership | D_L |
+| **IR-1** | K3 swing date when the line's extreme is **equalled** within the line | **First occurrence** (as v0.8 OPEN-4.5 for GF-10) | Last occurrence |
+| **IR-2** | Which sessions are "while UP" for the swing high (memo §5 row 2); mirror for lows | The sessions whose **post-close state** is UP: from the session that set UP (inclusive) to the down-switch session (exclusive). The down-switch session belongs to DOWN | The switching session belongs to the old line |
+| **IR-3** | GF-1: does a high **equal** to the running highest high replace the anchor and restart its count? Mirror for lows | **No.** Only a strictly higher high (strictly lower low) replaces the anchor; the anchor date is the first occurrence | An equal value restarts the count |
+| **IR-4** | GF-1 / GF-4T/R8: a session of O_1 … O_5 on which the stock has no bar | It contributes **no penetration**. The window is still the five sessions of 𝒟 after D_L (R-2) | Extend the window to five of the stock's own bars |
+| **IR-4b** | GF-10: a session with no bar inside the O-R10 window or inside the prior-penetration span (d_ref, anchor]. v0.8 is silent; IR-4 covers GF-1 / GF-4T/R8 only | **Same as IR-4:** it contributes **no penetration** in either span. The window is still the *h* sessions of 𝒟 after the anchor | Extend the window to *h* of the stock's own bars |
+| **IR-5** | G-7: does the span "contain" an ex-date on its first or last day? | **Inclusive at both ends**: an ex-date on the span-start date or on O_5 (O_15 for V10-H15) excludes | Exclusive ends |
+| **RB-1** | V1-MD (market days): the robustness specs give no specification | Points P4 + 144*k* are counted in **sessions of 𝒟** from the anchor session. The look-ahead stays the **calendar** dates cal(D_L) + 1 … + 7 (RR-7); each session in it is scored by its elapsed session count. Everything else as the GF-1 primary | The look-ahead becomes the next 7 sessions |
+| **RB-2** | V4-AS: which anchors set the G-7 span start (OC-1, "every anchor date the score uses")? | Only swings whose windows **can reach the look-ahead** count as used: extreme within **184 calendar days** of D_L (S-4 derived note). Span start = min(earliest such extreme, d_ref) | Every confirmed swing (the stock's first-ever swing) |
+| **RB-3** | D-BH (exclusion-loss share): the denominator, and the "left-censoring" limb (R-3 left-censoring is a label, not an exclusion) | GF-1, GF-4T/R8: base = **PIT-member stock-weeks on D_L**, partitioned into state-rule ineligibility (no K3 state or no anchor yet: the burn-in G-6a replaced), OPEN-M, G-7, the G-6b floor and entering; counts and shares of the base. GF-10: base = the **A1 set before exclusions**; no state-rule limb | Base = eligible observations; state-rule losses as a separate count |
+| **RB-4** | Diagnostic edge cases | D-PL: a close equal to the per-date median goes to the **low** half; a stock-week with no as-traded bar on D_L is left out of both halves and counted. D-AA: the G-6b floor (20) applies per stratum-date; depth runs from the stock's first bar in the window. D-PS: a qualifying stock whose outcome never varies has undefined φ and is left out and counted | D-PL ties to the high half |
+
+**Consequence:** every reading the P-3 code relies on is ruled. What remains is P-4 (G-S1, operator) and
+P-5 (approval and digest).
+<!-- END VERBATIM PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md -->
+
+**Findings from reading code and metadata during P-3 (not rulings; no price row read).** Each is a
+fact about the stores or a consequence of frozen text, recorded where it applies.
+
+| # | Finding | Applied in |
+|---|---|---|
+| P3-F1 | `equity_bhavcopy_adjusted` also applies SPECIAL_DIVIDEND factors, so it is **not** the §7 basis. The code builds the ratio basis from the store's BONUS and SPLIT factor rows only (a consolidation is a SPLIT row with factor > 1; one in the window) | §7 |
+| P3-F2 | `trading_calendar` still lists 2012-11-11 and 2016-04-19 in the window; 𝒟 removes both (§6) | §6 |
+| P3-F3 | The window holds three Sunday Muhurat sessions: 2013-11-03, 2016-10-30 and 2019-10-27. Each is the last session of its ISO week (CAL-1); §6 names only 2016-10-30, and the rule covers all three | §6 |
+| P3-F4 | The screen is DB-only, so it needs each session's **date**, never its intraday window; `trading_calendar` is the stated source (§6's 2016-10-30 obligation) | §6 |
+| P3-F5 | `n100_membership` and `symbol_entity_intervals` are both **half-open** [valid_from, valid_to). The P-2 script matched entity intervals as inclusive; none of the 158 P-2 rows falls on a boundary, so **the 115 G-7 events are unaffected** | §6, §7 |
 
 ---
 
@@ -347,7 +417,8 @@ Robustness variants are not entries in the multiplicity register (§12).
 - **Anchors.** Each stock's running highest high and running lowest low to date, from its first date
   in the store. They are left-censored at 2011-03-25 or at listing, and the censoring is disclosed per
   stock (R-3). A new extreme replaces its anchor and restarts that anchor's count. An anchor is usable
-  only once established.
+  only once established. Only a **strictly** higher high (strictly lower low) is a new extreme; an
+  equal value does not replace the anchor, so the anchor date is the first occurrence (**IR-3**).
 - **Points.** anchor date + *n* calendar days, *n* ∈ P4 + 144*k* with P4 = {36, 48, 72, 96, 108, 144}
   and *k* = 0, 1, 2, … (R-9(a); calendar days is a **design choice where Gann does not uniquely
   specify one**). The residue-0 point is 144, 288, …, never day 0 (G-3 GF-1).
@@ -355,7 +426,9 @@ Robustness variants are not entries in the multiplicity register (§12).
   a point of either anchor, else 0. Anchors are read as of close(D_L), including D_L's bar (RR-4).
 - **Eligibility.** A PIT N100 member on D_L (RR-7) with a confirmed K3 state (**K3 NO STATE ⇒ ineligible**,
   not 0) and an established anchor.
-- **Outcome.** O-R10 per §4 (G-2(a)), window = the five NSE sessions after D_L.
+- **Outcome.** O-R10 per §4 (G-2(a)), window = the five NSE sessions after D_L. In a stock's first K3
+  line, before a reference swing of the needed type exists, the stock-week is eligible with y = 0
+  (**PENDING-1 = b**).
 
 ### 2.3 GF-4T/R8 primary cell (memo §11.F with R-4, R-9(b), G-2(a))
 
@@ -880,6 +953,16 @@ in a surrogate panel), K3 **skips the session**. Day-over-day comparisons and ru
 stock's own bars, so a missing session neither extends nor breaks a run. Calendar-day durations are
 unaffected.
 
+**P-3 rulings (§0.5).**
+- **IR-1:** when the line's extreme is equalled within the line, the swing date is the **first**
+  occurrence.
+- **IR-2:** the swing high is the maximum high over the sessions whose **post-close state** is UP, from
+  the session that set UP (inclusive) to the down-switch session (exclusive); the down-switch session
+  belongs to DOWN. Mirror for the swing low.
+
+**V-K3 (transcription note, derived from row 11):** the symmetric reading makes a down run need LL
+**and** LH, for initialization (row 8) and for switching alike. An outside day then breaks both runs.
+
 **Label (travels with every report):** *K3 is an explicitly labelled approximation of Gann's
 discretionary historical detector. Gann's own record departs from the strict rule in ≥ 7 of 61 swings
 (1912–14; a lower bound, holidays ignored).*
@@ -929,6 +1012,8 @@ construct's anchor explicitly so the two cannot drift together"):**
 | Penetration | Any amount, intraday basis (R-2); **strictly beyond** (**RR-5**) | **Strictly beyond** (RR-1) |
 | Prior penetration | **None** (**RR-6**, literal G-2(a)): y = 1 iff the reference is penetrated in O_1 … O_5, whatever happened before. The asymmetry with GF-10 is disclosed (§13, X-8) | A penetration in (d_ref, t_e] (or (d_ref, f_w]) gives y = 0 (OPEN-12d; OPEN-K(b)); RR-2 literal |
 | Opposite-direction O-R10 event | Not applicable (one direction per stock-week) | Outcome **0** (G-2(b)) |
+| No reference swing yet (a stock's first K3 line) | **Eligible, y = 0**; the G-7 span starts at the anchors (**PENDING-1 = b**) | Does not arise: the reference exists for every eligible observation (v0.8 §3.11) |
+| A session with no bar for the stock | **No penetration**; the window is still the five sessions of 𝒟 after D_L (**IR-4**) | **No penetration**, in the window and in the prior-penetration span (**IR-4b**) |
 | Pooling | One per-date IC per construct | Bull and bear pooled into **one** per-date Spearman IC. GF-10 stays one construct |
 
 **VERBATIM — ruling register, G-2 block:**
@@ -983,6 +1068,9 @@ does not uniquely specify them* (R-9). GF-1 anchors are left-censored at 2011-03
 | Membership boundaries | The ±1-month boundaries R5 (2017-05-26) and R7 (2020-09-25 / 2020-11-02) use **the recorded dates**, and this is disclosed. R8 lies outside the window | R-13 closure §3.1 |
 | BE series | The 304 BE-series member-days are **eligible sessions** | R-13 closure §3.1 |
 | TATAMTRDVR | Included **as its own stock** (2016-04-01 → 2017-09-29), with its close tracking of TATAMOTORS disclosed. The implementation **must not** filter through `universe_eligibility`, which classes it `non_equity_isin` | R-13 closure §3.1 |
+| GF-10 membership instant | A score-1 week counts if the stock is a PIT member on the **event session D_e**. A contrast week whose only contributors ended before D_L uses its first P3/P4 instant in the week. P1 detection and λ run on the stock's own series whatever its membership | **PENDING-2** (§0.5) |
+| Interval convention | `n100_membership` and `symbol_entity_intervals` are **half-open** [valid_from, valid_to) | P3-F5 |
+| Calendar source | 𝒟 = `trading_calendar` in the window minus 2012-11-11 and 2016-04-19 (P3-F2). The Sunday Muhurat sessions 2013-11-03, 2016-10-30 and 2019-10-27 are each the last session of their ISO week (P3-F3). The screen is DB-only, so only session **dates** enter; `trading_calendar` is the stated source for 2016-10-30 (P3-F4) | P3-F2 … F4 |
 
 **VERBATIM — memo §7, common paragraph:**
 
@@ -1005,6 +1093,9 @@ confirmed K3 state and the construct's anchor available.
 | Classes | G-7 events: DEMERGER, SCHEME, RIGHTS, SPECIAL_DIVIDEND (the exchange's "special" label only, with no size screen; P2-c), IN_KIND (P2-b). **Buybacks are not G-7 events** (P2-a). Single source NSE CF-CA accepted, limitation disclosed (P2-d) | P2 addendum |
 | Exclusion | **Full span.** Exclude any observation whose full dependency span, from its earliest anchor or reference date through O_5, contains a non-ratio ex-date. **Span start (OC-1 = b):** the earliest of every anchor date the score uses and the O-R10 reference date d_ref. GF-1: min(high-anchor date, low-anchor date, d_ref). GF-4T/R8: min(anchor date, d_ref). GF-10: the earliest of d_ref and d_h′ of the earliest member of 𝒰_T ∪ 𝒰_P (v0.8 §3.12). **Span end:** O_5 of the observation's window (O_15 for V10-H15). A variant uses its own anchors | G-7; OC-1 |
 | Ratio CAs | Bonus, split and consolidation are handled by the ratio-adjusted basis and are **not** exclusions | R-13 |
+| Span ends | **Inclusive at both ends**: an ex-date on the span-start date or on O_5 (O_15 for V10-H15) excludes | **IR-5** (§0.5) |
+| Basis source | Built from the store's BONUS and SPLIT factor rows only (a consolidation is a SPLIT row with factor > 1). `equity_bhavcopy_adjusted` is **not** used: it also applies SPECIAL_DIVIDEND factors, which are G-7 events here | P3-F1 |
+| P-2 entity matching | The P-2 script matched entity intervals as inclusive; none of the 158 P-2 rows falls on a boundary, so the 115 G-7 events are unchanged under the half-open convention | P3-F5 |
 
 **VERBATIM — P-2 enumeration, classes and notes:**
 
@@ -1364,6 +1455,16 @@ per-date median **as-traded** close on D_L from `equity_bhavcopy`, with a floor 
 D-PS reports per-stock φ for stocks with ≥ 5 score-1 and ≥ 5 score-0 weeks. Dropped: V10-GP, V10-PO,
 V10-DC (not applicable) and V4-IW.
 
+**P-3 rulings for the variants and diagnostics (§0.5).** These complete the set's specification; the
+set itself is unchanged (OC-2).
+
+| ID | Item | Frozen text |
+|---|---|---|
+| RB-1 | **V1-MD** (market days) | Points P4 + 144*k* are counted in **sessions of 𝒟** from the anchor session. The look-ahead stays the calendar dates cal(D_L) + 1 … + 7 (RR-7); each session in it is scored by its elapsed session count. Everything else as the GF-1 primary |
+| RB-2 | V4-AS G-7 span | Only swings whose windows can reach the look-ahead count as used: extreme within **184 calendar days** of D_L. Span start = min(earliest such extreme, d_ref) |
+| RB-3 | D-BH | GF-1, GF-4T/R8: base = **PIT-member stock-weeks on D_L**, partitioned into state-rule ineligibility (no K3 state or no anchor yet), OPEN-M, G-7, the G-6b floor and entering; counts and shares. GF-10: base = the **A1 set before exclusions**; no state-rule limb |
+| RB-4 | D-PL, D-AA, D-PS edges | D-PL: a close equal to the per-date median goes to the low half; a stock-week with no as-traded bar on D_L is left out of both halves and counted. D-AA: floor 20 per stratum-date; depth from the stock's first bar in the window. D-PS: a qualifying stock whose outcome never varies is left out and counted |
+
 **VERBATIM — robustness list, ground rules (§1):**
 
 <!-- VERBATIM PTMS_GANN_STAGE1_ROBUSTNESS_LIST_DRAFT_2026-09-19.md lines 27-32 -->
@@ -1625,12 +1726,13 @@ The specificity leg is:
 
 ---
 
-## 14. Code (P-3) — OUTSTANDING
+## 14. Code (P-3) — DONE, NOT RUN
 
 | Field | Value |
 |---|---|
-| Stage-1 screen script(s) | `{{P-3: path(s)}}` |
-| Commit (clean tree) | `{{P-3: sha}}` |
+| Stage-1 screen script(s) | `scripts/ptms/gann/` (entry point `run_screen.py`; modules `constants`, `calendar`, `k3`, `panel`, `formation`, `scores`, `stats`, `gf10`, `surrogate`, `pipeline`, `robustness`, `report`); tests `tests/ptms/test_gann_*.py` (synthetic bars only) |
+| Commit (clean tree) | `357174a` (last change to the code; later commits touch documents only) |
+| Build record | `PTMS_GANN_P3_BUILD_NOTE_2026-09-19.md` |
 | Run | **Not run.** Outputs are written by the script only; no hand-edited numbers |
 
 P-3 must implement this document as frozen, including the freeze-review rulings of §0.3, and nothing
@@ -1639,7 +1741,20 @@ else. Implementation obligations carried from the rulings:
 - `universe_eligibility` is not used as a filter (§6, TATAMTRDVR);
 - D-PL reads as-traded closes (§12);
 - no session after Z = 2022-12-30 is read (§11);
-- every random stream derives from seed 42 (§8).
+- every random stream derives from seed 42 (§8);
+- **two phases in order:** `size-check` writes its record and computes no real statistic; `screen`
+  refuses unless that record is **committed**, carries the §18 digest, covers all 200 pseudo-real
+  panels and was made on the same panel (content hash). A construct failing G-9b gets no real
+  statistic;
+- **the guard** refuses both phases unless checklist item 18 records the path, freeze commit and
+  digest, the digest equals the SHA-256 of this file's **git blob** at that commit (not the working-tree
+  file, which line-ending conversion can alter), this file is unchanged at HEAD, and row G-S1 carries
+  the digest;
+- the report's fixed text is read from this file's committed bytes, never retyped.
+
+All of these are met at `357174a`. **Known stop:** a panel whose T_c is undefined (no formation date
+with ≥ 20 names and a defined IC) stops the run for an operator decision; the freeze does not provide
+for it.
 
 ---
 
@@ -1649,7 +1764,7 @@ The operator appends the row below to `governance/exposure/RESEARCH_EXPOSURE_REG
 read**. Research does not edit the register. Draft text from memo §10, with the fields filled from this
 document:
 
-`| G-S1 | Equity EOD panel (N100 PIT, ratio-adjusted as-of-t) | 2011-03-25 → 2022-12-30 | **signal** (non-confirmatory, GR-1.4) | PTMS-Gann Stage-1 screen: GF-1, GF-4T/R8, GF-10 | {{P-3 script paths}} | {{this file's path}} + SHA-256 {{§18 digest}}; report labelled NON-CONFIRMATORY; feeds no gate |`
+`| G-S1 | Equity EOD panel (N100 PIT, ratio-adjusted as-of-t) | 2011-03-25 → 2022-12-30 | **signal** (non-confirmatory, GR-1.4) | PTMS-Gann Stage-1 screen: GF-1, GF-4T/R8, GF-10 | scripts/ptms/gann/ (entry point run_screen.py) at 357174a | {{this file's path}} + SHA-256 {{§18 digest}}; report labelled NON-CONFIRMATORY; feeds no gate |`
 
 ---
 
@@ -1705,7 +1820,9 @@ on 2026-09-19 that 2023-01-02 → 2026-09-11 is **signal-spent**. The consequenc
 2. the file is committed. Its **SHA-256 is computed over the file exactly as committed** at that
    commit;
 3. the digest, the commit and the approval date are recorded in the freeze checklist (item 18) and in
-   the G-S1 row (§15). They are **not** added to this file afterwards. Any later edit to this file
+   the G-S1 row (§15). Item 18 records them in the form the code's guard reads (§14): the path in
+   backticks, `` commit `<hex>` `` and `` SHA-256 `<64 hex>` ``. The digest is taken over the file's git
+   blob (`git show <commit>:<path>`), and only the 64 hex characters are recorded. They are **not** added to this file afterwards. Any later edit to this file
    voids the digest.
 
 | Field | Value (recorded outside this file) |
