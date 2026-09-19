@@ -2,7 +2,7 @@
 
 **Date:** 2026-09-19 · **Branch:** `research/ptms-price-time-market-structure`
 
-**Status: IN PROGRESS.** P-3 implements `PTMS_GANN_STAGE1_FREEZE_DOCUMENT_DRAFT_2026-09-19.md` as
+**Status: CODE COMPLETE (not run).** P-3 implements `PTMS_GANN_STAGE1_FREEZE_DOCUMENT_DRAFT_2026-09-19.md` as
 frozen, and nothing else.
 - **The screen is not run.** Running it is the read the freeze exists to precede.
 - Validation is by unit tests on **hand-built or randomly generated synthetic bars only**. No test
@@ -28,8 +28,10 @@ frozen, and nothing else.
 | `gf10.py` | §2.4 = v0.8 §1–§3.12, DB profile (hard-fails on a session ≥ 2023-01-02): episodes, ledger (greatest duration on swing dates; literal magnitudes; bull reactions; combined maximum), candidates, λ, P1 events, P3/P4 instants, OPEN-J censoring; primary observations (A1 zeros, structural-zero flag for N-SZ, event-anchored and f_w outcomes, OPEN-M, G-7 span per v0.8 §3.12, PENDING-2) and contrast observations (one shared f_w outcome, OPEN-N). Parameters for V10-IP (`comparator`), the ratio placebos (`rt_scale`) and V10-H15 (`horizon`) | **Done** |
 | `stats.py` | §10 T_c with the G-6b floor and OPEN-P (drop and count), +1 rank p (hard-fails on NaN), effect size | **Done** |
 | `surrogate.py` | §8: bar vectors on the previous available close; one synchronized stationary-bootstrap draw per panel (mean block 20; 5 and 60 for V-B5/V-B60), circular; real presence mask; path rebuilt from the first real bar; G-5 nearest source in the same drawn block, ties earlier, else missing. Seed layout fixed: `SeedSequence(42).spawn(3)` → real test (B children), size check (200 children, each spawning its B inner surrogates drawn from its own pseudo-real panel, RR-8b), block variants. ≈ 0.37 s per 180-stock panel | **Done** |
-| `robustness.py` | §12 variants and diagnostics | Next |
-| `run_screen.py` | Guarded entry point; size check before unblinding; script-filled report per §13 | Next |
+| `pipeline.py` | §8 "identical code": one path for real, surrogate and pseudo-real panels (K3, anchors, scores, outcomes, exclusions); k panels stacked as columns with T_c per panel; surrogate panels drawn and evaluated in batches | **Done** |
+| `robustness.py` | §12: V-K3 (`run_k3(symmetric=True)`: a down run needs LL and LH); V1-MD, V1-P8, V1-WK, V1-MO, V1-K3; V4-WE67, V4-WE72, V4-AS, V4-CT; V10-IP, V10-H15, ratio placebos, N-DIR, N-SZ; D-PL, D-AA, D-PS, D-BH. Readings RB-1 … RB-4 (§3.4) | **Done** |
+| `report.py` | §13: fixed text (A.0, F-1 … F-9, A.2, X-1 … X-8) read from the **frozen document's committed bytes**, never retyped; A.2 wording chosen by rule; A.5 asserted on every script-generated line | **Done** |
+| `run_screen.py` | Guarded entry point, two phases (§6 of this note). V-B5 / V-B60 surrogate runs; placebo families; GF-10 contrast on the joint surrogates; A.3-3a dropped-date counts; D-ES | **Done** (never run) |
 
 ## 2. Findings from reading code and metadata (no price rows read)
 
@@ -81,6 +83,21 @@ record, so the verbatim-assembly sources stay clean in the meantime).
 - **P2 price flags** are a recorded fact, not a score (v0.8 §3.9). They enter no statistic and are not
   computed.
 
+### 3.4 Readings ruled while building the variants (operator, 2026-09-19)
+
+The robustness specifications left these four points open at the level of code. The operator ruled
+each one as recommended; the code implements them and the tests pin them.
+
+| ID | Where | Ruling |
+|---|---|---|
+| **RB-1** | V1-MD (no written spec) | Points P4 + 144*k* are counted in **sessions of 𝒟** from the anchor session. The look-ahead stays the **calendar** dates cal(D_L) + 1 … + 7 (RR-7); each session in it is scored by its elapsed session count. A look-ahead that would pass Z on a week OPEN-M keeps hard-fails |
+| **RB-2** | V4-AS G-7 span start (OC-1 "every anchor date the score uses") | Only swings whose windows can reach the look-ahead count as used: extreme within **184 days** of D_L (S-4 derived note). Span start = min(earliest such extreme, d_ref) |
+| **RB-3** | D-BH denominator and the "left-censoring" limb | GF-1, GF-4T/R8: base = **PIT-member stock-weeks on D_L**, partitioned into state-rule ineligibility (no K3 state or no anchor yet: the burn-in G-6a replaced), OPEN-M, G-7, the G-6b floor and entering. GF-10: base = the A1 set before exclusions; no state-rule limb. The code asserts the limbs sum to the base |
+| **RB-4** | Diagnostic edges | D-PL: a close equal to the per-date median goes to the **low** half; a stock-week with no as-traded bar on D_L is left out of both halves and counted. D-AA: the G-6b floor applies per stratum-date; depth runs from the stock's first bar in the window. D-PS: a qualifying stock whose outcome never varies has undefined φ and is left out and counted |
+
+**Still to do before P-5:** PENDING-1, PENDING-2, IR-1 … IR-5, RB-1 … RB-4 and findings F-1 … F-5 are
+written into the freeze document (§3 and §12), with the verbatim blocks re-verified.
+
 ## 4. Compute budget (engineering, not a definition)
 
 - G-9a requires every one of the 200 pseudo-real panels to be tested with its own B = 1999
@@ -91,8 +108,32 @@ record, so the verbatim-assembly sources stay clean in the meantime).
 - Scoring, outcomes and the GF-10 ledger will add to that. The machine has 4 cores and no numba.
 - **Expectation:** a size-check run of days, not hours. This is recorded so that the operator is not
   surprised at run time. It does not change G-9a.
+- Both phases checkpoint every unit to `data/ptms/gann_stage1/<digest>_<panel hash>/` (git-ignored).
+  Each unit is fixed by its seed, so an interrupted run resumes with identical numbers.
+- **Known stop.** If T_c is undefined on some panel (no formation date with ≥ 20 names and a defined
+  IC), `rank_p` raises and the run stops. The freeze does not provide for this case, so it goes to the
+  operator. The likeliest place is a GF-10 contrast leg on a surrogate or pseudo-real panel: contrast
+  weeks are thin (a 90-stock synthetic panel produced none that qualified).
 
-## 5. Tests
+## 5. Running it (operator steps, after P-4 and P-5)
+
+1. P-5: the frozen document is committed, and checklist item 18 records, in one row,
+   `` `docs/reports/ptms/PTMS_GANN_STAGE1_FREEZE_DOCUMENT….md` ``, `` commit `<hex>` `` and
+   `` SHA-256 `<64 hex>` ``. The digest is the SHA-256 of the file's **git blob** at that commit
+   (`git show <commit>:<path> | sha256sum`), not of the working-tree file, which line-ending
+   conversion can alter.
+2. P-4: the operator appends G-S1 to the register, carrying the same digest.
+3. `python -m scripts.ptms.gann.run_screen size-check --workers 4`. This writes
+   `PTMS_GANN_STAGE1_SIZE_CHECK.json` and computes no real statistic.
+4. Commit the size-check record. **This is the "recorded before unblinding" step.**
+5. `python -m scripts.ptms.gann.run_screen screen --workers 4`. This refuses unless the record is
+   committed, carries the digest, covers 200 panels and was made on the same panel (content hash). It
+   writes `PTMS_GANN_STAGE1_SCREEN_RESULTS.json` and `PTMS_GANN_STAGE1_SCREEN_REPORT.md`.
+
+Today the guard refuses: item 18 records no digest and the register has no G-S1 row. A test asserts
+this against the live repository.
+
+## 6. Tests
 
 `tests/ptms/test_gann_gf10.py` has 16 tests:
 - independent single-stock references for the **time leg** (events and the A1 active candidate; both comparators; 3 random panels) and the **price leg** (reactions, ledger magnitudes, combined maximum, P4 instants; 4 random panels), each agreeing exactly;
@@ -113,5 +154,25 @@ record, so the verbatim-assembly sources stay clean in the meantime).
 - OPEN-M;
 - a scalar transcription of memo §5 matched against the vectorized K3 on 25 random columns with ties
   and gaps.
+
+`tests/ptms/test_gann_robustness.py` (16):
+- stacked panels give exactly the separate-run statistics, and key restriction;
+- symmetric K3 (outside days do not switch down);
+- V1-WK, V1-MO and V1-MD against hand or brute-force expectations, and the V1-MD hard-fail past Z;
+- the worked-example windows;
+- V4-AS score and span against brute force;
+- every variant id, and the construct filter;
+- D-PL split and missing bars, D-AA edges, D-PS floors and constant outcomes, D-BH partition.
+
+`tests/ptms/test_gann_run_screen.py` (13):
+- the guard refuses on the live repository before any panel load (tripwire);
+- on a throwaway git repository it passes, then refuses a missing digest, a G-S1 row without the
+  digest, an edit to the frozen document, a wrong digest and uncommitted code;
+- the size-record gate: not committed, incomplete, uncommitted edit;
+- the A.2 rule, verbatim fixed text with every placeholder filled, and stopped constructs;
+- A.5 tripping on generated text;
+- **both phases end to end, in process**, on a synthetic panel with B and the panel count shrunk:
+  a size-check resume reproduces the record, and a construct stopped by G-9b gets no real statistic,
+  variant or diagnostic.
 
 **NO STORE PRICE, OUTCOME OR COUNT READ. NOTHING RUN ON MARKET DATA.**
