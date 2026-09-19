@@ -109,3 +109,28 @@ remains:
 | P-5 freeze document committed, hashed and approved | Operator | Approval |
 
 **NO DATA READ. NO CODE. NOT A FREEZE.**
+
+---
+
+## 4. Freeze-review addendum (same day, after the freeze-document draft `b32f5d8`)
+
+Transcribing the ruled rows into `PTMS_GANN_STAGE1_FREEZE_DOCUMENT_DRAFT_2026-09-19.md` (§0.3)
+exposed the items below. The operator ruled them interactively, choosing from the options put. No data,
+count or statistic was read before or during these rulings.
+
+| ID | Question | RULING | Options not chosen |
+|---|---|---|---|
+| **OPEN-P** | Per-date Spearman IC undefined (every eligible name has the same score, or the same outcome) | **(a) Drop the date** from T_c for that panel. The number of dropped dates is reported per construct, per leg and per panel type (real, surrogate median). Applies to every primary, placebo set, contrast leg, variant and surrogate panel | (b) IC = 0, date kept |
+| **OPEN-Q** | K3 when a listed member stock has no bar on a session of 𝒟 (real: 2020-04-13; surrogate: G-5 "missing") | **(a) Skip the session.** Day-over-day comparisons and run counts use the stock's own bars, so a missing session neither extends nor breaks a run. Calendar-day durations are unaffected | (b) A missing session breaks every run in progress |
+| **OC-1** | G-7 dependency-span start | **(b) The literal G-7 text.** Span start = the earliest of every anchor date the score uses and the O-R10 reference date d_ref. GF-1: min(high-anchor date, low-anchor date, d_ref). GF-4T/R8: min(anchor date, d_ref). GF-10: the earliest of d_ref and d_h′ of the earliest member of 𝒰_T ∪ 𝒰_P (v0.8 §3.12, confirmed). Span end = O_5 (the window end used by the observation) | (a) Per-construct reading of §2 (anchor only) |
+| **OC-2** | Is the robustness set complete? | **Confirmed complete.** It closes at the freeze | Add a variant |
+| **RR-4** | GF-1 / GF-4T/R8: instant at which the K3 state, anchors and O-R10 reference are read | **Ratified: as of close(D_L), including D_L's bar.** A swing confirmed at close(D_L) counts | The D−1 state on D_L |
+| **RR-5** | GF-1 / GF-4T/R8: is equality a penetration? | **Ratified: no — strictly beyond** (L < x_ref; bear H > x_ref), as GF-10's RR-1 | Touch counts |
+| **RR-6** | GF-1 / GF-4T/R8: does a penetration before O_1 force y = 0? | **Ratified: no (literal G-2(a)).** y = 1 iff the reference is penetrated within O_1 … O_5. The asymmetry with GF-10 (OPEN-12d) is disclosed in the report | GF-10's first-penetration rule |
+| **RR-7** | GF-1 / GF-4T/R8: "the next 7 days"; the membership instant | **Ratified:** the calendar dates cal(D_L) + 1 … cal(D_L) + 7; PIT member on D_L | Other spans or instants |
+| **RR-8** | Masks in surrogate / pseudo-real panels; the size check's inner surrogates | **Ratified:** (a) every panel is scored by identical code with the real calendar, real PIT and listing masks, G-7 on the real ex-dates, OPEN-M and the G-6b floor; (b) each pseudo-real panel's own B = 1999 surrogates are resampled **from that pseudo-real panel** | (a) G-7 not in surrogates; (b) inner surrogates from the real panel |
+
+**Consequence:** no open definition remains. What remains is P-3 (code), P-4 (G-S1, operator) and
+P-5 (approval and digest).
+
+**NO DATA READ. NO CODE. NOT A FREEZE.**
