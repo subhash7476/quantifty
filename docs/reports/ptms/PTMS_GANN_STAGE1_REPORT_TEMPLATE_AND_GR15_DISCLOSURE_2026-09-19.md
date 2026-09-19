@@ -1,4 +1,4 @@
-# PTMS — Gann Stage-1 Report Template (Item 13) and GR-1.5 Disclosure Text (Item 16) — DRAFT
+# PTMS — Gann Stage-1 Report Template (Item 13) and GR-1.5 Disclosure Text (Item 16) — APPROVED
 
 **Date:** 2026-09-19 · **Branch:** `research/ptms-price-time-market-structure`
 
