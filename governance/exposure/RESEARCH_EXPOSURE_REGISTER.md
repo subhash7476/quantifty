@@ -336,3 +336,15 @@ and recorded as a row **before** the read:
 
 **GR-1.5 — Disclosure.** Any hypothesis whose design was informed by a result on a spent
 window must disclose that in its prior-exposure section, even if it never reads the window.
+
+---
+
+## 10. Register — PTMS Gann Stage-1 screen (appended 2026-09-19, before any read)
+
+**Authority:** operator. Recorded before the read, per §8 and GR-1.4. Frozen protocol:
+`docs/reports/ptms/PTMS_GANN_STAGE1_FREEZE_DOCUMENT_DRAFT_2026-09-19.md`, SHA-256
+`27640c87020e48add18f05e7c27a12517fb4648e5724648380874c2af3d1822a`.
+
+| # | Surface | Window | Level | Hypothesis family | Consumer | Evidence |
+|---|---|---|---|---|---|---|
+| G-S1 | Equity EOD panel (N100 PIT, ratio-adjusted as-of-t) | 2011-03-25 → 2022-12-30 | **signal** (non-confirmatory, GR-1.4) | PTMS-Gann Stage-1 screen: GF-1, GF-4T/R8, GF-10 | scripts/ptms/gann/ (entry point run_screen.py) at 357174a | `docs/reports/ptms/PTMS_GANN_STAGE1_FREEZE_DOCUMENT_DRAFT_2026-09-19.md` + SHA-256 27640c87020e48add18f05e7c27a12517fb4648e5724648380874c2af3d1822a; report labelled NON-CONFIRMATORY; feeds no gate |
