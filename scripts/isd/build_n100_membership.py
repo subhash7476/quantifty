@@ -372,9 +372,12 @@ def main():
     con.execute('create table n100_audit (check_name VARCHAR, detail VARCHAR)')
     audit = []
 
-    # G1: breaks
+    # G1: breaks. Summary rows are written on pass too, so a passing gate leaves evidence.
     for idx, _leg in LEGS:
-        for b in legs_data[idx]['breaks']:
+        ld = legs_data[idx]
+        audit.append((f'G1_{idx}_backward_breaks', str(ld['n_backward'])))
+        audit.append((f'G1_{idx}_forward_breaks', str(len(ld['breaks']) - ld['n_backward'])))
+        for b in ld['breaks']:
             audit.append((f'{idx}_break', '|'.join(str(x) for x in b)))
 
     # G2: counts
@@ -406,9 +409,10 @@ def main():
             audit.append(('mcwb_mismatch',
                           f'{y}-{m:02d}|{leg}|extra={",".join(extra)}|'
                           f'missing={",".join(missing)}'))
-    print(f'G3 mcwb months compared: '
-          f'{sum(1 for k in msets if (k[0], k[1]) >= (2011, 3))}, mismatched: {n_mm}',
-          flush=True)
+    n_g3 = sum(1 for k in msets if (k[0], k[1]) >= (2011, 3))
+    print(f'G3 mcwb months compared: {n_g3}, mismatched: {n_mm}', flush=True)
+    audit.append(('G3_mcwb_leg_months_compared', str(n_g3)))
+    audit.append(('G3_mcwb_leg_months_mismatched', str(n_mm)))
 
     # G4: terminal identity per leg
     for idx, _leg in LEGS:
@@ -462,7 +466,8 @@ def main():
                     intervals.append((lab, names.get(sym, ''), lo, hi))
     # G5: union month-end counts vs MCWB union
     n_u5 = 0
-    for (y, m) in sorted({(k[0], k[1]) for k in msets if (k[0], k[1]) >= (2011, 3)}):
+    g5_months = sorted({(k[0], k[1]) for k in msets if (k[0], k[1]) >= (2011, 3)})
+    for (y, m) in g5_months:
         want = len(msets.get((y, m, 'n50'), ())) + len(msets.get((y, m, 'next50'), ()))
         wset = (wsets.get((y, m, 'n50'), frozenset())
                 | wsets.get((y, m, 'next50'), frozenset()))
@@ -471,6 +476,8 @@ def main():
             audit.append(('union_count',
                           f'{y}-{m:02d}|walk={len(wset)}|mcwb={want}'))
     print(f'G5 union-count mismatches: {n_u5}', flush=True)
+    audit.append(('G5_union_months_compared', str(len(g5_months))))
+    audit.append(('G5_union_months_mismatched', str(n_u5)))
 
     con.execute('create table n100_membership (symbol VARCHAR, company VARCHAR, '
                 'valid_from DATE, valid_to DATE)')
