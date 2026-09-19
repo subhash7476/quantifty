@@ -155,7 +155,7 @@ appear here only because they cannot be added after results.
 
 Dropped or superseded: V10-GP, V10-PO, V10-DC and V4-IW.
 
-### 6.2 Still to specify (research drafts, operator ratifies) — R-H
+### 6.2 Specifications — RATIFIED 2026-09-19 (see `PTMS_GANN_STAGE1_ROBUSTNESS_SPECS_DRAFT_2026-09-19.md`)
 
 | Item | What must be pinned |
 |---|---|
