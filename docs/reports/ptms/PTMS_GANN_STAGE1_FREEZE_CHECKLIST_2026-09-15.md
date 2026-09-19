@@ -1,6 +1,7 @@
 # PTMS — Gann Stage-1 Freeze Checklist
 
-**Date:** 2026-09-15 · **Branch:** `research/ptms-price-time-market-structure`
+**Date:** 2026-09-15 · **Updated:** 2026-09-19 (GF-10 mechanical-record items added: row 19, §4
+OPEN-J / OPEN-6 / OPEN-11 / OPEN-12, §6) · **Branch:** `research/ptms-price-time-market-structure`
 
 **Status: NOT A FREEZE. Verdict: NOT READY TO FREEZE (§6).** This checklist lists what must exist
 before the Stage-1 freeze document can be written, committed, hashed and approved. It becomes the
@@ -95,8 +96,9 @@ Status key:
 | 16 | GR-1.5 disclosure text for any later confirmatory pre-registration | **OUTSTANDING TASK** | Freeze doc | Research |
 | 17 | R-11 reader-date audit performed and freshness of 2023-01-02 → 2026-09-11 ruled (R-12 precondition) | **AUDIT DONE** (2026-09-15, finding: signal-spent); **freshness ruling PENDING** | P-1 → `PTMS_GANN_R11_READER_DATE_AUDIT_2026-09-15.md` | Operator (ruling) |
 | 18 | Freeze document committed, SHA-256 recorded, operator-approved | **OUTSTANDING TASK** — blocked by the rows above | P-5 | Operator |
+| 19 | GF-10 mechanical definition complete (detector, ledger, legs, latches, P1–P4 populations, formal contrast) | **Largely LOCKED — TO TRANSCRIBE**: `GF10_MECHANICAL_DECISION_RECORD_v0.6_2026-09-18.md` (`bdc40f6`) records 53 locks, audit re-run in v0.6 §7. **OPEN — DEFINITION MISSING:** OPEN-J (v0.6 §5.3); imported OPEN-6, OPEN-11, OPEN-12 (v0.6 §5.4). GF-1 and GF-4T/R8 have no equivalent mechanical record; their cells transcribe from rows 2–5 | §4 OPEN-J, OPEN-6, OPEN-11, OPEN-12 | Operator (rulings) / Research (transcribe) |
 
-**Screen preconditions (R-12), all unmet:** items 1–18 SATISFIED, including R-11 frozen after its
+**Screen preconditions (R-12), all unmet:** items 1–19 SATISFIED, including R-11 frozen after its
 audit, R-13 complete, and R-14 finalized; G-S1 appended by the operator. The screen then still needs the
 blind size check (item 10) recorded before unblinding.
 
@@ -119,6 +121,10 @@ existing committed document already names them, and none is recommended.
 | **G-7** | CA **exclusion-window** rule | R-13 requires exclusion windows; their length and anchoring (around ex-date) are not specified. Nor is the enumeration source | Changes the eligible panel. Belongs to the R-13 certification task |
 | **G-8** | **Seed value** for B = 1999 | R-14 says "seed"; no value is recorded | Clerical, not scientific. Any fixed integer, recorded in the freeze document before any run |
 | **G-9** | Blind size check: **inner draws and failure action** | R-14 accepts "200 pseudo-real panels, rejection ≤ 2α". Not written: whether each pseudo-real test uses its own B = 1999 surrogates; whether the check is per construct or joint; **what happens if the rejection rate exceeds 2α** (stop, respecify, or proceed with disclosure) | Without a failure rule, a failed size check would force a post-hoc decision |
+| **OPEN-J** (GF-10; added 2026-09-19) | **Sample-end censoring of P3/P4 candidates** | GF-10 record v0.6 §5.3: s_T(M) and s_P(M) are existential indicators over the whole active span (c, u], and contrast eligibility is fixed at u. A candidate still active on the last session of the evaluation sample has no observed u. The record does not say whether it enters P3/P4, or with what scores. Options named in v0.6 §5.3: (i) score the observed part of the span; (ii) exclude candidates whose u falls after the sample end; (iii) defer to the window/freeze definitions; (iv) other | Censored candidates entering as 0s bias T(time) and T(price) toward 0, and not symmetrically. It changes P3/P4 membership at every window boundary the freeze uses. P1/P2 are unaffected. [NES]; coupled to G-4, OPEN-11, OPEN-12 |
+| **OPEN-6** (GF-10; added 2026-09-19) | **Event timestamp convention** | GF-10 spec draft F3 / v0.6 §5.4: the event *date* is the session of the event bar (OD-7), but whether the timestamp is bar start, bar end or the first instant the crossing becomes knowable is not ruled. The outcome window (OPEN-12) must use the same convention | Changes where the outcome window starts and the causal ordering of event vs outcome |
+| **OPEN-11** (GF-10; added 2026-09-19) | **Score mapping to the weekly formation grid** | GF-10 spec draft F8 / v0.6 §5.4: how intra-week events become s(*i*, w) (persistence, formation instant), including how P3/P4 candidate indicators map to s_T(*i*, w) and s_P(*i*, w) | Changes the score entering T_c and the GF-10 contrast; C-6 routes the weekly-cell supersession here |
+| **OPEN-12** (GF-10; added 2026-09-19) | **Outcome window anchoring** | GF-10 spec draft §12 / v0.6 §5.4: 12a start anchor; 12b event-session inclusion; 12c reference-swing timing; 12d coincident penetration. R-2 fixes 5 sessions but not the anchor | Changes the outcome variable y(*i*, w) itself; also governs window-boundary cases (spec draft X16) |
 
 **G-1, G-2, and G-3 (both placebo families) were resolved by operator rulings on 2026-09-15** and are
 recorded in the ruling register (G-1, G-2 and G-3 blocks); their rows above are preserved as the gap
@@ -148,7 +154,9 @@ results cannot be declared off-path.
 
 > **NOT READY TO FREEZE.**
 >
-> **Definitions missing (operator):** G-4, G-5, G-6, G-7, G-9; G-8 is clerical. **G-1, G-2 and G-3 are
+> **Definitions missing (operator):** G-4, G-5, G-6, G-7, G-9; G-8 is clerical. **GF-10 (added
+> 2026-09-19):** OPEN-J, OPEN-6, OPEN-11, OPEN-12 (record v0.6 §5.3–§5.4; the rest of GF-10's
+> mechanical definition is locked, 53 locks, `bdc40f6`). **G-1, G-2 and G-3 are
 > ruled** (2026-09-15; ruling register, G-1/G-2/G-3 blocks); **G-3 is closed for the complete Stage-1
 > primary set** (GF-1: 132-set phase-shift orbit; GF-4T/R8: 162-set rigid-translation family).
 >
