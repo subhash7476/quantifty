@@ -261,5 +261,6 @@ def d_bh(o, n_weeks, gf10=False):
     limbs["entering"] = kept - floor
     if sum(limbs.values()) != base:
         raise AssertionError("D-BH limbs do not partition the base")
-    return {"base": base, "limbs": limbs,
+    label = "the A1 set before exclusions" if gf10 else "PIT-member stock-weeks on D_L"
+    return {"base": base, "base_label": label, "limbs": limbs,
             "shares": {k: (v / base if base else float("nan")) for k, v in limbs.items()}}

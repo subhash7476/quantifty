@@ -141,7 +141,8 @@ def results(p_sur=0.3, spec_p=0.5, stopped=()):
             continue
         panel = {"n_obs": 5000, "n_open_m": 3, "n_g7": 40,
                  "undefined_ic": {"primary": {"real": 1, "surrogate_median": 1.0}},
-                 "exclusion_loss": {"base": 6000, "limbs": {"G-7": 40, "entering": 5960},
+                 "exclusion_loss": {"base": 6000, "base_label": "PIT-member stock-weeks on D_L",
+                                    "limbs": {"G-7": 40, "entering": 5960},
                                     "shares": {"G-7": 40 / 6000, "entering": 5960 / 6000}}}
         constructs[c] = {"status": "screened", "T_c": tc(0.01), "p_sur": p_sur, "spec_p": spec_p, "effect": 0.002,
                          "interval": [-0.01, 0.012], "panel": panel,
@@ -240,3 +241,52 @@ def test_size_check_then_screen_end_to_end_on_a_synthetic_panel(tmp_path, monkey
     assert "contrast" in res["constructs"]["GF-10"]
     text = (tmp_path / run_screen.REPORT).read_text(encoding="utf-8")
     assert "{{" not in text and "Size check failed" in text
+
+
+def test_guard_hashes_the_blob_when_checkout_converts_line_endings(tmp_path):
+    """This repository converts LF to CRLF on checkout, so the working-tree file and the committed blob
+    have different bytes. The guard must accept the blob's digest and refuse the working tree's."""
+    root = tmp_path / "crlf"
+    root.mkdir()
+    run = lambda *a: subprocess.run(["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", *a],
+                                    capture_output=True, check=True).stdout.decode().strip()
+    run("init", "-q")
+    run("config", "core.autocrlf", "true")
+    write(root, FREEZE, "frozen protocol\nline two\n")
+    write(root, run_screen.CODE_DIR + "/x.py", "x = 1\n")
+    write(root, run_screen.CHECKLIST, "| 18 | pending |\n")
+    write(root, run_screen.REGISTER, "| # |\n")
+    run("add", "-A")
+    run("commit", "-q", "-m", "freeze")
+    commit = run("rev-parse", "HEAD")
+    (root / FREEZE).unlink()
+    run("checkout", "--", FREEZE)
+    work = hashlib.sha256((root / FREEZE).read_bytes()).hexdigest()
+    blob = hashlib.sha256(subprocess.run(["git", "-C", str(root), "show", f"{commit}:{FREEZE}"],
+                                         capture_output=True, check=True).stdout).hexdigest()
+    assert work != blob                                   # the hazard is real in this configuration
+
+    def record(digest):
+        write(root, run_screen.CHECKLIST, f"| 18 | `{FREEZE}`, commit `{commit}`, SHA-256 `{digest}` |\n")
+        write(root, run_screen.REGISTER, f"| # |\n| G-S1 | SHA-256 {digest} |\n")
+        run("commit", "-q", "-am", f"record {digest[:8]}")
+
+    record(work)
+    with pytest.raises(SystemExit, match="does not match"):
+        run_screen.guard(root)
+    record(blob)
+    assert run_screen.guard(root).digest == blob
+
+
+def test_worker_processes_receive_the_panel_and_match_the_in_process_path():
+    """The real run uses spawned workers: the Context and arrays must survive pickling, and a job must
+    give the same numbers as in process. One surrogate panel of the real stream, GF-1 only."""
+    from tests.ptms.test_gann_robustness import synthetic_panel
+
+    panel = synthetic_panel(3, T=400, N=40)
+    job = ("real", 0, 1, ("GF-1",))
+    with run_screen._pool(panel, 2) as ex:
+        spawned = list(ex.map(run_screen._sur_chunk, [job]))
+    with run_screen._pool(panel, 1) as ex:
+        local = list(ex.map(run_screen._sur_chunk, [job]))
+    assert json.dumps(spawned) == json.dumps(local)

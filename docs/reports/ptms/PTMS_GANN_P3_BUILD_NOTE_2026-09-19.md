@@ -95,8 +95,12 @@ each one as recommended; the code implements them and the tests pin them.
 | **RB-3** | D-BH denominator and the "left-censoring" limb | GF-1, GF-4T/R8: base = **PIT-member stock-weeks on D_L**, partitioned into state-rule ineligibility (no K3 state or no anchor yet: the burn-in G-6a replaced), OPEN-M, G-7, the G-6b floor and entering. GF-10: base = the A1 set before exclusions; no state-rule limb. The code asserts the limbs sum to the base |
 | **RB-4** | Diagnostic edges | D-PL: a close equal to the per-date median goes to the **low** half; a stock-week with no as-traded bar on D_L is left out of both halves and counted. D-AA: the G-6b floor applies per stratum-date; depth runs from the stock's first bar in the window. D-PS: a qualifying stock whose outcome never varies has undefined φ and is left out and counted |
 
-**Still to do before P-5:** PENDING-1, PENDING-2, IR-1 … IR-5, RB-1 … RB-4 and findings F-1 … F-5 are
-written into the freeze document (§3 and §12), with the verbatim blocks re-verified.
+**Still to do before P-5:** write into the freeze document, then re-verify its verbatim blocks:
+- PENDING-1, PENDING-2 and IR-1 … IR-5 (§3, §4, §7);
+- RB-1 … RB-4 (§12). §12 has **no V1-MD specification at all** today; RB-1 is it;
+- findings F-1 … F-5 (§7, §6);
+- in §14's implementation obligations: the two-phase order (size-check record committed before the
+  screen phase) and the rule that the digest is taken over the git blob.
 
 ## 4. Compute budget (engineering, not a definition)
 
@@ -121,7 +125,8 @@ written into the freeze document (§3 and §12), with the verbatim blocks re-ver
    `` `docs/reports/ptms/PTMS_GANN_STAGE1_FREEZE_DOCUMENT….md` ``, `` commit `<hex>` `` and
    `` SHA-256 `<64 hex>` ``. The digest is the SHA-256 of the file's **git blob** at that commit
    (`git show <commit>:<path> | sha256sum`), not of the working-tree file, which line-ending
-   conversion can alter.
+   conversion can alter (this repository converts LF to CRLF on checkout). Record the **64 hex
+   characters only**: `sha256sum` prints a trailing ` -`, and the guard's pattern will not match it.
 2. P-4: the operator appends G-S1 to the register, carrying the same digest.
 3. `python -m scripts.ptms.gann.run_screen size-check --workers 4`. This writes
    `PTMS_GANN_STAGE1_SIZE_CHECK.json` and computes no real statistic.
@@ -164,8 +169,12 @@ this against the live repository.
 - every variant id, and the construct filter;
 - D-PL split and missing bars, D-AA edges, D-PS floors and constant outcomes, D-BH partition.
 
-`tests/ptms/test_gann_run_screen.py` (13):
+`tests/ptms/test_gann_run_screen.py` (15):
 - the guard refuses on the live repository before any panel load (tripwire);
+- under `core.autocrlf=true` (as here) the working-tree and blob digests differ, and the guard accepts
+  only the blob's;
+- a job run in a spawned worker process returns the same numbers as in process (pickling of the
+  panel and context);
 - on a throwaway git repository it passes, then refuses a missing digest, a G-S1 row without the
   digest, an edit to the frozen document, a wrong digest and uncommitted code;
 - the size-record gate: not committed, incomplete, uncommitted edit;

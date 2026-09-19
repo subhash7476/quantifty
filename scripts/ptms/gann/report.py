@@ -133,7 +133,7 @@ def render(res, fixed):
             d.gen(f"| {leg} | {u['real']} | {u['surrogate_median']} |")
         d.gen()
         bh = pn["exclusion_loss"]
-        d.gen(f"Exclusion-loss share (D-BH), base {bh['base']} stock-weeks:\n")
+        d.gen(f"Exclusion-loss share (D-BH); base = {bh['base_label']}, {bh['base']} stock-weeks:\n")
         d.gen("| Limb | Count | Share |\n|---|--:|--:|")
         for limb, n in bh["limbs"].items():
             d.gen(f"| {limb} | {n} | {bh['shares'][limb]:.4f} |")
