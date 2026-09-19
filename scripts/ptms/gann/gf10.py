@@ -42,7 +42,7 @@ class Trace:
     """Per-session state after each close, and the P1 events and completed candidates."""
     act_dir: np.ndarray          # (T, N) direction of the qualifying candidate active after close t (0 none)
     act_span: np.ndarray         # (T, N) its G-7 span start index (-1 if none)
-    act_sz: np.ndarray           # (T, N) the active candidate can no longer score 1 (U_T empty or lambda set)
+    act_sz: np.ndarray           # (T, N) int8 structural zero (X-1): 1 = U_T empty, 2 = lambda set, 0 = neither
     ev_t: np.ndarray             # P1 events: session index D_e
     ev_col: np.ndarray
     ev_dir: np.ndarray
@@ -123,7 +123,7 @@ def run_gf10(high, low, ords, res: K3Result, comparator="greatest", rt_scale=1.0
 
     act_dir = np.zeros((T, N), dtype=np.int8)
     act_span = np.full((T, N), -1, dtype=np.int64)
-    act_sz = np.zeros((T, N), dtype=bool)
+    act_sz = np.zeros((T, N), dtype=np.int8)
     events, cands = [], []
     prev_state = np.zeros(N, dtype=np.int8)
     prev_low = nan()
@@ -299,7 +299,7 @@ def run_gf10(high, low, ords, res: K3Result, comparator="greatest", rt_scale=1.0
 
         act_dir[t] = np.where(c_on, c_dir, 0)
         act_span[t] = np.where(c_on, c_span, -1)
-        act_sz[t] = c_on & (np.isnan(c_rt) | lam)
+        act_sz[t] = np.where(c_on, np.where(np.isnan(c_rt), 1, np.where(lam, 2, 0)), 0)
         prev_state = np.where(present, st, prev_state).astype(np.int8)
         prev_low = np.where(present, lo, prev_low)
         prev_bar = np.where(present, t, prev_bar)
@@ -324,7 +324,7 @@ class Obs10:
     score_p: np.ndarray          # contrast: s_P (primary: copy of score)
     y: np.ndarray
     dir: np.ndarray              # BULL / BEAR (N-DIR)
-    sz: np.ndarray               # structural zero (N-SZ; primary only)
+    sz: np.ndarray               # structural-zero kind (X-1, N-SZ; primary only): 0 none, 1 U_T empty, 2 lambda
     n_excluded_open_m: int
     n_excluded_g7: int
     n_excluded_open_n: int
@@ -398,7 +398,7 @@ def primary_obs(tr: Trace, week_last_idx, high, low, ords, member, g7_ord, swing
                 d, anchor, span = int(tr.act_dir[t - 1, col]), t, int(tr.act_span[t - 1, col])
                 kind = -1 if d == BULL else 1
                 ref_lvl, ref_t = swings[kind][0][t - 1, col], int(swings[kind][1][t - 1, col])
-                score, sz = 0, bool(tr.act_sz[t - 1, col])
+                score, sz = 0, int(tr.act_sz[t - 1, col])
             else:
                 continue
             if anchor + horizon > T - 1:                 # OPEN-M: O_h beyond Z
@@ -463,11 +463,11 @@ def contrast_obs(tr: Trace, week_last_idx, high, low, ords, member, g7_ord, swin
         if _g7_hit(g7_ord[col], ords, span, t + OUTCOME_SESSIONS):
             n_g7 += 1
             continue
-        rows.append((w, col, s_t, s_p, _y(high, low, col, ref_lvl, ref_t, t, d, OUTCOME_SESSIONS), d, False))
+        rows.append((w, col, s_t, s_p, _y(high, low, col, ref_lvl, ref_t, t, d, OUTCOME_SESSIONS), d, 0))
     return _pack(rows, n_m, n_g7, n_n)
 
 
 def _pack(rows, n_m, n_g7, n_n):
     a = np.array(rows, dtype=np.int64).reshape(-1, 7)
     return Obs10(a[:, 0], a[:, 1], a[:, 2].astype(np.int8), a[:, 3].astype(np.int8), a[:, 4].astype(np.int8),
-                 a[:, 5].astype(np.int8), a[:, 6].astype(bool), n_m, n_g7, n_n)
+                 a[:, 5].astype(np.int8), a[:, 6].astype(np.int8), n_m, n_g7, n_n)

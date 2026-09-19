@@ -33,6 +33,8 @@ class Obs:
     y: np.ndarray           # (M,) int8
     n_excluded_open_m: int
     n_excluded_g7: int
+    n_member: int = 0       # D-BH base: PIT-member stock-weeks on D_L
+    n_ineligible: int = 0   # D-BH: member stock-weeks ineligible under the state rules (no K3 state or anchor)
 
 
 def last_swings(res: K3Result, T: int, N: int):
@@ -81,11 +83,15 @@ def running_extremes(high, low):
     return hi_t, lo_t
 
 
-def build(cal_ordinals, week_last_idx, high, low, member, g7_ord, res, swings, anchor_idx_list, score_fn):
+def build(cal_ordinals, week_last_idx, high, low, member, g7_ord, res, swings, anchor_idx_list, score_fn,
+          span_idx_list=None):
     """Assemble observations for GF-1 or GF-4T/R8 (and their placebos / variants via score_fn).
 
     anchor_idx_list: list of (T, N) arrays of anchor extreme indices (-1 = none) used by the score.
     score_fn(delta_list) -> (W, N) bool, where delta_list[i] = ord(D_L) − ord(anchor_i) per cell.
+    span_idx_list: (W, N) arrays, one row per formation week, of the anchors that start the G-7 span
+    when they differ from the eligibility anchors (V4-AS: the earliest reachable swing; T = none).
+    Defaults to the eligibility anchors.
     """
     T, N = high.shape
     ords = np.asarray(cal_ordinals, dtype=np.int64)
@@ -115,7 +121,10 @@ def build(cal_ordinals, week_last_idx, high, low, member, g7_ord, res, swings, a
         y[i] = np.where(state[i] == UP, broke_lo, np.where(state[i] == DOWN, broke_hi, False))
         o5_ord[i] = ords[t[i] + OUTCOME_SESSIONS]
 
-    start_idx = np.minimum.reduce([*anchors, np.where(ref_ext >= 0, ref_ext, T)])
+    spans = anchors if span_idx_list is None else list(span_idx_list)
+    start_idx = np.minimum.reduce([*spans, np.where(ref_ext >= 0, ref_ext, T)])
+    if np.any(eligible & (start_idx >= T)):
+        raise AssertionError("an eligible observation has no G-7 span start")
     start_ord = ords[np.clip(start_idx, 0, T - 1)]
     g7_hit = np.zeros((W, N), dtype=bool)
     for j in range(N):
@@ -128,4 +137,5 @@ def build(cal_ordinals, week_last_idx, high, low, member, g7_ord, res, swings, a
     keep = base & ~g7_hit
     wi, cj = np.nonzero(keep)
     return Obs(wi, cj, score[wi, cj].astype(np.int8), y[wi, cj].astype(np.int8),
-               int((eligible & ~in_cal[:, None]).sum()), int((base & g7_hit).sum()))
+               int((eligible & ~in_cal[:, None]).sum()), int((base & g7_hit).sum()),
+               int(member[t].sum()), int((member[t] & ~eligible).sum()))

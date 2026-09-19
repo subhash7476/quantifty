@@ -24,23 +24,37 @@ class Tc:
     n_dropped_undefined: int  # OPEN-P
 
 
-def t_c(week, score, y, n_weeks) -> Tc:
-    week = np.asarray(week, dtype=np.int64)
+def t_c(week, score, y, n_weeks, floor=MIN_NAMES) -> Tc:
+    """floor: G-6b's 20 for every primary, leg, variant and panel; D-PL uses 10 per half (Q-3)."""
+    return t_c_panels(np.zeros(np.size(week), dtype=np.int64), week, score, y, n_weeks, 1, floor)[0]
+
+
+def t_c_panels(panel, week, score, y, n_weeks, n_panels, floor=MIN_NAMES):
+    """T_c of each of n_panels panels whose observations are pooled in one array (panel = its index).
+    Dates are grouped by (panel, week), so panels never mix."""
+    g = np.asarray(panel, dtype=np.int64) * n_weeks + np.asarray(week, dtype=np.int64)
+    size = n_panels * n_weeks
     s = np.asarray(score, dtype=float)
     o = np.asarray(y, dtype=float)
-    n = np.bincount(week, minlength=n_weeks).astype(float)
-    ss, so = np.bincount(week, s, n_weeks), np.bincount(week, o, n_weeks)
-    sso = np.bincount(week, s * o, n_weeks)
+    n = np.bincount(g, minlength=size).astype(float)
+    ss, so = np.bincount(g, s, size), np.bincount(g, o, size)
+    sso = np.bincount(g, s * o, size)
     # binary: Σs² = Σs
-    cov = sso - ss * so / np.where(n > 0, n, 1)
-    var_s = ss - ss * ss / np.where(n > 0, n, 1)
-    var_o = so - so * so / np.where(n > 0, n, 1)
-    floor_ok = n >= MIN_NAMES
+    den = np.where(n > 0, n, 1)
+    cov = sso - ss * so / den
+    var_s = ss - ss * ss / den
+    var_o = so - so * so / den
+    floor_ok = n >= floor
     defined = (var_s > 1e-12) & (var_o > 1e-12)
     use = floor_ok & defined
-    ic = cov[use] / np.sqrt(var_s[use] * var_o[use])
-    return Tc(float(ic.mean()) if ic.size else float("nan"), int(use.sum()),
-              int(((n > 0) & ~floor_ok).sum()), int((floor_ok & ~defined).sum()))
+    ic = np.where(use, cov / np.sqrt(np.where(use, var_s * var_o, 1)), 0.0)
+    out = []
+    for p in range(n_panels):
+        sl = slice(p * n_weeks, (p + 1) * n_weeks)
+        k = int(use[sl].sum())
+        out.append(Tc(float(ic[sl].sum() / k) if k else float("nan"), k,
+                      int(((n[sl] > 0) & ~floor_ok[sl]).sum()), int((floor_ok[sl] & ~defined[sl]).sum())))
+    return out
 
 
 def rank_p(observed, null_values):

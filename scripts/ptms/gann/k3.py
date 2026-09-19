@@ -15,6 +15,9 @@ yet listed, or missing). Rules:
   consecutive sessions of LL. From DOWN, the up-switch rule applies; from UP, the down-switch rule.
 - Row 13 follows from the definitions: an outside day (HH and LL) counts toward a down run and
   breaks an up run; an inside day breaks both.
+- V-K3 (freeze §12, off-path): `symmetric=True` makes a down run need LL **and** LH (memo §5 row 11,
+  "Symmetric HH+HL / LL+LH as robustness"), for initialization and switching alike. Then an outside
+  day breaks both runs.
 - Row 8: no state until the first 3-session run. That initialization confirms no swing.
 - Rows 2–4: the swing high is the maximum high while UP; its date is the day of that high; it is
   confirmed at the close of the down-switch session. Mirror for the swing low.
@@ -45,7 +48,7 @@ class K3Result:
     sw_ext_t: np.ndarray     # (E,) session index of the extreme (first occurrence)
 
 
-def run_k3(high: np.ndarray, low: np.ndarray) -> K3Result:
+def run_k3(high: np.ndarray, low: np.ndarray, symmetric: bool = False) -> K3Result:
     high = np.asarray(high, dtype=float)
     low = np.asarray(low, dtype=float)
     if high.shape != low.shape or high.ndim != 2:
@@ -73,6 +76,8 @@ def run_k3(high: np.ndarray, low: np.ndarray) -> K3Result:
             hh = h > prev_h
             hl = lo > prev_l
             ll = lo < prev_l
+            if symmetric:
+                ll = ll & (h < prev_h)
         up_run = np.where(present, np.where(hh & hl, up_run + 1, 0), up_run)
         dn_run = np.where(present, np.where(ll, dn_run + 1, 0), dn_run)
 
