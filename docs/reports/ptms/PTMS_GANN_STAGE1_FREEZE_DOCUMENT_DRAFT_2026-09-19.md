@@ -1,8 +1,10 @@
-# PTMS — Gann Stage-1 Freeze Document — DRAFT FOR OPERATOR REVIEW (P-5)
+# PTMS — Gann Stage-1 Freeze Document (P-5)
 
 **Date:** 2026-09-19 · **Branch:** `research/ptms-price-time-market-structure` · **Drafted at:** `ea2bad4`
 
-**Status: DRAFT. NOT FROZEN. NOT APPROVED. NOT HASHED.**
+**Status: FROZEN on the operator's approval (P-5).** The approval date, the freeze commit and this file's
+SHA-256 are recorded **outside** it, in checklist item 18 and register row G-S1 (§18). This text is the
+Stage-1 protocol only if its SHA-256 matches that record. Any edit voids it.
 - This document transcribes every freeze-checklist row marked RULED — TO TRANSCRIBE
   (`PTMS_GANN_STAGE1_FREEZE_CHECKLIST_2026-09-15.md` §3). It makes **no** new scientific choice.
 - No market data, outcome, signal count, IC, p-value or event count was read to write it. No code was
@@ -13,6 +15,9 @@
      (**done 2026-09-19**);
   2. items 14 (P-3 code: **done 2026-09-19, not run**) and 15 (P-4 G-S1) are done;
   3. the operator approves this file.
+
+  Item 15's row carries this file's SHA-256 (§15), so it is appended **after** the freeze commit and
+  **before** any read. The screen's guard refuses to run until it is (§14).
 
 **Construct set:** GF-1, GF-4T/R8, GF-10. **m = 3.** Screen α = 0.05/3 per construct, one-sided.
 **Label: NON-CONFIRMATORY (GR-1.4).**
@@ -1813,7 +1818,7 @@ on 2026-09-19 that 2023-01-02 → 2026-09-11 is **signal-spent**. The consequenc
 
 ---
 
-## 18. Freeze approval and digest (P-5) — OUTSTANDING
+## 18. Freeze approval and digest (P-5)
 
 **The digest is not recorded in this file,** because a file cannot contain its own hash. On approval:
 1. the operator's §0.3 rulings are written into this file, and the "DRAFT" status line is replaced;
@@ -1827,9 +1832,9 @@ on 2026-09-19 that 2023-01-02 → 2026-09-11 is **signal-spent**. The consequenc
 
 | Field | Value (recorded outside this file) |
 |---|---|
-| Freeze commit | `{{P-5}}` |
-| SHA-256 of this file at that commit | `{{P-5}}` |
-| Operator approval | `{{P-5: date}}` |
+| Freeze commit | Recorded in checklist item 18 |
+| SHA-256 of this file at that commit | Recorded in checklist item 18 and register row G-S1 |
+| Operator approval | Recorded in checklist item 18 |
 
 ---
 
