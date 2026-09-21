@@ -54,9 +54,56 @@ def write_pid(path: Path, pid: Optional[int] = None) -> None:
     path.write_text(str(pid if pid is not None else os.getpid()), encoding="utf-8")
 
 
+# FILETIME resolution and filesystem mtime granularity; a recycled PID would have
+# to be reused within this window of the lock being written.
+_START_TOLERANCE_S = 2.0
+_EPOCH_AS_FILETIME = 116444736000000000
+
+
+def process_started_at(pid: int) -> Optional[float]:
+    """Creation time of `pid` as epoch seconds, or None where unavailable."""
+    if os.name != "nt" or pid <= 0:
+        return None
+    import ctypes
+    from ctypes import wintypes
+    if not hasattr(ctypes, "windll"):
+        return None
+    PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+    handle = ctypes.windll.kernel32.OpenProcess(
+        PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    if not handle:
+        return None
+    created, exited, kernel, user = (wintypes.FILETIME() for _ in range(4))
+    ok = ctypes.windll.kernel32.GetProcessTimes(
+        handle, ctypes.byref(created), ctypes.byref(exited),
+        ctypes.byref(kernel), ctypes.byref(user))
+    ctypes.windll.kernel32.CloseHandle(handle)
+    if not ok:
+        return None
+    ticks = (created.dwHighDateTime << 32) | created.dwLowDateTime
+    return (ticks - _EPOCH_AS_FILETIME) / 1e7
+
+
 def lock_alive(path: Path) -> bool:
+    """The PID in `path` is alive AND is the process that wrote the lock.
+
+    A bare live PID is not a live holder: a lock left by a killed process names
+    a PID Windows later hands to anything. The chain poller's Friday lock named
+    21948; Monday 05:03 msedge got it, and the orchestrator adopted Edge as the
+    poller and never spawned one (2026-09-21). Every holder writes its lock after
+    it starts, so a process created after the lock's mtime is a recycled PID.
+    """
     pid = read_pid(path)
-    return pid is not None and pid_alive(pid)
+    if pid is None or not pid_alive(pid):
+        return False
+    started = process_started_at(pid)
+    if started is None:
+        return True
+    try:
+        written = Path(path).stat().st_mtime
+    except OSError:
+        return False
+    return started <= written + _START_TOLERANCE_S
 
 
 def acquire_lock(path: Path) -> bool:

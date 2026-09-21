@@ -1,5 +1,6 @@
 import json
 import os
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -502,3 +503,14 @@ def test_shutdown_skips_an_adopted_child_with_no_handle():
                           stopper=lambda spec, proc: stopped.append(spec.name))
     sup.shutdown()
     assert stopped == ["session"]
+
+
+def test_child_alive_false_when_native_lock_pid_was_recycled(tmp_path):
+    """A stale poller lock whose PID now belongs to another process (msedge,
+    2026-09-21) must read dead so the poller is spawned, not adopted."""
+    lock = tmp_path / "chain_poller.pid"
+    spec = orch.ChildSpec(name="poller", argv=[], native_lock=lock)
+    pidfile.write_pid(lock, os.getpid())
+    t = time.time() - 30 * 86400
+    os.utime(lock, (t, t))
+    assert orch.child_alive(spec) is False

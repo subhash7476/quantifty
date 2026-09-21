@@ -24,6 +24,7 @@ from dotenv import load_dotenv  # noqa: E402
 from core.scheduler.eod_decision import MAX_ATTEMPTS  # noqa: E402
 from core.scheduler.eod_job import run_attempt  # noqa: E402
 from core.scheduler.eod_store import EodStore  # noqa: E402
+from scripts.ops import pidfile  # noqa: E402
 
 STORE_PATH = ROOT / "data" / "_eod_automation.sqlite"
 LOCK_PATH = ROOT / "data" / "_eod_worker.lock"
@@ -52,36 +53,13 @@ def is_due(now: datetime, last_finished: datetime | None, attempts: int) -> bool
     return now >= last_finished + timedelta(minutes=RETRY_MINUTES)
 
 
-def _pid_alive(pid: int) -> bool:
-    if os.name == "nt":
-        import ctypes
-        from ctypes import wintypes
-
-        PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-        STILL_ACTIVE = 259
-        handle = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-        if not handle:
-            return False
-        exit_code = wintypes.DWORD()
-        ok = ctypes.windll.kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
-        ctypes.windll.kernel32.CloseHandle(handle)
-        return bool(ok) and exit_code.value == STILL_ACTIVE
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    except Exception:
-        return True
-    return True
-
-
 def acquire_lock(lock_path: Path) -> bool:
     if lock_path.exists():
         try:
             pid = int(lock_path.read_text().strip())
         except (ValueError, OSError):
             pid = None
-        if pid and _pid_alive(pid):
+        if pid and pidfile.lock_alive(lock_path):
             return False
     lock_path.parent.mkdir(parents=True, exist_ok=True)
     lock_path.write_text(str(os.getpid()))
