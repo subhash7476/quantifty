@@ -355,3 +355,15 @@ def test_connect_raises_immediately_on_non_transient(tmp_path, monkeypatch):
     with pytest.raises(MarksSourceUnavailable):
         src._connect()
     assert calls["n"] == 1
+
+
+def test_acquire_lock_reclaims_a_lock_whose_pid_was_recycled(tmp_path):
+    """2026-09-21: Friday's lock named a PID Windows gave msedge on Monday; the
+    poller must treat it as stale, not refuse to start beside Edge."""
+    from scripts.nifty_shield_paper.chain_poller import _acquire_lock
+    lock = tmp_path / "chain_poller.pid"
+    lock.write_text(str(os.getpid()), encoding="utf-8")
+    t = time.time() - 30 * 86400
+    os.utime(lock, (t, t))
+    assert _acquire_lock(lock) is True
+    assert lock.read_text(encoding="utf-8") == str(os.getpid())

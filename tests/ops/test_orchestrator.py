@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -617,3 +618,14 @@ def test_refresh_master_survives_a_broken_import(tmp_path, monkeypatch, caplog):
     monkeypatch.delattr(scripts, "fetch_instrument_master", raising=False)
     orch._refresh_master(db_path=tmp_path / "absent.duckdb", now=datetime(2026, 9, 15, 9, 10))
     assert any(r.levelname == "WARNING" for r in caplog.records)
+
+
+def test_child_alive_false_when_native_lock_pid_was_recycled(tmp_path):
+    """A stale poller lock whose PID now belongs to another process (msedge,
+    2026-09-21) must read dead so the poller is spawned, not adopted."""
+    lock = tmp_path / "chain_poller.pid"
+    spec = orch.ChildSpec(name="poller", argv=[], native_lock=lock)
+    pidfile.write_pid(lock, os.getpid())
+    t = time.time() - 30 * 86400
+    os.utime(lock, (t, t))
+    assert orch.child_alive(spec) is False

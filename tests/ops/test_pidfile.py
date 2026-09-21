@@ -1,4 +1,5 @@
 import os
+import time
 from pathlib import Path
 
 from scripts.ops import pidfile
@@ -48,3 +49,33 @@ def test_release_lock_keeps_a_lock_held_by_a_different_pid(tmp_path):
     pidfile.write_pid(lock, 4321)
     pidfile.release_lock(lock, 9999)
     assert lock.exists() is True
+
+
+def _backdate(path: Path, seconds: float) -> None:
+    t = time.time() - seconds
+    os.utime(path, (t, t))
+
+
+def test_lock_alive_false_when_pid_was_recycled_after_the_lock_was_written(tmp_path):
+    """2026-09-21: the poller's lock named 21948 from Friday; Monday 05:03 msedge
+    got that PID, the orchestrator adopted Edge as the poller and never spawned
+    one. A holder that started AFTER its lock was written is not the holder."""
+    lock = tmp_path / "chain_poller.pid"
+    pidfile.write_pid(lock, os.getpid())
+    _backdate(lock, 30 * 86400)                   # written long before we started
+    assert pidfile.pid_alive(os.getpid()) is True
+    assert pidfile.lock_alive(lock) is False
+
+
+def test_acquire_reclaims_a_lock_whose_pid_was_recycled(tmp_path):
+    lock = tmp_path / "x.pid"
+    pidfile.write_pid(lock, os.getpid())
+    _backdate(lock, 30 * 86400)
+    assert pidfile.acquire_lock(lock) is True
+
+
+def test_process_started_at_is_before_now_for_current_process():
+    started = pidfile.process_started_at(os.getpid())
+    if started is None:
+        return                                    # platform without a start-time source
+    assert started <= time.time()

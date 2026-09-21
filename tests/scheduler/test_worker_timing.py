@@ -1,9 +1,11 @@
 import os
+import time
 import subprocess
 import sys
 from datetime import datetime
 
-from scripts.schedule_worker import _pid_alive, acquire_lock, is_due
+from scripts.ops.pidfile import pid_alive as _pid_alive
+from scripts.schedule_worker import acquire_lock, is_due
 
 MON_2000 = datetime(2026, 7, 27, 20, 0)     # Monday
 MON_1959 = datetime(2026, 7, 27, 19, 59)
@@ -71,4 +73,13 @@ def test_acquire_lock_succeeds_when_holder_pid_dead(tmp_path):
     p = subprocess.Popen([sys.executable, "-c", "pass"])
     p.wait()
     lock.write_text(str(p.pid))
+    assert acquire_lock(lock) is True
+
+
+def test_acquire_lock_reclaims_a_lock_whose_pid_was_recycled(tmp_path):
+    """A live PID that started after the lock was written is not the worker."""
+    lock = tmp_path / "_eod_worker.lock"
+    lock.write_text(str(os.getpid()))
+    t = time.time() - 30 * 86400
+    os.utime(lock, (t, t))
     assert acquire_lock(lock) is True

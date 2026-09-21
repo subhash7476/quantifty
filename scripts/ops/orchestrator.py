@@ -81,8 +81,8 @@ def child_alive(spec: ChildSpec) -> bool:
     lock = spec.native_lock or spec.pid_path
     pid = _published_pid(spec)
     if pid is None:
-        pid = pidfile.read_pid(lock) if lock else None
-    return pid is not None and pidfile.pid_alive(pid) and _status_fresh(spec)
+        return lock is not None and pidfile.lock_alive(lock) and _status_fresh(spec)
+    return pidfile.pid_alive(pid) and _status_fresh(spec)
 
 
 def spawn(spec: ChildSpec, *, popen: Callable = subprocess.Popen):
@@ -577,7 +577,7 @@ def _cmd_stop() -> int:
         if spec.pid_path is None:          # never stop natively-locked adopted daemons
             continue
         pid = pidfile.read_pid(spec.pid_path)
-        if pid and pidfile.pid_alive(pid):
+        if pid and pidfile.lock_alive(spec.pid_path):   # never taskkill a recycled PID
             stop_child(spec, _RemoteProc(pid))
             stopped += 1
     print(f"stopped {stopped} orchestrator-owned child(ren)")

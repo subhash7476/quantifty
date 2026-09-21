@@ -154,7 +154,7 @@ class MarketIngestorDaemon:
         if PID_FILE.exists():
             try:
                 pid = int(PID_FILE.read_text())
-                if pidfile.pid_alive(pid):
+                if pidfile.lock_alive(PID_FILE):
                     logger.error(f"Another instance of MarketIngestor is already running (PID: {pid})")
                     sys.exit(1)
             except (ValueError, OSError):
