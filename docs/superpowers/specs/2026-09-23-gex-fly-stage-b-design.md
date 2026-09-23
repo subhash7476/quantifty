@@ -62,16 +62,19 @@ only direct evidence about the current market**.
   GST, ₹20/order). A round trip is **8 orders**.
 - **Spread:** half of a **2 %** relative spread paid per leg on entry and on exit (the seller-edge study's
   convention). Descriptive: 1 % and 4 %, and the break-even spread at which net mean P&L reaches zero.
-- **Lot size:** a pinned NIFTY table (per unit, brokerage = ₹20 ÷ lot). Values must be verified against NSE circulars
-  **before** any P&L is computed (plan task 1); the table below is the starting hypothesis:
+- **Lot size:** keyed by **contract expiry** (not trade date), verified 2026-09-23 from `futures_bhavcopy`
+  (value ÷ (contracts × price)) and confirmed on `options_bhavcopy` weeklies (75 through expiry 2021-07-22, 50 from
+  2021-07-29). Per unit, brokerage = ₹20 ÷ lot. Monthly-series change points:
 
-  | from | lot |
+  | first expiry | lot |
   |---|--:|
-  | 2015-11-01 | 75 |
-  | 2021-07-30 | 50 |
-  | 2024-04-26 | 25 |
-  | 2024-11-20 | 75 |
-  | 2025-12-30 | 65 |
+  | 2016-02-25 | 75 |
+  | 2021-07-29 | 50 |
+  | 2024-06-27 | 25 |
+  | 2025-02-27 | 75 |
+  | 2026-01-27 | 65 |
+
+  B1 uses only 75 / 50. Weekly-series change points after 2023 must be re-verified from the options chain before B3.
 
 ## 6. P&L unit
 
