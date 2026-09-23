@@ -12,18 +12,27 @@ credit/width check (scratch script over the same B1 trades; no new window read).
 sealed read. Per the interpretation rule (spec §2) this is a statement about that window, not about the construct in
 today's market.
 
-## 2. What the numbers say
+## 2. What the numbers say — the constraint is effect size, not cost
 
-- **N does carry into the trade — just not enough.** Stop rule 2 does *not* fire: gated −0.75 vs ungated −1.23;
-  mean R −0.054 vs −0.097; max drawdown −10.1 vs −21.8 risk units. That is Stage A's finding showing up in P&L.
-- **Costs are the binding constraint, by a wide margin.** Gross mean R ≈ +0.015 per trade (§3); fees 0.027 plus spread
-  0.043 per trade (≈ 0.069) are ~4.5× the gross. **Break-even spread is −0.5 %** — fees alone exceed the gross edge,
-  so no spread assumption rescues it. Short holds (2.7 sessions, 8 orders per round trip) make this structural.
-- **Exits were regime- and time-driven:** 62 regime, 74 time, 6 profit, 0 stop.
-- **Descriptive structures** (not part of the rule): the N-gated unhedged straddle is the only positive one
-  (Sharpe +0.15, break-even spread 3.1 %) but with a −20.0 drawdown and unlimited risk; the condor is −0.27.
-  This matches the seller-edge study's pattern: the wings' cost is paid every trade, the tail they insure rarely arrives
-  within a 3-session hold.
+Decomposition on the same 142 B1 trades (scratch re-simulation with costs zeroed; no new window read):
+
+| run | Sharpe, zero costs | Sharpe, zero fees, spread 0.5 % / 1 % | gross mean R | brokerage+GST R / trade |
+|---|--:|--:|--:|--:|
+| fly, N-gated (primary) | **+0.22** | +0.07 / −0.08 | +0.015 | 0.023 (of 0.027 total fees) |
+| fly, ungated | −0.35 | −0.49 / −0.63 | −0.028 | 0.022 |
+| straddle, N-gated (descriptive) | +0.54 | +0.47 / +0.40 | +0.113 | 0.019 |
+
+- **Even at zero cost the gated fly is nowhere near demonstrable.** Power 0.80 at one-sided α 0.05 needs
+  years ≈ (2.49 / S)²: **≈ 128 years at S 0.22**; the confirmation window is ≈ 3.7. The RFA's ~1.3 bar is out of
+  reach at *any* cost assumption, so reducing costs (more lots per order, tighter NIFTY spreads than the 2 % stock-option
+  convention) cannot change the outcome. This is the SFB-1 / RFA demonstrability wall, not the PSB fee wall.
+- **N does carry into the trade.** Ungated, the fly is negative *before* costs (−0.35); gating on N turns it positive
+  (+0.22). Stage A's finding is visible in P&L — the effect is simply small relative to the fly's P&L noise.
+- **Fees are mostly flat brokerage:** ₹20 × 8 orders × 1.18 GST on a single lot is 0.023 of the 0.027 R per trade;
+  statutory charges are ~0.004. That explains the negative break-even spread but, per the first bullet, not the verdict.
+- **Exits were regime- and time-driven:** 62 regime, 74 time, 6 profit, 0 stop (§3).
+- The N-gated unhedged straddle (descriptive) is the strongest gross (+0.54) but has unlimited risk and a −20.0
+  drawdown, and would still need ≈ 21 years for power 0.80.
 
 ## 3. Disclosed spec error — the stop rule was unreachable
 
@@ -38,10 +47,9 @@ the ratio on the structure before pinning.
 
 ## 4. What remains open
 
-- **Forward paper is still permitted** (spec §2, §7) and is the only evidence about today's market — but B1 gives no
-  reason to expect it to clear fees at this holding period.
-- A construct that could plausibly survive would need **far fewer round trips per unit of edge** (longer holds, fewer
-  legs) — that is a new design with its own pre-registration, not a Stage B variant. The cost wall is the same one
-  PSB-1/PSB-2 hit in cash equity, here in options: short-horizon edges of a few bp per day do not survive 8 orders.
-- Stage A stands on its own: N predicts next-day realized vs implied. It is a real descriptive fact whose P&L
-  expression at a ~3-session fly horizon is not demonstrated.
+- **Forward paper is permitted but is not a live path to proof:** at S ≈ 0.2 it would need on the order of a century.
+  Paper could only *disprove* quickly, and B1 already gives no reason to expect a positive result.
+- Any successor is a new pre-registration and must clear the RFA arithmetic **first**, on a gross Sharpe band that is
+  independently defended — bigger size or a different wing choice does not move a 0.2 gross Sharpe to 1.3.
+- Stage A stands on its own: N predicts next-day realized vs implied, and it measurably improves the fly's P&L. Its
+  size is what is not tradeable-demonstrable on the available history.

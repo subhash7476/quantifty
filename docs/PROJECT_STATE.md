@@ -237,7 +237,7 @@
 
 ## In Progress
 
-- **GEX regime Stage A** (`research/options-hedging-scenarios`) — does NIFTY EOD gamma regime predict next-day RV vs implied (HedgeWall claim 3)? **Stage A PASS** — TRAIN b −1.19 (t −3.20), HOLDOUT b −1.40 (t −2.65); 2023+ unread. Stage B (N-gated iron fly) **B1 STOP** — net Sharpe −0.75 on 2019–22, costs ~4.5× gross; not demonstrated on that window; no RFA, 2023+ still unread. *(GEX_FLY_B1_REVIEW.md)* *(GEX_REGIME_STAGE_A_TRAIN_REVIEW.md)*
+- **GEX regime Stage A** (`research/options-hedging-scenarios`) — does NIFTY EOD gamma regime predict next-day RV vs implied (HedgeWall claim 3)? **Stage A PASS** — TRAIN b −1.19 (t −3.20), HOLDOUT b −1.40 (t −2.65); 2023+ unread. Stage B (N-gated iron fly) **B1 STOP** — net Sharpe −0.75 on 2019–22, gross (zero-cost) Sharpe only +0.22 — not demonstrable at any cost; not demonstrated on that window; no RFA, 2023+ still unread. *(GEX_FLY_B1_REVIEW.md)* *(GEX_REGIME_STAGE_A_TRAIN_REVIEW.md)*
 - **Nothing currently in active development.** The research pipeline is fully evaluated — 7 sleeve constructs tested, 1 production-ready (Carry), 1 de-authorized PAPER-candidate (TS Basis), 5 dead (IVOL, Trend, Skew, LAG, Flow). The 2023-2026 sealed window is fully spent. No successor to C2 is authorized. F1 returned NO-GO. The next step requires a new pre-registered construct cleared through RFA power pre-check, or a PAPER-mode activation of TS Basis to resolve its de-authorization. The platform infrastructure (LoopDriver, execution, margin, telemetry, backtest UI) is feature-complete. The substrate (futures-spot join 100%, gaps G1–G5 closed, futures bhavcopy ingested) is complete.
 
 ## Planned
