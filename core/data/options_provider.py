@@ -550,18 +550,16 @@ class OptionsProvider:
                 if result and result[0]:
                     self._expiry_memo[memo_key] = result[0]
                     return result[0]
-            except Exception:
-                pass
-        
-        # Fallback to calculated expiry
+            except duckdb.Error as e:
+                logger.error("[OptionsProvider] expiry lookup failed for '%s': %s "
+                             "— using calculated weekday expiry", index_name, e)
+
+        # Calculated fallback. Not memoised: a transient master lock must not
+        # pin the wrong expiry for the rest of the session (2026-09-22).
         as_of = as_of_date or date.today()
         expiry_weekday = self.EXPIRY_WEEKDAY.get(underlying, 1)
-        target = as_of + timedelta(days=1)
-        days_ahead = (expiry_weekday - target.weekday()) % 7
-        expiry = target + timedelta(days=days_ahead)
-        resolved = expiry.strftime("%Y-%m-%d")
-        self._expiry_memo[memo_key] = resolved
-        return resolved
+        days_ahead = (expiry_weekday - as_of.weekday()) % 7
+        return (as_of + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
     
     def get_available_expiries(
         self,
@@ -619,16 +617,21 @@ class OptionsProvider:
         """Current lot size for an underlying symbol (e.g. 'NSE_INDEX|Nifty 50').
 
         Maps the symbol to the instrument-master name and reads the master.
-        Cached per process — lot sizes change at most on an exchange revision,
-        which a poller restart picks up on the next day's master snapshot.
+        Cached per process once the master answers — lot sizes change at most on
+        an exchange revision, which a poller restart picks up on the next day's
+        master snapshot. The 75 fallback is never cached.
         """
         if not hasattr(self, "_lot_cache"):
             self._lot_cache = {}
-        if underlying_key not in self._lot_cache:
-            name = next((k for k, v in self.UNDERLYING_MAP.items()
-                         if v == underlying_key), None)
-            self._lot_cache[underlying_key] = self.get_lot_size(name) if name else 75
-        return self._lot_cache[underlying_key]
+        if underlying_key in self._lot_cache:
+            return self._lot_cache[underlying_key]
+        name = next((k for k, v in self.UNDERLYING_MAP.items()
+                     if v == underlying_key), None)
+        lot = self._master_lot_size(name) if name else None
+        if lot is None:
+            return 75  # not cached: a transient master lock must not pin it (2026-09-22)
+        self._lot_cache[underlying_key] = lot
+        return lot
 
     def get_lot_size(self, index_name: str) -> int:
         """Get lot size for an index from instrument master.
@@ -637,17 +640,22 @@ class OptionsProvider:
         each time, so a name-map drift or a missing master never silently
         reinstates the stale-75 bug this method exists to prevent.
         """
+        lot = self._master_lot_size(index_name)
+        return 75 if lot is None else lot
+
+    def _master_lot_size(self, index_name: str) -> Optional[int]:
+        """Lot size from the latest master snapshot, or None (logged) if it can't answer."""
         name_map = {"NIFTY": "NIFTY", "BANKNIFTY": "BANKNIFTY", "SENSEX": "SENSEX"}
         name = name_map.get(index_name.upper())
         if not name:
             logger.error("[OptionsProvider] lot_size: no master name for '%s' "
                          "— falling back to 75", index_name)
-            return 75
+            return None
 
         if not INSTRUMENT_DB_PATH.exists():
             logger.error("[OptionsProvider] lot_size: instrument master missing at "
                          "%s — falling back to 75", INSTRUMENT_DB_PATH)
-            return 75
+            return None
 
         try:
             conn = duckdb.connect(str(INSTRUMENT_DB_PATH), read_only=True)
@@ -662,11 +670,11 @@ class OptionsProvider:
                 return result[0]
             logger.error("[OptionsProvider] lot_size: no row for '%s' in latest "
                          "master snapshot — falling back to 75", name)
-            return 75
+            return None
         except Exception as e:
             logger.error("[OptionsProvider] lot_size lookup failed for '%s': %s "
                          "— falling back to 75", name, e)
-            return 75
+            return None
 
     def get_expiry_list(
         self,
