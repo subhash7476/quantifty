@@ -4,6 +4,12 @@
 **Parent:** `docs/reports/HEDGEWALL_POSITIONING_REVIEW_2026-09-23.md` §2 claim 3
 **Status:** DESIGN — frozen at commit; the prediction in §7 is written before any outcome is read.
 
+> **Implementation notes (2026-09-23, before any run):** (1) `implied_vol()` exists only on the ptms branch, not on
+> this one — `core/analytics/gex_history.py` carries its own `brentq` solver over the existing `bs_price`, bracket
+> [0.01, 3.0] as in §4.5. (2) Reports are written per window — `GEX_REGIME_STAGE_A_TRAIN.md`, then
+> `GEX_REGIME_STAGE_A_HOLDOUT.md`; the HOLDOUT run refuses unless the TRAIN report records PASS. (3) An outcome
+> day t+1 outside the window drops t, so no fit reads a bar outside its own window.
+
 ## 1. Purpose
 
 The operator's end goal is an iron fly whose management (lock profits / reposition on a move) is driven by
