@@ -1,0 +1,603 @@
+{
+ "built_at": "2026-09-18T12:33:07Z",
+ "records": [
+  {
+   "attempts": [
+    {
+     "connection_reused": false,
+     "headers": {
+      "content-length": "252",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:03 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "79",
+      "x-typesafe-request-id": "req_01a0b4818e327eebaad7061b0b9d9a64"
+     },
+     "latency_ms": 970.7,
+     "outcome": "http",
+     "request_id": "req_01a0b4818e327eebaad7061b0b9d9a64",
+     "request_sent_at": "2026-09-18T12:33:03.513Z",
+     "response_received_at": "2026-09-18T12:33:04.484Z",
+     "status": 200,
+     "upstream_ms": "79"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "5be1980163ee8965f751b141e7467b5efe524c99fa0986e2551c77b31b7003ec",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":45,\"gap_bp\":41.1,\"ret_open_bp\":-12.6,\"ret_15_bp\":-7.5,\"ret_30_bp\":-9.6,\"rv_30_bp\":27.8,\"range_30_bp\":27.0,\"er_30\":0.082,\"twap_dist_bp\":-7.8},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "5be1980163ee8965f751b141e7467b5efe524c99fa0986e2551c77b31b7003ec",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"trending_down\",\"confidence\":0.54,\"probabilities\":{\"range_bound\":0.2,\"trending_up\":0.01,\"disorderly\":0.13,\"trending_down\":0.66}}},\"usage\":{\"input_tokens\":794,\"output_tokens\":56}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2023-03-22|10:00",
+   "state_as_of": {
+    "last_bar": "2023-03-22 09:59",
+    "payload_built_at": "2026-09-18T12:33:03.513Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "trending_down",
+    "confidence": 0.54,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.13,
+     "range_bound": 0.2,
+     "trending_down": 0.66,
+     "trending_up": 0.01
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 794,
+     "output_tokens": 56
+    },
+    "valid": true
+   }
+  },
+  {
+   "attempts": [
+    {
+     "connection_reused": true,
+     "headers": {
+      "content-length": "253",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:04 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "81",
+      "x-typesafe-request-id": "req_01a0b4818f8775558bc56bceeaf9a8f0"
+     },
+     "latency_ms": 349.0,
+     "outcome": "http",
+     "request_id": "req_01a0b4818f8775558bc56bceeaf9a8f0",
+     "request_sent_at": "2026-09-18T12:33:04.485Z",
+     "response_received_at": "2026-09-18T12:33:04.834Z",
+     "status": 200,
+     "upstream_ms": "81"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "a224d21c75929855810d8212f936c6f100f0b4ebafc3054167f91d540e733f14",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":315,\"gap_bp\":41.1,\"ret_open_bp\":-28.2,\"ret_15_bp\":-7.6,\"ret_30_bp\":-3.9,\"rv_30_bp\":12.4,\"range_30_bp\":13.1,\"er_30\":0.073,\"twap_dist_bp\":-8.3},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "a224d21c75929855810d8212f936c6f100f0b4ebafc3054167f91d540e733f14",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"trending_down\",\"confidence\":0.49,\"probabilities\":{\"trending_down\":0.63,\"range_bound\":0.31,\"trending_up\":0.01,\"disorderly\":0.05}}},\"usage\":{\"input_tokens\":795,\"output_tokens\":56}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2023-03-22|14:30",
+   "state_as_of": {
+    "last_bar": "2023-03-22 14:29",
+    "payload_built_at": "2026-09-18T12:33:04.485Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "trending_down",
+    "confidence": 0.49,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.05,
+     "range_bound": 0.31,
+     "trending_down": 0.63,
+     "trending_up": 0.01
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 795,
+     "output_tokens": 56
+    },
+    "valid": true
+   }
+  },
+  {
+   "attempts": [
+    {
+     "connection_reused": true,
+     "headers": {
+      "content-length": "252",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:05 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "149",
+      "x-typesafe-request-id": "req_01a0b48190ee7098ba8f265e636a9141"
+     },
+     "latency_ms": 411.3,
+     "outcome": "http",
+     "request_id": "req_01a0b48190ee7098ba8f265e636a9141",
+     "request_sent_at": "2026-09-18T12:33:04.834Z",
+     "response_received_at": "2026-09-18T12:33:05.245Z",
+     "status": 200,
+     "upstream_ms": "149"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "d41653db8e5a1d31ce137ce6d4f312d6073847bc20e6e0feaca2a4a245405275",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":45,\"gap_bp\":-24.6,\"ret_open_bp\":-19.6,\"ret_15_bp\":-2.1,\"ret_30_bp\":-1.3,\"rv_30_bp\":12.8,\"range_30_bp\":12.6,\"er_30\":0.024,\"twap_dist_bp\":-2.2},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "d41653db8e5a1d31ce137ce6d4f312d6073847bc20e6e0feaca2a4a245405275",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"trending_down\",\"confidence\":0.58,\"probabilities\":{\"trending_up\":0.0,\"trending_down\":0.69,\"disorderly\":0.09,\"range_bound\":0.22}}},\"usage\":{\"input_tokens\":795,\"output_tokens\":56}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2023-05-31|10:00",
+   "state_as_of": {
+    "last_bar": "2023-05-31 09:59",
+    "payload_built_at": "2026-09-18T12:33:04.834Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "trending_down",
+    "confidence": 0.58,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.09,
+     "range_bound": 0.22,
+     "trending_down": 0.69,
+     "trending_up": 0.0
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 795,
+     "output_tokens": 56
+    },
+    "valid": true
+   }
+  },
+  {
+   "attempts": [
+    {
+     "connection_reused": true,
+     "headers": {
+      "content-length": "251",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:05 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "90",
+      "x-typesafe-request-id": "req_01a0b4819281799ba0578f1d8ae283b4"
+     },
+     "latency_ms": 352.9,
+     "outcome": "http",
+     "request_id": "req_01a0b4819281799ba0578f1d8ae283b4",
+     "request_sent_at": "2026-09-18T12:33:05.246Z",
+     "response_received_at": "2026-09-18T12:33:05.599Z",
+     "status": 200,
+     "upstream_ms": "90"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "7b6079f23eb29c18b54d6c87b14ed94d22d9712c21596c349b3512c06b756fd1",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":315,\"gap_bp\":-24.6,\"ret_open_bp\":-34.2,\"ret_15_bp\":11.3,\"ret_30_bp\":5.6,\"rv_30_bp\":10.6,\"range_30_bp\":17.6,\"er_30\":0.120,\"twap_dist_bp\":1.6},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "7b6079f23eb29c18b54d6c87b14ed94d22d9712c21596c349b3512c06b756fd1",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"range_bound\",\"confidence\":0.36,\"probabilities\":{\"trending_down\":0.13,\"trending_up\":0.19,\"disorderly\":0.16,\"range_bound\":0.52}}},\"usage\":{\"input_tokens\":793,\"output_tokens\":55}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2023-05-31|14:30",
+   "state_as_of": {
+    "last_bar": "2023-05-31 14:29",
+    "payload_built_at": "2026-09-18T12:33:05.246Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "range_bound",
+    "confidence": 0.36,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.16,
+     "range_bound": 0.52,
+     "trending_down": 0.13,
+     "trending_up": 0.19
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 793,
+     "output_tokens": 55
+    },
+    "valid": true
+   }
+  },
+  {
+   "attempts": [
+    {
+     "connection_reused": true,
+     "headers": {
+      "content-length": "253",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:05 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "91",
+      "x-typesafe-request-id": "req_01a0b48193e371a3b2c43abdd6fd759a"
+     },
+     "latency_ms": 354.0,
+     "outcome": "http",
+     "request_id": "req_01a0b48193e371a3b2c43abdd6fd759a",
+     "request_sent_at": "2026-09-18T12:33:05.599Z",
+     "response_received_at": "2026-09-18T12:33:05.953Z",
+     "status": 200,
+     "upstream_ms": "91"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "15982d054ba360c6f63c2bf54127c245f0b9bdb29c93037da562f53b4e874965",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":45,\"gap_bp\":17.0,\"ret_open_bp\":-41.1,\"ret_15_bp\":-3.1,\"ret_30_bp\":-26.1,\"rv_30_bp\":18.8,\"range_30_bp\":32.3,\"er_30\":0.299,\"twap_dist_bp\":-18.3},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "15982d054ba360c6f63c2bf54127c245f0b9bdb29c93037da562f53b4e874965",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"trending_down\",\"confidence\":0.54,\"probabilities\":{\"trending_down\":0.65,\"trending_up\":0.01,\"range_bound\":0.17,\"disorderly\":0.17}}},\"usage\":{\"input_tokens\":796,\"output_tokens\":56}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2023-09-28|10:00",
+   "state_as_of": {
+    "last_bar": "2023-09-28 09:59",
+    "payload_built_at": "2026-09-18T12:33:05.599Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "trending_down",
+    "confidence": 0.54,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.17,
+     "range_bound": 0.17,
+     "trending_down": 0.65,
+     "trending_up": 0.01
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 796,
+     "output_tokens": 56
+    },
+    "valid": true
+   }
+  },
+  {
+   "attempts": [
+    {
+     "connection_reused": true,
+     "headers": {
+      "content-length": "252",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:05 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "61",
+      "x-typesafe-request-id": "req_01a0b48195457bc691ce8508521f2b0c"
+     },
+     "latency_ms": 325.3,
+     "outcome": "http",
+     "request_id": "req_01a0b48195457bc691ce8508521f2b0c",
+     "request_sent_at": "2026-09-18T12:33:05.954Z",
+     "response_received_at": "2026-09-18T12:33:06.280Z",
+     "status": 200,
+     "upstream_ms": "61"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "cc006fab29f1a60e354860698a4123296821b5add4df44b0d161a6f8c42ef82e",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":315,\"gap_bp\":17.0,\"ret_open_bp\":-109.8,\"ret_15_bp\":-2.8,\"ret_30_bp\":-6.9,\"rv_30_bp\":12.8,\"range_30_bp\":19.6,\"er_30\":0.123,\"twap_dist_bp\":-49.9},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "cc006fab29f1a60e354860698a4123296821b5add4df44b0d161a6f8c42ef82e",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"trending_down\",\"confidence\":0.59,\"probabilities\":{\"disorderly\":0.06,\"range_bound\":0.23,\"trending_down\":0.7,\"trending_up\":0.01}}},\"usage\":{\"input_tokens\":797,\"output_tokens\":56}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2023-09-28|14:30",
+   "state_as_of": {
+    "last_bar": "2023-09-28 14:29",
+    "payload_built_at": "2026-09-18T12:33:05.954Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "trending_down",
+    "confidence": 0.59,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.06,
+     "range_bound": 0.23,
+     "trending_down": 0.7,
+     "trending_up": 0.01
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 797,
+     "output_tokens": 56
+    },
+    "valid": true
+   }
+  },
+  {
+   "attempts": [
+    {
+     "connection_reused": true,
+     "headers": {
+      "content-length": "250",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:05 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "135",
+      "x-typesafe-request-id": "req_01a0b481968b7aba8d5e0a8ac4f142ca"
+     },
+     "latency_ms": 397.5,
+     "outcome": "http",
+     "request_id": "req_01a0b481968b7aba8d5e0a8ac4f142ca",
+     "request_sent_at": "2026-09-18T12:33:06.280Z",
+     "response_received_at": "2026-09-18T12:33:06.678Z",
+     "status": 200,
+     "upstream_ms": "135"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "b1455e1a23fae950c539ef600daa0bd402fb88d8a0f2d91876757c1b8ceab6cf",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":45,\"gap_bp\":34.6,\"ret_open_bp\":-22.6,\"ret_15_bp\":0.8,\"ret_30_bp\":-2.2,\"rv_30_bp\":19.5,\"range_30_bp\":20.5,\"er_30\":0.029,\"twap_dist_bp\":-1.4},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "b1455e1a23fae950c539ef600daa0bd402fb88d8a0f2d91876757c1b8ceab6cf",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"range_bound\",\"confidence\":0.44,\"probabilities\":{\"range_bound\":0.57,\"disorderly\":0.32,\"trending_up\":0.01,\"trending_down\":0.1}}},\"usage\":{\"input_tokens\":793,\"output_tokens\":55}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2024-07-11|10:00",
+   "state_as_of": {
+    "last_bar": "2024-07-11 09:59",
+    "payload_built_at": "2026-09-18T12:33:06.280Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "range_bound",
+    "confidence": 0.44,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.32,
+     "range_bound": 0.57,
+     "trending_down": 0.1,
+     "trending_up": 0.01
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 793,
+     "output_tokens": 55
+    },
+    "valid": true
+   }
+  },
+  {
+   "attempts": [
+    {
+     "connection_reused": true,
+     "headers": {
+      "content-length": "251",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:06 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "118",
+      "x-typesafe-request-id": "req_01a0b481981a775597038e7ad16df0c1"
+     },
+     "latency_ms": 388.9,
+     "outcome": "http",
+     "request_id": "req_01a0b481981a775597038e7ad16df0c1",
+     "request_sent_at": "2026-09-18T12:33:06.678Z",
+     "response_received_at": "2026-09-18T12:33:07.067Z",
+     "status": 200,
+     "upstream_ms": "118"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "7bdbbca1c0a0c8790bb41aea3667ad950c71b42da1f71fd01aa515f1f534e84e",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":315,\"gap_bp\":34.6,\"ret_open_bp\":-34.6,\"ret_15_bp\":2.3,\"ret_30_bp\":-0.6,\"rv_30_bp\":9.6,\"range_30_bp\":14.1,\"er_30\":0.016,\"twap_dist_bp\":9.5},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "7bdbbca1c0a0c8790bb41aea3667ad950c71b42da1f71fd01aa515f1f534e84e",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"range_bound\",\"confidence\":0.67,\"probabilities\":{\"disorderly\":0.15,\"trending_down\":0.04,\"range_bound\":0.75,\"trending_up\":0.06}}},\"usage\":{\"input_tokens\":792,\"output_tokens\":55}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2024-07-11|14:30",
+   "state_as_of": {
+    "last_bar": "2024-07-11 14:29",
+    "payload_built_at": "2026-09-18T12:33:06.678Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "range_bound",
+    "confidence": 0.67,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.15,
+     "range_bound": 0.75,
+     "trending_down": 0.04,
+     "trending_up": 0.06
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 792,
+     "output_tokens": 55
+    },
+    "valid": true
+   }
+  },
+  {
+   "attempts": [
+    {
+     "connection_reused": true,
+     "headers": {
+      "content-length": "251",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:06 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "136",
+      "x-typesafe-request-id": "req_01a0b481999f709599067d6f50102e18"
+     },
+     "latency_ms": 398.0,
+     "outcome": "http",
+     "request_id": "req_01a0b481999f709599067d6f50102e18",
+     "request_sent_at": "2026-09-18T12:33:07.067Z",
+     "response_received_at": "2026-09-18T12:33:07.465Z",
+     "status": 200,
+     "upstream_ms": "136"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "d817e52e1cab2cd15e0b451c250596ae57b5a22dae96faa75d7442c181f2432d",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":45,\"gap_bp\":-20.2,\"ret_open_bp\":17.0,\"ret_15_bp\":1.6,\"ret_30_bp\":1.7,\"rv_30_bp\":9.3,\"range_30_bp\":12.4,\"er_30\":0.043,\"twap_dist_bp\":2.6},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "d817e52e1cab2cd15e0b451c250596ae57b5a22dae96faa75d7442c181f2432d",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"range_bound\",\"confidence\":0.53,\"probabilities\":{\"disorderly\":0.11,\"trending_down\":0.07,\"range_bound\":0.65,\"trending_up\":0.17}}},\"usage\":{\"input_tokens\":790,\"output_tokens\":55}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2024-09-25|10:00",
+   "state_as_of": {
+    "last_bar": "2024-09-25 09:59",
+    "payload_built_at": "2026-09-18T12:33:07.067Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "range_bound",
+    "confidence": 0.53,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.11,
+     "range_bound": 0.65,
+     "trending_down": 0.07,
+     "trending_up": 0.17
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 790,
+     "output_tokens": 55
+    },
+    "valid": true
+   }
+  },
+  {
+   "attempts": [
+    {
+     "connection_reused": true,
+     "headers": {
+      "content-length": "251",
+      "content-type": "application/json",
+      "date": "Fri, 18 Sep 2026 12:33:07 GMT",
+      "server": "istio-envoy",
+      "x-envoy-upstream-service-time": "97",
+      "x-typesafe-request-id": "req_01a0b4819b2d79358fb6b0159ac8e510"
+     },
+     "latency_ms": 358.6,
+     "outcome": "http",
+     "request_id": "req_01a0b4819b2d79358fb6b0159ac8e510",
+     "request_sent_at": "2026-09-18T12:33:07.466Z",
+     "response_received_at": "2026-09-18T12:33:07.825Z",
+     "status": 200,
+     "upstream_ms": "97"
+    }
+   ],
+   "authoritative": true,
+   "cache": "miss_sent",
+   "key": "f6652a8f3c50e94e947722ae4fee2dcaa0d49eee9c170d29b18e598940419a62",
+   "model_requested": "jev-1.13.0",
+   "question_id": "market_state",
+   "request_bytes": "{\"model\":\"jev-1.13.0\",\"state\":{\"minutes_since_open\":315,\"gap_bp\":-20.2,\"ret_open_bp\":13.9,\"ret_15_bp\":-3.9,\"ret_30_bp\":5.6,\"rv_30_bp\":7.7,\"range_30_bp\":11.4,\"er_30\":0.180,\"twap_dist_bp\":8.7},\"questions\":{\"market_state\":{\"type\":\"choice\",\"instructions\":\"The state is a snapshot of a stock index taken during a regular trading session. It contains only information available at the moment the snapshot was taken. All returns are natural-log returns expressed in basis points (bp). Field meanings: `minutes_since_open` is the number of minutes elapsed since the session open. `gap_bp` is the return from the previous session's closing value to this session's opening value. `ret_open_bp` is the return from this session's opening value to the current value. `ret_15_bp` is the return over the most recent 15 minutes. `ret_30_bp` is the return over the most recent 30 minutes. `rv_30_bp` is the square root of the sum of squared one-minute returns over the most recent 30 minutes. `range_30_bp` is the log ratio of the highest to the lowest value over the most recent 30 minutes. `er_30` is the absolute 30-minute return divided by the sum of absolute one-minute returns over the same 30 minutes; it is 1 when every one-minute move was in the same direction and near 0 when the moves largely cancelled out. `twap_dist_bp` is the return from the average one-minute closing value since the session open to the current value. Based only on this snapshot, which description best fits the index's behavior over the next 15 minutes?\",\"criteria\":{\"trending_up\":\"A substantial net rise over the period that is mostly one-directional.\",\"trending_down\":\"A substantial net fall over the period that is mostly one-directional.\",\"range_bound\":\"No substantial one-directional move and no large back-and-forth turbulence over the period.\",\"disorderly\":\"Large movement back and forth over the period without a consistent direction.\"}}}}",
+   "request_sha256": "f6652a8f3c50e94e947722ae4fee2dcaa0d49eee9c170d29b18e598940419a62",
+   "response_raw": "{\"model\":\"jev-1.13.0\",\"answers\":{\"market_state\":{\"type\":\"choice\",\"choice\":\"range_bound\",\"confidence\":0.49,\"probabilities\":{\"disorderly\":0.15,\"range_bound\":0.62,\"trending_up\":0.04,\"trending_down\":0.19}}},\"usage\":{\"input_tokens\":791,\"output_tokens\":55}}",
+   "retries": 0,
+   "run_id": "S0-20260918T123303Z",
+   "stage": "S0",
+   "state": "2024-09-25|14:30",
+   "state_as_of": {
+    "last_bar": "2024-09-25 14:29",
+    "payload_built_at": "2026-09-18T12:33:07.466Z"
+   },
+   "template": "h15",
+   "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66",
+   "validity": {
+    "choice": "range_bound",
+    "confidence": 0.49,
+    "model": "jev-1.13.0",
+    "probabilities": {
+     "disorderly": 0.15,
+     "range_bound": 0.62,
+     "trending_down": 0.19,
+     "trending_up": 0.04
+    },
+    "probability_sum": 1.0,
+    "reason": null,
+    "usage": {
+     "input_tokens": 791,
+     "output_tokens": 55
+    },
+    "valid": true
+   }
+  }
+ ],
+ "run_id": "S0-20260918T123303Z",
+ "summary": {
+  "invalid": 0,
+  "max_abs_sum_deviation": 0.0,
+  "models": [
+   "jev-1.13.0"
+  ],
+  "probability_sums_within_1e-6": true,
+  "request_ids_captured": 10,
+  "retries": 0,
+  "scheduled": 10,
+  "schema_invalid": 0,
+  "sent": 10,
+  "timing_note": "historical call: \u00a711 t+15/t+60 timing validity applies to P only",
+  "transport_failed": 0,
+  "valid": 10
+ },
+ "transport_id": "41834de153ba4dd8e2f5a6d8a7720f1abd29e15b3a15b7c579712e905ddaaa66"
+}

@@ -1,7 +1,7 @@
 import json
 import os
-import time
 import sys
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -404,6 +404,40 @@ def test_stop_child_leaves_a_pid_file_owned_by_someone_else(tmp_path):
     pidfile.write_pid(pidp, os.getpid())          # a different, live holder
 
     orch.stop_child(spec, _StoppablePopen([]))    # pid 4321
+
+    assert pidp.exists() is True
+
+
+def test_stop_child_actually_stops_a_remote_proc(tmp_path):
+    """`stop` and adopted children stop through _RemoteProc, which had no
+    terminate(): the AttributeError was swallowed, the pidfile deleted, and the
+    process left running for the next start to duplicate (2026-09-23)."""
+    import subprocess
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    pidp = tmp_path / "flask.pid"
+    spec = orch.ChildSpec(name="flask", argv=[], pid_path=pidp)
+    pidfile.write_pid(pidp, child.pid)
+    try:
+        orch.stop_child(spec, orch._RemoteProc(child.pid))
+        assert child.wait(timeout=10) is not None
+        assert pidp.exists() is False
+    finally:
+        child.kill()
+
+
+def test_stop_child_keeps_the_pid_file_when_terminate_fails(tmp_path):
+    """A child that could not be stopped is still running; dropping its pidfile
+    hides it from the next start."""
+    class _Unstoppable(_FakePopen):
+        def terminate(self):
+            raise OSError("access denied")
+
+    pidp = tmp_path / "flask.pid"
+    spec = orch.ChildSpec(name="flask", argv=[], pid_path=pidp)
+    proc = _Unstoppable([])
+    pidfile.write_pid(pidp, proc.pid)
+
+    orch.stop_child(spec, proc)
 
     assert pidp.exists() is True
 

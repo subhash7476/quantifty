@@ -1,0 +1,108 @@
+{
+ "built_at": "2026-09-18T12:43:45Z",
+ "fence": {
+  "negative_not_refused": [],
+  "negative_probes": [
+   {
+    "reason": "2023-02-28 is not an eligible session of S0's active set ('d_fit',)",
+    "refused": true,
+    "stage": "S0",
+    "state": "2023-02-28|10:00"
+   },
+   {
+    "reason": "2023-03-01 is not an eligible session of S0's active set ('d_fit',)",
+    "refused": true,
+    "stage": "S0",
+    "state": "2023-03-01|10:00"
+   },
+   {
+    "reason": "2025-06-02 is not an eligible session of S0's active set ('d_fit',)",
+    "refused": true,
+    "stage": "S0",
+    "state": "2025-06-02|10:00"
+   },
+   {
+    "reason": "2024-06-03 is not an eligible session of development's active set ('d_eval',)",
+    "refused": true,
+    "stage": "development",
+    "state": "2024-06-03|10:00"
+   },
+   {
+    "reason": "2024-03-04 is not an eligible session of L2's active set ('d_fit', 'd_eval')",
+    "refused": true,
+    "stage": "L2",
+    "state": "2024-03-04|10:00"
+   },
+   {
+    "reason": "2026-01-05 is H-exposed: no Jev calls",
+    "refused": true,
+    "stage": "L3",
+    "state": "2026-01-05|10:00"
+   },
+   {
+    "reason": "2026-09-18 is H-exposed: no Jev calls",
+    "refused": true,
+    "stage": "development",
+    "state": "2026-09-18|10:00"
+   },
+   {
+    "reason": "2026-09-21 is a buffer/post-F1 date",
+    "refused": true,
+    "stage": "L2",
+    "state": "2026-09-21|10:00"
+   },
+   {
+    "reason": "2025-06-02 is not an eligible session of P's active set ()",
+    "refused": true,
+    "stage": "P",
+    "state": "2025-06-02|10:00"
+   },
+   {
+    "reason": "2027-01-04 is a buffer/post-F1 date",
+    "refused": true,
+    "stage": "L3",
+    "state": "2027-01-04|10:00"
+   }
+  ],
+  "planned_passed": 1750,
+  "planned_refused": []
+ },
+ "inputs": {
+  "dfit_constants_step2.json": "656ed4ddf3ee19d264c2dc8183844f329881bf14ca2e77c7dfb87e6d8bafe88d",
+  "draws_step2.json": "e4c1f3c957b49ebfcfb0915ff0f5675467a953e58a9b82546a9ba4e007733de8",
+  "eligibility_step1.json": "b5d1cd48b11667c15a3d744ebea81db7d0a11c7aa03a7e4420e2e9dc98344c77",
+  "features_step2.json": "29997617dba1888c4f66ff28da85e4ad42f3866b8b5bcd59d2b43e0404049eb3",
+  "s0_step3.json": "53113e5c0dc8805785963b01386e2b1c0628561a329ddba54480e35ae28cd308"
+ },
+ "isolation_and_disjointness": {
+  "failures": {
+   "features_disjoint": [],
+   "isolation": [],
+   "labels_disjoint": []
+  },
+  "label_checks": 13260,
+  "states": 6850
+ },
+ "jev_calls": 0,
+ "passed": true,
+ "protocol_id": "JEV-NMS-1",
+ "request_audit": {
+  "by_stage": {
+   "L2": 90,
+   "L3": 50,
+   "S0": 10,
+   "development": 1600
+  },
+  "distinct_payload_bytes": 1750,
+  "failures": [],
+  "payloads": 1750
+ },
+ "stage": "L1",
+ "started_at": "2026-09-18T12:42:05Z",
+ "templates": {
+  "h15": "9105c0f99e5697ccb8b7e7b907197f85c8ab3098b7e43ab963fc1acf7d5e6a12",
+  "h30": "4d9055e480ac69a065a316fe1fc8aff0db66a3d73acc9297ef4fe2488c91a4c7",
+  "h5": "f934648150c5e304c0414d0e0e296a9b5614d089d5fcf80db1d420ba84a8dd07",
+  "l2_year": "e94e351bbb93da701ad3d3046d5a63337c068f565b25aa0d74c90efa9f5804d0"
+ }
+}
