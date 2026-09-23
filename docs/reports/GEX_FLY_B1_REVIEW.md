@@ -40,8 +40,8 @@ The spec (§3 stop at loss ≥ 1.0 × credit) was designed on my claim that a ±
 That was wrong. On the 142 B1 trades, **credit / wing width = 0.59 (range 0.51–0.62), so max loss / credit = 0.70
 (range 0.60–0.96)** — the stop could never fire; the wings did the capping (worst trade −0.85 × credit gross).
 
-This does not drive the verdict: a stop truncates losing tails, and the gap here is cost vs. gross on the *average*
-trade (0.069 vs 0.015). Re-running with a reachable stop (e.g. 0.5 × credit) would be a post-hoc re-specification on
+This does not drive the verdict: a stop truncates losing tails, while the problem is the *average* trade's gross
+edge (+0.015 R, gross Sharpe +0.22 — §2). Re-running with a reachable stop (e.g. 0.5 × credit) would be a post-hoc re-specification on
 a read window and is **not** done. Lesson for any future spec: express stops as a fraction of **max loss**, and verify
 the ratio on the structure before pinning.
 
