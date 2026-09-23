@@ -288,7 +288,10 @@ def stop_child(spec: ChildSpec, proc, *, killer=os.kill, term_wait_s: float = SE
         try:
             proc.terminate()
         except Exception as exc:  # noqa: BLE001
+            # Still running: keep its pidfile so the next start adopts it
+            # rather than spawning a duplicate beside it.
             _logger.warning("terminating %s failed: %s", spec.name, exc)
+            return
     if spec.pid_path is not None:
         pidfile.release_lock(spec.pid_path, getattr(proc, "pid", None))
 
@@ -550,6 +553,8 @@ class _RemoteProc:
                 os.kill(self.pid, signal.SIGKILL)
             except OSError:
                 pass
+
+    terminate = kill     # Popen.terminate is TerminateProcess on Windows too
 
 
 def main(argv=None) -> int:
