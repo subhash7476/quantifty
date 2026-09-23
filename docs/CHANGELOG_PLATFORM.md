@@ -6,6 +6,10 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-09-23 — GEX fly Stage B: B1 STOP (not demonstrated on 2019–22)
+
+N-gated NIFTY ATM iron fly (±1σ wings; exits: regime N < trailing p50, T−1, 50 % profit lock), era fees + 2 % spread, 2019-02-11 → 2022-12-30: **net Sharpe −0.75**, 142 trades, mean R −0.054, every year negative → stop rule 1 fires; no RFA, no sealed read. N helps (ungated fly −1.23) but costs (~0.069 R/trade) are ~4.5× the gross (+0.015); break-even spread −0.5 %. Disclosed spec error: the 1× credit stop was unreachable (max loss ≈ 0.70 × credit). Commits `551da06`, `2ffa32e`. *(docs/reports/GEX_FLY_B1_DEV.md, GEX_FLY_B1_REVIEW.md)*
+
 ## 2026-09-23 — GEX regime Stage A: HOLDOUT PASS → Stage A PASS
 
 HOLDOUT 2020–2022, n = 743, code `c1ccd45` unchanged: **b(N) = −1.40, NW t = −2.65, one-sided p = 0.004 → PASS**; p10→p90 ≈ −22 % RV/IV; corr(N, ln VIX) −0.43. Authorizes a Stage B brainstorm only. 2023+ unread. *(docs/reports/GEX_REGIME_STAGE_A_HOLDOUT.md)*
