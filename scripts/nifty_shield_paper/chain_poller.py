@@ -62,6 +62,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from core.database.utils.market_hours import MarketHours
 from core.logging import setup_logger
+from scripts.ops import pidfile
 
 logger = setup_logger("chain_poller")
 
@@ -164,35 +165,6 @@ def _token_ok() -> bool:
     return bool(credentials.has_upstox_token and not credentials.is_token_expired)
 
 
-def _pid_alive(pid: int) -> bool:
-    """Windows-safe process liveness check — never os.kill(pid, 0) on Windows
-    (CPython maps it to TerminateProcess, which would kill the other process)."""
-    if os.name == "nt":
-        import ctypes
-        from ctypes import wintypes
-        if hasattr(ctypes, "windll"):
-            # OpenProcess(SYNCHRONIZE) returns a non-null handle for a *zombie*
-            # process, so a bare "did OpenProcess succeed" check wrongly reports a
-            # dead PID as alive and the poller refuses to restart. GetExitCodeProcess
-            # == STILL_ACTIVE is the reliable liveness test.
-            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-            STILL_ACTIVE = 259
-            handle = ctypes.windll.kernel32.OpenProcess(
-                PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-            if not handle:
-                return False
-            exit_code = wintypes.DWORD()
-            ok = ctypes.windll.kernel32.GetExitCodeProcess(
-                handle, ctypes.byref(exit_code))
-            ctypes.windll.kernel32.CloseHandle(handle)
-            return bool(ok) and exit_code.value == STILL_ACTIVE
-    try:
-        os.kill(pid, 0)
-        return True
-    except (ProcessLookupError, PermissionError, OSError):
-        return False
-
-
 def _acquire_lock(pid_path: Path) -> bool:
     """Single-instance PID lock; a stale PID file is overwritten, an alive
     instance refuses to start."""
@@ -202,7 +174,7 @@ def _acquire_lock(pid_path: Path) -> bool:
             pid = int(pid_path.read_text(encoding="utf-8").strip())
         except (ValueError, OSError):
             pid = None
-        if pid is not None and _pid_alive(pid):
+        if pid is not None and pidfile.lock_alive(pid_path):
             logger.error("another ChainPoller instance is already running "
                          "(PID %s); refusing to start", pid)
             return False

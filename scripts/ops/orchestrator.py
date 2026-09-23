@@ -522,7 +522,7 @@ def _cmd_stop() -> int:
         if spec.pid_path is None:          # never stop natively-locked adopted daemons
             continue
         pid = pidfile.read_pid(spec.pid_path)
-        if pid and pidfile.pid_alive(pid):
+        if pid and pidfile.lock_alive(spec.pid_path):   # never taskkill a recycled PID
             stop_child(spec, _RemoteProc(pid))
             stopped += 1
     print(f"stopped {stopped} orchestrator-owned child(ren)")
