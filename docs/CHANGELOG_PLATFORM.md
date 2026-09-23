@@ -6,6 +6,10 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-09-23 — GEX regime Stage A: TRAIN PASS (HedgeWall claim 3, EOD NIFTY)
+
+End-of-day NIFTY gamma regime built from `options_bhavcopy` (parity forward, OTM-leg IV, BS gamma, calls +/puts − as an assumption) and tested against next-day Parkinson RV relative to VIX-implied variance, controlling for VIX, RV5, RV20 and next-day expiry. TRAIN 2016-02-11 → 2019-12-31, n = 953: **b(N) = −1.19, NW t = −3.20 → PASS**; p10→p90 N ≈ −20 % RV/IV; corr(N, ln VIX) +0.11. 2016–18 carries it (t −3.36); 2019 is underpowered (t −0.24). HOLDOUT 2020–22 checks clean, fit **not yet run** (one-shot, operator-triggered, code frozen at `c1ccd45`); 2023+ unread. Commits `d0dac45`, `c1ccd45`, `7c0fc17`, `0222caa`. *(docs/reports/GEX_REGIME_STAGE_A_TRAIN.md, GEX_REGIME_STAGE_A_TRAIN_REVIEW.md)*
+
 ## 2026-09-11 — TS Basis Daily: post-CAS spot at the continuous close (F10), exiting names dropped (F11); F&O 1m backfill
 
 **F10.** From CAS (2026-08-03) the bhavcopy close of an F&O stock is the auction print, which is not synchronous with the futures close. On 08-31 it put 85 names at the ±3 clamp. The TS Basis Daily build now prices post-CAS spot at the last traded 1m bar before 15:15 and hard-fails on a name without one. The name → ISIN map is `instrument_master`; `symbol_isin` holds pre-split ISINs.
