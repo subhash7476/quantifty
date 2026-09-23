@@ -6,6 +6,10 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-09-23 — GEX regime Stage A: HOLDOUT PASS → Stage A PASS
+
+HOLDOUT 2020–2022, n = 743, code `c1ccd45` unchanged: **b(N) = −1.40, NW t = −2.65, one-sided p = 0.004 → PASS**; p10→p90 ≈ −22 % RV/IV; corr(N, ln VIX) −0.43. Authorizes a Stage B brainstorm only. 2023+ unread. *(docs/reports/GEX_REGIME_STAGE_A_HOLDOUT.md)*
+
 ## 2026-09-23 — GEX regime Stage A: TRAIN PASS (HedgeWall claim 3, EOD NIFTY)
 
 End-of-day NIFTY gamma regime built from `options_bhavcopy` (parity forward, OTM-leg IV, BS gamma, calls +/puts − as an assumption) and tested against next-day Parkinson RV relative to VIX-implied variance, controlling for VIX, RV5, RV20 and next-day expiry. TRAIN 2016-02-11 → 2019-12-31, n = 953: **b(N) = −1.19, NW t = −3.20 → PASS**; p10→p90 N ≈ −20 % RV/IV; corr(N, ln VIX) +0.11. 2016–18 carries it (t −3.36); 2019 is underpowered (t −0.24). HOLDOUT 2020–22 checks clean, fit **not yet run** (one-shot, operator-triggered, code frozen at `c1ccd45`); 2023+ unread. Commits `d0dac45`, `c1ccd45`, `7c0fc17`, `0222caa`. *(docs/reports/GEX_REGIME_STAGE_A_TRAIN.md, GEX_REGIME_STAGE_A_TRAIN_REVIEW.md)*

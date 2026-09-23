@@ -43,3 +43,16 @@ should be designed on the predictor, not on the narrative.
   `scripts/gex_regime/run_stage_a.py` after TRAIN is a re-specification (spec §7).
 - HOLDOUT is one-shot and operator-triggered: `python scripts/gex_regime/run_stage_a.py --window holdout`
   (it refuses unless the TRAIN report records PASS). 2023+ stays unread.
+
+## 5. HOLDOUT outcome (added after the one-shot run, code `c1ccd45` unchanged)
+
+HOLDOUT 2020-01-01 → 2022-12-31, n = 743: **b(N) = −1.40, NW t = −2.65, one-sided p = 0.004 → PASS.**
+**Stage A PASS** (spec §7). p10→p90 N ≈ −22 % RV/IV — the same magnitude as TRAIN, now on the weekly-expiry
+structure. S (t −2.63), D (t −2.68) and the close-to-close outcome (t −2.63) agree.
+
+Caveat new in HOLDOUT: corr(N, ln VIX) = −0.43 (TRAIN +0.11) — N co-moves with vol level more in this era, yet
+survives the VIX/RV controls. The ln VIX coefficient itself goes insignificant (t −0.87). No per-year HOLDOUT
+split was pre-registered, so none is run: HOLDOUT is spent. 2023+ remains unread.
+
+What this authorizes: a **Stage B brainstorm only** — an iron-fly entry/management design driven by N, then RFA,
+then pre-registration against the unread 2023+ window. The dealer-mechanism caveat in §3 still applies.
