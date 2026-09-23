@@ -117,3 +117,41 @@ def test_parsed_chain_carries_master_lot_size(multi_index_provider, key, expecte
 def test_get_lot_size_handles_sensex(multi_index_provider):
     # SENSEX was absent from the name_map → silently returned 75.
     assert multi_index_provider.get_lot_size("SENSEX") == 20
+
+
+# 2026-09-22: a transient lock on the instrument master (another process writing
+# it) made the expiry lookup fall back to `as_of + 1 day`, skipping the expiring
+# series, and the memo then held that answer for the whole session. The same
+# lock pinned NIFTY lot_size at 75 (true 65) for the day.
+
+def _lock_master_once(monkeypatch):
+    real_connect = op_mod.duckdb.connect
+    calls = {"n": 0}
+
+    def flaky_connect(path, *args, **kwargs):
+        if str(path) == str(op_mod.INSTRUMENT_DB_PATH) and calls["n"] == 0:
+            calls["n"] += 1
+            raise op_mod.duckdb.IOException("file is being used by another process")
+        return real_connect(path, *args, **kwargs)
+
+    monkeypatch.setattr(op_mod.duckdb, "connect", flaky_connect)
+
+
+def test_fallback_expiry_includes_today_on_expiry_day(tmp_path, monkeypatch):
+    monkeypatch.setattr(op_mod, "INSTRUMENT_DB_PATH", tmp_path / "missing.duckdb")
+    provider = OptionsProvider(db_path=tmp_path / "cache.duckdb", read_only=True)
+    # 2026-09-22 is a Tuesday — NIFTY's expiry day.
+    assert provider.get_weekly_expiry("NSE_INDEX|Nifty 50", date(2026, 9, 22)) == "2026-09-22"
+
+
+def test_locked_master_does_not_poison_expiry_memo(multi_index_provider, monkeypatch):
+    _lock_master_once(monkeypatch)
+    as_of = date(2026, 9, 8)  # master's only NIFTY expiry is Thu 2026-09-10
+    multi_index_provider.get_weekly_expiry("NSE_INDEX|Nifty 50", as_of)
+    assert multi_index_provider.get_weekly_expiry("NSE_INDEX|Nifty 50", as_of) == "2026-09-10"
+
+
+def test_locked_master_does_not_poison_lot_size_cache(multi_index_provider, monkeypatch):
+    _lock_master_once(monkeypatch)
+    multi_index_provider._lot_size_for_symbol("NSE_INDEX|Nifty 50")
+    assert multi_index_provider._lot_size_for_symbol("NSE_INDEX|Nifty 50") == 65
