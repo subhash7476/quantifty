@@ -1,6 +1,6 @@
 # Research Exposure & Budget Register
 
-**Status:** v2 · **Opened:** 2026-09-12 · **Last appended:** 2026-09-12 (P0.2–P0.4 complete) · **Authority:** operator ruling
+**Status:** v2 · **Opened:** 2026-09-12 · **Last appended:** 2026-09-24 (G-S1 read complete) · **Authority:** operator ruling
 PTMS-ALIGNMENT-2026-09-12 §1.
 **Purpose:** a durable, versioned, citable record of which *data surface* has been read,
 over which *window*, at which *exposure level*, by which *hypothesis family* — so that no
@@ -348,3 +348,23 @@ window must disclose that in its prior-exposure section, even if it never reads 
 | # | Surface | Window | Level | Hypothesis family | Consumer | Evidence |
 |---|---|---|---|---|---|---|
 | G-S1 | Equity EOD panel (N100 PIT, ratio-adjusted as-of-t) | 2011-03-25 → 2022-12-30 | **signal** (non-confirmatory, GR-1.4) | PTMS-Gann Stage-1 screen: GF-1, GF-4T/R8, GF-10 | scripts/ptms/gann/ (entry point run_screen.py) at 357174a | `docs/reports/ptms/PTMS_GANN_STAGE1_FREEZE_DOCUMENT_DRAFT_2026-09-19.md` + SHA-256 27640c87020e48add18f05e7c27a12517fb4648e5724648380874c2af3d1822a; report labelled NON-CONFIRMATORY; feeds no gate |
+
+**The G-S1 read is complete — 2026-09-24.** Written at the operator's explicit instruction. The screen
+ran once, under the frozen protocol, with the guard passing and the code identical to `357174a`. Panel
+content SHA-256 `06b375ef9385a8d20c1d41be02d84f32c30755eac16db7dd0c635961de3a35fd`. Evidence: blind size
+check `docs/reports/ptms/PTMS_GANN_STAGE1_SIZE_CHECK.json` at `9382720` (recorded before unblinding),
+and `docs/reports/ptms/PTMS_GANN_STAGE1_SCREEN_RESULTS.json` +
+`docs/reports/ptms/PTMS_GANN_STAGE1_SCREEN_REPORT.md` at `2de0548`. Outcome: all three primaries —
+GF-1, GF-4T/R8, GF-10 — retired on the surrogate leg; the report is labelled NON-CONFIRMATORY and
+feeds no gate.
+
+**What this spends.** The equity EOD panel over 2011-03-25 → 2022-12-30 was already signal-spent for
+this family before the read; it is now also spent by the Stage-1 hypotheses themselves, which were
+fresh at the freeze and are not any more. 2023-01-02 → 2026-09-11 was **not** read by this screen; the
+R-11 audit (2026-09-15) found it signal-spent for other reasons and the operator ruled it so on
+2026-09-19. **No unread confirmatory window was opened or consumed here**, and none remains for this
+construct family: under G-1 a construct retired on the surrogate leg may not proceed to a confirmatory
+test.
+
+*This note is prose, not a second table row, deliberately: the screen's guard requires exactly one
+committed line beginning `| G-S1 |` and refuses on a duplicate.*
