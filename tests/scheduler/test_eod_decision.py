@@ -14,9 +14,17 @@ def at(hour, minute=0):
     return datetime(2026, 7, 31, hour, minute)
 
 
-def test_futures_today_runs_the_chain():
-    d = decide(feeds(futures=TODAY), TODAY, at(20), attempt=1)
+def test_futures_and_equity_today_run_the_chain():
+    d = decide(feeds(equity=TODAY, futures=TODAY), TODAY, at(20), attempt=1)
     assert d.action == "chain"
+
+
+def test_futures_without_equity_does_not_chain():
+    # A fresh futures feed proves the market was open, but the chain consumes
+    # equity too — a stale equity feed must not yield a chain (or terminal
+    # "success"). It retries instead.
+    d = decide(feeds(futures=TODAY), TODAY, at(20), attempt=1)
+    assert d.action == "retry"
 
 
 def test_partial_feeds_without_futures_retries():
@@ -51,8 +59,15 @@ def test_attempt_cap_exhausts_before_holiday_check():
 
 
 def test_chain_wins_even_on_final_attempt():
-    d = decide(feeds(futures=TODAY), TODAY, at(23, 30), attempt=MAX_ATTEMPTS)
+    d = decide(feeds(equity=TODAY, futures=TODAY), TODAY, at(23, 30), attempt=MAX_ATTEMPTS)
     assert d.action == "chain"
+
+
+def test_equity_stale_exhausts_on_final_attempt():
+    # The chain gate must not silently fire on a stale equity feed even on the
+    # final attempt; exhaustion surfaces the failure instead.
+    d = decide(feeds(futures=TODAY), TODAY, at(23, 30), attempt=MAX_ATTEMPTS)
+    assert d.action == "exhausted"
 
 
 def test_missing_store_is_treated_as_stale():
@@ -62,5 +77,5 @@ def test_missing_store_is_treated_as_stale():
 
 
 def test_decision_carries_a_reason():
-    assert decide(feeds(futures=TODAY), TODAY, at(20), attempt=1).reason
+    assert decide(feeds(equity=TODAY, futures=TODAY), TODAY, at(20), attempt=1).reason
     assert decide(feeds(), TODAY, at(21), attempt=3).reason

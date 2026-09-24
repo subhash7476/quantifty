@@ -68,14 +68,17 @@ def probe_feeds() -> dict[str, date | None]:
 def decide(feeds: dict[str, date | None], today: date, now: datetime, attempt: int) -> Decision:
     fresh = [name for name, d in feeds.items() if d == today]
 
-    if feeds.get("futures") == today:
-        return Decision("chain", f"futures published {today}")
+    # The chain runs only on feeds the strategy layer actually consumes. Gating
+    # on futures alone made equity optional: a failed equity ingest still fired
+    # the chain and recorded terminal "success" while equity silently lagged.
+    if feeds.get("futures") == today and feeds.get("equity") == today:
+        return Decision("chain", f"futures and equity published {today}")
 
     if attempt >= MAX_ATTEMPTS:
-        return Decision("exhausted", f"no futures data after {attempt} attempts (fresh: {fresh or 'none'})")
+        return Decision("exhausted", f"chain prerequisites not met after {attempt} attempts (fresh: {fresh or 'none'})")
 
     if fresh:
-        return Decision("retry", f"trading day confirmed by {', '.join(sorted(fresh))}; futures not yet published")
+        return Decision("retry", f"trading day confirmed by {', '.join(sorted(fresh))}; futures and equity not yet both published")
 
     if now.hour >= GRACE_HOUR:
         return Decision("holiday", f"no feed published {today} by {now:%H:%M} — treating as non-trading day")
