@@ -47,7 +47,7 @@ from core.execution.options.nifty_shield_exit import NiftyShieldExitManager
 from core.execution.options.nifty_shield_groups import group_type_for
 from core.execution.options.nifty_shield_wall import shadow_record
 from core.execution.options.nifty_shield_pricing import (
-    fair_structure_credit, marked_structure_credit,
+    Bracket, fair_structure_credit, marked_structure_credit, sigma_bracket,
 )
 from core.execution.options.nifty_shield_marks import (
     MarksSourceUnavailable, OptionMarksSource, StaticMarksSource,
@@ -67,12 +67,6 @@ LEG_COUNTS: Dict[str, int] = {
     "bear_call_spread": 2,
 }
 
-
-# Structures whose loss is bounded by bought wings. The undefined ones
-# (short_straddle / short_strangle) have no structural bound, so their stop
-# stays the credit multiple -- see NiftyShieldExitManager.
-DEFINED_RISK_STRUCTURES = frozenset(
-    ("iron_fly", "bull_put_spread", "bear_call_spread"))
 
 
 def _expected_legs(structure: str) -> int:
@@ -111,6 +105,7 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         self._use_broker_margin = bool(use_broker_margin)
         self._pending: Dict[str, List[SignalEvent]] = {}
         self._closed_groups: Dict[str, str] = {}
+        self._brackets: Dict[str, Optional[Bracket]] = {}
 
     # ------------------------------------------------------------------ #
     # Public execution surface (used by the exit driver and the runner)
@@ -155,50 +150,73 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             total += sign * state.average_price * state.filled_quantity
         return total
 
-    def structure_max_loss(self, group_id: UUID) -> Optional[float]:
-        """Worst-case loss in Rs for a wing-protected structure, else None.
+    def structure_bracket(self, group_id: UUID) -> Optional[Bracket]:
+        """The structure's take-profit / stop bracket, sized from its fills.
 
-        Every short leg must be matched by a bought leg of the same option_type
-        at equal filled quantity; the widest such pair bounds the structure
-        (only one side of a fly can be breached). Derived from fills, not from
-        the declared `sl_distance`, so it tracks the margin-clamped `final_lots`
-        actually routed rather than the source's declared lots.
-
-        None means no structural bound: an undefined structure, or a defined one
-        whose wings did not all fill. A fly missing a wing is not defined-risk,
-        and a stop set to a fraction of a fabricated bound is worse than one
-        that never fires.
+        Each leg's vol is solved from its own fill price at the signal's spot
+        and DTE, and the take-profit is disabled below `tp_min_fee_multiple` x
+        the round trip (every leg opened on one side and closed on the other).
+        Fills and signal metadata are both persisted, so a restart recomputes
+        the same bracket. Cached per group and journaled once: ENTRY_BRACKET at
+        INFO, or at CRITICAL when none can be sized — the structure then has no
+        take-profit or stop, and the clock and delta gate still bound it.
         """
+        key = str(group_id)
+        if key in self._brackets:
+            return self._brackets[key]
         group = self.group_tracker.get_group(group_id)
         if group is None or not group.legs:
             return None
         md = group.legs[0].metadata
         md = getattr(md, "strategy_metadata", md)
-        if md.get("structure") not in DEFINED_RISK_STRUCTURES:
-            return None
+        exit_md = md.get("exit") or {}
+        cfg = self._strategy_cfg
+        sigma_mult = float(exit_md.get("bracket_sigma", cfg.get("bracket_sigma", 1.0)))
+        fee_mult = float(exit_md.get("tp_min_fee_multiple",
+                                     cfg.get("tp_min_fee_multiple", 3.0)))
 
-        shorts, wings = [], []
+        legs, round_trip = [], 0.0
         for leg in group.legs:
             state = self.order_tracker.get_order(leg.correlation_id)
             if state is None or not state.filled_quantity:
                 continue
-            (shorts if leg.side.value == "SELL" else wings).append(
-                (leg, float(state.filled_quantity)))
-        if not shorts:
-            return None
+            leg_md = getattr(leg.metadata, "strategy_metadata", leg.metadata)
+            qty, price = float(state.filled_quantity), float(state.average_price)
+            legs.append({"side": leg.side.value, "strike": leg_md.get("strike"),
+                         "option_type": leg_md.get("option_type"),
+                         "price": price, "qty": qty})
+            round_trip += sum(
+                option_order_fees(premium=price, quantity=int(qty), side=side,
+                                  trade_date=leg.timestamp.date()).total
+                for side in ("BUY", "SELL"))
 
-        widest = 0.0
-        for leg, qty in shorts:
-            matched = [w for w, wqty in wings
-                       if w.instrument.option_type == leg.instrument.option_type
-                       and wqty == qty]
-            if not matched:
-                return None                  # unprotected short -> not defined
-            wing = min(matched, key=lambda w: abs(w.instrument.strike
-                                                  - leg.instrument.strike))
-            widest = max(widest, abs(wing.instrument.strike
-                                     - leg.instrument.strike) * qty)
-        return widest - self.structure_credit(group_id)
+        bracket = sigma_bracket(
+            legs, spot=float(md.get("spot") or 0.0), dte_days=float(md.get("dte") or 0.0),
+            rate=float(cfg.get("risk_free_rate", 0.065)), sigma_mult=sigma_mult,
+            hold_hours=float(cfg.get("hold_hours", 2.5)),
+            session_hours=float(cfg.get("session_hours", 6.25)),
+            fee_floor_rs=fee_mult * round_trip)
+        self._brackets[key] = bracket
+        if bracket is None:
+            self._record(
+                EventType.ENTRY_BRACKET,
+                "no exit bracket could be sized: the structure has NO take-profit "
+                "or stop (hard exit and delta gate still apply)",
+                severity=Severity.CRITICAL, group_id=key,
+                reason="bracket unavailable", spot=md.get("spot"), dte=md.get("dte"),
+                filled_legs=len(legs))
+        else:
+            self._record(
+                EventType.ENTRY_BRACKET,
+                f"exit bracket: TP {bracket.tp_rs:.0f} Rs "
+                f"({'on' if bracket.tp_enabled else 'off'}), SL {bracket.sl_rs:.0f} Rs "
+                f"at +/-{sigma_mult:g} sigma = {bracket.sigma_pts:.1f} pts",
+                group_id=key, tp_rs=round(bracket.tp_rs, 2),
+                sl_rs=round(bracket.sl_rs, 2), sigma_pts=round(bracket.sigma_pts, 2),
+                leg_ivs=[round(iv, 4) for iv in bracket.leg_ivs],
+                fee_floor_rs=round(bracket.fee_floor_rs, 2),
+                tp_enabled=bracket.tp_enabled, sigma_mult=sigma_mult)
+        return bracket
 
     def close_group(self, group_id: UUID, reason: str, bar_time: datetime,
                     marks: Dict[str, float]) -> None:
@@ -715,16 +733,11 @@ class NiftyShieldExitDriver:
             leg_symbols = [leg.symbol for leg in group.legs]
             if not all(sym in marks for sym in leg_symbols):
                 continue                     # unpriced structure -> cannot decide
-            credit = handler.structure_credit(gid)
             manager = self._manager_for(group.legs[0].metadata)
             portfolio_delta = self._portfolio_delta(marks)
-            md = group.legs[0].metadata
-            md = getattr(md, "strategy_metadata", md)
-            exit_cfg = md.get("exit") or {}
             reason = manager.evaluate(
-                gid, credit, marks, timestamp, portfolio_delta=portfolio_delta,
-                max_loss=handler.structure_max_loss(gid),
-                available_decay_frac=exit_cfg.get("available_decay_frac"))
+                gid, marks, timestamp, portfolio_delta=portfolio_delta,
+                bracket=handler.structure_bracket(gid))
             if reason is not None:
                 handler.close_group(gid, reason, timestamp, marks)
         return False
@@ -775,9 +788,6 @@ class NiftyShieldExitDriver:
         if cfg_key not in self._exit_managers:
             exit_md = metadata.get("exit", {})
             cfg = {
-                "profit_target_decay_frac": exit_md.get("tp_decay_frac", 0.50),
-                "stop_loss_multiplier": exit_md.get("sl_mult", 2.0),
-                "stop_loss_max_loss_frac": exit_md.get("sl_frac", 0.50),
                 # The hard exit is a strategy parameter, not a literal: it moved
                 # to 15:35 so the structure is managed by its own TP/SL for the
                 # whole session instead of being cut at 15:15.

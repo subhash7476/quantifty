@@ -1,0 +1,33 @@
+{
+ "universe_membership": [
+  "35400",
+  "638",
+  "2012-01-31",
+  "2026-09-11"
+ ],
+ "symbol_entity_intervals": [
+  "4344",
+  "4343",
+  "3825",
+  "2026-09-11"
+ ],
+ "symbol_isin": [
+  "4425",
+  "4425"
+ ],
+ "instrument_master": [
+  "2568"
+ ],
+ "unmapped_symbols": [
+  "0"
+ ],
+ "unmapped_rows": [
+  "0"
+ ],
+ "rows_outside_intervals": [
+  "0"
+ ],
+ "multi_interval_symbols": [
+  "1"
+ ]
+}

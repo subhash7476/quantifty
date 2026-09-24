@@ -79,7 +79,13 @@ def get_date_chunks(from_date: str, to_date: str, unit: str) -> list:
     
     chunks = []
     if unit.lower() == 'minutes':
-        max_days = 29
+        # The V3 1-minute cap is one CALENDAR month, not 30 days. A 29-day
+        # delta stays inside the month whenever the window starts in a 31-day
+        # month, but overshoots from any February start (Feb 7 + 29d = Mar 8,
+        # while Feb 7 + 1 month = Mar 7) — so the API returned 400 and the
+        # chunk was skipped for exactly the Feb->Mar window, every year, for
+        # every instrument. 27 is inside one month from any start date.
+        max_days = 27
     elif unit.lower() == 'hours':
         max_days = 89
     else:

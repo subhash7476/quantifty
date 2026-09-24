@@ -128,12 +128,18 @@ def cat1_isin_symbols(session: date) -> set:
     return {f"{CAS_MARKABLE_PREFIX}{i}" for i in isins}
 
 
-def run(apply: bool) -> dict:
+def run(apply: bool, since: date | None = None) -> dict:
+    """Mark every post-CAS session, or only those on/after `since`.
+
+    `since` exists so a newly-ingested tail can be marked without re-entering
+    files that were marked in an earlier run.
+    """
+    floor = CAS_EFFECTIVE if since is None else max(CAS_EFFECTIVE, since)
     total = 0
     touched = 0
     for path in sorted(NATIVE_1M_DIR.glob("*.duckdb")):
         session = date.fromisoformat(path.stem)
-        if session < CAS_EFFECTIVE:
+        if session < floor:
             continue
         symbols = cat1_isin_symbols(session)
         if not symbols:
@@ -141,7 +147,14 @@ def run(apply: bool) -> dict:
                 f"no Cat-I symbols resolved for {session} — build the category "
                 f"table first (scripts/cas/build_cas_category.py)")
         if apply:
-            shutil.copy2(path, path.with_suffix(".duckdb.pre_cas_mark"))
+            # An existing snapshot is never overwritten: its whole value is
+            # that it predates the FIRST mark. A re-run (after a backfill
+            # re-ingests a marked session, say) would otherwise replace the
+            # pre-mark baseline with an already-marked copy, and the original
+            # state would be unrecoverable.
+            snapshot = path.with_suffix(".duckdb.pre_cas_mark")
+            if not snapshot.exists():
+                shutil.copy2(path, snapshot)
             total += mark_file(path, session, symbols)
         touched += 1
     return {"sessions": touched, "bars_flagged": total}
@@ -151,5 +164,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--apply", action="store_true",
                         help="mutate the store (snapshots each file first)")
+    parser.add_argument("--since", type=date.fromisoformat, default=None,
+                        help="only sessions on/after this date (default: all post-CAS)")
     args = parser.parse_args()
-    print(run(args.apply))
+    print(run(args.apply, args.since))

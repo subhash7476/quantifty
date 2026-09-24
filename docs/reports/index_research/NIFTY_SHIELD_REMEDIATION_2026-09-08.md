@@ -288,6 +288,37 @@ lines an operator reads to answer "what sized this?" and "what did we lose?",
 and diluting either with diagnostics destroys that signal. A first attempt did
 overload `ENTRY_MARGIN`, and an existing test correctly caught it.
 
+### 4.7 Exit bracket: take-profit and stop at spot ±1σ (2026-09-15)
+
+**Supersedes §4.1 and the stop parameters in §5.** Spec:
+`docs/superpowers/specs/2026-09-15-nifty-shield-sigma-bracket-design.md`.
+
+§4.1 made the take-profit reachable but left both exits sized in units unrelated to
+what moves an intraday hold. A 13:00 → 15:35 hold decays only 2–7% of a 2–8 DTE
+premium, so P&L is the index move. On the 2026-09-15 bear call spread the decay-based
+take-profit was **Rs 121 (8 index points, 0.08σ)** against **Rs 133** of round-trip fees,
+and the max-loss stop **Rs 3,534 (245 points, 2.4σ)** — beyond the 95th-percentile
+afternoon move of 166 points. It closed two minutes after entry for Rs 6 net
+(`NIFTY_SHIELD_TRADE_2026-09-15_EARLY_TAKE_PROFIT.md`; 09-11 was the same shape).
+
+**Change.** Execution sizes a bracket per structure from its fills: each leg's vol is
+solved from its own fill price at the signal's spot and DTE; σ over the hold is
+`spot × mean(short-leg IV) × √(hold_hours / (252 × session_hours))`; the structure is
+repriced at spot ∓ `bracket_sigma`·σ. **TP = the gain side, SL = the loss side.** TP is
+disabled below `tp_min_fee_multiple` (3.0) × round-trip fees, so straddles and iron flies
+(no gain side) are managed by the stop and the clock. No bracket — an unsolvable leg, or
+a fill with no loss side — means no TP and no SL, journaled CRITICAL (`ENTRY_BRACKET`);
+the 15:35 exit and delta gate still apply. The 2026-09-15 spread reprices to
+**TP Rs 1,424 / SL Rs 1,462**.
+
+Removed: `profit_target_decay_frac`, `stop_loss_max_loss_frac`, `stop_loss_multiplier`,
+`structures.available_decay_frac`, `structure_max_loss`. Added: `bracket_sigma = 1.0`,
+`tp_min_fee_multiple = 3.0`. Both are design choices, not fits to any trade.
+
+**Evidence to watch on forward paper:** the exit-reason mix and P&L in units of the
+journaled `sl_rs`. A stop that fires most sessions or a take-profit that never fires is
+the signal to revisit `bracket_sigma` — as a recorded decision, not a refit.
+
 ---
 
 ## 5. What was deliberately not changed
@@ -297,7 +328,7 @@ overload `ENTRY_MARGIN`, and an existing test correctly caught it.
 | The 13:00 checkpoint | The diagnostic showed it is the *only* checkpoint carrying direction (§3) |
 | `vix_skip_above = 20.0` | A hard risk limit, not a regime read — a percentile form would authorise trading at VIX 40 (§4.2) |
 | Structure selection driven by the day-type regime | The wall read is not yet validated; shadow first (§4.5) |
-| `stop_loss_multiplier` / `stop_loss_max_loss_frac` | Reachable as they stand; not implicated by the audit |
+| `stop_loss_multiplier` / `stop_loss_max_loss_frac` | Reachable as they stand; not implicated by the audit. **Replaced 2026-09-15 by the σ bracket (§4.7)** — reachable, but 29× the take-profit and beyond a 95th-percentile afternoon move |
 | The ledger mis-attribution (#1) and fee schedule (#2) | Sequenced next by operator decision — **still open, see §6** |
 | Choosing new parameters by what would have paid best over the 8 trades | That would repeat the original error in a worse form: fitting to n=8. Every replacement is a unit change, not a refit |
 
@@ -321,9 +352,12 @@ overload `ENTRY_MARGIN`, and an existing test correctly caught it.
 4. **Finding #8 — concurrent structures on overlapping strikes.** Whether
    stacking is intended is still undecided in the code.
 5. **Take-profit vs holding to the clock.** Newly askable (§4.1). Measure on
-   forward paper.
-6. **`config_hash` moved** to `07849cb19bfce652…`. Any artifact pinning the old
-   hash needs re-pinning; the previous value is in git history.
+   forward paper. **Superseded 2026-09-15 (§4.7):** two live take-profits netted
+   Rs 26 and Rs 6 because the target sat at the fee line; the question is now
+   whether a ±1σ bracket beats the clock, measured the same way.
+6. **`config_hash` moved** to `07849cb19bfce652…`, and **again on 2026-09-15** to
+   `8374e9228aa06455…` (§4.7). Any artifact pinning an old hash needs re-pinning;
+   previous values are in git history.
 7. **`vix_percentile.refresh()` must be wired into the EOD chain.**
    `percentile()` is a pure read by design — it never scans the candle store or
    writes, because doing so put minutes of file IO inside the intraday driver
@@ -402,7 +436,7 @@ the unit changed.
 | `strategies/nifty_shield_v1/facts.py` | Surfaces `vix_pctile` |
 | `scripts/daytype/publish_live_fact.py` | Publishes `vix_pctile` |
 | `scripts/daytype/vix_percentile.py` | **new** — incremental trailing-VIX cache |
-| `core/execution/options/nifty_shield_exit.py` | Decay-based take-profit |
+| `core/execution/options/nifty_shield_exit.py` | Decay-based take-profit; **σ bracket since 2026-09-15 (§4.7)** |
 | `core/execution/options/nifty_shield_pricing.py` | **new** — BS reference for the credit gate |
 | `core/execution/options/nifty_shield_wall.py` | **new** — observe-only poller read |
 | `core/execution/options/nifty_shield_handler.py` | Credit gate, shadow journal, decay wiring |

@@ -31,6 +31,7 @@ from core.execution.options.nifty_shield_handler import (
 from core.execution.options.nifty_shield_marks import (
     ChainSnapshotMarksSource, MarksSourceUnavailable, StaticMarksSource,
 )
+from core.execution.options.nifty_shield_pricing import sigma_bracket
 from core.execution.persistence.execution_store import ExecutionStore
 from core.runtime.event_journal import EventType, RuntimeEventJournal
 
@@ -56,8 +57,9 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
         "vix_reduce": False,
         "sl_distance": 100.0,
         "risk_r": 15000.0,
-        "exit": {"tp_decay_frac": 0.5, "available_decay_frac": 0.0726,
-                 "sl_mult": 2.0, "sl_frac": 0.5,
+        "spot": 18150.0,
+        "dte": 6,
+        "exit": {"bracket_sigma": 1.0, "tp_min_fee_multiple": 3.0,
                  "hard_exit": "15:35", "max_portfolio_delta": 500},
     }
     md.update(md_over)
@@ -294,26 +296,6 @@ def _enter_iron_fly(tmp_path, monkeypatch, journal=None):
     return handler
 
 
-def test_exit_driver_take_profit_closes(tmp_path, monkeypatch):
-    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
-    handler = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
-    # Shorts at 40 (profit 60 each), wings flat -> group P&L = 2 x 60 x 130.
-    profit_marks = {
-        "NIFTY10JAN2318150CE": 40.0,
-        "NIFTY10JAN2318150PE": 40.0,
-        "NIFTY10JAN2318250CE": 20.0,
-        "NIFTY10JAN2318050PE": 20.0,
-    }
-    driver = NiftyShieldExitDriver(handler,
-                                   StaticMarksSource(profit_marks))
-    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
-
-    for sym in _entry_marks():
-        pos = handler.position_tracker.get_position(sym)
-        assert pos.side.value == "FLAT"          # structure closed
-    assert handler._closed_groups[GROUP_ID] == "take_profit"
-
-
 def test_exit_driver_time_exit_at_1535(tmp_path, monkeypatch):
     handler = _enter_iron_fly(tmp_path, monkeypatch)
     driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))
@@ -430,7 +412,7 @@ def test_exit_updates_entry_keyed_trade_ledger(tmp_path, monkeypatch):
         "NIFTY10JAN2318050PE": 20.0,
     }
     driver = NiftyShieldExitDriver(handler, StaticMarksSource(profit_marks))
-    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))      # hard exit at these marks
 
     with dm.trading_reader() as conn:
         after = conn.execute(
@@ -546,85 +528,142 @@ def test_restored_closed_group_not_reopened_by_new_structure(tmp_path, monkeypat
 
 
 # --------------------------------------------------------------------------- #
-# structure_max_loss — the bound the stop is measured against, from real fills.
-# Coherent fly marks: shorts 60/58, wings 20/18 on a 100-point wing.
-# credit/unit 80 -> max_loss/unit 20; at 2 lots x 65 that is 10,400 / 2,600.
+# structure_bracket — the sigma bracket, sized from real fills (restart-safe).
+# Bull put spread, 2 lots x 65: SELL 18150PE @ 90, BUY 18000PE @ 35, spot
+# 18150, 6 DTE. Group P&L with the wing flat is (90 - short_mark) x 130.
 # --------------------------------------------------------------------------- #
-_COHERENT_FLY = {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0,
-                 "NIFTY10JAN2318250CE": 20.0, "NIFTY10JAN2318050PE": 18.0}
+_QTY = 130
+_BULL_PUT = {"NIFTY10JAN2318150PE": 90.0, "NIFTY10JAN2318000PE": 35.0}
 
 
-def _enter(tmp_path, monkeypatch, signals, marks):
-    handler = _build_handler(tmp_path, monkeypatch, marks=marks)
+def _bull_put_signals(**md_over):
+    return [_leg_signal("short_pe", "PE", 18150, SignalType.SELL,
+                        structure="bull_put_spread", **md_over),
+            _leg_signal("wing_pe", "PE", 18000, SignalType.BUY,
+                        structure="bull_put_spread", **md_over)]
+
+
+def _enter(tmp_path, monkeypatch, signals, marks, journal=None):
+    handler = _build_handler(tmp_path, monkeypatch, marks=marks, journal=journal)
     for s in signals:
         handler.process_signal(s, 24000.0)
     return handler
 
 
-def test_structure_max_loss_is_wing_width_less_credit(tmp_path, monkeypatch):
-    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
+def _expected_bull_put_bracket():
+    from core.execution.options.fees import option_order_fees
+    legs = [{"side": "SELL", "strike": 18150.0, "option_type": "PE",
+             "price": 90.0, "qty": _QTY},
+            {"side": "BUY", "strike": 18000.0, "option_type": "PE",
+             "price": 35.0, "qty": _QTY}]
+    # every leg is opened on one side and closed on the other
+    round_trip = sum(option_order_fees(premium=leg["price"], quantity=_QTY, side=side,
+                                       trade_date=FIXED_DT.date()).total
+                     for leg in legs for side in ("BUY", "SELL"))
+    return sigma_bracket(legs, spot=18150.0, dte_days=6,
+                         rate=DEFAULT_CONFIG["risk_free_rate"], sigma_mult=1.0,
+                         hold_hours=2.5, session_hours=6.25,
+                         fee_floor_rs=3.0 * round_trip)
+
+
+def _short_mark_for_pnl(pnl_rs: float) -> dict:
+    return {**_BULL_PUT, "NIFTY10JAN2318150PE": 90.0 - pnl_rs / _QTY}
+
+
+def _journal_events(tmp_path):
+    return [json.loads(l) for l in
+            (tmp_path / "journal.jsonl").read_text().splitlines() if l.strip()]
+
+
+def test_structure_bracket_is_the_sigma_bracket_of_the_fills(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _bull_put_signals(), _BULL_PUT)
     gid = handler.open_nifty_shield_groups()[0]
-    assert handler.structure_credit(gid) == pytest.approx(10_400.0)
-    assert handler.structure_max_loss(gid) == pytest.approx(2_600.0)
+    expected = _expected_bull_put_bracket()
+    got = handler.structure_bracket(gid)
+    assert got.tp_rs == pytest.approx(expected.tp_rs)
+    assert got.sl_rs == pytest.approx(expected.sl_rs)
+    assert got.fee_floor_rs == pytest.approx(expected.fee_floor_rs)
+    assert got.tp_enabled is True
 
 
-def test_structure_max_loss_is_none_for_undefined_structure(tmp_path, monkeypatch):
-    signals = [_leg_signal("short_ce", "CE", 18150, SignalType.SELL,
-                           structure="short_straddle"),
-               _leg_signal("short_pe", "PE", 18150, SignalType.SELL,
-                           structure="short_straddle")]
-    handler = _enter(tmp_path, monkeypatch, signals,
-                     {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0})
+def test_structure_bracket_is_identical_after_restart(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _bull_put_signals(), _BULL_PUT)
     gid = handler.open_nifty_shield_groups()[0]
-    assert handler.structure_max_loss(gid) is None
+    before = handler.structure_bracket(gid)
+
+    restored = _build_handler(tmp_path, monkeypatch, marks=_BULL_PUT)
+    assert restored.structure_bracket(restored.open_nifty_shield_groups()[0]) == before
 
 
-def test_structure_max_loss_for_a_vertical_spread(tmp_path, monkeypatch):
-    """The majority structure: both legs share an option_type, matched by side."""
-    signals = [_leg_signal("short_pe", "PE", 18150, SignalType.SELL,
-                           structure="bull_put_spread", sl_distance=150.0),
-               _leg_signal("wing_pe", "PE", 18000, SignalType.BUY,
-                           structure="bull_put_spread", sl_distance=150.0)]
-    handler = _enter(tmp_path, monkeypatch, signals,
-                     {"NIFTY10JAN2318150PE": 90.0, "NIFTY10JAN2318000PE": 35.0})
-    gid = handler.open_nifty_shield_groups()[0]
-    assert handler.structure_credit(gid) == pytest.approx(7_150.0)
-    assert handler.structure_max_loss(gid) == pytest.approx(12_350.0)
+def test_exit_driver_take_profit_closes_at_the_bracket_gain(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _bull_put_signals(), _BULL_PUT)
+    bracket = handler.structure_bracket(handler.open_nifty_shield_groups()[0])
+    driver = NiftyShieldExitDriver(
+        handler, StaticMarksSource(_short_mark_for_pnl(bracket.tp_rs + 130.0)))
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups[GROUP_ID] == "take_profit"
+    for sym in _BULL_PUT:
+        assert handler.position_tracker.get_position(sym).side.value == "FLAT"
 
 
-def test_structure_max_loss_is_none_when_a_wing_did_not_fill(tmp_path, monkeypatch):
-    """A fly missing a wing is not defined-risk — no fabricated bound.
-
-    Entry with a mark missing is skipped outright, so the state that reaches the
-    exit driver is a group whose wing leg carries no fill: strip it directly.
-    """
-    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
-    gid = handler.open_nifty_shield_groups()[0]
-    assert handler.structure_max_loss(gid) is not None       # bound exists first
-    wing = next(l for l in handler.group_tracker.get_group(gid).legs
-                if l.side.value == "BUY")
-    handler.order_tracker.get_order(wing.correlation_id).filled_quantity = 0.0
-    assert handler.structure_max_loss(gid) is None
-
-
-def test_exit_driver_stop_closes_on_fraction_of_max_loss(tmp_path, monkeypatch):
-    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
-    # CE side breached: short 60 -> 80, wing 20 -> 29. P&L -1,650 vs -1,500.
-    # The old rule needed -24,000 against a structural floor of -3,000.
-    loss_marks = {**_COHERENT_FLY, "NIFTY10JAN2318150CE": 80.0,
-                  "NIFTY10JAN2318250CE": 29.0}
-    driver = NiftyShieldExitDriver(handler, StaticMarksSource(loss_marks))
+def test_exit_driver_stop_closes_at_the_bracket_loss(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _bull_put_signals(), _BULL_PUT)
+    bracket = handler.structure_bracket(handler.open_nifty_shield_groups()[0])
+    driver = NiftyShieldExitDriver(
+        handler, StaticMarksSource(_short_mark_for_pnl(-(bracket.sl_rs + 130.0))))
     driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
     assert handler._closed_groups[GROUP_ID] == "stop_loss"
 
 
-def test_exit_driver_holds_inside_the_max_loss_band(tmp_path, monkeypatch):
-    handler = _enter(tmp_path, monkeypatch, _iron_fly_signals(), _COHERENT_FLY)
-    hold_marks = {**_COHERENT_FLY, "NIFTY10JAN2318150CE": 72.0,
-                  "NIFTY10JAN2318250CE": 26.0}          # P&L -900, inside band
-    driver = NiftyShieldExitDriver(handler, StaticMarksSource(hold_marks))
+def test_exit_driver_holds_inside_the_bracket(tmp_path, monkeypatch):
+    handler = _enter(tmp_path, monkeypatch, _bull_put_signals(), _BULL_PUT)
+    bracket = handler.structure_bracket(handler.open_nifty_shield_groups()[0])
+    for pnl in (bracket.tp_rs - 130.0, -(bracket.sl_rs - 130.0)):
+        driver = NiftyShieldExitDriver(handler, StaticMarksSource(_short_mark_for_pnl(pnl)))
+        driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    assert GROUP_ID not in handler._closed_groups
+
+
+def test_entry_bracket_is_journaled_once_per_group(tmp_path, monkeypatch):
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _enter(tmp_path, monkeypatch, _bull_put_signals(), _BULL_PUT,
+                     journal=journal)
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(_BULL_PUT))
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    driver(datetime(2023, 1, 4, 13, 31, 0, tzinfo=pytz.UTC))
+
+    brackets = [e for e in _journal_events(tmp_path)
+                if e["event_type"] == "ENTRY_BRACKET"]
+    assert len(brackets) == 1
+    assert brackets[0]["severity"] == "INFO"
+    md = brackets[0]["metadata"]
+    expected = _expected_bull_put_bracket()
+    assert md["group_id"] == GROUP_ID
+    assert md["tp_rs"] == pytest.approx(expected.tp_rs, abs=0.01)
+    assert md["sl_rs"] == pytest.approx(expected.sl_rs, abs=0.01)
+    assert md["tp_enabled"] is True and md["sigma_mult"] == 1.0
+
+
+def test_unavailable_bracket_journals_critical_and_sets_no_tp_or_stop(tmp_path, monkeypatch):
+    """A short put priced below intrinsic at the signal's spot has no implied
+    vol, so there is no bracket: no fabricated thresholds, and the clock still
+    closes the structure."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _enter(tmp_path, monkeypatch, _bull_put_signals(spot=16000.0),
+                     _BULL_PUT, journal=journal)
+    gid = handler.open_nifty_shield_groups()[0]
+    assert handler.structure_bracket(gid) is None
+
+    driver = NiftyShieldExitDriver(
+        handler, StaticMarksSource(_short_mark_for_pnl(-50_000.0)))
     driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
     assert GROUP_ID not in handler._closed_groups
+    critical = [e for e in _journal_events(tmp_path)
+                if e["event_type"] == "ENTRY_BRACKET" and e["severity"] == "CRITICAL"]
+    assert len(critical) == 1
+
+    driver(datetime(2023, 1, 4, 15, 36, 0, tzinfo=pytz.UTC))
+    assert handler._closed_groups[GROUP_ID] == "time_exit"
 
 
 # --------------------------------------------------------------------------- #
@@ -730,6 +769,31 @@ def test_broker_margin_entry_through_the_recording_wrapper(tmp_path, monkeypatch
     assert margin[0]["metadata"]["engine"] == "UpstoxBasketMargin"
     assert margin[0]["metadata"]["margin_total"] == 70000.0   # the FINAL figure
     assert not [e for e in events if e["event_type"] == "ENTRY_SKIPPED"]
+
+
+def test_bracket_is_sized_through_the_recording_wrapper(tmp_path, monkeypatch):
+    """The exit bracket on the PRODUCTION wiring (broker margin behind the
+    recorder): every other bracket test uses a bare source, which is how the
+    2026-09-08 wiring defect passed."""
+    monkeypatch.setattr(
+        "core.brokers.upstox_margin.fetch_basket_margin",
+        lambda legs, product="D": {"required": 60000.0, "final": 40000.0,
+                                   "benefit": 20000.0, "error": None})
+    wrapped = _recorded(_KeyedMarks(_BULL_PUT, {"NIFTY10JAN2318150PE": "NSE_FO|1",
+                                                "NIFTY10JAN2318000PE": "NSE_FO|2"}))
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _build_handler(tmp_path, monkeypatch, marks=wrapped, journal=journal)
+    handler._use_broker_margin = True
+    for sig in _bull_put_signals():
+        handler.process_signal(sig, 100.0)
+
+    gid = handler.open_nifty_shield_groups()[0]
+    bracket = handler.structure_bracket(gid)
+    assert bracket is not None and bracket.tp_enabled
+
+    NiftyShieldExitDriver(handler, wrapped)(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+    brackets = [e for e in _journal_events(tmp_path) if e["event_type"] == "ENTRY_BRACKET"]
+    assert len(brackets) == 1 and brackets[0]["severity"] == "INFO"
 
 
 def test_broker_margin_entry_skips_when_the_wrapper_hides_the_keys(tmp_path,

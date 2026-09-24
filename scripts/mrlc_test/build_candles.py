@@ -1,4 +1,10 @@
-"""MRLC-test candle builder: resample equity 1m -> 1h / 4h / 1d per symbol.
+"""MRLC-test candle builder: resample equity 1m -> 1h / 4h / 1d per symbol. DISABLED.
+
+**Refused (operator instruction 2026-09-13)**, for the same reason as
+scanner.py: a rebuild re-reads the equity breadth 1m store up to today, which
+would extend MRLC's signal-level consumption into the sessions that are still
+unread. The existing store (2023-01-02 -> 2026-08-28) is unaffected and remains
+readable.
 
 Bars are built from 1m rows with is_synthetic = FALSE (CAS carry-forward excluded).
 Session buckets anchor at 09:15 IST (NSE cash session start).
@@ -64,6 +70,15 @@ _BUCKET_SQL = {
 
 
 def main():
+    raise SystemExit(
+        "REFUSED: MRLC candle rebuild is DISABLED (operator instruction 2026-09-13).\n"
+        "It re-reads the equity breadth 1m store to the present, extending MRLC's\n"
+        "signal-level consumption into sessions that are still unread.\n"
+        "See docs/reports/index_research/PTMS_P3_WINDOW_RECONCILIATION_2026-09-13.md sec 2."
+    )
+
+
+def _main_disabled():
     if OUT_DB.exists():
         OUT_DB.unlink()
     con = duckdb.connect(str(OUT_DB))

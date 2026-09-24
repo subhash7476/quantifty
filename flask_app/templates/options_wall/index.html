@@ -40,7 +40,7 @@
 <div style="display: flex; flex-direction: column; gap: 30px;">
 
     <!-- Header row -->
-    <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;">
+    <div style="position: sticky; top: 64px; z-index: 30; margin: -32px -32px 0; padding: 20px 32px 18px; background: rgba(247,245,242,0.94); backdrop-filter: blur(14px); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; gap: 14px 24px;">
         <div style="display: flex; gap: 2px; background: #EFECE6; padding: 3px; border-radius: 8px;">
             <button onclick="switchIndex('NIFTY')" id="tab-NIFTY" class="ow-tab">Nifty 50</button>
             <button onclick="switchIndex('BANKNIFTY')" id="tab-BANKNIFTY" class="ow-tab">Bank Nifty</button>
@@ -63,19 +63,32 @@
         </button>
     </div>
 
-    <!-- Hero + regime band -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 36px 52px; align-items: end;">
-        <div>
+    <!-- Hero + hedge ladder -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 26px 34px; align-items: start;">
+        <div style="padding-top: 4px;">
             <div class="mono" id="hero-meta" style="font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--faint); margin-bottom: 14px;">--</div>
-            <h1 class="display" id="hero-title" style="font-size: clamp(34px, 3.8vw, 52px); line-height: 1.04; margin: 0 0 14px;">Reading the chain.</h1>
-            <p id="hero-sub" style="max-width: 56ch; margin: 0; font-size: 15px; color: var(--body); text-wrap: pretty;">
+            <h1 class="display" id="hero-title" style="font-size: clamp(30px, 3vw, 42px); line-height: 1.07; margin: 0 0 14px;">Reading the chain.</h1>
+            <p id="hero-sub" style="margin: 0; font-size: 14.5px; line-height: 1.65; color: var(--body); text-wrap: pretty;">
                 Waiting for the latest persisted scan.
             </p>
         </div>
 
-        <div class="ow-card" style="padding: 4px;">
-            <div id="regime-band" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));"></div>
+        <div class="ow-card" id="ladder-flow-card" style="padding: 22px 26px 18px;">
+            <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px;">
+                <span class="display" style="font-size: 21px;">Hedge ladder</span>
+                <span style="font-size: 12px; color: var(--muted);">Futures the dealer book must trade at each spot move.</span>
+            </div>
+            <div id="ladder-flow-wrap" style="margin-top: 16px;"></div>
         </div>
+    </div>
+
+    <!-- Regime band -->
+    <div class="ow-card" style="overflow: hidden; padding: 0;">
+        <div style="display: flex; align-items: baseline; justify-content: space-between; gap: 10px 20px; padding: 15px 18px 13px; border-bottom: 1px solid var(--hairline);">
+            <span class="ow-k">Regime snapshot</span>
+            <span style="font-size: 11.5px; color: var(--muted);">One chain snapshot &mdash; gamma structure, walls, and vol.</span>
+        </div>
+        <div id="regime-band" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(178px, 1fr)); margin: 0 -1px -1px 0;"></div>
     </div>
 
     <!-- Gamma ladder -->
@@ -94,23 +107,14 @@
         </div>
     </div>
 
-    <!-- Hedge ladder + OI since open -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 18px;">
-        <div class="ow-card" id="ladder-flow-card" style="padding: 22px 26px 18px;">
-            <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
-                <span class="display" style="font-size: 21px;">Hedge ladder</span>
-                <span style="font-size: 12px; color: var(--muted);">Futures the dealer book must trade at each spot move. Linear at current gamma.</span>
-            </div>
-            <div id="ladder-flow-wrap" style="margin-top: 16px;"></div>
+    <!-- OI since open -->
+    <div class="ow-card" id="oi-rotation-card" style="padding: 22px 26px 18px;">
+        <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
+            <span class="display" style="font-size: 21px;">OI since open</span>
+            <span style="font-size: 12px; color: var(--muted);">Contracts added (right) and unwound (left) vs the 09:15 baseline, near spot.</span>
         </div>
-        <div class="ow-card" id="oi-rotation-card" style="padding: 22px 26px 18px;">
-            <div style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 10px 20px;">
-                <span class="display" style="font-size: 21px;">OI since open</span>
-                <span style="font-size: 12px; color: var(--muted);">Contracts added (right) and unwound (left) vs the 09:15 baseline, near spot.</span>
-            </div>
-            <div id="oi-rotation-band" style="margin-top: 14px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1px; background: var(--hairline); border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;"></div>
-            <div id="oi-rotation-wrap" style="margin-top: 14px;"></div>
-        </div>
+        <div id="oi-rotation-band" style="margin-top: 14px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;"></div>
+        <div id="oi-rotation-wrap" style="margin-top: 14px;"></div>
     </div>
 
     <!-- Poller step health: must render above the gate, so a red strip can
@@ -151,8 +155,9 @@
             <span class="display" style="font-size: 21px;">Paper trades &middot; <span id="trades-count">0</span> open</span>
             <span style="font-size: 12px; color: var(--muted);">Auto-opened &amp; managed by the executor. Marks update live from the newest quoted snapshot.</span>
         </div>
-        <div style="margin-top: 16px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden;">
-            <div style="display: grid; grid-template-columns: 72px 148px 1fr 64px repeat(3, minmax(0,1fr)) 84px 76px; gap: 8px; padding: 9px 16px; background: #FBFAF8; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
+        <div style="margin-top: 16px; border: 1px solid var(--hairline); border-radius: 11px; overflow: hidden; overflow-x: auto;">
+            <div style="padding: 9px 16px; min-width: 856px; background: #FBFAF8; border-bottom: 1px solid var(--hairline);">
+            <div style="display: grid; grid-template-columns: 72px 132px minmax(150px,1.4fr) 44px repeat(3, minmax(72px,1fr)) 80px 66px; min-width: 824px; gap: 8px; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--faint);">
                 <span>Status</span><span>Entered</span><span>Structure</span>
                 <span style="text-align:right;">Qty</span>
                 <span style="text-align:right;">Credit</span>
@@ -160,6 +165,7 @@
                 <span style="text-align:right;">P&amp;L ₹</span>
                 <span style="text-align:right;">Note</span>
                 <span style="text-align:right;">Action</span>
+            </div>
             </div>
             <div id="trades-body"></div>
         </div>
@@ -389,13 +395,29 @@ function paintSpotAndLadder() {
     const W = 1200, base = 150, maxH = 138;
     const levels = [r.put_wall, r.call_wall, r.pin_strike, r.zero_gamma_level, spot].filter(v => v != null);
     const step = gs.length > 1 ? (gs[gs.length - 1][0] - gs[0][0]) / (gs.length - 1) : 50;
-    const lo = Math.min(gs[0][0], ...levels) - step;
-    const hi = Math.max(gs[gs.length - 1][0], ...levels) + step;
-    const x = s => (s - lo) / (hi - lo) * W;
-    const peak = Math.max.apply(null, gs.map(g => Math.abs(g[1]))) || 1;
-    const bw = Math.max(5, W / (gs.length * 1.9));
 
-    const bars = gs.map(g => {
+    /* Deep wings carry near-zero gamma but stretch the axis, pushing every
+       meaningful bar into the left third. Trim the flat tails to the strikes
+       that actually carry mass, then centre the domain on spot so the chart
+       reads from the middle out. */
+    const domainPeak = Math.max.apply(null, gs.map(g => Math.abs(g[1]))) || 1;
+    const sig = gs.filter(g => Math.abs(g[1]) >= domainPeak * 0.02).map(g => g[0]);
+    const sigLo = sig.length ? Math.min(...sig) : gs[0][0];
+    const sigHi = sig.length ? Math.max(...sig) : gs[gs.length - 1][0];
+    let lo = Math.min(sigLo, ...levels) - step;
+    let hi = Math.max(sigHi, ...levels) + step;
+    if (spot != null) {
+        const half = Math.max(spot - lo, hi - spot);
+        lo = spot - half;
+        hi = spot + half;
+    }
+
+    const x = s => (s - lo) / (hi - lo) * W;
+    const gsIn = gs.filter(g => g[0] >= lo && g[0] <= hi);
+    const peak = Math.max.apply(null, gsIn.map(g => Math.abs(g[1]))) || 1;
+    const bw = Math.max(5, W / (Math.max(gsIn.length, 1) * 1.9));
+
+    const bars = gsIn.map(g => {
         const h = Math.abs(g[1]) / peak * maxH;
         return '<rect x="' + (x(g[0]) - bw / 2).toFixed(1) + '" y="' + (base - h).toFixed(1) +
                '" width="' + bw.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="1.5" fill="' +
@@ -421,7 +443,7 @@ function paintSpotAndLadder() {
         '<line x1="' + x(v).toFixed(1) + '" y1="0" x2="' + x(v).toFixed(1) +
         '" y2="' + base + '" stroke="' + c + '" stroke-width="' + w + '" stroke-dasharray="' + d + '"></line>').join('');
 
-    wrap.innerHTML = '<svg viewBox="0 0 ' + W + ' 210" preserveAspectRatio="none" style="display:block;width:100%;height:210px;overflow:visible;">' +
+    wrap.innerHTML = '<svg viewBox="0 0 ' + W + ' 210" preserveAspectRatio="none" style="display:block;width:100%;height:210px;overflow:hidden;">' +
         '<line x1="0" y1="' + base + '" x2="' + W + '" y2="' + base + '" stroke="#E6E2DC" stroke-width="1"></line>' +
         bandRect + bars + marks + '</svg>';
 
@@ -486,7 +508,7 @@ function paintOiRotation() {
         ['Net', m(o.added - o.unwound), (o.added - o.unwound) >= 0 ? C.green : C.red],
         ['Total OI', m(o.total_oi), C.ink],
         ['Vol / OI', o.vol_oi != null ? n(o.vol_oi, 2) : '--', o.vol_oi > 0.6 ? C.amber : C.ink]
-    ].map(([k, v, c]) => '<div style="background:#FFFFFF;padding:11px 14px;"><div class="ow-k">' + k + '</div>' +
+    ].map(([k, v, c], i) => '<div style="background:#FFFFFF;padding:11px 14px;' + (i ? 'border-left:1px solid var(--hairline);' : '') + '"><div class="ow-k">' + k + '</div>' +
         '<div class="mono" style="font-size:15px;margin-top:4px;color:' + c + '">' + v + '</div></div>').join('');
 
     const spot = r.underlying_ltp;
@@ -507,11 +529,11 @@ function paintOiRotation() {
             return '<div style="position:absolute;top:5px;height:12px;background:' + color + ';left:' + (v >= 0 ? 50 : 50 - w).toFixed(1) + '%;width:' + w.toFixed(1) + '%;"></div>';
         };
         const isSpot = spot != null && Math.abs(k - spot) === Math.min.apply(null, ks.map(x => Math.abs(x - spot)));
-        return '<div style="display:grid;grid-template-columns:64px 1fr 140px;gap:10px;align-items:center;font-size:11.5px;' + (isSpot ? 'background:#FBFAF8;' : '') + '">' +
+        return '<div style="display:grid;grid-template-columns:64px minmax(0,1fr) max-content;gap:12px;align-items:center;font-size:11.5px;' + (isSpot ? 'background:#FBFAF8;' : '') + '">' +
             '<span class="mono" style="color:' + (isSpot ? C.ink : 'var(--muted)') + '">' + n(k, 0) + '</span>' +
             '<div style="position:relative;height:22px;"><div style="position:absolute;left:50%;top:0;bottom:0;border-left:1px solid #DCD7CF;"></div>' +
             seg(c.ce, 'rgba(201,130,26,.45)') + seg(c.pe, 'rgba(14,111,99,.40)') + '</div>' +
-            '<span class="mono" style="text-align:right;color:var(--muted);">CE ' + (c.ce >= 0 ? '+' : '') + n(c.ce / 1e3, 0) + 'K · PE ' + (c.pe >= 0 ? '+' : '') + n(c.pe / 1e3, 0) + 'K</span></div>';
+            '<span class="mono" style="text-align:right;white-space:nowrap;color:var(--muted);">CE ' + (c.ce >= 0 ? '+' : '') + n(c.ce / 1e3, 0) + 'K · PE ' + (c.pe >= 0 ? '+' : '') + n(c.pe / 1e3, 0) + 'K</span></div>';
     }).join('') +
     '<div style="display:flex;gap:18px;margin-top:10px;font-size:11.5px;color:var(--muted);">' +
     '<span><span style="display:inline-block;width:12px;height:3px;background:rgba(201,130,26,.45);border-radius:2px;margin-right:6px;vertical-align:middle;"></span>Calls</span>' +
@@ -1063,9 +1085,9 @@ function tradeRow(t, isOpen) {
         n(l.strike, 0) + ' ' + l.type + ' @' + n(l.entry_mid != null ? l.entry_mid : l.mid, 1) +
         (l.cur_mid != null ? ' <span style="color:var(--muted);">→ ' + n(l.cur_mid, 1) + '</span>' : '') + '</span>').join('');
     return '<div onclick="openTradePanel(' + t.trade_id + ')" title="Open trade detail" ' +
-      'style="padding:12px 16px;border-top:1px solid #F5F2ED;cursor:pointer;" ' +
+      'style="padding:12px 16px;border-top:1px solid #F5F2ED;cursor:pointer;min-width:856px;" ' +
       'onmouseover="this.style.background=&quot;#FCFBF9&quot;" onmouseout="this.style.background=&quot;&quot;">' +
-      '<div style="display:grid;grid-template-columns:72px 148px 1fr 64px repeat(3,minmax(0,1fr)) 84px 76px;gap:8px;align-items:center;' +
+      '<div style="display:grid;grid-template-columns:72px 132px minmax(150px,1.4fr) 44px repeat(3, minmax(72px,1fr)) 80px 66px; min-width:824px;gap:8px;align-items:center;' +
         'font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums;font-size:12px;">' +
         '<span style="justify-self:start;font-family:\'Public Sans\',sans-serif;font-size:10px;letter-spacing:.07em;padding:2px 9px;border-radius:999px;background:' +
           (isOpen ? 'rgba(25,122,90,.10);color:' + C.green : '#EFECE6;color:var(--muted)') + ';">' + (isOpen ? 'OPEN' : 'CLOSED') + '</span>' +

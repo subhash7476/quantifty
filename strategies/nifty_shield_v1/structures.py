@@ -123,22 +123,6 @@ def sigma_points(price: float, iv: float, days_to_expiry: float) -> float:
     return float(price) * float(iv) * math.sqrt(float(days_to_expiry) / 365.0)
 
 
-def available_decay_frac(days_to_expiry: float, cfg: Dict[str, Any]) -> float:
-    """Fraction of ATM premium a hold can decay with spot unchanged.
-
-    ATM value scales ~sqrt(T), so holding `h` market-hours out of `T` leaves
-    sqrt((T-h)/T). Trading-time convention: only market hours count, and
-    calendar days are converted at 5 trading days per 7. This is what the
-    profit target is a fraction OF — see config `profit_target_decay_frac`.
-    """
-    session_hours = float(cfg.get("session_hours", 6.25))
-    hold = float(cfg.get("hold_hours", 2.5))
-    total = (float(days_to_expiry) * 5.0 / 7.0) * session_hours
-    if total <= hold:
-        return 1.0
-    return 1.0 - math.sqrt((total - hold) / total)
-
-
 def _offset_points(structure: str, sigma_pts: float, step: int,
                    cfg: Dict[str, Any]) -> int:
     """The structure's offset in index points: frac x sigma, on the strike grid.

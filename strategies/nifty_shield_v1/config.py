@@ -48,33 +48,23 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # (RuntimeConfig.rebalance_on_idle) to make this time reachable.
     "exit_time": {"hour": 15, "minute": 35},
 
-    # --- Profit target ---------------------------------------------------
-    # A fraction of the decay actually AVAILABLE to this structure, not of the
-    # credit. ATM premium scales ~sqrt(T), so a hold of h market-hours out of T
-    # leaves sqrt((T-h)/T) and the reachable decay with spot unchanged is
-    # 1 - sqrt((T-h)/T) — 3.6% at 8 DTE, 7.3% at 4 DTE, 15.2% at 2 DTE. The old
-    # `profit_target_pct = 0.50` asked for half the credit, which is outside
-    # that set by an order of magnitude: it never fired once, so `time_exit`
-    # was the only exit the strategy had. The 0.50 is kept and the denominator
-    # corrected — "half of what is there" applied to a quantity that exists.
-    # The available fraction is computed per structure at entry from its own
-    # DTE and carried on the signal, so this is not a threshold in credit terms
-    # at all; it self-scales with time to expiry.
-    "profit_target_decay_frac": 0.50,
+    # --- Exit bracket ----------------------------------------------------
+    # Take-profit and stop are the structure's P&L at spot +/- bracket_sigma x
+    # 1 sigma over the hold, sized by execution from the legs' fill-implied
+    # vols. A 13:00-15:35 hold decays only a few percent of a 2-8 DTE premium,
+    # so its P&L is the index move. The decay-fraction take-profit and max-loss
+    # stop this replaces were sized in units unrelated to it: on 2026-09-15 a
+    # Rs 121 target (8 index points, below the Rs 133 round trip) against a
+    # Rs 3,534 stop (245 points). Both values are design choices, not fits
+    # (docs/superpowers/specs/2026-09-15-nifty-shield-sigma-bracket-design.md).
+    "bracket_sigma": 1.0,
+    # The take-profit is disabled when its gain side is below this multiple of
+    # the round-trip fees — a target at the fee line nets nothing.
+    "tp_min_fee_multiple": 3.0,
     # Market hours in a session, and the modelled hold from the 13:00 entry to
-    # the close. Used only to compute available decay.
+    # the close. Scale 1 sigma of the index over the hold.
     "session_hours": 6.25,
     "hold_hours": 2.5,
-
-    # Defined-risk structures (iron_fly / the two verticals) stop on a fraction
-    # of max loss. A credit multiple cannot bound them: loss is capped at
-    # wing_width x qty - credit, so -stop_loss_multiplier x credit is reachable
-    # only when max_loss / credit >= the multiple -- true for 10.5% of
-    # defined-risk entries over the certified facts, and 0 of 56 iron flies.
-    "stop_loss_max_loss_frac": 0.50,
-    # Retained for short_straddle / short_strangle, which have no structural
-    # bound and for which a credit multiple is the only rule available.
-    "stop_loss_multiplier": 2.0,
     # D1: delta adjustment dropped in v1 — delta is a flatten-gate (close-only).
     "delta_adjustment_threshold": 0.55,
     "max_portfolio_delta": 500,

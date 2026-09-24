@@ -22,6 +22,7 @@ from core.execution.groups.group_tracker import GroupTracker
 from core.execution.groups.order_group import OrderGroupType
 from core.execution.options.nifty_shield_exit import NiftyShieldExitManager
 from core.execution.options.nifty_shield_groups import assemble_group, group_type_for
+from core.execution.options.nifty_shield_pricing import Bracket
 from core.execution.options.nifty_shield_sizing import (
     declared_lots, final_lots, margin_clamped_lots, structure_margin_over_engine,
 )
@@ -50,8 +51,7 @@ def _leg_signal(role: str, ot: str, strike: int, signal_type: SignalType,
         "vix_reduce": False,
         "sl_distance": 100.0,
         "risk_r": 15000.0,
-        "exit": {"tp_decay_frac": 0.5, "available_decay_frac": 0.0726,
-                 "sl_mult": 2.0, "sl_frac": 0.5,
+        "exit": {"bracket_sigma": 1.0, "tp_min_fee_multiple": 3.0,
                  "hard_exit": "15:35", "max_portfolio_delta": 500},
     }
     md.update(md_over)
@@ -186,174 +186,77 @@ def _current_prices(legs, marks):
     return {leg.symbol: marks.get(leg.symbol, 0.0) for leg in legs}
 
 
-def test_take_profit_triggers():
-    legs = _iron_fly_signals()
-    legs = assemble_group(legs, _UNDERLYING, 2, 75).legs
-    entry = {l.symbol: 100.0 for l in legs}          # shorts + wings all at 100
-    # Group P&L = sum (current - entry) * qty * dir. Shorts profit when current
-    # falls; wings profit when they rise. Simulate shorts at 40 (profit 60 each).
-    marks = {l.symbol: (40.0 if l.side.value == "SELL" else 100.0) for l in legs}
-    manager, _ = _manager_with_tracker(legs, entry)
-    credit = 60.0 * 75 * 2 + 60.0 * 75 * 2            # premium collected per leg
-    # Take-profit is now a fraction of the decay AVAILABLE over the hold, not
-    # of the credit: 0.50 x 0.0726 at 4 DTE. The old 0.50-of-credit threshold
-    # was outside the reachable set and never fired in live trading.
-    reason = manager.evaluate(UUID(_GROUP_ID), credit,
-                              _current_prices(legs, marks), _TS,
-                              available_decay_frac=0.0726)
-    assert reason == "take_profit"
+def _bracket(tp_rs: float, sl_rs: float, tp_enabled: bool = True) -> Bracket:
+    return Bracket(tp_rs=tp_rs, sl_rs=sl_rs, sigma_pts=100.0, leg_ivs=(0.1,),
+                   fee_floor_rs=0.0, tp_enabled=tp_enabled)
 
 
-def test_take_profit_is_disabled_without_an_available_decay_fraction():
-    """No reachable-decay figure means no defensible profit threshold.
-
-    A structure whose available decay is unknown must not get a fabricated
-    target: a made-up denominator either never fires (the defect this replaces)
-    or fires immediately. Absent the figure the take-profit is simply off, and
-    the stop and hard-time exits still bound the structure.
-    """
+def _fly_at(short_mark: float):
+    """Iron fly entered at 100 on every leg (2 lots x 75); shorts re-marked, wings flat.
+    Group P&L = 2 shorts x (100 - short_mark) x 150."""
     legs = assemble_group(_iron_fly_signals(), _UNDERLYING, 2, 75).legs
-    entry = {l.symbol: 100.0 for l in legs}
-    marks = {l.symbol: (40.0 if l.side.value == "SELL" else 100.0) for l in legs}
-    manager, _ = _manager_with_tracker(legs, entry)
-    credit = 60.0 * 75 * 2 + 60.0 * 75 * 2
-    assert manager.evaluate(UUID(_GROUP_ID), credit,
-                            _current_prices(legs, marks), _TS,
-                            available_decay_frac=None) is None
+    manager, _ = _manager_with_tracker(legs, {l.symbol: 100.0 for l in legs})
+    marks = {l.symbol: (short_mark if l.side.value == "SELL" else 100.0) for l in legs}
+    return manager, _current_prices(legs, marks)
 
 
-def test_stop_loss_triggers():
-    legs = assemble_group(_iron_fly_signals(), _UNDERLYING, 2, 75).legs
-    entry = {l.symbol: 100.0 for l in legs}
-    # Shorts at 240 -> loss 140 each on 2 shorts, wings flat.
-    marks = {l.symbol: (240.0 if l.side.value == "SELL" else 100.0) for l in legs}
-    manager, _ = _manager_with_tracker(legs, entry)
-    credit = 100.0 * 75 * 2
-    reason = manager.evaluate(UUID(_GROUP_ID), credit,
-                              _current_prices(legs, marks), _TS)
-    assert reason == "stop_loss"
+def test_take_profit_fires_at_the_bracket_gain():
+    manager, marks = _fly_at(40.0)                        # P&L +18,000
+    assert manager.evaluate(UUID(_GROUP_ID), marks, _TS,
+                            bracket=_bracket(18_000.0, 50_000.0)) == "take_profit"
+    assert manager.evaluate(UUID(_GROUP_ID), marks, _TS,
+                            bracket=_bracket(18_001.0, 50_000.0)) is None
+
+
+def test_take_profit_never_fires_when_disabled():
+    """Below the fee floor, or no gain side at all (a straddle): the stop and
+    the clock manage the structure."""
+    manager, marks = _fly_at(40.0)
+    assert manager.evaluate(UUID(_GROUP_ID), marks, _TS,
+                            bracket=_bracket(100.0, 50_000.0, tp_enabled=False)) is None
+
+
+def test_stop_loss_fires_at_the_bracket_loss():
+    manager, marks = _fly_at(240.0)                       # P&L -42,000
+    assert manager.evaluate(UUID(_GROUP_ID), marks, _TS,
+                            bracket=_bracket(50_000.0, 42_000.0)) == "stop_loss"
+    assert manager.evaluate(UUID(_GROUP_ID), marks, _TS,
+                            bracket=_bracket(50_000.0, 42_001.0)) is None
+
+
+def test_no_bracket_means_no_take_profit_or_stop():
+    """An unavailable bracket is not replaced by fabricated thresholds; the
+    clock and the delta gate still bound the structure."""
+    for short_mark in (40.0, 240.0):
+        manager, marks = _fly_at(short_mark)
+        assert manager.evaluate(UUID(_GROUP_ID), marks, _TS, bracket=None) is None
 
 
 def test_time_exit_triggers_at_1535_not_1515():
     """The hard exit is 15:35, so 15:16 — which used to close the structure —
     must now hold. 15:15 cut every trade at the cash close; this book is F&O
     and its own TP/SL own the position until the derivatives session ends."""
-    legs = assemble_group(_iron_fly_signals(), _UNDERLYING, 2, 75).legs
-    entry = {l.symbol: 100.0 for l in legs}
-    manager, _ = _manager_with_tracker(legs, entry)
-    credit = 100.0 * 75 * 2
-    flat = _current_prices(legs, {l.symbol: 100.0 for l in legs})
-    assert manager.evaluate(UUID(_GROUP_ID), credit, flat,
+    manager, flat = _fly_at(100.0)
+    assert manager.evaluate(UUID(_GROUP_ID), flat,
                             datetime(2023, 1, 4, 15, 36, 0)) == "time_exit"
-    assert manager.evaluate(UUID(_GROUP_ID), credit, flat,
+    assert manager.evaluate(UUID(_GROUP_ID), flat,
                             datetime(2023, 1, 4, 15, 16, 0)) is None
-    assert manager.evaluate(UUID(_GROUP_ID), credit, flat,
+    assert manager.evaluate(UUID(_GROUP_ID), flat,
                             datetime(2023, 1, 4, 15, 34, 0)) is None
 
 
 def test_delta_flatten_gate_closes_no_hedge():
-    legs = assemble_group(_iron_fly_signals(), _UNDERLYING, 2, 75).legs
-    entry = {l.symbol: 100.0 for l in legs}
-    manager, _ = _manager_with_tracker(legs, entry)
-    credit = 100.0 * 75 * 2
-    flat = _current_prices(legs, {l.symbol: 100.0 for l in legs})
-    assert manager.evaluate(UUID(_GROUP_ID), credit, flat, _TS,
+    manager, flat = _fly_at(100.0)
+    assert manager.evaluate(UUID(_GROUP_ID), flat, _TS,
                             portfolio_delta=600.0) == "delta_flatten"
-    assert manager.evaluate(UUID(_GROUP_ID), credit, flat, _TS,
+    assert manager.evaluate(UUID(_GROUP_ID), flat, _TS,
                             portfolio_delta=400.0) is None
 
 
 def test_holds_when_no_trigger():
-    legs = assemble_group(_iron_fly_signals(), _UNDERLYING, 2, 75).legs
-    entry = {l.symbol: 100.0 for l in legs}
-    manager, _ = _manager_with_tracker(legs, entry)
-    credit = 100.0 * 75 * 2
-    flat = _current_prices(legs, {l.symbol: 100.0 for l in legs})
-    assert manager.evaluate(UUID(_GROUP_ID), credit, flat, _TS) is None
-
-
-# --------------------------------------------------------------------------- #
-# Stop reachability (D5) — a defined-risk structure cannot lose a multiple of
-# its own credit, so `-sl_mult x credit` is unreachable whenever
-# max_loss / credit < sl_mult. Marks below price all four legs coherently; the
-# older fixtures pin wings flat while shorts move, which is an arbitrage state
-# a real fly never reaches and is why the defect survived them.
-# --------------------------------------------------------------------------- #
-_FLY_ENTRY = {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0,
-              "NIFTY10JAN2318250CE": 20.0, "NIFTY10JAN2318050PE": 18.0}
-# credit/unit 80 on a 100-point wing -> max_loss/unit 20, ratio 0.25 << 2.0
-_FLY_CREDIT = 80.0 * 150
-_FLY_MAX_LOSS = 100.0 * 150 - _FLY_CREDIT
-
-
-def _fly_manager():
-    legs = assemble_group(_iron_fly_signals(), _UNDERLYING, 2, 75).legs
-    manager, _ = _manager_with_tracker(legs, {l.symbol: _FLY_ENTRY[l.symbol]
-                                              for l in legs})
-    return manager, legs
-
-
-def test_iron_fly_stop_fires_on_fraction_of_max_loss():
-    manager, legs = _fly_manager()
-    # CE side breached: short 60 -> 80, wing 20 -> 29. P&L = -1,650.
-    marks = _current_prices(legs, {**_FLY_ENTRY,
-                                   "NIFTY10JAN2318150CE": 80.0,
-                                   "NIFTY10JAN2318250CE": 29.0})
-    # The old rule needed -2 x 12,000 = -24,000 against a structural floor of
-    # -3,000: unreachable by a factor of eight.
-    assert _FLY_MAX_LOSS < 2.0 * _FLY_CREDIT
-    assert manager.evaluate(UUID(_GROUP_ID), _FLY_CREDIT, marks, _TS,
-                            max_loss=_FLY_MAX_LOSS) == "stop_loss"
-
-
-def test_iron_fly_stop_holds_inside_the_max_loss_band():
-    manager, legs = _fly_manager()
-    # short 60 -> 72, wing 20 -> 26. P&L = -900, inside 0.5 x 3,000.
-    marks = _current_prices(legs, {**_FLY_ENTRY,
-                                   "NIFTY10JAN2318150CE": 72.0,
-                                   "NIFTY10JAN2318250CE": 26.0})
-    assert manager.evaluate(UUID(_GROUP_ID), _FLY_CREDIT, marks, _TS,
-                            max_loss=_FLY_MAX_LOSS) is None
-
-
-def test_vertical_spread_stop_fires_on_fraction_of_max_loss():
-    legs = assemble_group(
-        [_leg_signal("short_pe", "PE", 18150, SignalType.SELL,
-                     structure="bull_put_spread", sl_distance=150.0),
-         _leg_signal("wing_pe", "PE", 18000, SignalType.BUY,
-                     structure="bull_put_spread", sl_distance=150.0)],
-        _UNDERLYING, 2, 75).legs
-    entry = {"NIFTY10JAN2318150PE": 90.0, "NIFTY10JAN2318000PE": 35.0}
-    manager, _ = _manager_with_tracker(legs, {l.symbol: entry[l.symbol]
-                                              for l in legs})
-    credit = 55.0 * 150                      # 150-point wing -> max_loss 14,250
-    max_loss = 150.0 * 150 - credit
-    assert max_loss < 2.0 * credit           # ratio 1.73 -> old stop unreachable
-    # short 90 -> 150, wing 35 -> 47. P&L = -7,200 vs -7,125 trigger.
-    marks = _current_prices(legs, {"NIFTY10JAN2318150PE": 150.0,
-                                   "NIFTY10JAN2318000PE": 47.0})
-    assert manager.evaluate(UUID(_GROUP_ID), credit, marks, _TS,
-                            max_loss=max_loss) == "stop_loss"
-
-
-def test_undefined_structure_keeps_the_credit_multiple_stop():
-    """straddle/strangle have no structural bound — sl_mult is the real rule."""
-    legs = assemble_group(
-        [_leg_signal("short_ce", "CE", 18150, SignalType.SELL,
-                     structure="short_straddle"),
-         _leg_signal("short_pe", "PE", 18150, SignalType.SELL,
-                     structure="short_straddle")],
-        _UNDERLYING, 2, 75).legs
-    entry = {"NIFTY10JAN2318150CE": 60.0, "NIFTY10JAN2318150PE": 58.0}
-    manager, _ = _manager_with_tracker(legs, {l.symbol: entry[l.symbol]
-                                              for l in legs})
-    credit = 118.0 * 150                                   # -2x -> -35,400
-    fires = _current_prices(legs, {**entry, "NIFTY10JAN2318150CE": 300.0})
-    holds = _current_prices(legs, {**entry, "NIFTY10JAN2318150CE": 200.0})
-    assert manager.evaluate(UUID(_GROUP_ID), credit, fires, _TS,
-                            max_loss=None) == "stop_loss"
-    assert manager.evaluate(UUID(_GROUP_ID), credit, holds, _TS,
-                            max_loss=None) is None
+    manager, flat = _fly_at(100.0)
+    assert manager.evaluate(UUID(_GROUP_ID), flat, _TS,
+                            bracket=_bracket(1_000.0, 1_000.0)) is None
 
 
 # --------------------------------------------------------------------------- #

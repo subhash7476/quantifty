@@ -1,14 +1,950 @@
 {
   "source": "Nifty Indices Archives of Daily/Monthly Reports",
   "report_type": "Market Capitalisation, Weightage, Beta for NIFTY 50 & NIFTY Next 50",
-  "start_month": "2016-01-01",
+  "start_month": "2010-01-01",
   "end_month": "2026-07-01",
-  "months_requested": 127,
+  "months_requested": 199,
   "status_summary": {
-    "valid": 125,
-    "missing": 2
+    "valid": 198,
+    "missing": 1
   },
   "records": [
+    {
+      "month": "2010-01-01",
+      "filename": "mcwb_jan10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jan10.zip",
+      "sha256": "3dda4dad616748dfe50b5339dcd7d17dcb151c972807220777026b261826008e",
+      "constituents": 50,
+      "weight_sum_pct": 99.93,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-02-01",
+      "filename": "mcwb_feb10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_feb10.zip",
+      "sha256": "a0f01a3ece1fe1fdff69f855d813ea5b949c499bd8413be3e1af4fb147dbd06b",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-03-01",
+      "filename": "mcwb_mar10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_mar10.zip",
+      "sha256": "3ad31e8aae022e6d7b7c5f719d794608c2163682a9f6feee67cca15d088b6035",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.95,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-04-01",
+      "filename": "mcwb_apr10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_apr10.zip",
+      "sha256": "27ae905fc7e1bd6b048abc615712417fe2aa51a45899a96c763e172f61c3fd93",
+      "constituents": 50,
+      "weight_sum_pct": 100.04,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-05-01",
+      "filename": "mcwb_may10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_may10.zip",
+      "sha256": "fbef41614b4542efebfc81e787232ae3e84d8dd3858420d455a4c3dee3773f19",
+      "constituents": 50,
+      "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-06-01",
+      "filename": "mcwb_jun10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jun10.zip",
+      "sha256": "9963754e1aa1064fda9e6b6c6f10f3785e83fe7cfa7e2127d87cf29d48cff771",
+      "constituents": 50,
+      "weight_sum_pct": 100.03,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.05,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-07-01",
+      "filename": "mcwb_jul10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jul10.zip",
+      "sha256": "5d8e52edd2d113e38a56f582cbb9710c02636a5826b00ed2122c6efefd06e33c",
+      "constituents": 50,
+      "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-08-01",
+      "filename": "mcwb_aug10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_aug10.zip",
+      "sha256": "cc64b8c23f533b7caf8a492209b9a9b2e274b52fdf9c22b056247bdb39e06f8a",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-09-01",
+      "filename": "mcwb_sep10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_sep10.zip",
+      "sha256": "b22398d6bd401eca038b35c48527a2a7c4e223b6d546d84c49ad9419789bd4eb",
+      "constituents": 50,
+      "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-10-01",
+      "filename": "mcwb_oct10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_oct10.zip",
+      "sha256": "e9d74c8c95ebadbf6130004ad8e6796c4abe5b33d7db06311747b1af5be5d80b",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-11-01",
+      "filename": "mcwb_nov10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_nov10.zip",
+      "sha256": "9d720b00c1719c64609f3bbcf33b3dfa14fb3508846239795e98fc1c4dbf9c55",
+      "constituents": 50,
+      "weight_sum_pct": 99.95,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2010-12-01",
+      "filename": "mcwb_dec10.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_dec10.zip",
+      "sha256": "c85a1eec849ec73595c985b7c3fc551529ee0c89853d8c1b8e6d691641fbb9e4",
+      "constituents": 50,
+      "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-01-01",
+      "filename": "mcwb_jan11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jan11.zip",
+      "sha256": "b6769665b6aafc83837fc96cf97f82f2115ee6b3eba87c40869981ec0b6881c8",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-02-01",
+      "filename": "mcwb_feb11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_feb11.zip",
+      "sha256": "20d49fcf9873ea05a2f2652ede275d4765a17bc8471ee17353c5a53ae195c20f",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-03-01",
+      "filename": "mcwb_mar11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_mar11.zip",
+      "sha256": "bb39cee7a41fdab89eac468a9daa105f4ace9104f6fdca21f40cfa34fdd4b997",
+      "constituents": 50,
+      "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-04-01",
+      "filename": "mcwb_apr11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_apr11.zip",
+      "sha256": "7c797b6844ceb82a1e2de9a09413daa57f5e8d61e0ba4d76c37631cb27403059",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-05-01",
+      "filename": "mcwb_may11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_may11.zip",
+      "sha256": "8612211fa5d688f75ca4263d54768f33d4cd9638b34fefec46876376372823d9",
+      "constituents": 50,
+      "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-06-01",
+      "filename": "mcwb_jun11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jun11.zip",
+      "sha256": "d9900253df41828ec2202131170808eaaed892b275e623c777e1a57f5b09f6e5",
+      "constituents": 50,
+      "weight_sum_pct": 100.03,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-07-01",
+      "filename": "mcwb_jul11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jul11.zip",
+      "sha256": "0e77d253bfffc928a475c4969cf80400beba377f3fb265316f8a480db306c3f0",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.95,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-08-01",
+      "filename": "mcwb_aug11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_aug11.zip",
+      "sha256": "16064384d0815ea74cbf58245024441fbb4b7666275d2f1eb068b9558f5fdfd0",
+      "constituents": 50,
+      "weight_sum_pct": 2836.38,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": "n50 weights not pct-scale (wsum 2836.38)"
+    },
+    {
+      "month": "2011-09-01",
+      "filename": "mcwb_sep11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_sep11.zip",
+      "sha256": "180ce26e878d5a02bdbed720ed50995ef7e30343c2db306fb2c63b6b94d3d6db",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-10-01",
+      "filename": "mcwb_oct11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_oct11.zip",
+      "sha256": "5355ce9b1c52f4100e6d33ea7e283f2f836ad87f52f1669870c33391eceb531a",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-11-01",
+      "filename": "mcwb_nov11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_nov11.zip",
+      "sha256": "25fe80ed13701f7897ed207d4e9f6ca427bdf994603efc09559214b45f6596fe",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2011-12-01",
+      "filename": "mcwb_dec11.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_dec11.zip",
+      "sha256": "5107a42a59b452d7da86eb8a887aef029214e275a0d37e18dd3601f0603015a1",
+      "constituents": 50,
+      "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-01-01",
+      "filename": "mcwb_jan12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jan12.zip",
+      "sha256": "c5fa2ad83576610b83be9828027429e8bbaf409fee298417c971dac48c5276ba",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-02-01",
+      "filename": "mcwb_feb12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_feb12.zip",
+      "sha256": "910654977f92a6fb548bf0d5024d846e9ab498f69041da83a999147798ae7104",
+      "constituents": 50,
+      "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-03-01",
+      "filename": "mcwb_mar12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_mar12.zip",
+      "sha256": "4a3ffd5c96e05459541f4c43ecc8f2a10ec39458eb1ba8bed5fd64f98a237b6b",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-04-01",
+      "filename": "mcwb_apr12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_apr12.zip",
+      "sha256": "fccde90fff97263db4892a29bd51defa1759187ad1b54f04150d0c198158b770",
+      "constituents": 50,
+      "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-05-01",
+      "filename": "mcwb_may12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_may12.zip",
+      "sha256": "540afbc23f98d87d6f42445f90f4851951ea32de3e33d60ca39b9631c44b09cf",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-06-01",
+      "filename": "mcwb_jun12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jun12.zip",
+      "sha256": "344e67a4c61911986eba538a56c7f3ba9a4036b8c55d8cf2a29e9ec840e30988",
+      "constituents": 50,
+      "weight_sum_pct": 100.05,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-07-01",
+      "filename": "mcwb_jul12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jul12.zip",
+      "sha256": "1c4d1dd7f03dcc0dace0d679928636e4eb6b6ac6c7c190001c181e3304c014e4",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.94,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-08-01",
+      "filename": "mcwb_aug12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_aug12.zip",
+      "sha256": "df8395e7d0bd8bdfafeaf3c5dfb2ddcc0a52858deda893ec62b5cfece21bb682",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-09-01",
+      "filename": "mcwb_sep12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_sep12.zip",
+      "sha256": "ff670baa36afb935e4d003d27183f5f01d3b569abf639ca63703850c8c36dbc1",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-10-01",
+      "filename": "mcwb_oct12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_oct12.zip",
+      "sha256": "deb8633c9ec16341bee4e88911e8b27d66b99dd3ff79aa16abee84853bffd183",
+      "constituents": 50,
+      "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-11-01",
+      "filename": "mcwb_nov12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_nov12.zip",
+      "sha256": "de0e630619d0be726a79a1a18d204434e34f6a6fd35fd42d4a9f522e62ad78f2",
+      "constituents": 50,
+      "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2012-12-01",
+      "filename": "mcwb_dec12.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_dec12.zip",
+      "sha256": "62026b8f4ed4eb1bdafc095d40c98dc8b99bdb8966a970b424b17a95cadfb214",
+      "constituents": 50,
+      "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.96,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-01-01",
+      "filename": "mcwb_jan13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jan13.zip",
+      "sha256": "82ef5a878d989dfbc4040ca20e5cab03e4ba09faaa0f4f914c5512be52799931",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-02-01",
+      "filename": "mcwb_feb13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_feb13.zip",
+      "sha256": "ba71b50ffc56f443ed94b8f7031f41ec28abc37631c8d2de3c0938780a1cf225",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-03-01",
+      "filename": "mcwb_mar13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_mar13.zip",
+      "sha256": "6e947d14a974c3e4a0020d6cc3616f77c2ee32ddec91ed323a826f6c7516c4eb",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-04-01",
+      "filename": "mcwb_apr13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_apr13.zip",
+      "sha256": "606891f3e21c280fd72500eb35ffbe0752e6e992c72ceb6462f140cc64207fc3",
+      "constituents": 50,
+      "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-05-01",
+      "filename": "mcwb_may13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_may13.zip",
+      "sha256": "d039eaf1fd0844afafa908a4ea61e68f4a95f9ac10c5a87570afd75b9d9922c4",
+      "constituents": 50,
+      "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-06-01",
+      "filename": "mcwb_jun13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jun13.zip",
+      "sha256": "6a42a20d68b59a7b6a071d2884720412e3a518c88ee547e48248bc9983b2b6a4",
+      "constituents": 50,
+      "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-07-01",
+      "filename": "mcwb_jul13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jul13.zip",
+      "sha256": "bd749fa98d31f6e6a025644a651d3d6d38ddb25e88ad71a0ff57fbbee48275cf",
+      "constituents": 50,
+      "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-08-01",
+      "filename": "mcwb_aug13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_aug13.zip",
+      "sha256": "8a71a162cf159e08f2c2e20162fda620d94ce12275fa4b8eb239ad803b238a5a",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-09-01",
+      "filename": "mcwb_sep13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_sep13.zip",
+      "sha256": "26bf5b7186c649f074f8c2fe9ec74fe1dfc2e5ad27dc59acb439a781d163bcc0",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.05,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-10-01",
+      "filename": "mcwb_oct13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_oct13.zip",
+      "sha256": "f987ef1868033bc399a74fb0531519184ee1e3c66224dc21471d0b1c456db13b",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-11-01",
+      "filename": "mcwb_nov13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_nov13.zip",
+      "sha256": "843aa288e2ca687e5847adb8faea573448a83a5ec4970895470d14ed71576e62",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2013-12-01",
+      "filename": "mcwb_dec13.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_dec13.zip",
+      "sha256": "222672c8e8ffea87b71e37822f6305040e1298f9d2bdb456147aba5a63996e20",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-01-01",
+      "filename": "mcwb_jan14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jan14.zip",
+      "sha256": "54723f08ba0f2ce4af7441cca5323fb4dcf1a002cd40f38ff2c4f295feaeec32",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.07,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-02-01",
+      "filename": "mcwb_feb14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_feb14.zip",
+      "sha256": "e7cf4ecd003f768694d0ebbce96787fa099fbf99194c2db88b42152e30121e68",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-03-01",
+      "filename": "mcwb_mar14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_mar14.zip",
+      "sha256": "767f2edcdfd0c690a3c78f7a46276aa433353b80b86bf39a17ffd69dae4ebdf2",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-04-01",
+      "filename": "mcwb_apr14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_apr14.zip",
+      "sha256": "45652caec05b7223e67c0e6c8b74ec4c98ef3baca2d29fb5234510c06fd418c8",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-05-01",
+      "filename": "mcwb_may14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_may14.zip",
+      "sha256": "d8a5f806217048036502191b071fbfc009620993e7396be5680dcdc54a6530a2",
+      "constituents": 50,
+      "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-06-01",
+      "filename": "mcwb_jun14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jun14.zip",
+      "sha256": "ec75b4d0541664ef629a53a375eaad14c8783f5b7f43ce010188ff93ca543a76",
+      "constituents": 50,
+      "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-07-01",
+      "filename": "mcwb_jul14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jul14.zip",
+      "sha256": "c76d83b748fc4f3d803d7b1a5d04eea2f9b2d4892b67c5de330c6871d93ebc0c",
+      "constituents": 50,
+      "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-08-01",
+      "filename": "mcwb_aug14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_aug14.zip",
+      "sha256": "f97b1c8d555fadaf5dace198f0f7009db283946cb26da99d9b3097c218efbb60",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-09-01",
+      "filename": "mcwb_sep14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_sep14.zip",
+      "sha256": "f8c1557cce5f1eb2ed0385a0f3db304b3ec114a4e03c85e8478f2c050f36d58e",
+      "constituents": 50,
+      "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-10-01",
+      "filename": "mcwb_oct14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_oct14.zip",
+      "sha256": "2905b229938727613eed296aa86c8ff93caec927a02b54dfb073bd7492d79140",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-11-01",
+      "filename": "mcwb_nov14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_nov14.zip",
+      "sha256": "43432cf7791a59955997ae2f79792f0fecc73c502570d4c83dc0c45c312b71fa",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2014-12-01",
+      "filename": "mcwb_dec14.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_dec14.zip",
+      "sha256": "7837f33fa17ed97a22534e219315a2001458170d758aefaca155ff8e78d3cb5a",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-01-01",
+      "filename": "mcwb_jan15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jan15.zip",
+      "sha256": "c0465343b6e22cdacfa819540658bd254203107475b5745c0a5ced2854f5494a",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-02-01",
+      "filename": "mcwb_feb15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_feb15.zip",
+      "sha256": "487d3b8594bf97fc1e4375bfcbcf720a97717a48581ce3142ead100d2233db8d",
+      "constituents": 50,
+      "weight_sum_pct": 100.03,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.04,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-03-01",
+      "filename": "mcwb_mar15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_mar15.zip",
+      "sha256": "c6b730e7c98aba738269838affb6f0c62dfa5f16f801c21f6552aeaf143ede4f",
+      "constituents": 50,
+      "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-04-01",
+      "filename": "mcwb_apr15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_apr15.zip",
+      "sha256": "ac7b1baa14f2dfd09d8860e1ac64976bb8f5ef8a79eba80cf36a29ee3dbd4ad7",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.04,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-05-01",
+      "filename": "mcwb_may15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_may15.zip",
+      "sha256": "1678e3366ed1c27ec78bb9897b177b00c1bef5db62aa5412533837fb1e8cbebf",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-06-01",
+      "filename": "mcwb_jun15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jun15.zip",
+      "sha256": "4ab97672f4133d5fbe8bd9d131680e862a68128be288444a2a8e2fdb8a206763",
+      "constituents": 50,
+      "weight_sum_pct": 100.04,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-07-01",
+      "filename": "mcwb_jul15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jul15.zip",
+      "sha256": "1f87c7b903b544cc42b9be83f4cfb955825154e513378e3d156887e6e22278bb",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-08-01",
+      "filename": "mcwb_aug15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_aug15.zip",
+      "sha256": "37ee747182e33ef5cdfc785781b00d14cb84c7a75ef2f6ab0b544b0005f81a8f",
+      "constituents": 50,
+      "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-09-01",
+      "filename": "mcwb_sep15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_sep15.zip",
+      "sha256": "f3006d9606549da9e6582019d058214c1a98d1ede6b81b36ed7b7f9ea53d764b",
+      "constituents": 50,
+      "weight_sum_pct": 100.04,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-10-01",
+      "filename": "mcwb_oct15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_oct15.zip",
+      "sha256": "6881e123d3a150519dd0be99c52191a05fffd3f286fee80ddf209f078459a46f",
+      "constituents": 50,
+      "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "legacy",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-11-01",
+      "filename": "mcwb_nov15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_nov15.zip",
+      "sha256": "0459c3a971eecaf2db3984cce2b6474c1fcbcc7628ad2937fcde039e64a90801",
+      "constituents": 50,
+      "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.95,
+      "schema": "modern",
+      "status": "valid",
+      "note": null
+    },
+    {
+      "month": "2015-12-01",
+      "filename": "mcwb_dec15.zip",
+      "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_dec15.zip",
+      "sha256": "0f4016904fd236f4ff04fcbd0455b2055c19a1624e1670b1123a937ae17f8b5a",
+      "constituents": 50,
+      "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
+      "status": "valid",
+      "note": null
+    },
     {
       "month": "2016-01-01",
       "filename": "mcwb_jan16.zip",
@@ -16,6 +952,9 @@
       "sha256": "9c433e76b77c3f97535b18f4efca7936cf9ffc5d4af07c8d48eb10df0346fafa",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -26,6 +965,9 @@
       "sha256": "c3baff18da47991f35863073b40091f37f80ff2635a2dbab7c7ae7d6ef01196b",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -36,6 +978,9 @@
       "sha256": "6e34f11b86f07b307d7101f34b2e650c2f279ae10edef691ef24d8f748729b60",
       "constituents": 50,
       "weight_sum_pct": 99.96,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -46,8 +991,11 @@
       "sha256": "100aa996fb339f9753398b98d8f8f75c7d30b8ebf6cd9a55e3e1d08979b64f66",
       "constituents": 51,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2016-05-01",
@@ -56,8 +1004,11 @@
       "sha256": "1e76f7fe102bc2686b26ec94c70b4940563a407e9c82d747b92abbd94b70218f",
       "constituents": 51,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.96,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2016-06-01",
@@ -66,8 +1017,11 @@
       "sha256": "7f39798a89ce4040f2254d92eeede6a04478976f8d02389d698b0818387fb246",
       "constituents": 51,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2016-07-01",
@@ -76,8 +1030,11 @@
       "sha256": "c0a3e34a1d2d0108763775ef88988700d6f0cbea7098afbab8cd8ff80c64fc4a",
       "constituents": 51,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2016-08-01",
@@ -86,8 +1043,11 @@
       "sha256": "6f39278a47d0decd56c3dbff7a702f77af16eacd69782b99332ca0f06e71e959",
       "constituents": 51,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2016-09-01",
@@ -96,8 +1056,11 @@
       "sha256": "c6f8488b0267135060e446e53f82124fd840d44062c7c41d54a9b151cc77a9a8",
       "constituents": 51,
       "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2016-10-01",
@@ -106,8 +1069,11 @@
       "sha256": "add96a36faa5909a9c9314dc0524befa6e50ccb778038fce47fe7e97c02d605a",
       "constituents": 51,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2016-11-01",
@@ -116,8 +1082,11 @@
       "sha256": "660c982595e76eab6a9c8ffdd51ee46c514f28a20f91acdd4c8786fd6a1e7cd6",
       "constituents": 51,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2016-12-01",
@@ -126,8 +1095,11 @@
       "sha256": "96d5304f6faabd823e29bdaa81618d73d529de8fbace734e034c51a83ef798d3",
       "constituents": 51,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2017-01-01",
@@ -136,8 +1108,11 @@
       "sha256": "492f8a36c8c5551defe84ca2543bf1b22b495f0042c040d687f96cffd0ff2887",
       "constituents": 51,
       "weight_sum_pct": 99.95,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.96,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2017-02-01",
@@ -146,8 +1121,11 @@
       "sha256": "b735c007aaff23bd22f03cde7586ff61407ef175295500b33a4f2570fb5cae64",
       "constituents": 51,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2017-03-01",
@@ -156,8 +1134,11 @@
       "sha256": "f91e460929c551e352b4e2b8335ed572e13595a9f6ebe355afedef5e46db4436",
       "constituents": 51,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2017-04-01",
@@ -166,8 +1147,11 @@
       "sha256": "19e5048f571ebddaac455103ebe11e7f7cbcfd76884872232c866ecec43a865d",
       "constituents": 51,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2017-05-01",
@@ -176,8 +1160,11 @@
       "sha256": "10d56feed8fe5f1b92bca587b6bec176e8f6fb07777e38b274cb01d3fc7c9f71",
       "constituents": 51,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.04,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2017-06-01",
@@ -186,8 +1173,11 @@
       "sha256": "4db4cc581e71d0e62db32b96937ded507e8c92c33d07d34331962f3292375b3a",
       "constituents": 51,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2017-07-01",
@@ -196,8 +1186,11 @@
       "sha256": "ff10b977f3777f06d287465da7640651fb617ca9993553741a6551c8e6178dae",
       "constituents": 51,
       "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2017-08-01",
@@ -206,8 +1199,11 @@
       "sha256": "18663d03f4a2aab2b386288cf1507c4f7de2464c8553351eb5222760057fffc7",
       "constituents": 51,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2017-09-01",
@@ -216,6 +1212,9 @@
       "sha256": "fd02b5657d72ce0909a28d18dd43016701f771b9f3374f4eaf2dd50ce5397240",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -226,6 +1225,9 @@
       "sha256": "6d09f996d4910e54e3790f5dce35a0454b16ef9aa5015cdcfc7e6392e4f52451",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -236,6 +1238,9 @@
       "sha256": "ebf6b91682b268aa7501261b150fa8e1cf8ef1392a30e1391add8b3dc4b6c12b",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -246,6 +1251,9 @@
       "sha256": "436e89a2f6387b14be0a3a4a56ad0e69031f9cd581d1e6844ae31734f7a203db",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -256,6 +1264,9 @@
       "sha256": "3ee41782b15af41c0f3736369d2eade86ad7794b9b9b0240ada4558e18963f04",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -266,6 +1277,9 @@
       "sha256": "52c3abc402c2dc5aad17ffa92d02fa69515aec293162d5ad0ffa7b142635bb15",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -276,6 +1290,9 @@
       "sha256": "b908709cd9734fa498708ac1875357e9d870caf0179db8e4d1166d608f456934",
       "constituents": 50,
       "weight_sum_pct": 100.03,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -286,6 +1303,9 @@
       "sha256": "407b2b2f708768dc6692fdc8181c1b657d50efa25efadfd209873208959fcf55",
       "constituents": 50,
       "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -296,6 +1316,9 @@
       "sha256": null,
       "constituents": null,
       "weight_sum_pct": null,
+      "next50_constituents": null,
+      "next50_weight_sum_pct": null,
+      "schema": null,
       "status": "missing",
       "note": "soft 404 (server returned non-ZIP error page)"
     },
@@ -306,6 +1329,9 @@
       "sha256": "35c17dec203a35968d923b40e66ace12089dfb494645cec1042996ee466ca258",
       "constituents": 50,
       "weight_sum_pct": 100.04,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -316,6 +1342,9 @@
       "sha256": "ce4e31027071b5da970c08c475ef81df72626170ba336ad47323a5bb0cc83676",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -326,6 +1355,9 @@
       "sha256": "9a061954846095c844645776caf3e43f8fa5dee2e30ea22c652b4867e389b240",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -336,6 +1368,9 @@
       "sha256": "342c1a190837153bbc6df00f491df8f2e8c44b08e2f5093a04a0068618231daf",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -346,6 +1381,9 @@
       "sha256": "c73463adb8c9f775890b93c3ab63b5370e41f49a6b2449c86c5fe33f94bf9245",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -356,6 +1394,9 @@
       "sha256": "49fa421d876acfb9483b3c576fb61d7961271bf882bc9373f2941f364422c1e4",
       "constituents": 50,
       "weight_sum_pct": 99.96,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -366,6 +1407,9 @@
       "sha256": "1b012d06c8eb2a313af8b319aedf89ab0dcf0ed65c73a17d98b38fb2b2decfb2",
       "constituents": 50,
       "weight_sum_pct": 99.96,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -376,6 +1420,9 @@
       "sha256": "2f5a9191d2d7e758a5aaf3c31f5a406158b78576d8e5a848be9547a1cd1d425f",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -386,6 +1433,9 @@
       "sha256": "cdc6a8e862f8a57a9e4daebec4e1b2b01e0797dc3b81c5683ca92404f9f765da",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -396,6 +1446,9 @@
       "sha256": "05349fc317e43e69f6742eabc12b9a9c86eb8c069192dc1567673bc7d4ba1e62",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -406,6 +1459,9 @@
       "sha256": "d4e4fc4976b971bf87af2e13b96a2920a780961689fa2ada5045f8a667319b41",
       "constituents": 50,
       "weight_sum_pct": 100.03,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -416,6 +1472,9 @@
       "sha256": "fa8bfe64a52925b3efe23b3d2250c94683dfc99806ba2999a5988b5a830e4bd4",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -426,6 +1485,9 @@
       "sha256": "701fa11fdaeff1fef6e105f65a818e44cbe132a3816b079ce5bd9d85cce94df3",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -436,6 +1498,9 @@
       "sha256": "d0c353d3dd04ce40a7140b3b7fb8f12d094ae20a34539b2bd6d1510b5d0fe560",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -446,6 +1511,9 @@
       "sha256": "6c3b6bd5969a72350fbb78498709953b413d9913a95af7138526ef9d6bb23ad8",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -456,6 +1524,9 @@
       "sha256": "cc33a6afbf6b2e79182ca4e2efd7896baf068c91648c224ef19e907804f4e6be",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -466,6 +1537,9 @@
       "sha256": "78ba02d2fc3c49cd5d7ee706e037687d5be2124d6fec7ab29033792c669eabef",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -476,6 +1550,9 @@
       "sha256": "366ff38f34a53c9e532767d2a4b792d0fe3d36b16c152167a0804f6c017727a9",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -486,6 +1563,9 @@
       "sha256": "80f00f1d46e6a20c16666efaf350e14e92e4eddc2cf0a9c3145d369c36aab5c6",
       "constituents": 50,
       "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -496,6 +1576,9 @@
       "sha256": "73a2b89ee640e272a4bbb46e3eac419ad4b1ff0f0bd6727a766b4b0180d165f0",
       "constituents": 50,
       "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -506,6 +1589,9 @@
       "sha256": "a0d624b62ce055ad8293d775761f5d88cb582b726a01c936eae5d9d7828bf6b0",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -516,6 +1602,9 @@
       "sha256": "262aa82eedb3151bb52f6b57d2d258514e7579d0c32a1556124249a2e6bbc613",
       "constituents": 50,
       "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -526,6 +1615,9 @@
       "sha256": "21a1dd46b703f643c9dddc610160805839931d8b053bd790c7f3eb7dd19833dd",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -536,6 +1628,9 @@
       "sha256": "d8f0668cb00c285ba4382934763652098c3af0c6203c01479fc5c7934a89ec09",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.95,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -546,6 +1641,9 @@
       "sha256": "edf5f2395993fc254c6319448b8e68fce3167aa237278238abc618f053d0a9f7",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -556,6 +1654,9 @@
       "sha256": "5e505569f1e3898cc16a1bc8e11b4df4cafb2379fbbe25cf7a7b54cf0a3686a8",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -566,6 +1667,9 @@
       "sha256": "ed8cb68ff18c6865cd795c2142b77326a071da67bc21ba873a7a634ce35cb149",
       "constituents": 50,
       "weight_sum_pct": 100.04,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -576,8 +1680,11 @@
       "sha256": "f9a6ddd841d1262a24a38ec40b8f59a6a65c9bbdaeef259b208d95859f094194",
       "constituents": 50,
       "weight_sum_pct": 99.96,
+      "next50_constituents": 49,
+      "next50_weight_sum_pct": 98.45,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "next50 count 49"
     },
     {
       "month": "2020-10-01",
@@ -586,8 +1693,11 @@
       "sha256": "078f75d3ed39e65fd058c8d3189baafe60c0970c86d0874229da59ec81272410",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 49,
+      "next50_weight_sum_pct": 98.16,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "next50 count 49"
     },
     {
       "month": "2020-11-01",
@@ -596,6 +1706,9 @@
       "sha256": "04b7489e037fc28dfcc39429b50944a85a8bf74b2ef248eb33c607e7c2b39b00",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -606,6 +1719,9 @@
       "sha256": "119ce3890812189f6d72442ae3aa9d015441965a933161b37df9ac5436e37b8c",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -616,6 +1732,9 @@
       "sha256": "0e1b3501b8fa5132481ffd3a65717ef360d574d56bdd9ae18a4a8dd4b0e404be",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -626,6 +1745,9 @@
       "sha256": "5ba0e64219e675fd996989179868b73cbc9dfe57585794e515a3abd8bb29c08e",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -636,6 +1758,9 @@
       "sha256": "f0fd61bb27f3a45fa5244196e262851d73339f8f333cd7734b11cb3cf20938f5",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -646,6 +1771,9 @@
       "sha256": "0c4335096194fffd3253efd4b226e0e62b8b1a0c6698a6e7e18e15e621d8bccf",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -656,6 +1784,9 @@
       "sha256": "69d2a2927bc37b8279ea04b54fd729f819e1d0222b6b97824027164fa39fe348",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.05,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -666,6 +1797,9 @@
       "sha256": "0687cb005fc097e792ee91953e36a557a2e472dcb3ae9f036e93162deb325ce6",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -676,6 +1810,9 @@
       "sha256": "51df894813dd096c7506bf0276debc5264a24295238d7080fb254372e2cd0ec6",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -686,6 +1823,9 @@
       "sha256": "ee56590028c85f2ec91f93114064ecb3ac7f543a9416bcac2ada6cbaf07975b8",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -696,6 +1836,9 @@
       "sha256": "a53d30a0438175c5e7504ea2ce49564c2392ce4e8021965324b76ab6ccc286e9",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -706,6 +1849,9 @@
       "sha256": "24b88f19e2fc768f3cad030b119f5bf3c2d1789599c3d03e899f48d756c13b28",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -716,6 +1862,9 @@
       "sha256": "ba52f9b636dccdcfa2db3581cd542aa2f21e65c7f509a95408793662c5fe5f71",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -726,6 +1875,9 @@
       "sha256": "68c4119dacdf6b0c9cf664cf156166b21fa4d07f157650ebabdb2a8f88b172d6",
       "constituents": 50,
       "weight_sum_pct": 100.04,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -736,6 +1888,9 @@
       "sha256": "b254347585f2d64ce92af41f8f569a34e3427d2ab25521f0b58bfbfe670c7f95",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -746,6 +1901,9 @@
       "sha256": "b3b82ef2ffccf6c145651c34dfc7eb8f8e972c48324e7a42ef11eedaf65efe69",
       "constituents": 50,
       "weight_sum_pct": 100.03,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -756,6 +1914,9 @@
       "sha256": "baae5a2d8906deb220c341c209036fd7667d9e6a59830a8681598650cbab3c02",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -766,6 +1927,9 @@
       "sha256": "23283256015c77f491eda5bb527d48b8de9eb20c44e59c475843e132591e605e",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.97,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -776,6 +1940,9 @@
       "sha256": "df81c28fe9f97aa016416ce21d8bc04a0e83d942400518919f20ee727527c673",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.04,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -786,6 +1953,9 @@
       "sha256": "f618838fa8fe5c62f9c7d3be3bdc53dcd293378d7b7bd0490eaf02c80a396f2e",
       "constituents": 50,
       "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -796,6 +1966,9 @@
       "sha256": "af2bb20cc901eaaa4694f102dc4cd62517397092660bf000b4f03029764e291a",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -806,6 +1979,9 @@
       "sha256": "f1d83733de7b4783c06a851d48b17e0142e82b57f33d8f7a1bb6905716dcb495",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -816,6 +1992,9 @@
       "sha256": "f3cc8b8ecda26f466c4d9a1b9564abdbb018d4df777956b1cb919652fd210258",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -826,6 +2005,9 @@
       "sha256": "838447873e33f11354dc8c4397f1de30ee3632d5ee8d453c9de290f8da40db2e",
       "constituents": 50,
       "weight_sum_pct": 100.03,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -836,6 +2018,9 @@
       "sha256": "cadefe3114c547d8de2a0bd398e3ccef4c306f808260e4c5280047bea1179bc3",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -846,6 +2031,9 @@
       "sha256": "d3b611ad432a9750c44296b9adcf46bbee2868af361a80529a21469ef9ae6aed",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -856,6 +2044,9 @@
       "sha256": "f4e1f5685ee66d57584c0312cef095ba34c24c2d1858f5fd0e95f4283038349c",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -866,6 +2057,9 @@
       "sha256": "453069cd25d7f41a5affcfe7c249916a9efe494ca2ad1995127cba4974dca4fb",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -876,6 +2070,9 @@
       "sha256": "15e1aa3e43dee9f0c9d6f129a680f8845931220f44dbb4b2082684bb489d547b",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -886,6 +2083,9 @@
       "sha256": "58d056797659a68ad30cb4702f0f7ffb545026b774223d8e506818553a05aa99",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.05,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -896,6 +2096,9 @@
       "sha256": "36d4b2c1c0c6f3f058634afc15bd587d60cafec14efdf2e27de4d33efe770d54",
       "constituents": 50,
       "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -906,6 +2109,9 @@
       "sha256": "fc2160d18e34baba1b0375cdec7fab9b128214806d8a17f5da802b637d83483c",
       "constituents": 50,
       "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -914,10 +2120,13 @@
       "filename": "mcwb_jul23.zip",
       "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jul23.zip",
       "sha256": "ce8a335221f222def0ee68b5d2aa6e2cdf500ec171e9c3d100df01a8a4545ac4",
-      "constituents": 51,
-      "weight_sum_pct": 100.01,
+      "constituents": 50,
+      "weight_sum_pct": 99.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 placeholders skipped: ['DUMMYREL']"
     },
     {
       "month": "2023-08-01",
@@ -926,8 +2135,11 @@
       "sha256": "efabd5cf3b6f50ec05dc98ebc1f7a2d92c2a382dba8111f1221c3c9e0e9e8c81",
       "constituents": 51,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2023-09-01",
@@ -936,6 +2148,9 @@
       "sha256": "e2259602a3d93b851ce5728549467a0f9f7863bec9e3ad03c8aff6a9be1c8c19",
       "constituents": 50,
       "weight_sum_pct": 100.04,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -946,6 +2161,9 @@
       "sha256": "7222ce13c89557e396898fd68c48a7a0ea297a246a9d50e69d787352034eefc2",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -956,6 +2174,9 @@
       "sha256": "1a892624ff3a809b4a64b93c710491d56656a523649a22cb85d7eceaba13b85c",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -966,6 +2187,9 @@
       "sha256": "cbfab117148900d58a1139748ec11a8e2de645acd8ae0355300dfdd14888d69a",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -976,6 +2200,9 @@
       "sha256": "d779189778c6f667dbe0b68a41ed198da6aeb9d093ca238895a0ca0a62462155",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -986,6 +2213,9 @@
       "sha256": "d3726bee6929c44821a21a4451a803acc6bb516017ddfd64e43f4c7ac617fca0",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -996,6 +2226,9 @@
       "sha256": "3e9164b5ed9946f7705fabbc71b7455c7e9bb4bb070dba12afaa51e33520246a",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1006,6 +2239,9 @@
       "sha256": "938d746ce990d858780fb97e8d25b1e3d015bc4b5beed88998836521e2af74fb",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1016,6 +2252,9 @@
       "sha256": "798669c96687b8c8c658b66e2301bc5eb74b9856104757dc4fbdd8c78547a9b6",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1026,6 +2265,9 @@
       "sha256": "4799d4d2cb8aa5235015e339026559615d79e611cde90f8ce47d4cf26e9ac45a",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1036,6 +2278,9 @@
       "sha256": "5a89a9e0fd709a1b310f03be4b8a4bc8f36c6982a4e83a8746c88af084b700ba",
       "constituents": 50,
       "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1046,6 +2291,9 @@
       "sha256": "605b2961c8618694750074715a6bb0bba7f2304300daf5aa89cf5df0edf90d53",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1056,6 +2304,9 @@
       "sha256": "bbd73839ae7edac1ac4d18cba8b3893433c2f7868ec612ac7c99db0bab963178",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1066,6 +2317,9 @@
       "sha256": "1d22a30faff9eb0603d33988a7d9412da18d97bf224241091c6d3b00ecc026ee",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1076,6 +2330,9 @@
       "sha256": "5fe58f46673b260bd181d784fe9fabf5006026cdd2ad96b83ca7dc6b93af7876",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1086,6 +2343,9 @@
       "sha256": "6d213927b2c1f219e72e047b7a2daee3c74f6ab9842a240193569ee611114d53",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.03,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1096,8 +2356,11 @@
       "sha256": "d35c5f2193ec2234cf521521ad54006ecb92983cfdd3db29875e655e15b8122a",
       "constituents": 51,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2025-02-01",
@@ -1106,8 +2369,11 @@
       "sha256": "60dbb9f5c86de680e60e5ccbb545246940e1060845f42c1aae8f03f798003fb9",
       "constituents": 51,
       "weight_sum_pct": 100.13,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 count 51"
     },
     {
       "month": "2025-03-01",
@@ -1116,6 +2382,9 @@
       "sha256": "44983d272f771f543c6cbd15a51e9ccd1cf83bce53fe4aa309d3be3fe6c7f2b5",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1126,8 +2395,11 @@
       "sha256": "ee2c6ccce01c8ce677803ab0186092ab18955f3e417118da94308d2c9551fcf7",
       "constituents": 50,
       "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.01,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "next50 placeholders skipped: ['DUMMYSIEMS']"
     },
     {
       "month": "2025-05-01",
@@ -1136,8 +2408,11 @@
       "sha256": "068f564d753e90ca806a68fe969a65845402af2399f55ab32222a82bda073c15",
       "constituents": 50,
       "weight_sum_pct": 99.96,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.1,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "next50 placeholders skipped: ['DUMMYSIEMS']"
     },
     {
       "month": "2025-06-01",
@@ -1146,6 +2421,9 @@
       "sha256": "67d8fb0c884b5fc356cc5040eecdb5dcc3a59deb980cf48258af59d5b5bd2a5a",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1156,6 +2434,9 @@
       "sha256": "0244f8ac658343e07c045eb390f6ac6e42cefc45540a5badcefefdcd284201f4",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1166,6 +2447,9 @@
       "sha256": "fc612e3a37a2d14ff75b68ac37a55dcdfaf530f8c8b7eea2e329b7f728daded6",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1176,6 +2460,9 @@
       "sha256": "677b4741a1f9dd8aaa55d981c97eb4821dbc634f83b858939ec25df2ed4d2d1f",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1184,10 +2471,13 @@
       "filename": "mcwb_oct25.zip",
       "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_oct25.zip",
       "sha256": "3e8a855bf8092eb09387acc95c8adfa17060f1c24276f40af785fb23dc5e4ba4",
-      "constituents": 51,
-      "weight_sum_pct": 100.0,
+      "constituents": 50,
+      "weight_sum_pct": 99.54,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 placeholders skipped: ['DUMMYTATAM']"
     },
     {
       "month": "2025-11-01",
@@ -1196,6 +2486,9 @@
       "sha256": "e767691ec1dd759a1c511f267a10a70ba2443cc9eb0e6a53dbec8c39a5d041be",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1204,20 +2497,26 @@
       "filename": "mcwb_dec25.zip",
       "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_dec25.zip",
       "sha256": "cbb5879cd482a2334074c1251b3d1dcbe5bf75f52b6a540328d53a7deb3419f0",
-      "constituents": 51,
-      "weight_sum_pct": 100.0,
+      "constituents": 50,
+      "weight_sum_pct": 99.97,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.0,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 placeholders skipped: ['DUMMYHDLVR']"
     },
     {
       "month": "2026-01-01",
       "filename": "mcwb_jan26.zip",
       "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jan26.zip",
       "sha256": "e7aa9aed0c4f2f5921c29802c2123064ac7c3e3af8f2d5442f0d89793587fe32",
-      "constituents": 51,
-      "weight_sum_pct": 100.04,
+      "constituents": 50,
+      "weight_sum_pct": 100.01,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.98,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "n50 placeholders skipped: ['DUMMYHDLVR']"
     },
     {
       "month": "2026-02-01",
@@ -1226,6 +2525,9 @@
       "sha256": "a23d11c2040a5d322585b646d01de7e5dfa2977995235c68830747487aacb570",
       "constituents": 50,
       "weight_sum_pct": 100.02,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.02,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1236,6 +2538,9 @@
       "sha256": "6cb5c0e9e7a0cc52a9cd97cad7753c961ab81a99cf11347998ca1020da60f46a",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 99.99,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1246,8 +2551,11 @@
       "sha256": "f1437baea0ce478b19593af35f3b8b05e25832be38f536ebc536e25a0ea695a1",
       "constituents": 50,
       "weight_sum_pct": 100.0,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 96.65,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "next50 placeholders skipped: ['DUMMYVEDL1', 'DUMMYVEDL2', 'DUMMYVEDL3', 'DUMMYVEDL4']"
     },
     {
       "month": "2026-05-01",
@@ -1256,8 +2564,11 @@
       "sha256": "1c51a66b5fc1939b802d2e2e7bd0ee621e1af80c79c1e855f74a4c83fd962689",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 96.73,
+      "schema": "modern",
       "status": "valid",
-      "note": null
+      "note": "next50 placeholders skipped: ['DUMMYVEDL1', 'DUMMYVEDL2', 'DUMMYVEDL3', 'DUMMYVEDL4']"
     },
     {
       "month": "2026-06-01",
@@ -1266,6 +2577,9 @@
       "sha256": "fd2403ba1f1bdec4fef90d06fdcb777eb817a677d2e5597d9f5008981f3ad3c1",
       "constituents": 50,
       "weight_sum_pct": 99.98,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.01,
+      "schema": "modern",
       "status": "valid",
       "note": null
     },
@@ -1273,11 +2587,14 @@
       "month": "2026-07-01",
       "filename": "mcwb_jul26.zip",
       "source_url": "https://www.niftyindices.com/Market_Capitalisation_Weightage_Beta_for_NIFTY_50_And_NIFTY_Next_50/mcwb_jul26.zip",
-      "sha256": null,
-      "constituents": null,
-      "weight_sum_pct": null,
-      "status": "missing",
-      "note": "soft 404 (server returned non-ZIP error page)"
+      "sha256": "d33a6481885c5e27e8dd14694317d5e0583e954669b6bb715feac56481e4d20d",
+      "constituents": 50,
+      "weight_sum_pct": 99.99,
+      "next50_constituents": 50,
+      "next50_weight_sum_pct": 100.05,
+      "schema": "modern",
+      "status": "valid",
+      "note": null
     }
   ]
 }
