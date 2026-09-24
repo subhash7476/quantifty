@@ -97,10 +97,13 @@ Status key:
 | 17 | R-11 reader-date audit performed and freshness of 2023-01-02 → 2026-09-11 ruled (R-12 precondition) | **AUDIT DONE** (2026-09-15) and **freshness RULED 2026-09-19: signal-spent** — **SATISFIED** | P-1 → `PTMS_GANN_R11_READER_DATE_AUDIT_2026-09-15.md` | Operator (ruled) |
 | 18 | Freeze document committed, SHA-256 recorded, operator-approved | **FROZEN — approved by the operator 2026-09-19.** `docs/reports/ptms/PTMS_GANN_STAGE1_FREEZE_DOCUMENT_DRAFT_2026-09-19.md`, commit `2f5655b`, SHA-256 `27640c87020e48add18f05e7c27a12517fb4648e5724648380874c2af3d1822a` (over the file's git blob at that commit). 22 verbatim blocks machine-checked against their sources. Any edit to the file voids this digest. Next: item 15 (G-S1, operator) carries the same digest and must be appended before any read | P-5 | Operator |
 | 19 | GF-10 mechanical definition complete (detector, ledger, legs, latches, P1–P4 populations, formal contrast, timestamps, weekly score, outcome) | **LOCKED — TO TRANSCRIBE** from `GF10_MECHANICAL_DECISION_RECORD_v0.8_2026-09-19.md` (70 GF-10 locks; audit PASS; primary score complete at the definitional level). OPEN-N (exclude) and RR-3 (ratified) **RULED 2026-09-19** — no GF-10 definition open. GF-10 G-7 span start for confirmation at freeze review (v0.8 §3.12). Item 2 caution stands (transcribe from v0.8 §11.2, not R-5) | §4 OPEN-N; RR-3 | Research |
+| 20 | Blind size check recorded, then the screen run and both results committed | **DONE 2026-09-24.** Size check: 200 pseudo-real panels, rejections GF-1 3, GF-4T/R8 0, GF-10 6, all within 2α = 0.0333, so all three were screened (`PTMS_GANN_STAGE1_SIZE_CHECK.json`, commit `9382720`, recorded before unblinding). Screen: `PTMS_GANN_STAGE1_SCREEN_RESULTS.json` + `PTMS_GANN_STAGE1_SCREEN_REPORT.md`, commit `2de0548`, run at head `9382720` with the guard passing and the code identical to `357174a`. **All three primaries retired on the surrogate leg** (A.2 row 0) | R-12 screen | Research |
 
-**Screen preconditions (R-12), all unmet:** items 1–19 SATISFIED, including R-11 frozen after its
-audit, R-13 complete, and R-14 finalized; G-S1 appended by the operator. The screen then still needs the
-blind size check (item 10) recorded before unblinding.
+**Screen preconditions (R-12), all met and now consumed:** items 1–19 SATISFIED, including R-11
+frozen after its audit, R-13 complete and R-14 finalized; G-S1 appended by the operator at `cabaeba`
+before any read; the blind size check recorded at `9382720` before unblinding. The screen ran on
+2026-09-24 (row 20). **These preconditions cannot be met a second time for this hypothesis set** —
+the panel has been read at signal level under GR-1.4, and the three constructs are retired.
 
 ---
 
@@ -161,6 +164,38 @@ results cannot be declared off-path.
 
 ## 6. Verdict
 
+> **STAGE 1 COMPLETE — 2026-09-24. All three primaries retired.** The screen ran once, under the
+> frozen protocol, with the guard passing and no protocol change of any kind. Results at `2de0548`:
+>
+> | Construct | T_c | p_sur | α | Outcome |
+> |---|--:|--:|--:|---|
+> | GF-1 | −0.0101 | 0.9530 | 0.0167 | Retired on the surrogate leg |
+> | GF-4T/R8 | +0.0334 | 0.9800 | 0.0167 | Retired on the surrogate leg |
+> | GF-10 | +0.0473 | 0.2140 | 0.0167 | Retired on the surrogate leg |
+>
+> The frozen wording applies to each: *"No evidence, against a surrogate null, of an effect of the
+> optimistic size that confirmation would need."* **Never** "Gann's rule is false". Under G-1, a
+> construct retired here may not proceed to a confirmatory test.
+>
+> **Two findings recorded for any successor, neither acted on** (Stage 1 forbids respecification):
+>
+> 1. **GF-4T/R8's surrogate null sits above its own real statistic.** The real T_c is +0.0334; the
+>    2.5th percentile of its surrogate distribution is +0.0339. In the size check, 139 of the first
+>    153 pseudo-real panels returned p ≥ 0.95. A one-sided upper test could not plausibly have been
+>    passed by this construct whatever the data showed, so its retirement carries little information
+>    about the hypothesis. The size check cannot detect this, because it counts only false positives.
+>    A successor that reuses this surrogate construction should check the **upper** tail as well.
+> 2. **GF-10 was evaluated on roughly half its calendar.** 272 of its formation dates were dropped
+>    for an undefined per-date IC, leaving 320. This is structural, not anomalous — the surrogate
+>    median is 264 — but it is the sample the p-value rests on. Its specificity contrast also runs
+>    against the time reading: T(price) +0.1265 against T(time) +0.0086, Δ = −0.1179 on about 50
+>    dates. That leg does not bear on the outcome, since the primary leg already failed.
+>
+> The N-SZ placebo returned no qualifying dates (n = 0, T_c undefined) and so was not evaluated,
+> rather than evaluated and passed.
+
+*History below (as of the freeze, 2026-09-19):*
+
 > **NOT READY TO FREEZE — no open definition remains (again), 2026-09-19.** The freeze-review items below were ruled the same day (`PTMS_GANN_OPERATOR_RULINGS_2026-09-19.md` §4) and applied in the freeze draft. Remaining: **P-3** (code, committed, not run), **P-4** (G-S1, operator only), **P-5** (approval, digest recorded here).
 >
 > *Earlier the same day:* **the definitional gate REOPENED.** Transcribing the ruled rows into the freeze draft (`PTMS_GANN_STAGE1_FREEZE_DOCUMENT_DRAFT_2026-09-19.md` §0.3) exposed two unruled definitions: **OPEN-P**, the undefined per-date IC, and **OPEN-Q**, a missing bar in K3. It also exposed five readings for ratification (**RR-4 … RR-8**) and the two confirmations reserved for freeze review (**OC-1**, **OC-2**). Once these are ruled, what remains is tasks and approvals: P-3, P-4 (operator), P-5.
@@ -202,15 +237,19 @@ closes the **ruling** gate, not the **freeze** gate.
 
 ## 7. Governance
 
-- No empirical test, market outcome, signal count, RFA, screen, surrogate run, size check or
-  optimization.
+- **Up to the freeze (2026-09-19): no empirical test, market outcome, signal count, RFA, screen,
+  surrogate run, size check or optimization.** The size check and the screen ran afterwards,
+  2026-09-19 → 2026-09-24, under the frozen protocol and after G-S1 was appended.
 - No prior operator ruling changed, except ruling 7, superseded by R-5 on the operator's instruction.
 - No family definition modified. No construct called faithful because of a result.
 - Exposure status preserved:
   - Equity EOD 2011-03-25 → 2022-12-30 is signal-spent, so it can host only non-confirmatory use.
-  - 2023-01-02 → 2026-09-11: the R-11 audit (2026-09-15) found the span **signal-spent**; the formal
-    freshness ruling is still the operator's, so the span stays UNRESOLVED until ruled.
-  - Observations are spent; the Stage-1 hypotheses are fresh.
-- The exposure register was not edited. G-S1 is operator-owned.
-- The screen, if it is ever run, is never confirmation. A positive result from any Arm-2 variant is
-  never evidence that Gann's documented method worked.
+  - 2023-01-02 → 2026-09-11: the R-11 audit (2026-09-15) found the span **signal-spent** and the
+    operator **ruled it so on 2026-09-19** (item 17). The screen did not read it.
+  - Observations were spent before the freeze; the Stage-1 hypotheses were fresh at the freeze and
+    **are spent as of the 2026-09-24 read.**
+- The exposure register was not edited by research. G-S1 is operator-owned.
+- The screen has now been run, and **it is not confirmation.** Its report is labelled
+  NON-CONFIRMATORY and feeds no gate. No Arm-2 variant result is evidence that Gann's documented
+  method worked. All three primaries are retired, and under G-1 none may proceed to a confirmatory
+  test.
