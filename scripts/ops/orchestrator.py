@@ -61,9 +61,28 @@ def _status_fresh(spec: ChildSpec) -> bool:
     return (datetime.now() - hb).total_seconds() <= spec.status_max_age_s
 
 
+def _published_pid(spec: ChildSpec) -> Optional[int]:
+    """The pid a child publishes about itself in its status file, if any.
+
+    spawn() overwrites the pidfile with every new PID — including a duplicate that
+    dies on the port-5555 bind — so one false negative left the pidfile naming a
+    dead process and the supervisor respawning beside a healthy ingestor forever
+    (2026-09-09, 2026-09-15). The supervisor never writes the status file.
+    """
+    if spec.status_path is None:
+        return None
+    try:
+        return int(json.loads(spec.status_path.read_text(encoding="utf-8"))["pid"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def child_alive(spec: ChildSpec) -> bool:
     lock = spec.native_lock or spec.pid_path
-    return bool(lock) and pidfile.lock_alive(lock) and _status_fresh(spec)
+    pid = _published_pid(spec)
+    if pid is None:
+        return lock is not None and pidfile.lock_alive(lock) and _status_fresh(spec)
+    return pidfile.pid_alive(pid) and _status_fresh(spec)
 
 
 def spawn(spec: ChildSpec, *, popen: Callable = subprocess.Popen):
@@ -114,6 +133,7 @@ class Deps:
     marks_warm: Callable[[], bool]
     vix_warm: Callable[[], bool]
     dispatch_catchup: Callable[[], None]
+    refresh_master: Callable[[], None]
     stop_present: Callable[[], bool]
     market_open: Callable[[], bool]
     # The session trades F&O, which runs to 15:40 post-CAS, while `market_open`
@@ -158,6 +178,11 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     #    silently clear an operator kill switch.
     if deps.stop_present():
         return "blocked:stop"
+
+    # 1b. Instrument master (non-blocking on failure). Before Flask, whose OAuth
+    #     callback also writes the store, and before the poller, which resolves
+    #     expiries from it. Needs no token — the source is a public CDN file.
+    deps.refresh_master()
 
     # 2. Flask (needed for the OAuth handshake).
     _ensure(deps, "flask")
@@ -417,6 +442,35 @@ def _dispatch_catchup(*, stamp_path: Path = CATCHUP_STAMP, log_dir: Path = CATCH
         _logger.warning("catch-up dispatch failed (non-blocking): %s", exc)
 
 
+def _refresh_master(*, db_path: Optional[Path] = None, run: Optional[Callable] = None,
+                    now: Optional[datetime] = None) -> None:
+    """Publish today's instrument-master snapshot before anything reads the store.
+
+    `run_refresh` had no caller, and the OAuth-callback backstop is skipped by a
+    surviving token or a CLI login — snapshots stopped at 2026-09-08 while four
+    sessions ran. Once per day, so a mid-session restart does not rewrite the store
+    under live readers; never fatal, since every failed run keeps the prior snapshot.
+    """
+    try:
+        # The import (duckdb/pyarrow) and the stat are inside the guard too — a broken
+        # install must cost one refresh, not the whole window start.
+        from scripts import fetch_instrument_master as fim
+        db_path = Path(db_path or fim.DB_PATH)
+        today = (now or datetime.now()).date()
+        if db_path.exists() and datetime.fromtimestamp(db_path.stat().st_mtime).date() == today:
+            _logger.info("instrument master already refreshed today — skipping")
+            return
+        rc = (run or fim.run_refresh)(db_path=db_path)
+    except Exception as exc:  # noqa: BLE001 — a failed refresh must never block the window
+        _logger.warning("instrument-master refresh failed (non-blocking, prior snapshot kept): %s", exc)
+        return
+    if rc != fim.EXIT_OK:
+        _logger.warning("instrument-master refresh refused with exit %s "
+                        "(non-blocking, prior snapshot kept)", rc)
+    else:
+        _logger.info("instrument-master refresh done")
+
+
 def _live_deps(started: dict) -> Deps:
     from scripts.ops import preflight
     from core.auth.credentials import credentials
@@ -465,6 +519,7 @@ def _live_deps(started: dict) -> Deps:
         preflight=lambda: preflight.verdict(preflight.run_preflight(preflight.build_context())),
         marks_warm=_marks_warm, vix_warm=_vix_warm,
         dispatch_catchup=_dispatch_catchup,
+        refresh_master=_refresh_master,
         stop_present=lambda: (ROOT / "STOP").exists(),
         market_open=lambda: MarketHours.is_market_open(),
         derivatives_open=lambda: MarketHours.is_derivatives_open(),

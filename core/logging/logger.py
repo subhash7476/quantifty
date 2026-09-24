@@ -1,6 +1,7 @@
 import logging
 import os
 import sys
+import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from typing import Optional
@@ -17,20 +18,71 @@ class SafeConsoleHandler(logging.StreamHandler):
     """
 
     def emit(self, record):
+        # StreamHandler.emit swallows its own exceptions via handleError, so the
+        # encoding fallback has to wrap the write itself, not super().emit().
         try:
-            super().emit(record)
-        except UnicodeEncodeError:
+            msg = self.format(record)
+            stream = self.stream if self.stream is not None else sys.stderr
             try:
-                msg = self.format(record)
-                stream = self.stream if self.stream is not None else sys.stderr
-                encoding = stream.encoding or "utf-8"
-                safe = msg.encode(encoding, errors="backslashreplace").decode(
-                    encoding, errors="ignore"
-                )
+                stream.write(msg + self.terminator)
+            except UnicodeEncodeError:
+                encoding = getattr(stream, "encoding", None) or "utf-8"
+                safe = msg.encode(encoding, errors="backslashreplace").decode(encoding)
                 stream.write(safe + self.terminator)
-                self.flush()
-            except Exception:
-                self.handleError(record)
+            self.flush()
+        except RecursionError:
+            raise
+        except Exception:
+            self.handleError(record)
+
+
+class SafeRotatingFileHandler(RotatingFileHandler):
+    """Rotation that survives a log file shared by several processes on Windows.
+
+    Several children (chain poller, wall poller, Flask) each open their own handler
+    on one file, and Windows refuses to rename a file another process holds open.
+    The stdlib handler shuffled the backups before that rename and then retried it
+    on every emit — each retry printed a traceback, dropped the record and destroyed
+    one more backup (2026-09-24). The live file is staged first here, so a refusal
+    touches nothing; the record is still written and rotation waits RETRY_AFTER_S.
+    """
+
+    RETRY_AFTER_S = 300.0
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._retry_at = 0.0
+        self._warned = False
+
+    def shouldRollover(self, record):
+        if time.monotonic() < self._retry_at:
+            return False
+        return super().shouldRollover(record)
+
+    def doRollover(self):
+        if self.stream:
+            self.stream.close()
+            self.stream = None
+        staged = self.baseFilename + ".rotating"
+        try:
+            os.replace(self.baseFilename, staged)
+        except FileNotFoundError:
+            pass                      # a sibling process rotated it first
+        except PermissionError as exc:
+            self._retry_at = time.monotonic() + self.RETRY_AFTER_S
+            if not self._warned:
+                sys.stderr.write(f"log rotation of {self.baseFilename} deferred — another "
+                                 f"process holds it open ({exc.strerror}); appending instead\n")
+                self._warned = True
+        else:
+            for i in range(self.backupCount - 1, 0, -1):
+                src = self.rotation_filename(f"{self.baseFilename}.{i}")
+                dst = self.rotation_filename(f"{self.baseFilename}.{i + 1}")
+                if os.path.exists(src):
+                    os.replace(src, dst)
+            os.replace(staged, self.rotation_filename(self.baseFilename + ".1"))
+        if not self.delay:
+            self.stream = self._open()
 
 
 def setup_logger(
@@ -89,10 +141,11 @@ def setup_logger(
         # Ensure parent directory exists
         log_file.parent.mkdir(parents=True, exist_ok=True)
     
-    file_handler = RotatingFileHandler(
+    file_handler = SafeRotatingFileHandler(
         str(log_file),
         maxBytes=10 * 1024 * 1024,  # 10MB
-        backupCount=5
+        backupCount=5,
+        encoding="utf-8",  # log_reader decodes UTF-8; the Windows locale default is cp1252
     )
     file_formatter = logging.Formatter(
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
