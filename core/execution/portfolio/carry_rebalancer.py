@@ -97,6 +97,51 @@ def live_gross_exposure_policy(state: CapitalState) -> float:
     )
 
 
+def apply_signal_filters(facts_full, min_abs_z=None, exclude_reverting=False):
+    """Combo filter on facts (TS Basis Daily paper).
+
+    facts_full rows: (underlying, z, raw_z, quintile, reverting).
+    Drops rows with ABS(z) <= min_abs_z (when set) and rows flagged
+    reverting (when exclude_reverting). Quintile-agnostic: callers decide
+    whether the pool is the full eligible set (pre-rank use) or the stored
+    Q1/Q5 legs (backtest-exact combo use). Defaults are identity.
+    """
+    out = list(facts_full)
+    if min_abs_z is not None:
+        out = [r for r in out if abs(float(r[1])) > min_abs_z]
+    if exclude_reverting:
+        out = [r for r in out if not (r[4] is not None and bool(r[4]))]
+    return out
+
+
+def compute_quintile_combo_book(longs, shorts, gross_exposure, adva=None):
+    """Size pre-picked quintile legs: equal-weight each non-empty leg to half gross.
+
+    longs/shorts: lists of underlyings (already filtered). ADV-capped per name,
+    then rescaled so each non-empty leg totals half gross — the backtested
+    equal-weight convention (empty leg contributes 0, other leg unaffected).
+    """
+    half_gross = gross_exposure / 2.0
+    book_longs: Dict[str, float] = {}
+    book_shorts: Dict[str, float] = {}
+    for names, side in [(list(longs), book_longs), (list(shorts), book_shorts)]:
+        n = len(names)
+        if n == 0:
+            continue
+        cap_each = half_gross / n
+        for u in names:
+            max_pos = (adva.get(u, float('inf')) * ADV_CAP_FRAC
+                       if adva else cap_each)
+            side[u] = min(cap_each, max_pos if max_pos > 0 else cap_each)
+        total = sum(side.values())
+        if total > 0:
+            scale = half_gross / total
+            for u in side:
+                side[u] *= scale
+    return TargetBook(formation_date=date.today(),
+                      longs=book_longs, shorts=book_shorts)
+
+
 def compute_target_book(
     facts: List[Tuple],
     gross_exposure: float,
@@ -441,7 +486,10 @@ class CarryRebalancerHook:
                  trade_sink: Optional[Callable] = None,
                  sector_csv_path: Optional[str] = None,
                  max_per_sector: Optional[int] = None,
-                 rank_by: str = "z_ts"):
+                 rank_by: str = "z_ts",
+                 min_abs_z: Optional[float] = None,
+                 exclude_reverting: bool = False,
+                 legs_by_quintile: bool = False):
         self._facts_db = Path(facts_db_path)
         self._exec = execution_handler
         self._gross_exposure_policy = gross_exposure_policy
@@ -454,6 +502,9 @@ class CarryRebalancerHook:
         self._trade_sink = trade_sink
         self._max_per_sector = max_per_sector
         self._rank_by = rank_by
+        self._min_abs_z = min_abs_z
+        self._exclude_reverting = exclude_reverting
+        self._legs_by_quintile = legs_by_quintile
         self._sector_map = None
         if sector_csv_path:
             self._sector_map = self._load_sectors(Path(sector_csv_path))
@@ -474,9 +525,10 @@ class CarryRebalancerHook:
         self._book_longs: Dict[str, float] = {}
         self._book_shorts: Dict[str, float] = {}
         self._position_entries: Dict[str, dict] = {}  # underlying -> {entry_date, side, cum_ret}
-        self._load_calendar()
+        self.reload_calendar()
 
-    def _load_calendar(self):
+    def reload_calendar(self):
+        """Re-read formation dates; call after the facts store is refreshed."""
         con = duckdb.connect(str(self._facts_db), read_only=True)
         rows = con.execute(
             "SELECT DISTINCT formation_date FROM carry_facts ORDER BY formation_date"
@@ -484,11 +536,19 @@ class CarryRebalancerHook:
         con.close()
         self._formation_dates = {r[0] for r in rows}
 
+    def restore(self, longs: Dict[str, float], shorts: Dict[str, float],
+                last_date: date):
+        """Resume a persisted forward book; formations <= last_date are skipped."""
+        self._book_longs = dict(longs)
+        self._book_shorts = dict(shorts)
+        self._last_date = last_date
+        self._prev_formation_date = last_date
+
     def __call__(self, ts, execution):
         bar_date = ts.date() if hasattr(ts, 'date') else ts
         if bar_date not in self._formation_dates:
             return False
-        if self._last_date == bar_date:
+        if self._last_date is not None and bar_date <= self._last_date:
             return False
         self._last_date = bar_date
 
@@ -536,32 +596,52 @@ class CarryRebalancerHook:
                        r[2], r[5]) for r in rows if r[3]]
         # facts_full: (underlying, z, raw_z, quintile, basis_reverting)
 
+        if self._legs_by_quintile:
+            leg_rows = [r for r in facts_full if r[3] in (1, 5)]
+            facts_full = apply_signal_filters(
+                leg_rows, self._min_abs_z, self._exclude_reverting)
+            facts = [(r[0], r[1], r[2], r[4]) for r in facts_full]
+        elif self._min_abs_z is not None or self._exclude_reverting:
+            facts_full = apply_signal_filters(
+                facts_full, self._min_abs_z, self._exclude_reverting)
+            facts = [(r[0], r[1], r[2], r[4]) for r in facts_full]
+
         # Load ADV from bhavcopy and filter
         adva: Dict[str, float] = {}
         if self._bhavcopy_db and self._bhavcopy_db.exists() and facts:
             adva = self._load_adva(facts, fdate)
-            facts = [f for f in facts if f[0] in adva]
+            keep = {f[0] for f in facts if f[0] in adva}
+            facts = [f for f in facts if f[0] in keep]
+            facts_full = [r for r in facts_full if r[0] in keep]
 
         if self._signals_db and self._signals_db.exists() and facts:
             fwd_names = self._load_fwd_names(facts, fdate)
             facts = [f for f in facts if f[0] in fwd_names]
-
-        if self._max_positions is not None and len(facts) > 2 * self._max_positions:
-            sorted_facts = sorted(facts, key=lambda r: r[1])
-            facts = sorted_facts[:self._max_positions] + sorted_facts[-self._max_positions:]
-
-        if len(facts) < 5:
-            return
+            facts_full = [r for r in facts_full if r[0] in fwd_names]
 
         # Update position P&L from prior formation's forward returns
         if (self._prev_formation_date is not None and self._signals_db is not None
                 and self._signals_db.exists() and self._exit_policy is not None):
             self._update_position_pnl(self._prev_formation_date)
 
-        target = compute_target_book(facts, gross_exposure, adva, nq=self._max_positions,
-                                      sector_map=self._sector_map,
-                                      max_per_sector=self._max_per_sector,
-                                      rank_by=self._rank_by)
+        if self._legs_by_quintile:
+            longs = [r[0] for r in facts_full if r[3] == 5]
+            shorts = [r[0] for r in facts_full if r[3] == 1]
+            # Both legs empty -> empty target -> the held book is closed (flat).
+            target = compute_quintile_combo_book(
+                longs, shorts, gross_exposure, adva)
+        else:
+            if self._max_positions is not None and len(facts) > 2 * self._max_positions:
+                sorted_facts = sorted(facts, key=lambda r: r[1])
+                facts = sorted_facts[:self._max_positions] + sorted_facts[-self._max_positions:]
+
+            if len(facts) < 5:
+                return
+
+            target = compute_target_book(facts, gross_exposure, adva, nq=self._max_positions,
+                                          sector_map=self._sector_map,
+                                          max_per_sector=self._max_per_sector,
+                                          rank_by=self._rank_by)
         new_longs, new_shorts, deltas = rebalance_book(
             target, self._book_longs, self._book_shorts, BAND_SIGMA)
 
