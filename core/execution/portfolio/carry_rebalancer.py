@@ -525,9 +525,10 @@ class CarryRebalancerHook:
         self._book_longs: Dict[str, float] = {}
         self._book_shorts: Dict[str, float] = {}
         self._position_entries: Dict[str, dict] = {}  # underlying -> {entry_date, side, cum_ret}
-        self._load_calendar()
+        self.reload_calendar()
 
-    def _load_calendar(self):
+    def reload_calendar(self):
+        """Re-read formation dates; call after the facts store is refreshed."""
         con = duckdb.connect(str(self._facts_db), read_only=True)
         rows = con.execute(
             "SELECT DISTINCT formation_date FROM carry_facts ORDER BY formation_date"
@@ -535,11 +536,19 @@ class CarryRebalancerHook:
         con.close()
         self._formation_dates = {r[0] for r in rows}
 
+    def restore(self, longs: Dict[str, float], shorts: Dict[str, float],
+                last_date: date):
+        """Resume a persisted forward book; formations <= last_date are skipped."""
+        self._book_longs = dict(longs)
+        self._book_shorts = dict(shorts)
+        self._last_date = last_date
+        self._prev_formation_date = last_date
+
     def __call__(self, ts, execution):
         bar_date = ts.date() if hasattr(ts, 'date') else ts
         if bar_date not in self._formation_dates:
             return False
-        if self._last_date == bar_date:
+        if self._last_date is not None and bar_date <= self._last_date:
             return False
         self._last_date = bar_date
 
@@ -618,8 +627,7 @@ class CarryRebalancerHook:
         if self._legs_by_quintile:
             longs = [r[0] for r in facts_full if r[3] == 5]
             shorts = [r[0] for r in facts_full if r[3] == 1]
-            if not longs and not shorts:
-                return
+            # Both legs empty -> empty target -> the held book is closed (flat).
             target = compute_quintile_combo_book(
                 longs, shorts, gross_exposure, adva)
         else:

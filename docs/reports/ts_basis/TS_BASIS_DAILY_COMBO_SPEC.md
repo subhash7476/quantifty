@@ -39,8 +39,8 @@ The existing forward runner's top-5 + TP@0.5% + sector-cap-2 config is NOT used 
 
 **Written:**
 
-- `data/signal_engine/carry/production.duckdb` — new rows only, run identity §3.
-  No existing run touched.
+- `data/paper/ts_daily_combo/combo_paper.duckdb` — the combo's own state + P&L
+  store (amendment A2). `production.duckdb` is **not** written.
 - New branch files only (§3). No frozen file modified.
 
 ---
@@ -61,8 +61,9 @@ The existing forward runner's top-5 + TP@0.5% + sector-cap-2 config is NOT used 
 2. **New `scripts/ts_basis_daily_combo_forward.py`** — thin forward runner:
    `min_abs_z=0.7`, `exclude_reverting=True`, `legs_by_quintile=True`,
    `max_positions_per_leg=None`, no exit policy, no sector cap,
-   `signals_db_path=None` (live-edge guard — see build report §2). Run identity:
-   `run_id=ts-basis-daily-combo-forward-<date>`, `window_label=TS_DAILY_COMBO_FORWARD`.
+   `signals_db_path=None` (live-edge guard — see build report §2). *Superseded by
+   A2:* identity and state live in `combo_paper.duckdb`, not a per-date
+   `production.duckdb` run.
 
 > **Amendment A1 (build-time, 2026-09-24):** spec v1 said "combo runner passes
 > `nq=None` (quintile)". Measured on 5 dates, pre-rank filtering (20% cut on the
@@ -76,8 +77,25 @@ The existing forward runner's top-5 + TP@0.5% + sector-cap-2 config is NOT used 
    (0.70 excluded, >0.70 kept), reverting exclusion, AND-combination, empty-leg
    passthrough, defaults-unchanged (existing 44 carry tests must stay green).
 
-Validation before handover: `--dry-run` single pass against live facts +
-`production.duckdb` row check. The supervised launch command is recorded in §5
+> **Amendment A2 (review fixes, 2026-09-25 — `TS_BASIS_DAILY_COMBO_BUILD_REVIEW.md`):**
+> - **B1:** the hook re-reads its formation calendar (`reload_calendar()`) after
+>   every signals/facts refresh; a refresh failure blocks trading for that cycle.
+> - **B2:** state and P&L persist in `combo_paper.duckdb`
+>   (`core/execution/portfolio/combo_paper_store.py`): held book, executed trades,
+>   and per-formation P&L recorded twice — **futures** close-to-close (nearest
+>   contract expiring after the mark date, priced at both ends: tradeable) and
+>   **spot** `fwd_ret_1m` (research scoring: backtest-comparable). One stable
+>   record: the runner resumes from the last persisted book (`hook.restore`), and
+>   a restart after downtime catches up missed formations in order. Short-lived
+>   connections: another process can read between writes with a **bounded retry**
+>   (DuckDB file lock) — a prerequisite for any page panel. Futures marks use the
+>   nearest contract expiring after the mark date (differs from the signal's T-3
+>   roll in the last ~3 sessions; no roll cost charged).
+> - Run identity moves from per-UTC-date `run_id` in `production.duckdb` to the
+>   dedicated store (removes the same-day-restart overwrite/duplicate defect).
+
+Validation before handover: `--dry-run --store <scratch>` pass against live
+facts + store row check (A2). The supervised launch command is recorded in §5
 of the build report; no daemon is left running by the builder.
 
 ---
@@ -87,8 +105,15 @@ of the build report; no daemon is left running by the builder.
 - PAPER mode only (`ExecutionMode.PAPER`, `PaperBroker`). No LIVE path added.
 - Sealed window untouched: no new reads of `run_sealed.py`-governed data; forward
   data only (formation dates > build date).
-- `len(facts) < 5` skip rule in `_execute` stays; additionally, if either filtered
-  leg is empty the hook holds the other leg only (matches backtest convention §1).
+- Empty books go **flat** (operator decision 2026-09-25): if one filtered leg is
+  empty that leg is closed and the other traded; if both are empty the whole held
+  book is closed. The `len(facts) < 5` skip applies only to the rank-based path,
+  not to `legs_by_quintile` (a 1–4-name combo book trades, as in the backtest).
+- **Sealed-window disclosure:** the combo's 59-formation evidence window
+  (2026-07-01 → 09-22) overlaps TS Basis Daily's preserved SEALED window —
+  14 formations to `run_sealed.py`'s `SEALED_HI` 2026-07-20, 18 to the documented
+  07-24 — including best day 07-08. "Sealed window untouched" holds for forward
+  paper only, not for the data the thresholds were chosen on.
 - Backtest caveat carried forward: combo evidence is 59 in-sample days, July-heavy
   (25.5pp of 33.3pp), with 2–7-name long legs on the best days. Paper is the
   confirmatory surface, not a promotion.
@@ -99,7 +124,7 @@ of the build report; no daemon is left running by the builder.
 ## 5. Acceptance (first paper days)
 
 - Hook + runner + tests merged on this branch, 44 existing tests green + new tests green.
-- `--dry-run` writes exactly one `TS_DAILY_COMBO_FORWARD` run with sane legs
+- `--dry-run --store <scratch>` records one row per new formation with sane legs
   (non-empty, quintile-shaped, filtered counts ≈ backtest pass rates).
 - Build report (`docs/reports/ts_basis/TS_BASIS_DAILY_COMBO_BUILD_REPORT.md`)
   records: diff summary, dry-run evidence, launch command, and the combo mechanics

@@ -6,12 +6,14 @@
 
 ---
 
-## 1. Diff summary (uncommitted, on branch)
+## 1. Diff summary (commit `82432d0`; review fixes in amendment A2)
 
 | File | Change |
 |---|---|
 | `core/execution/portfolio/carry_rebalancer.py` | +85/−13: `apply_signal_filters` helper, `compute_quintile_combo_book` sizer, `min_abs_z` / `exclude_reverting` / `legs_by_quintile` hook params + `_execute` wiring (quintile-pick branch + shared ADV/fwd filters with `facts_full` sync) |
-| `scripts/ts_basis_daily_combo_forward.py` | NEW: forward PAPER runner (combo config, `TS_DAILY_COMBO_FORWARD` identity) |
+| `scripts/ts_basis_daily_combo_forward.py` | NEW: forward PAPER runner (combo config; A2: resumes from `combo_paper.duckdb`) |
+| `core/execution/portfolio/combo_paper_store.py` | NEW (A2): book/trades/daily futures+spot P&L store |
+| `tests/portfolio/test_combo_paper.py` | NEW (A2): 10 tests — calendar reload, resume, flat-on-empty, P&L, store |
 | `tests/portfolio/test_combo_filter.py` | NEW: 11 tests (filter boundary/AND/identity, quintile-book sizing/ADV/empty-leg, hook defaults + param storage) |
 | `docs/reports/ts_basis/TS_BASIS_DAILY_COMBO_SPEC.md` | NEW: spec + amendment A1 |
 
@@ -35,14 +37,15 @@ vs backtested 35L/38S; 07-30: 8L/8S vs 2L/32S) — conviction drops the weak mid
 implements the backtest-exact path (filter within stored Q1/Q5, variable leg sizes).
 Pre-rank helper retained (tested) for generic use; combo uses the exact path.
 
-**09-24 observation (monthly-expiry compression):** 158/210 eligible names read
-|z|≤0.7 (vs ~60 normally); only 33 combo-pass legs. 2026-09-24 is the September
-monthly expiry (last Thursday). Leading hypothesis: expiry-week basis
-normalisation compressed cross-sectional dispersion. Watch the next formations —
+**09-24 observation (dispersion compression):** 158/210 eligible names read
+|z|≤0.7 (vs ~60 normally); only 33 combo-pass legs. *Correction (review
+2026-09-25): 09-24 is **not** the September expiry — stock futures expire on the
+last Tuesday since Sep 2025, and the bhavcopy lists 2026-09-29 as the near
+expiry. The expiry-week hypothesis is withdrawn; the cause is open.* Watch the next formations —
 if dispersion does not recover, the combo book stays small by rule (correct
 behavior, not a bug: `len<5` skip and empty-leg-hold rules in §4 of spec).
 
-## 3. Dry-run evidence (2026-09-24, `--dry-run`)
+## 3. Dry-run evidence (2026-09-24, `--dry-run`) — *pre-A2; superseded by the review's end-to-end check*
 
 - Run `ts-basis-daily-combo-forward-2026-09-24`, `TS_DAILY_COMBO_FORWARD`, single
   formation 2026-09-24: **8L/25S = 33 entries, 0 exits** — exactly the 33
@@ -61,6 +64,13 @@ behavior, not a bug: `len<5` skip and empty-leg-hold rules in §4 of spec).
 python scripts/ts_basis_daily_combo_forward.py
 ```
 
+**A2 warning:** the default store is the real forward record
+(`data/paper/ts_daily_combo/combo_paper.duckdb`). A plain `--dry-run` **starts
+that record**. For checks use `--dry-run --no-refresh --store <scratch path>`.
+The pre-A2 dry-run left an orphan run `ts-basis-daily-combo-forward-2026-09-24`
+in `production.duckdb`. It is left in place (copy-first discipline) for the
+operator to remove.
+
 Foreground supervisor loop (60 s poll, refreshes signals+facts incl. recovery flag
 each cycle, `--dry-run` for single pass). Suggested: run under the ops
 orchestrator pattern or a supervised session; Ctrl+C stops cleanly. First live
@@ -72,4 +82,4 @@ current churn — see mechanics report §4).
 
 - Supervised launch (above) + first-week read against §5 acceptance.
 - Plain forward runner's live-edge `signals_db_path` defect (F-live) — separate fix.
-- No commit made; review diff on `paper/ts-daily-combo` and merge when satisfied.
+- Committed as `82432d0`; review blockers B1/B2 fixed per spec amendment A2.

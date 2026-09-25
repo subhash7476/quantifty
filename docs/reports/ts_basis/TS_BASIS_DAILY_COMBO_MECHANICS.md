@@ -21,7 +21,7 @@ strong-z flagged. In Jul–Sep paper window: ~15% of legs flagged (20.6% full-hi
 strong zone (<0.30 weak / 0.30–0.70 mid / >0.70 strong). Quintile legs always
 contain weak names (tails of the middle distribution on low-dispersion days);
 F2 cuts them. Jul–Sep: keeps ~82% of legs on average — but only ~25% on
-compression days (e.g. 09-24 monthly expiry: 158/210 names |z|≤0.7).
+compression days (e.g. 09-24: 158/210 names |z|≤0.7 — not an expiry day; cause open).
 
 **Why AND, not either:** F1 removes stale edge (shrinking dislocations), F2 removes
 thin edge (weak dislocations). Either alone keeps one noise type: conviction-only
@@ -37,7 +37,14 @@ one-way); net of the ~13 bps/day-per-unit-turnover drag: ≈ +6 / +6 / +24 / +30
 | Unfiltered (42L/42S) | +11.70% | +7.7% | +4.0% | −0.3% | +4.68% | −6.33% |
 | Combo (~26L/29S) | +33.32% | +25.5% | +5.8% | +0.4% | +20.04% | −9.97% |
 
-(Short-leg negative = shorts profitable.) Supertrend(10,3) gating was also tried on
+(Short-leg negative = shorts profitable.) **Scale caveat (review 2026-09-25):** the
+Comp column appears to track (inferred from the table; the backtest code is not
+in the repo) the compounded long-minus-short *leg spread* (unfiltered
++4.68 − (−6.33) ≈ +11.0 → +11.70%). A book with half gross per leg earns about
+**half** that on gross. The forward store (`combo_paper.duckdb`) records rupee P&L
+on Rs 1 Cr gross, so compare its return on gross with ~half these headlines; the
+sign of any validate/kill test is unaffected. It also records futures and spot
+P&L separately — the backtest scored spot (`fwd_ret_1m`), the paper book trades futures. Supertrend(10,3) gating was also tried on
 the same window: +8.93%, worse than unfiltered — trend-chasing adds churn without
 pay here. A high-vol exclusion was tried: +11.10%, no effect. All variants reported;
 m≈6 with no α — the combo is the best hypothesis, not a finding.
@@ -54,8 +61,8 @@ m≈6 with no α — the combo is the best hypothesis, not a finding.
 
 ## 4. Live behavior to watch (first paper weeks)
 
-1. **Pass rates:** ~26L/29S normal; <15/side on compression days (expiry weeks).
-   Persistent <10-leg books outside expiry weeks = regime change, report it.
+1. **Pass rates:** ~26L/29S normal; <15/side on compression days. Persistent
+   <10-leg books = regime change, report it.
 2. **Turnover:** ~0.7 one-way expected (reverting flag flickers). Sustained >0.85
    with flat gross = the filter churning without pay — the Supertrend failure mode.
 3. **Fee drag:** ~18–19 bps/day at current churn; gross must clear ~2× drag to

@@ -7,14 +7,21 @@ docs/reports/ts_basis/TS_BASIS_DAILY_COMBO_SPEC.md.
 Deliberate deviations from ts_basis_daily_forward_runner.py:
   - signals_db_path=None: _load_fwd_names would silently drop every name at
     the live edge (fwd_ret_1m is NULL before the forward period elapses).
-  - max_positions_per_leg=None: quintile book (nq=20%), faithful to the
-    backtested evidence, instead of concentrated top-5.
+  - legs_by_quintile=True: legs are the stored Q5/Q1 after the combo filters
+    (spec amendment A1), equal-weight per leg, instead of concentrated top-5.
   - min_abs_z=0.7, exclude_reverting=True: the combo filters.
+  - State and P&L live in their own store (COMBO_DB, spec amendment A2), not
+    production.duckdb: the run resumes from its last persisted book, so a
+    restart continues one forward record, and the Flask page can read it.
+  - A failed signals/facts refresh blocks trading for that cycle.
 
-Usage: python scripts/ts_basis_daily_combo_forward.py [--dry-run]
+Usage: python scripts/ts_basis_daily_combo_forward.py [--dry-run] [--no-refresh] [--store PATH]
+  --no-refresh  trade the facts already published (no signal/facts rebuild)
+  --store PATH  state/P&L store (default COMBO_DB) — use a scratch path to verify
 """
 from __future__ import annotations
 
+import argparse
 import json
 import logging
 import sys
@@ -32,7 +39,7 @@ _logger = logging.getLogger("ts_basis_daily_combo_forward")
 TS_FACTS_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_facts.duckdb"
 TS_SIG_DB = ROOT / "data" / "signal_engine" / "ts_basis_daily" / "ts_signals.duckdb"
 FUT_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
-PROD_DB = ROOT / "data" / "signal_engine" / "carry" / "production.duckdb"
+COMBO_DB = ROOT / "data" / "paper" / "ts_daily_combo" / "combo_paper.duckdb"
 
 MIN_ABS_Z = 0.7
 
@@ -50,7 +57,7 @@ from core.database.providers.daily_bhavcopy import DailyBhavcopyProvider
 from core.execution.portfolio.carry_rebalancer import (
     CarryRebalancerHook, paper_gross_exposure_policy,
 )
-from core.execution.portfolio.carry_metrics_db import CarryMetricsDB
+from core.execution.portfolio.combo_paper_store import ComboPaperStore, book_returns
 
 
 def _git_commit():
@@ -95,11 +102,20 @@ def _refresh_facts():
             [sys.executable, str(script)],
             cwd=str(ROOT), capture_output=True, text=True,
         )
-        print(result.stdout.strip())
+        _logger.info("%s: %s", script.name, result.stdout.strip())
         if result.returncode != 0:
             _logger.error("%s FAILED: %s", script.name, result.stderr)
             return False
     return True
+
+
+def _refresh(hook, enabled=True) -> bool:
+    ok = not enabled or (_refresh_signals() and _refresh_facts())
+    if ok:
+        hook.reload_calendar()
+    else:
+        _logger.error("Refresh failed — not trading this cycle; retrying next poll")
+    return ok
 
 
 def main():
@@ -108,24 +124,37 @@ def main():
         format="%(asctime)s %(name)s %(levelname)s %(message)s"
     )
 
-    dry_run = "--dry-run" in sys.argv
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--no-refresh", action="store_true")
+    ap.add_argument("--store", default=str(COMBO_DB))
+    args = ap.parse_args()
+    dry_run, do_refresh = args.dry_run, not args.no_refresh
     today = date.today()
-    commit = _git_commit()
-    now_ts = datetime.utcnow().isoformat() + "Z"
-    run_id = f"ts-basis-daily-combo-forward-{now_ts[:10]}"
 
     symbols = _load_symbols()
     if not symbols:
         _logger.error("No symbols in TS facts DB")
         return 1
 
-    fac_con = duckdb.connect(str(TS_FACTS_DB), read_only=True)
-    facts_max = fac_con.execute("SELECT MAX(formation_date) FROM carry_facts").fetchone()[0]
-    fac_con.close()
-    start_date = min(today, facts_max or today)
-
-    _logger.info("TS Basis Daily COMBO forward: %d symbols, run=%s, start=%s",
-                 len(symbols), run_id, start_date)
+    store = ComboPaperStore(args.store, capital=INITIAL_CAPITAL)
+    state = store.last_state()
+    if state is None:
+        fac_con = duckdb.connect(str(TS_FACTS_DB), read_only=True)
+        facts_max = fac_con.execute("SELECT MAX(formation_date) FROM carry_facts").fetchone()[0]
+        fac_con.close()
+        start_date = min(today, facts_max or today)
+        store.write_meta({
+            "started_at": datetime.now().isoformat(timespec="seconds"),
+            "first_formation": start_date, "git_commit": _git_commit(),
+            "params": json.dumps({"min_abs_z": MIN_ABS_Z, "exclude_reverting": True,
+                                  "legs_by_quintile": True, "exit": None,
+                                  "gross": GROSS_EXPOSURE}),
+        })
+    else:
+        start_date = state["formation_date"]
+    _logger.info("TS Basis Daily COMBO forward: %d symbols, %s from %s",
+                 len(symbols), "resuming" if state else "starting", start_date)
 
     provider = DailyBhavcopyProvider(
         underlyings=symbols, bhavcopy_db=str(FUT_DB),
@@ -141,59 +170,32 @@ def main():
         initial_capital=INITIAL_CAPITAL, load_db_state=False,
     )
 
-    db = CarryMetricsDB(str(PROD_DB))
-    db.write_run_metadata(
-        run_id=run_id, git_commit=commit,
-        generated_at=datetime.utcnow(),
-        window_label="TS_DAILY_COMBO_FORWARD",
-        window_lo=today, window_hi=date(2099, 12, 31),
-        gross_exposure=GROSS_EXPOSURE,
-        params_json=json.dumps({"sleeve": "ts_basis_daily_combo",
-                                "min_abs_z": MIN_ABS_Z,
-                                "exclude_reverting": True,
-                                "legs_by_quintile": True,
-                                "book": "filtered-quintile", "exit": None}),
-        determinism_hash=None, source="forward",
-    )
+    prev = {"date": state["formation_date"] if state else None,
+            "longs": state["longs"] if state else {},
+            "shorts": state["shorts"] if state else {},
+            "cum": state["cum_net_pnl_fut"] if state else 0.0}
 
-    def sink(fdate, deltas, target, metrics, cap_state):
-        executions = [d for d in deltas if not d.suppressed]
-        all_caps = list(target.longs.values()) + list(target.shorts.values())
-        total_cap = sum(all_caps) or 1.0
-        shares = sorted([c / total_cap for c in all_caps], reverse=True)
-        top3 = sum(shares[:3]) if len(shares) >= 3 else sum(shares)
-        hhi = sum(s ** 2 for s in shares)
-        lg = sum(target.longs.values())
-        sg = sum(target.shorts.values())
-        to = metrics.traded_value_total / max(lg + sg, 1.0)
-        margin_util = ((lg + sg) * 0.20 / max(cap_state.current_equity, 1.0)) * 100
-
-        db.write_rebalance_summary(
-            run_id=run_id, formation_date=fdate,
-            n_long=len(target.longs), n_short=len(target.shorts),
-            traded_value=metrics.traded_value_total, turnover=to,
-            fees_total=metrics.fees_total, slippage_total=metrics.slippage_total,
-            fee_brokerage=metrics.fee_breakdown.get("brokerage", 0.0),
-            fee_stt=metrics.fee_breakdown.get("stt", 0.0),
-            fee_exchange_txn=metrics.fee_breakdown.get("exchange_txn", 0.0),
-            fee_sebi_fee=metrics.fee_breakdown.get("sebi_fee", 0.0),
-            fee_stamp_duty=metrics.fee_breakdown.get("stamp_duty", 0.0),
-            fee_gst=metrics.fee_breakdown.get("gst", 0.0),
-            top3_conc=top3, hhi=hhi, margin_util_pct=margin_util,
-        )
-        positions = []
-        for d in executions:
-            positions.append({
-                "underlying": d.underlying, "target_side": d.target_side,
-                "target_cap": d.target_cap, "z_carry_neut": None,
-                "quintile": 5 if d.target_side == "LONG" else (1 if d.target_side == "SHORT" else None),
-                "action": d.action, "suppressed": d.suppressed,
-            })
-        if positions:
-            db.write_rebalance_positions(run_id, fdate, positions)
-        _logger.info("TS Basis Daily COMBO rebalance: %s %dL/%dS fees=%.0f slip=%.0f",
-                      fdate, len(target.longs), len(target.shorts),
-                      metrics.fees_total, metrics.slippage_total)
+    def sink(fdate, deltas, held, metrics, cap_state):
+        pnl = {"prev_date": prev["date"]}
+        if prev["date"] is not None:
+            pnl = book_returns(prev["date"], fdate, prev["longs"], prev["shorts"],
+                               FUT_DB, TS_SIG_DB)
+        costs = metrics.fees_total + metrics.slippage_total
+        pnl["net_pnl_fut"] = (pnl.get("fut_pnl") or 0.0) - costs
+        trades = [{"underlying": d.underlying, "action": d.action,
+                   "held_side": d.held_side, "held_cap": d.held_cap,
+                   "target_side": d.target_side, "target_cap": d.target_cap}
+                  for d in deltas if not d.suppressed]
+        store.record(fdate, longs=held.longs, shorts=held.shorts, trades=trades,
+                     costs={"traded_value": metrics.traded_value_total,
+                            "fees": metrics.fees_total,
+                            "slippage": metrics.slippage_total},
+                     pnl=pnl)
+        prev.update(date=fdate, longs=dict(held.longs), shorts=dict(held.shorts),
+                    cum=prev["cum"] + pnl["net_pnl_fut"])
+        _logger.info("COMBO %s: %dL/%dS trades=%d fut_pnl=%s spot_pnl=%s costs=%.0f cum_net=%.0f",
+                     fdate, len(held.longs), len(held.shorts), len(trades),
+                     _fmt(pnl.get("fut_pnl")), _fmt(pnl.get("spot_pnl")), costs, prev["cum"])
 
     hook = CarryRebalancerHook(
         facts_db_path=str(TS_FACTS_DB), execution_handler=execution,
@@ -203,43 +205,36 @@ def main():
         min_abs_z=MIN_ABS_Z, exclude_reverting=True,
         legs_by_quintile=True,
     )
+    if state is not None:
+        hook.restore(state["longs"], state["shorts"], state["formation_date"])
 
     config = DriverConfig(mode=Mode.REPLAY, symbols=symbols, max_bars=500_000)
-
-    _logger.info("TS Basis Daily COMBO forward PAPER started. Run ID: %s", run_id)
-
-    _logger.info("Refreshing TS Basis Daily signals...")
-    _refresh_signals()
-    _logger.info("Refreshing TS Basis Daily facts...")
-    _refresh_facts()
+    ready = _refresh(hook, do_refresh)
 
     while True:
-        driver = LoopDriver(
-            config=config,
-            clock=ReplayClock(start_time=datetime.combine(today, dt_time.min)),
-            provider=provider, source=None, execution=execution,
-            rebalance_hook=hook.__call__,
-        )
-        driver.run()
-
-        if provider.refresh_if_exhausted():
-            _logger.info("New bhavcopy data loaded. Refreshing TS signals + facts...")
-            _refresh_signals()
-            _refresh_facts()
-            continue
-
+        if ready:
+            LoopDriver(
+                config=config,
+                clock=ReplayClock(start_time=datetime.combine(today, dt_time.min)),
+                provider=provider, source=None, execution=execution,
+                rebalance_hook=hook.__call__,
+            ).run()
+            if provider.refresh_if_exhausted():
+                _logger.info("New bhavcopy data loaded. Refreshing TS signals + facts...")
+                ready = _refresh(hook, do_refresh)
+                continue
         if dry_run:
             break
         time.sleep(POLL_INTERVAL_S)
+        if not ready:
+            ready = _refresh(hook, do_refresh)
 
-    dhash = db.compute_determinism_hash(run_id)
-    db._conn.execute(
-        "UPDATE run_metadata SET determinism_hash=? WHERE run_id=?",
-        [dhash, run_id],
-    )
-    db.close()
-    _logger.info("TS Basis Daily COMBO forward PAPER stopped. Hash: %s", dhash)
+    _logger.info("TS Basis Daily COMBO forward PAPER stopped.")
     return 0
+
+
+def _fmt(x):
+    return "n/a" if x is None else f"{x:.0f}"
 
 
 if __name__ == "__main__":
