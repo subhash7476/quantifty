@@ -110,8 +110,8 @@ def test_merged_structures_entered_skipped_and_fills(monkeypatch, tmp_path):
     assert entered["status"] == "entered"
     assert entered["closed"] is True
     assert entered["exit_reason"] == "exit time"
-    assert entered["pnl_rs"] == 8250.0
-    assert entered["r"] == pytest.approx(0.275)
+    assert entered["pnl_rs"] == 8010.0          # net: 8,250 gross - 240 fees
+    assert entered["r"] == pytest.approx(0.267)
     assert entered["margin_rs"] == 185000.0
     assert entered["filled_legs"] == entered["leg_symbols"]
     assert sum(len(f) for f in entered["fills"]) == 4

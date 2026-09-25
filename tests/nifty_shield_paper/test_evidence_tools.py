@@ -281,6 +281,69 @@ def test_metrics_session_scopes_leg_pnl(tmp_path):
     assert m.total_realized_pnl == pytest.approx(700.0)
 
 
+def _three_structure_book(tmp_path):
+    """A +150 gross / 105 fee trade, a -450 gross / 125 fee trade and a
+    +600 gross / 115 fee trade, in that order (2026-09-25 audit shape)."""
+    gids = ("11111111-2222-3333-4444-555555555555",
+            "bbbbbbbb-0000-0000-0000-000000000000",
+            "cccccccc-0000-0000-0000-000000000000")
+    sessions = ("2026-06-05", "2026-06-06", "2026-06-08")
+    events = []
+    for gid, session in zip(gids, sessions):
+        events += [_margin_event(gid=gid, session=session, legs=(f"S{session}", f"L{session}")),
+                   _close_event(gid=gid, session=session)]
+    journal = tmp_path / "j.jsonl"
+    _write_journal(journal, events)
+    db = tmp_path / "trades.db"
+    rows = []
+    for i, (session, (gross_s, gross_l, fee_s, fee_l)) in enumerate(zip(sessions, (
+            (200.0, -50.0, 55.0, 50.0),
+            (-400.0, -50.0, 65.0, 60.0),
+            (500.0, 100.0, 60.0, 55.0)))):
+        rows += [(f"t{i}s", f"s{i}s", session, f"S{session}", "SELL", 65, 100.0, 0, gross_s, fee_s, "{}"),
+                 (f"t{i}l", f"s{i}l", session, f"L{session}", "BUY", 65, 20.0, 0, gross_l, fee_l, "{}")]
+    _trades_db(db, rows)
+    return journal, db, gids
+
+
+def test_metrics_report_pnl_is_net_of_fees(tmp_path):
+    """2026-09-25 audit F1: the ledger's fees were read but never subtracted, so
+    the window printed +Rs 846 for a book that was -Rs 1,641 after fees."""
+    journal, db, gids = _three_structure_book(tmp_path)
+    m = risk_metrics_report(str(journal), str(db), initial_capital=1_000_000.0)
+    by_gid = {p["group_id"]: p for p in m.per_structure}
+    assert by_gid[gids[0]]["gross_pnl_rs"] == pytest.approx(150.0)
+    assert by_gid[gids[0]]["fees_rs"] == pytest.approx(105.0)
+    assert by_gid[gids[0]]["pnl_rs"] == pytest.approx(45.0)
+    assert m.total_gross_pnl == pytest.approx(300.0)
+    assert m.total_fees == pytest.approx(345.0)
+    assert m.total_realized_pnl == pytest.approx(-45.0)
+
+
+def test_metrics_report_scores_wins_and_profit_factor_net(tmp_path):
+    """A trade that is gross-positive but fee-negative is a loss."""
+    journal, db, gids = _three_structure_book(tmp_path)
+    # the first trade's short leg: gross +150 -> +100, net -5
+    con = sqlite3.connect(str(db))
+    con.execute("UPDATE trades SET pnl = 150.0 WHERE trade_id = 't0s'")
+    con.commit()
+    con.close()
+    m = risk_metrics_report(str(journal), str(db), initial_capital=1_000_000.0)
+    assert m.wins == 1 and m.losses == 2
+    assert m.profit_factor == pytest.approx(485.0 / (5.0 + 575.0))
+    assert m.avg_win_r == pytest.approx(485.0 / 15000.0, abs=1e-3)   # r is stored at 3 dp
+
+
+def test_metrics_report_drawdown_from_net_equity_curve(tmp_path):
+    """Drawdown comes from the net per-structure equity curve, not the runtime
+    metrics.json (a startup snapshot that read 0.0 across 18 closed trades)."""
+    journal, db, _ = _three_structure_book(tmp_path)
+    m = risk_metrics_report(str(journal), str(db), initial_capital=1_000_000.0)
+    # net curve: +45 -> -530 -> -45; peak 1,000,045, trough 999,470
+    assert m.max_drawdown_rs == pytest.approx(575.0)
+    assert m.max_drawdown_pct == pytest.approx(575.0 / 1_000_045.0)
+
+
 def test_metrics_report_serializes_cleanly(tmp_path):
     """2026-08-19 incident: dataclasses.asdict() on a Counter (Python 3.13
     rebuilds dict subclasses via `type(obj)((k, v) for k, v in obj.items())`,

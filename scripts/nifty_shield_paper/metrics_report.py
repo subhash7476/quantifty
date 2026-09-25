@@ -13,8 +13,16 @@ computed at DECLARED lots, not the margin-clamped actual lots. When a structure'
 `risk_r` is absent (a source/regression defect), its R is None and the R columns
 are surfaced as vacuous (never silently 0.0).
 
+Every P&L figure is NET of the ledger's fees — per-structure P&L, wins/losses,
+R, profit factor, and the drawdown, which is taken from the net per-structure
+equity curve (closed structures, journal order) on top of initial_capital. Gross
+and fees are carried alongside (2026-09-25 audit F1: the ledger's fees were read
+but never subtracted, and the drawdown came from a runtime metrics.json written
+at startup, so the window printed +Rs 846 / DD 0% for a book that was -Rs 1,641
+after fees with a -Rs 2,374 drawdown).
+
 Inputs (injectable): journal JSONL, SQLite trading.db (trades = fills),
-initial_capital, and an optional execution-metrics JSON (for the max-DD %).
+initial_capital.
 """
 from __future__ import annotations
 
@@ -46,13 +54,16 @@ class RiskMetricsReport:
     losses_with_r: int = 0
     r_normalized_structures: int = 0          # closed structures with computable R
     profit_factor: Optional[float] = None
+    max_drawdown_rs: float = 0.0
     max_drawdown_pct: float = 0.0
     peak_gross_exposure: float = 0.0
     peak_margin_utilisation: float = 0.0
     signal_fill_conversion: float = 0.0
     rejections_by_reason: Dict[str, int] = field(default_factory=dict)
     guard_events: Dict[str, int] = field(default_factory=dict)
-    total_realized_pnl: float = 0.0
+    total_realized_pnl: float = 0.0           # net of fees
+    total_gross_pnl: float = 0.0
+    total_fees: float = 0.0
     per_structure: List[dict] = field(default_factory=list)
 
 
@@ -87,7 +98,6 @@ def risk_metrics_report(
     trades_db_path: str,
     *,
     initial_capital: float,
-    metrics_json: Optional[str] = None,
 ) -> RiskMetricsReport:
     events = _read_journal(journal_path)
     report = RiskMetricsReport()
@@ -123,7 +133,7 @@ def risk_metrics_report(
         str(e["metadata"].get("reason")) for e in skips))
 
     traded = _read_trades(trades_db_path)
-    total_pnl = 0.0
+    total_pnl = total_gross_pnl = total_fees = 0.0
     for e in entries:
         md = e["metadata"]
         gid = md["group_id"]
@@ -136,15 +146,20 @@ def risk_metrics_report(
         # and a symbol re-entered by a LATER structure must not leak its rows
         # into an earlier structure's PnL (2026-08-21: 24250PE was traded by
         # both the 08-20 orphan and the 08-21 straddle).
-        pnl = 0.0
+        gross_pnl = 0.0
+        fees = 0.0
         gross = 0.0
         for sym in legs:
             for t in traded.get(sym, []):
                 if session and not str(t["timestamp"]).startswith(session):
                     continue
-                pnl += float(t["pnl"] or 0.0)
+                gross_pnl += float(t["pnl"] or 0.0)
+                fees += float(t["fees"] or 0.0)
                 gross += abs(float(t["price"] or 0.0)) * float(t["quantity"] or 0.0)
+        pnl = gross_pnl - fees
         total_pnl += pnl
+        total_gross_pnl += gross_pnl
+        total_fees += fees
         closed = gid in closes
         report.per_structure.append({
             "group_id": gid,
@@ -152,6 +167,8 @@ def risk_metrics_report(
             "structure": md.get("structure"),
             "closed": closed,
             "pnl_rs": round(pnl, 2),
+            "gross_pnl_rs": round(gross_pnl, 2),
+            "fees_rs": round(fees, 2),
             "risk_r": risk_r,
             "r": round(pnl / risk_r, 3) if risk_r else None,
             "gross_exposure_rs": round(gross, 2),
@@ -165,6 +182,8 @@ def risk_metrics_report(
                 if initial_capital else 0.0)
 
     report.total_realized_pnl = total_pnl
+    report.total_gross_pnl = total_gross_pnl
+    report.total_fees = total_fees
 
     closed_structures = [p for p in report.per_structure if p["closed"]]
     wins = [p for p in closed_structures if p["pnl_rs"] > 0]
@@ -189,12 +208,12 @@ def risk_metrics_report(
         gross_win / gross_loss if gross_loss > 0 else
         (float("inf") if gross_win > 0 else None))
 
-    if metrics_json:
-        try:
-            with open(metrics_json, encoding="utf-8") as f:
-                m = json.load(f)
-            report.max_drawdown_pct = float(m.get("drawdown", 0.0))
-        except (OSError, ValueError):
-            pass
+    equity = peak = initial_capital
+    for p in closed_structures:
+        equity += p["pnl_rs"]
+        peak = max(peak, equity)
+        if peak - equity > report.max_drawdown_rs:
+            report.max_drawdown_rs = peak - equity
+            report.max_drawdown_pct = (peak - equity) / peak
 
     return report

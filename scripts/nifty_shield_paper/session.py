@@ -104,7 +104,6 @@ def finalize_session_evidence(
     pkg.mkdir(parents=True, exist_ok=True)
     journal_path = data_root / "journal.jsonl"
     trades_path = data_root / "trading" / "trading.db"
-    metrics_path = data_root / "metrics.json"
     heartbeat_path = data_root / "heartbeat.json"
 
     raw_snapshot = telemetry.snapshot()
@@ -134,8 +133,7 @@ def finalize_session_evidence(
 
     metrics = risk_metrics_report(
         str(journal_path), str(trades_path),
-        initial_capital=initial_capital,
-        metrics_json=str(metrics_path) if metrics_path.exists() else None)
+        initial_capital=initial_capital)
 
     if recorder is not None:
         # Finalize the replay-evidence package BEFORE the metrics write: the
