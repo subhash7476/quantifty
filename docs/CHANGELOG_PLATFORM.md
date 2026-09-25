@@ -6,6 +6,18 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-09-25 — TS Basis Daily combo: forward PAPER book under the orchestrator
+
+The combo (recovery filter + |z| > 0.7, filtered Q1/Q5 legs, no TP, no sector cap) is a supervised orchestrator child, `ts_combo`. It trades each new formation once the facts refresh has settled, which the orchestrator's daily catch-up (`download_all_data.py` → `refresh_all_strategies.py`) produces. It persists the book, trades and daily futures + spot P&L to `data/paper/ts_daily_combo/combo_paper.duckdb`, and resumes across restarts. The `/ts-basis-daily/` page shows it as the Combo Paper Book panel, with a live futures mark.
+
+Review fixes on the way:
+- The calendar is now reloaded after each refresh, so a running process picks up new dates.
+- P&L is persisted and the book resumes after a restart.
+- Empty books go flat.
+- A no-trade rebalance returns zero-cost metrics instead of `None`, which crashed every sink.
+
+The review also found that 14–18 of the combo's 59 evidence formations fall inside TS Basis Daily's preserved SEALED window. The sleeve stays research-only, and paper is the confirmatory surface. Commits `82432d0`, `7a77790`, `ff64f13`. *(docs/reports/ts_basis/TS_BASIS_DAILY_COMBO_SPEC.md A1–A3, TS_BASIS_DAILY_COMBO_BUILD_REVIEW.md)*
+
 ## 2026-09-23 — GEX fly Stage B: B1 STOP (not demonstrated on 2019–22)
 
 N-gated NIFTY ATM iron fly (±1σ wings; exits: regime N < trailing p50, T−1, 50 % profit lock), era fees + 2 % spread, 2019-02-11 → 2022-12-30: **net Sharpe −0.75**, 142 trades, mean R −0.054, every year negative → stop rule 1 fires; no RFA, no sealed read. N helps (ungated fly −0.35 gross → gated +0.22 gross), but **gross Sharpe at zero cost is only +0.22** — ≈128 years for power 0.80, so the constraint is effect size, not cost (fees are 87 % flat brokerage on one lot). Disclosed spec error: the 1× credit stop was unreachable (max loss ≈ 0.70 × credit). Commits `551da06`, `2ffa32e`. *(docs/reports/GEX_FLY_B1_DEV.md, GEX_FLY_B1_REVIEW.md)*

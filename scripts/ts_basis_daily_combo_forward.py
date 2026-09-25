@@ -122,6 +122,7 @@ class ComboRunner:
         self.settle_s = settle_s
         self.last_reason = "starting"
         self._prev = {}
+        self._done_mtime = None   # facts mtime of the last completed cycle
         clock = ReplayClock(start_time=datetime.combine(date.today(), dt_time.min))
         execution = ExecutionHandler(
             db_manager=DatabaseManager(data_root="data", read_only=True), clock=clock,
@@ -137,6 +138,12 @@ class ComboRunner:
         )
 
     def cycle(self) -> int:
+        # An unchanged facts file needs no open: every reader competes with
+        # publish_facts' os.replace, which fails on Windows while one is open.
+        mtime = self.facts_db.stat().st_mtime if self.facts_db.exists() else None
+        if mtime is not None and mtime == self._done_mtime:
+            self.last_reason = "up to date"
+            return 0
         ready, self.last_reason = facts_ready(self.facts_db, self.settle_s)
         if not ready:
             return 0
@@ -161,6 +168,7 @@ class ComboRunner:
             if self.hook(datetime.combine(d, dt_time.min), None):
                 n += 1
         self.last_reason = f"processed {n} formation(s)" if n else "up to date"
+        self._done_mtime = mtime
         return n
 
     def _sink(self, fdate, deltas, held, metrics, cap_state):

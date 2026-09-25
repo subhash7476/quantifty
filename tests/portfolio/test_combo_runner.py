@@ -83,3 +83,16 @@ def test_cycle_catches_up_then_idles(tmp_path):
     assert st["formation_date"] == D2
     assert set(st["longs"]) == {"A"} and set(st["shorts"]) == {"B"}   # R reverting
     assert runner.cycle() == 0 and runner.last_reason == "up to date"
+
+    # An unchanged facts file is not reopened; a republished one is.
+    opened = []
+    import scripts.ts_basis_daily_combo_forward as fwd
+    real = fwd.facts_ready
+    fwd.facts_ready = lambda *a, **k: (opened.append(1), real(*a, **k))[1]
+    try:
+        runner.cycle()
+        assert opened == []
+        _facts(tmp_path, [(d, u, z, q, rev) for d in (D1, D2, D3) for u, z, q, rev in legs])
+        assert runner.cycle() == 1 and opened == [1]
+    finally:
+        fwd.facts_ready = real
