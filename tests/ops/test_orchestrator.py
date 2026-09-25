@@ -663,3 +663,33 @@ def test_child_alive_false_when_native_lock_pid_was_recycled(tmp_path):
     t = time.time() - 30 * 86400
     os.utime(lock, (t, t))
     assert orch.child_alive(spec) is False
+
+
+# --------------------------------------------------------------------------- #
+# TS Basis Daily combo paper book — supervised, EOD-driven, ungated
+# --------------------------------------------------------------------------- #
+def test_ts_combo_is_a_native_locked_child_with_heartbeat():
+    spec = orch.CHILDREN["ts_combo"]
+    assert spec.native_lock is not None and spec.pid_path is None
+    assert spec.status_path is not None and spec.status_max_age_s >= 120
+    assert "ts_basis_daily_combo_forward.py" in spec.argv[-1]
+
+
+def test_ts_combo_starts_before_the_token_gate():
+    deps, calls = _deps(token_fresh=lambda: False)
+    assert orch.start_sequence(deps, token_timeout_s=0.0) == "timeout:token"
+    assert calls["spawned"][:2] == ["flask", "ts_combo"]
+
+
+def test_ts_combo_not_spawned_when_stop_file_present():
+    deps, calls = _deps(stop_present=lambda: True)
+    orch.start_sequence(deps)
+    assert "ts_combo" not in calls["spawned"]
+
+
+def test_stop_skips_ts_combo(monkeypatch):
+    stops = []
+    monkeypatch.setattr(orch, "stop_child", lambda spec, proc, **k: stops.append(spec.name))
+    monkeypatch.setattr(orch.pidfile, "read_pid", lambda p: None)
+    orch._cmd_stop()
+    assert "ts_combo" not in stops

@@ -120,6 +120,15 @@ CHILDREN = {
     "wall_poller": ChildSpec(
         "wall_poller", [PY, str(ROOT / "scripts" / "options_wall_poller.py")],
         native_lock=ROOT / "data" / "options" / "wall_poller.pid"),
+    # TS Basis Daily combo forward-PAPER book. EOD-driven: it trades each new
+    # formation once the facts refresh has settled, so it needs no token, feed
+    # or market hours and never gates the production path. Its status file
+    # carries pid + last_heartbeat (60 s poll; a catch-up cycle can take longer).
+    "ts_combo": ChildSpec(
+        "ts_combo", [PY, str(ROOT / "scripts" / "ts_basis_daily_combo_forward.py")],
+        native_lock=ROOT / "data" / "paper" / "ts_daily_combo" / "combo_runner.pid",
+        status_path=ROOT / "data" / "paper" / "ts_daily_combo" / "status.json",
+        status_max_age_s=300.0),
 }
 
 
@@ -186,6 +195,10 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
 
     # 2. Flask (needed for the OAuth handshake).
     _ensure(deps, "flask")
+
+    # 2b. TS Basis Daily combo paper book — EOD-driven, independent of the token
+    #     and feed gates below, so a morning without a login still keeps it running.
+    _ensure(deps, "ts_combo")
 
     # 3. Token gate — open the login page once, then block-poll until fresh.
     if not deps.token_fresh():
@@ -531,7 +544,7 @@ def _live_deps(started: dict) -> Deps:
 def _cmd_start(dry_run: bool) -> int:
     if dry_run:
         print("DRY-RUN start plan (dependency order):")
-        for name in ["flask", "ingestor", "poller", "session", "eod", "wall_poller"]:
+        for name in ["flask", "ts_combo", "ingestor", "poller", "session", "eod", "wall_poller"]:
             spec = CHILDREN[name]
             print(f"  {name:9} -> {' '.join(spec.argv)}"
                   + (" [new group]" if spec.new_group else ""))
