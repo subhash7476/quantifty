@@ -58,25 +58,28 @@ behavior, not a bug: `len<5` skip and empty-leg-hold rules in §4 of spec).
   the traded book is formation-date-filtered as designed. Inefficient, same as
   the existing forward runner — left as-is.
 
-## 4. Launch (NOT executed — operator action)
+## 4. Launch — automatic (amendment A3)
+
+No manual launch. `python scripts/ops/orchestrator.py` starts and supervises the
+runner as the `ts_combo` child, right after Flask. It restarts the runner on a
+crash or a stale heartbeat. The book appears on `/ts-basis-daily/` (Combo Paper Book).
+
+The default store `data/paper/ts_daily_combo/combo_paper.duckdb` **is** the
+forward record. The first cycle trades the latest ready formation; later cycles
+catch up every formation in order. For a check that must not touch it:
 
 ```bash
-python scripts/ts_basis_daily_combo_forward.py
+python scripts/ts_basis_daily_combo_forward.py --once --store <scratch path>
 ```
 
-**A2 warning:** the default store is the real forward record
-(`data/paper/ts_daily_combo/combo_paper.duckdb`). A plain `--dry-run` **starts
-that record**. For checks use `--dry-run --no-refresh --store <scratch path>`.
 The pre-A2 dry-run left an orphan run `ts-basis-daily-combo-forward-2026-09-24`
 in `production.duckdb`. It is left in place (copy-first discipline) for the
 operator to remove.
 
-Foreground supervisor loop (60 s poll, refreshes signals+facts incl. recovery flag
-each cycle, `--dry-run` for single pass). Suggested: run under the ops
-orchestrator pattern or a supervised session; Ctrl+C stops cleanly. First live
-rebalances to watch: leg sizes vs backtest pass rates (~26L/29S normal, small on
-compression days), turnover (~0.7 one-way expected), fee drag (~18–19 bps/day at
-current churn — see mechanics report §4).
+First live rebalances to watch:
+- leg sizes vs backtest pass rates (~26L/29S normal, small on compression days);
+- turnover (~0.7 one-way expected);
+- fee drag (~18–19 bps/day at current churn — see mechanics report §4).
 
 ## 5. What remains operator-side
 

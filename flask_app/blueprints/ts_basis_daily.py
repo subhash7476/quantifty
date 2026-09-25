@@ -21,6 +21,7 @@ import duckdb
 from flask import Blueprint, render_template, jsonify, request, current_app
 
 from core.analytics.options_selection import select_book_options
+from app_facade import ts_combo_facade
 from core.brokers.upstox_market_data import UpstoxMarketData
 from flask_app.middleware import login_required
 from scripts.ts_basis_daily_options import stale_message
@@ -286,6 +287,26 @@ def api_options_live():
         "server_time": datetime.now().strftime("%d %b %H:%M:%S"),
         "quotes": quotes,
     })
+
+
+@ts_basis_daily_bp.route("/api/combo")
+@login_required
+def api_combo():
+    """Combo paper book: runner status, totals, held book, recent daily P&L."""
+    return jsonify(ts_combo_facade.combo_panel())
+
+
+@ts_basis_daily_bp.route("/api/combo/live")
+@login_required
+def api_combo_live():
+    """Live mark of the held combo book against the last formation's close.
+    Instrument keys come from the persisted book, never from the request."""
+    live = ts_combo_facade.combo_live(UpstoxMarketData().fetch_quotes_batch)
+    state, age = _market_state(live.pop("feed_ts", []))
+    live.update(state=state if not live.get("error") else "STALE",
+                feed_age_sec=round(age, 1) if age is not None else None,
+                server_time=datetime.now().strftime("%d %b %H:%M:%S"))
+    return jsonify(live)
 
 
 @ts_basis_daily_bp.route("/api/dates")

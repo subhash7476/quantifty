@@ -154,6 +154,78 @@
         </div>
     </div>
 
+    <!-- Combo Paper Book (orchestrator child: scripts/ts_basis_daily_combo_forward.py) -->
+    <div id="combo-panel" class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+        <div class="px-4 py-3 border-b border-slate-700 flex items-center justify-between flex-wrap gap-2">
+            <div>
+                <h3 class="text-sm font-semibold text-slate-200">Combo Paper Book — futures, EOD</h3>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    Q1/Q5 legs with |z| &gt; 0.7 and not reverting · Rs 1 Cr gross · filled at the formation close
+                    <span class="text-slate-600 mx-1">·</span>
+                    <span class="text-slate-300">Book:</span>
+                    <span id="combo-formation" class="font-mono text-slate-300">—</span>
+                </p>
+            </div>
+            <div class="flex items-center gap-2">
+                <span id="combo-runner" class="px-2 py-1 rounded text-xs font-semibold bg-slate-700 text-slate-300">…</span>
+                <span id="combo-live-state" class="px-2 py-1 rounded text-xs font-semibold bg-slate-700 text-slate-300">…</span>
+            </div>
+        </div>
+        <div id="combo-msg" class="hidden px-4 py-2 text-xs text-amber-300 bg-amber-900/30 border-b border-amber-800"></div>
+        <div class="grid grid-cols-3 md:grid-cols-6 gap-px bg-slate-700 border-b border-slate-700">
+            <div class="bg-slate-800 p-3"><p class="text-xs text-slate-400">Live since close</p><p id="combo-live-total" class="text-base font-semibold font-mono text-slate-100 mt-1">—</p></div>
+            <div class="bg-slate-800 p-3"><p class="text-xs text-slate-400">Cum net (futures)</p><p id="combo-cum" class="text-base font-semibold font-mono text-slate-100 mt-1">—</p></div>
+            <div class="bg-slate-800 p-3"><p class="text-xs text-slate-400">Futures P&amp;L (gross)</p><p id="combo-fut" class="text-base font-semibold font-mono text-slate-100 mt-1">—</p></div>
+            <div class="bg-slate-800 p-3"><p class="text-xs text-slate-400">Spot P&amp;L (research)</p><p id="combo-spot" class="text-base font-semibold font-mono text-slate-100 mt-1">—</p></div>
+            <div class="bg-slate-800 p-3"><p class="text-xs text-slate-400">Costs</p><p id="combo-costs" class="text-base font-semibold font-mono text-slate-100 mt-1">—</p></div>
+            <div class="bg-slate-800 p-3"><p class="text-xs text-slate-400">Drawdown · days</p><p id="combo-dd" class="text-base font-semibold font-mono text-slate-100 mt-1">—</p></div>
+        </div>
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-px bg-slate-700">
+            <div class="bg-slate-800 overflow-x-auto max-h-96 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-slate-800">
+                        <tr class="text-left text-xs text-slate-400 border-b border-slate-700">
+                            <th class="px-3 py-2">Ticker</th>
+                            <th class="px-3 py-2">Side</th>
+                            <th class="px-3 py-2 text-right">Capital</th>
+                            <th class="px-3 py-2">Since</th>
+                            <th class="px-3 py-2 text-right">Close</th>
+                            <th class="px-3 py-2 text-right">LTP</th>
+                            <th class="px-3 py-2 text-right">Chg %</th>
+                            <th class="px-3 py-2 text-right">Live P&amp;L</th>
+                        </tr>
+                    </thead>
+                    <tbody id="combo-positions">
+                        <tr><td colspan="8" class="px-4 py-8 text-center text-slate-500">Loading paper book...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="bg-slate-800 overflow-x-auto max-h-96 overflow-y-auto">
+                <table class="w-full text-sm">
+                    <thead class="sticky top-0 bg-slate-800">
+                        <tr class="text-left text-xs text-slate-400 border-b border-slate-700">
+                            <th class="px-3 py-2">Date</th>
+                            <th class="px-3 py-2 text-right">L/S</th>
+                            <th class="px-3 py-2 text-right">Fut P&amp;L</th>
+                            <th class="px-3 py-2 text-right">Spot P&amp;L</th>
+                            <th class="px-3 py-2 text-right">Costs</th>
+                            <th class="px-3 py-2 text-right">Net</th>
+                            <th class="px-3 py-2 text-right">Cum net</th>
+                        </tr>
+                    </thead>
+                    <tbody id="combo-daily">
+                        <tr><td colspan="7" class="px-4 py-8 text-center text-slate-500">—</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div class="px-4 py-2 border-t border-slate-700 text-xs text-slate-500">
+            Each row's P&amp;L is the book held from the previous formation close to this one; its costs are that day's rebalance.
+            Live P&amp;L marks futures LTP against the bhavcopy close (a last-30-min weighted average), so it is an estimate until the next EOD formation.
+            Spot P&amp;L is how the backtest scored the book; futures P&amp;L is what the paper book can trade.
+        </div>
+    </div>
+
     <!-- Refresh Log -->
     <div id="refresh-log" class="hidden bg-slate-800 border border-slate-700 rounded-lg p-4">
         <h3 class="text-sm font-semibold text-slate-300 mb-2">Refresh Log</h3>
@@ -441,11 +513,135 @@
         btnText.textContent = 'Refresh';
     }
 
+    // ---- Combo paper book ---------------------------------------------------
+    const COMBO_POLL_MS = 60000;
+    const COMBO_LIVE_MS = 10000;
+    let comboPositions = [];
+
+    const ESC_MAP = {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'};
+    function esc(v) {
+        return String(v ?? '').replace(/[&<>"']/g, c => ESC_MAP[c]);
+    }
+    function rupees(v) {
+        if (v === null || v === undefined) return '—';
+        const n = Math.round(v);
+        return (n < 0 ? '−' : '') + '₹' + Math.abs(n).toLocaleString('en-IN');
+    }
+    function pnlClass(v) {
+        if (v === null || v === undefined || Math.round(v) === 0) return 'text-slate-300';
+        return v > 0 ? 'text-emerald-400' : 'text-rose-400';
+    }
+    function setPnl(id, v) {
+        const el = document.getElementById(id);
+        el.textContent = rupees(v);
+        el.className = 'text-base font-semibold font-mono mt-1 ' + pnlClass(v);
+    }
+    function comboMsg(msg) {
+        const el = document.getElementById('combo-msg');
+        el.textContent = msg || '';
+        el.classList.toggle('hidden', !msg);
+    }
+    function setRunner(st) {
+        const el = document.getElementById('combo-runner');
+        const hb = (st.heartbeat_age_s !== null && st.heartbeat_age_s !== undefined) ? ` · ${st.heartbeat_age_s}s` : '';
+        el.textContent = st.running ? `Runner up${hb}` : 'Runner down';
+        el.title = st.reason || '';
+        el.className = 'px-2 py-1 rounded text-xs font-semibold ' +
+            (st.running ? 'bg-emerald-900/60 text-emerald-300' : 'bg-rose-900/60 text-rose-300');
+    }
+
+    async function loadCombo() {
+        let data;
+        try {
+            const resp = await fetch('/ts-basis-daily/api/combo');
+            if (!resp.ok) { comboMsg(`Paper book API unavailable (HTTP ${resp.status}) — restart Flask to load it.`); return; }
+            data = await resp.json();
+        } catch (e) { comboMsg('Paper book: ' + e); return; }
+        const st = data.status || {};
+        setRunner(st);
+        if (data.error) { comboMsg(data.error); return; }
+        if (data.empty) {
+            comboMsg(st.running
+                ? 'Runner is up; no formation traded yet — ' + (st.reason || 'waiting for facts')
+                : 'No paper book yet — the orchestrator starts the runner (scripts/ts_basis_daily_combo_forward.py).');
+            comboPositions = [];
+            renderComboPositions({});
+            return;
+        }
+        comboMsg(!st.running ? 'Runner is down — the book below is as of its last formation.'
+                 : st.state === 'retrying' ? 'Runner: ' + st.reason : '');
+        document.getElementById('combo-formation').textContent = data.last_formation || '—';
+        const t = data.totals;
+        setPnl('combo-cum', t.cum_net_pnl_fut);
+        setPnl('combo-fut', t.fut_pnl);
+        setPnl('combo-spot', t.spot_pnl);
+        document.getElementById('combo-costs').textContent = rupees(t.costs);
+        document.getElementById('combo-dd').textContent =
+            (t.drawdown_pct === null ? '—' : t.drawdown_pct.toFixed(2) + '%') + ' · ' + t.n_days;
+        comboPositions = data.positions.slice().sort((a, b) =>
+            a.side === b.side ? a.underlying.localeCompare(b.underlying) : (a.side === 'LONG' ? -1 : 1));
+        renderComboPositions({});
+        document.getElementById('combo-daily').innerHTML = data.daily.map(d => `
+            <tr class="border-b border-slate-700/50">
+                <td class="px-3 py-1.5 font-mono text-slate-300">${esc(d.formation_date)}</td>
+                <td class="px-3 py-1.5 text-right font-mono text-slate-400">${d.n_long}/${d.n_short}</td>
+                <td class="px-3 py-1.5 text-right font-mono ${pnlClass(d.fut_pnl)}">${rupees(d.fut_pnl)}</td>
+                <td class="px-3 py-1.5 text-right font-mono ${pnlClass(d.spot_pnl)}">${rupees(d.spot_pnl)}</td>
+                <td class="px-3 py-1.5 text-right font-mono text-slate-400">${rupees((d.fees || 0) + (d.slippage || 0))}</td>
+                <td class="px-3 py-1.5 text-right font-mono ${pnlClass(d.net_pnl_fut)}">${rupees(d.net_pnl_fut)}</td>
+                <td class="px-3 py-1.5 text-right font-mono ${pnlClass(d.cum_net_pnl_fut)}">${rupees(d.cum_net_pnl_fut)}</td>
+            </tr>`).join('');
+    }
+
+    function renderComboPositions(live) {
+        const body = document.getElementById('combo-positions');
+        if (!comboPositions.length) {
+            body.innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-slate-500">Flat — no positions</td></tr>';
+            return;
+        }
+        body.innerHTML = comboPositions.map(p => {
+            const r = live[p.underlying] || {};
+            const side = p.side === 'LONG' ? 'text-emerald-400' : 'text-rose-400';
+            const chg = (r.ret_pct === undefined || r.ret_pct === null) ? '—' : r.ret_pct.toFixed(2);
+            return `<tr class="border-b border-slate-700/50">
+                <td class="px-3 py-1.5 font-mono text-slate-200">${esc(p.underlying)}</td>
+                <td class="px-3 py-1.5 text-xs font-semibold ${side}">${esc(p.side)}</td>
+                <td class="px-3 py-1.5 text-right font-mono text-slate-400">${rupees(p.cap)}</td>
+                <td class="px-3 py-1.5 font-mono text-xs text-slate-400">${esc(p.entry_date)}</td>
+                <td class="px-3 py-1.5 text-right font-mono text-slate-400">${esc(r.ref_close ?? '—')}</td>
+                <td class="px-3 py-1.5 text-right font-mono text-slate-200">${esc(r.ltp ?? '—')}</td>
+                <td class="px-3 py-1.5 text-right font-mono ${pnlClass(r.ret_pct)}">${chg}</td>
+                <td class="px-3 py-1.5 text-right font-mono ${pnlClass(r.pnl)}">${rupees(r.pnl)}</td>
+            </tr>`;
+        }).join('');
+    }
+
+    async function pollComboLive() {
+        if (!comboPositions.length || document.hidden) return;
+        const el = document.getElementById('combo-live-state');
+        try {
+            const resp = await fetch('/ts-basis-daily/api/combo/live');
+            if (!resp.ok) return;
+            const data = await resp.json();
+            el.textContent = data.state + (data.server_time ? ' · ' + data.server_time : '');
+            el.title = data.error || '';
+            el.className = 'px-2 py-1 rounded text-xs font-semibold ' +
+                (data.state === 'LIVE' ? 'bg-emerald-900/60 text-emerald-300'
+                 : data.state === 'CLOSED' ? 'bg-slate-700 text-slate-300' : 'bg-amber-900/60 text-amber-300');
+            if (data.error) return;
+            renderComboPositions(data.rows || {});
+            setPnl('combo-live-total', data.total_pnl);
+        } catch (e) { el.textContent = 'STALE'; }
+    }
+
     // Init
     document.addEventListener('DOMContentLoaded', () => {
         loadDates();
         loadSignals('');
         loadOptions();
+        loadCombo().then(pollComboLive);
+        setInterval(loadCombo, COMBO_POLL_MS);
+        setInterval(pollComboLive, COMBO_LIVE_MS);
     });
 </script>
 <style>

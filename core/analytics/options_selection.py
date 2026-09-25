@@ -415,7 +415,7 @@ def select_eod_options(book, on: date, min_dte: int = DEFAULT_MIN_DTE):
         o.close(); f.close(); inst.close()
 
 
-def _future_key(inst, snap, ticker, expiry):
+def future_key(inst, snap, ticker, expiry):
     name = inst.execute(
         "SELECT name FROM instruments WHERE snapshot_date=? "
         "AND instrument_type='EQ' AND tradingsymbol=? LIMIT 1",
@@ -437,7 +437,7 @@ def _resolve_live_forwards(inst, snap, book, expiries, market_data):
         expiry = expiries.get(ticker)
         if expiry is None:
             continue
-        key = _future_key(inst, snap, ticker, expiry)
+        key = future_key(inst, snap, ticker, expiry)
         if key:
             key_by_ticker[ticker] = key
     ltps = market_data.fetch_ltp_batch(list(key_by_ticker.values()))

@@ -25,11 +25,16 @@ Unpriced names contribute 0 and are counted.
 """
 from __future__ import annotations
 
+import time
 from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, Optional
 
 import duckdb
+
+WRITE_RETRY_S = 30.0
+READ_RETRY_S = 5.0
+_RETRY_STEP_S = 0.5
 
 DDL = [
     """CREATE TABLE IF NOT EXISTS combo_daily (
@@ -107,18 +112,33 @@ def book_returns(prev_date: date, fdate: date, longs: Dict[str, float],
     }
 
 
+def connect_with_retry(path, read_only: bool, budget_s: float):
+    """Open a DuckDB file, retrying while another process holds its lock."""
+    deadline = time.monotonic() + budget_s
+    while True:
+        try:
+            return duckdb.connect(str(path), read_only=read_only)
+        except duckdb.IOException:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(_RETRY_STEP_S)
+
+
 class ComboPaperStore:
     def __init__(self, path, capital: float = 10_000_000.0):
         self._path = Path(path)
         self._capital = capital
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        con = duckdb.connect(str(self._path))
+        con = self._write_con()
         for ddl in DDL:
             con.execute(ddl)
         con.close()
 
+    def _write_con(self):
+        return connect_with_retry(self._path, False, WRITE_RETRY_S)
+
     def write_meta(self, meta: Dict[str, str]):
-        con = duckdb.connect(str(self._path))
+        con = self._write_con()
         con.execute("BEGIN")
         for k, v in meta.items():
             con.execute("DELETE FROM combo_meta WHERE key = ?", [k])
@@ -127,7 +147,7 @@ class ComboPaperStore:
         con.close()
 
     def last_state(self) -> Optional[dict]:
-        con = duckdb.connect(str(self._path), read_only=True)
+        con = connect_with_retry(self._path, True, WRITE_RETRY_S)
         row = con.execute("""
             SELECT formation_date, cum_net_pnl_fut FROM combo_daily
             ORDER BY formation_date DESC LIMIT 1""").fetchone()
@@ -146,7 +166,7 @@ class ComboPaperStore:
 
     def record(self, fdate: date, *, longs, shorts, trades, costs, pnl):
         """Persist one formation atomically; re-recording a date replaces it."""
-        con = duckdb.connect(str(self._path))
+        con = self._write_con()
         con.execute("BEGIN")
         for table in ("combo_daily", "combo_book", "combo_trades"):
             con.execute(f"DELETE FROM {table} WHERE formation_date = ?", [fdate])
@@ -173,3 +193,53 @@ class ComboPaperStore:
                          t["held_cap"], t["target_side"], t["target_cap"]])
         con.execute("COMMIT")
         con.close()
+
+
+def read_snapshot(path, n_days: int = 20, budget_s: float = READ_RETRY_S) -> Optional[dict]:
+    """Read-only view for the page: meta, recent daily rows, and the held book
+    with each name's entry date (start of its current same-side streak).
+    None when the store does not exist yet."""
+    path = Path(path)
+    if not path.exists():
+        return None
+    con = connect_with_retry(path, True, budget_s)
+    try:
+        meta = dict(con.execute("SELECT key, value FROM combo_meta").fetchall())
+        cols = [c[0] for c in con.execute("SELECT * FROM combo_daily LIMIT 0").description]
+        daily = [dict(zip(cols, r)) for r in con.execute(
+            "SELECT * FROM combo_daily ORDER BY formation_date DESC LIMIT ?", [n_days]).fetchall()]
+        totals = con.execute("""
+            SELECT COUNT(*), SUM(fut_pnl), SUM(spot_pnl), SUM(fees + slippage),
+                   MIN(drawdown_pct), MIN(formation_date)
+            FROM combo_daily WHERE prev_date IS NOT NULL OR n_long + n_short > 0""").fetchone()
+        history = con.execute(
+            "SELECT formation_date, underlying, side, cap FROM combo_book ORDER BY formation_date"
+        ).fetchall()
+        dates = [r[0] for r in con.execute(
+            "SELECT formation_date FROM combo_daily ORDER BY formation_date").fetchall()]
+    finally:
+        con.close()
+
+    held, entry = {}, {}
+    by_date: Dict[date, dict] = {}
+    for fd, u, side, cap in history:
+        by_date.setdefault(fd, {})[u] = (side, cap)
+    for fd in dates:
+        book = by_date.get(fd, {})
+        for u, (side, _) in book.items():
+            if held.get(u, (None,))[0] != side:
+                entry[u] = fd
+        held = book
+    positions = [{"underlying": u, "side": side, "cap": cap, "entry_date": entry[u]}
+                 for u, (side, cap) in sorted(held.items())]
+    return {
+        "meta": meta,
+        "last_formation": daily[0]["formation_date"] if daily else None,
+        "daily": daily,
+        "positions": positions,
+        "totals": {"n_days": totals[0], "fut_pnl": totals[1] or 0.0,
+                   "spot_pnl": totals[2] or 0.0, "costs": totals[3] or 0.0,
+                   "worst_drawdown_pct": totals[4], "first_formation": totals[5],
+                   "cum_net_pnl_fut": daily[0]["cum_net_pnl_fut"] if daily else 0.0,
+                   "drawdown_pct": daily[0]["drawdown_pct"] if daily else None},
+    }

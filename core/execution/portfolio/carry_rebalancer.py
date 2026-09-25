@@ -846,7 +846,9 @@ class CarryRebalancerHook:
                         trade_date: date):
         executions = [d for d in deltas if not d.suppressed]
         if not executions:
-            return
+            # Zero-cost metrics, not None: every sink reads metrics.* directly,
+            # so an unchanged book would otherwise crash the sink.
+            return summarize_rebalance([], trade_date)
 
         tracker = self._exec.position_tracker
         ts = datetime.combine(trade_date, time.min)

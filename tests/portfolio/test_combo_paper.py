@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT))
 
 from core.execution.portfolio.carry_rebalancer import CarryRebalancerHook
 from core.execution.portfolio.combo_paper_store import (
-    ComboPaperStore, book_returns,
+    ComboPaperStore, book_returns, connect_with_retry, read_snapshot,
 )
 
 D1, D2, D3 = date(2026, 9, 23), date(2026, 9, 24), date(2026, 9, 25)
@@ -192,3 +192,50 @@ class TestComboPaperStore:
         dd = con.execute("SELECT drawdown_pct FROM combo_daily WHERE formation_date=?", [D2]).fetchone()[0]
         con.close()
         assert dd == pytest.approx((9_000_000 / 11_000_000 - 1) * 100)
+
+
+class TestReadSnapshot:
+    def _rec(self, store, fd, longs, shorts=None):
+        store.record(fd, longs=longs, shorts=shorts or {}, trades=[],
+                     costs={"traded_value": 0.0, "fees": 10.0, "slippage": 5.0},
+                     pnl={"prev_date": None, "fut_pnl": 100.0, "spot_pnl": 50.0,
+                          "net_pnl_fut": 85.0})
+
+    def test_missing_store_is_none(self, tmp_path):
+        assert read_snapshot(tmp_path / "nope.duckdb") is None
+
+    def test_entry_date_is_start_of_same_side_streak(self, tmp_path):
+        store = ComboPaperStore(tmp_path / "p.duckdb")
+        self._rec(store, D1, {"A": 1e6, "B": 1e6})
+        self._rec(store, D2, {"A": 2e6}, {"B": 1e6})     # B flips to SHORT
+        self._rec(store, D3, {"A": 2e6, "C": 1e6}, {"B": 1e6})
+        snap = read_snapshot(tmp_path / "p.duckdb")
+        entry = {p["underlying"]: (p["side"], p["entry_date"]) for p in snap["positions"]}
+        assert entry == {"A": ("LONG", D1), "B": ("SHORT", D2), "C": ("LONG", D3)}
+        assert snap["last_formation"] == D3
+        assert snap["totals"]["costs"] == pytest.approx(45.0)
+        assert snap["totals"]["cum_net_pnl_fut"] == pytest.approx(255.0)
+
+    def test_flat_day_breaks_the_streak(self, tmp_path):
+        store = ComboPaperStore(tmp_path / "p.duckdb")
+        self._rec(store, D1, {"A": 1e6})
+        self._rec(store, D2, {})
+        self._rec(store, D3, {"A": 1e6})
+        snap = read_snapshot(tmp_path / "p.duckdb", n_days=1)
+        assert snap["positions"][0]["entry_date"] == D3
+
+
+def test_connect_with_retry_waits_out_another_process_lock(tmp_path):
+    import subprocess, time as _t
+    db = tmp_path / "locked.duckdb"
+    duckdb.connect(str(db)).close()
+    holder = subprocess.Popen([sys.executable, "-c",
+        f"import duckdb, time; c = duckdb.connect(r'{db}'); print('held', flush=True); time.sleep(2)"],
+        stdout=subprocess.PIPE, text=True)
+    assert holder.stdout.readline().strip() == "held"
+    with pytest.raises(duckdb.IOException):
+        connect_with_retry(db, True, budget_s=0.0)
+    t0 = _t.monotonic()
+    connect_with_retry(db, True, budget_s=10.0).close()
+    assert _t.monotonic() - t0 > 0.5
+    holder.wait()

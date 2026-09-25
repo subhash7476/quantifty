@@ -74,8 +74,11 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 ## Ops — Trading-Window Orchestrator
 
 One-command foreground supervisor for the NiftyShield PAPER window:
-`python scripts/ops/orchestrator.py` (instrument-master refresh → Flask → Upstox login → ingestor → poller →
-session → EOD; Ctrl+C stops cleanly). Read-only health: `python scripts/ops/preflight.py`
+`python scripts/ops/orchestrator.py` (instrument-master refresh → Flask → TS-combo paper book → Upstox login →
+ingestor → poller → session → EOD → wall poller; Ctrl+C stops cleanly). The `ts_combo` child
+(`scripts/ts_basis_daily_combo_forward.py`) is EOD-driven and ungated: it trades each new TS Basis Daily
+formation once the facts refresh has settled, into `data/paper/ts_daily_combo/combo_paper.duckdb`, shown on
+the `/ts-basis-daily/` Combo Paper Book panel (`TS_BASIS_DAILY_COMBO_SPEC.md` amendment A3). Read-only health: `python scripts/ops/preflight.py`
 (BLOCK: token/STOP/marks/VIX; WARN: SPAN/master/feeds/EOD-worker). Full contract:
 `docs/superpowers/specs/2026-08-09-ops-orchestrator-preflight-design.md`;
 runbook: `docs/reports/OPS_ORCHESTRATOR_RUNBOOK.md`.

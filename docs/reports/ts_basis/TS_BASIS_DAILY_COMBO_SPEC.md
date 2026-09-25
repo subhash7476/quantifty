@@ -94,7 +94,26 @@ The existing forward runner's top-5 + TP@0.5% + sector-cap-2 config is NOT used 
 > - Run identity moves from per-UTC-date `run_id` in `production.duckdb` to the
 >   dedicated store (removes the same-day-restart overwrite/duplicate defect).
 
-Validation before handover: `--dry-run --store <scratch>` pass against live
+> **Amendment A3 (orchestrator child + page panel, 2026-09-25):**
+> - The runner is the orchestrator child `ts_combo` (native PID lock
+>   `combo_runner.pid`, heartbeat `status.json`). It is ensured right after Flask,
+>   before the token/feed gates, since it needs neither.
+> - It **no longer refreshes** signals or facts. The EOD chain, `download_all_data.py`
+>   and the page's Refresh button own that pipeline. The runner trades a formation
+>   only when the facts file has been unchanged for 90 s **and** at least one
+>   `basis_reverting = TRUE` exists. `publish_facts` writes every flag FALSE, so zero
+>   TRUE means the recovery filter has not run.
+> - Date-driven: no LoopDriver. Each cycle restores the hook from the store, so a
+>   failed cycle cannot leave half-advanced state. `--dry-run`/`--no-refresh` are
+>   replaced by `--once` + `--store`.
+> - A no-trade formation (unchanged book) now yields zero-cost metrics instead of
+>   `None`, which crashed every sink (`_execute_deltas`).
+> - The TS Basis page shows a **Combo Paper Book** panel: runner status, cumulative
+>   futures/spot P&L, costs, drawdown, the held book with entry dates, a live mark
+>   (futures LTP vs the last formation close, 10 s poll), and recent daily rows.
+>   It is read-only through `app_facade/ts_combo_facade.py` with bounded-retry reads.
+
+Validation before handover: `--once --store <scratch>` pass against live
 facts + store row check (A2). The supervised launch command is recorded in §5
 of the build report; no daemon is left running by the builder.
 
@@ -124,7 +143,7 @@ of the build report; no daemon is left running by the builder.
 ## 5. Acceptance (first paper days)
 
 - Hook + runner + tests merged on this branch, 44 existing tests green + new tests green.
-- `--dry-run --store <scratch>` records one row per new formation with sane legs
+- `--once --store <scratch>` records one row per new formation with sane legs
   (non-empty, quintile-shaped, filtered counts ≈ backtest pass rates).
 - Build report (`docs/reports/ts_basis/TS_BASIS_DAILY_COMBO_BUILD_REPORT.md`)
   records: diff summary, dry-run evidence, launch command, and the combo mechanics
