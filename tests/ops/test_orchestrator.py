@@ -4,6 +4,7 @@ import sys
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+import pytest
 
 from scripts.ops import orchestrator as orch
 from scripts.ops import pidfile
@@ -693,3 +694,45 @@ def test_stop_skips_ts_combo(monkeypatch):
     monkeypatch.setattr(orch.pidfile, "read_pid", lambda p: None)
     orch._cmd_stop()
     assert "ts_combo" not in stops
+
+
+# --------------------------------------------------------------------------- #
+# Phone approval — the token wait always reports its outcome for cleanup
+# --------------------------------------------------------------------------- #
+def test_token_wait_done_reports_success_after_login():
+    fresh = iter([False, False, True])
+    done = []
+    deps, calls = _deps(token_fresh=lambda: next(fresh), token_wait_done=done.append)
+    assert orch.start_sequence(deps) == "started"
+    assert calls["login"] == 1 and done == [True]
+
+
+def test_token_wait_done_reports_timeout():
+    done = []
+    deps, _ = _deps(token_fresh=lambda: False, token_wait_done=done.append)
+    assert orch.start_sequence(deps, token_timeout_s=0.0) == "timeout:token"
+    assert done == [False]
+
+
+def test_token_wait_done_runs_on_interrupt():
+    done = []
+
+    def interrupted(_):
+        raise KeyboardInterrupt
+
+    deps, _ = _deps(token_fresh=lambda: False, sleep=interrupted,
+                    token_wait_done=done.append)
+    with pytest.raises(KeyboardInterrupt):
+        orch.start_sequence(deps)
+    assert done == [False]
+
+
+def test_token_wait_done_not_called_when_token_already_fresh():
+    done = []
+    deps, calls = _deps(token_wait_done=done.append)
+    orch.start_sequence(deps)
+    assert calls["login"] == 0 and done == []
+
+
+def test_cmd_start_allows_a_long_wait_for_phone_approval():
+    assert orch.TOKEN_TIMEOUT_S >= 2 * 3600

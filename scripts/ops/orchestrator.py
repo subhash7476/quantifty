@@ -164,6 +164,9 @@ class Deps:
     # during that window (e.g. the ingestor at startup, 2026-08-21) must be
     # revived or the feed it owns can never warm up.
     supervise: Callable[[], None] = lambda: None
+    # Called once after a token wait with whether a fresh token arrived, on every
+    # exit path, so the phone-approval tunnel never outlives the wait.
+    token_wait_done: Callable[[bool], None] = lambda ok: None
 
 
 def _ensure(deps: Deps, name: str) -> None:
@@ -200,15 +203,21 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     #     and feed gates below, so a morning without a login still keeps it running.
     _ensure(deps, "ts_combo")
 
-    # 3. Token gate — open the login page once, then block-poll until fresh.
+    # 3. Token gate — request phone approval and open the login page once, then
+    #    block-poll until fresh.
     if not deps.token_fresh():
-        deps.open_login()
-        waited = 0.0
-        while not deps.token_fresh():
-            if waited >= token_timeout_s:
-                return "timeout:token"
-            deps.sleep(poll_s)
-            waited += poll_s
+        fresh = False
+        try:
+            deps.open_login()
+            waited = 0.0
+            while not deps.token_fresh():
+                if waited >= token_timeout_s:
+                    return "timeout:token"
+                deps.sleep(poll_s)
+                waited += poll_s
+            fresh = True
+        finally:
+            deps.token_wait_done(fresh)
 
     # 4. Live feed + marks.
     _ensure(deps, "ingestor")
@@ -289,6 +298,9 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
 
 _logger = logging.getLogger("ops_orchestrator")
 ORCH_LOCK = OPS_DIR / "orchestrator.pid"
+# Phone approval can take a while when the 09:10 request finds you away from the
+# phone; the market opens 09:15 and the feed gates park until then anyway.
+TOKEN_TIMEOUT_S = 3 * 3600
 SESSION_FINALIZE_BUDGET_S = 90.0
 
 
@@ -497,7 +509,19 @@ def _live_deps(started: dict) -> Deps:
         credentials._load()
         return credentials.has_upstox_token and not credentials.is_token_expired
 
+    approval: dict = {}
+
     def _open_login():
+        from dotenv import load_dotenv
+        from core.scheduler.eod_telegram import send_sync
+        from scripts.ops.token_approval import PhoneApproval
+        load_dotenv(ROOT / ".env")
+        credentials._load()
+        phone = PhoneApproval.from_env(os.environ, credentials.get_all(), notify=send_sync)
+        if phone is not None and phone.start():
+            approval["phone"] = phone
+            print("\n>>> Upstox approval requested — tap Approve in the Upstox app "
+                  "or WhatsApp.")
         url = "http://127.0.0.1:5000/ops/login/upstox"
         print(f"\n>>> Upstox token required. Opening {url}\n"
               f">>> Complete the browser login; the orchestrator will continue "
@@ -506,6 +530,14 @@ def _live_deps(started: dict) -> Deps:
             webbrowser.open(url)
         except Exception:
             pass
+
+    def _token_wait_done(ok: bool) -> None:
+        phone = approval.pop("phone", None)
+        if phone is not None:
+            phone.stop()
+        if not ok:
+            from core.scheduler.eod_telegram import send_sync
+            send_sync("Upstox token not received — orchestrator start abandoned.")
 
     def _marks_warm() -> bool:
         ctx = preflight.build_context()
@@ -538,6 +570,7 @@ def _live_deps(started: dict) -> Deps:
         derivatives_open=lambda: MarketHours.is_derivatives_open(),
         sleep=time.sleep, now=datetime.now,
         gate_status=_gate_status,
+        token_wait_done=_token_wait_done,
     )
 
 
@@ -558,7 +591,7 @@ def _cmd_start(dry_run: bool) -> int:
     deps.supervise = sup.tick
     deps.adopt = sup.adopt
     try:
-        outcome = start_sequence(deps)
+        outcome = start_sequence(deps, token_timeout_s=TOKEN_TIMEOUT_S)
         print(f"start sequence: {outcome}")
         if outcome != "started":
             sup.shutdown()
