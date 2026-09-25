@@ -201,8 +201,7 @@ def main() -> int:
 
     metrics = risk_metrics_report(str(work / "journal.jsonl"),
                                   str(work / "trading.db"),
-                                  initial_capital=1_000_000.0,
-                                  metrics_json=str(work / "metrics.json"))
+                                  initial_capital=1_000_000.0)
     print(f"risk metrics: RT={metrics.round_trips} win_rate={metrics.win_rate:.2f} "
           f"conv={metrics.signal_fill_conversion:.2f} "
           f"peak_margin_util={metrics.peak_margin_utilisation:.2%}")

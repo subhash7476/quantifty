@@ -101,12 +101,10 @@ def _window_evidence() -> Dict[str, Any]:
 
     journal_path = DATA_ROOT / "journal.jsonl"
     trades_path = DATA_ROOT / "trading" / "trading.db"
-    metrics_path = DATA_ROOT / "metrics.json"
 
     ev = load_window_evidence(DATA_ROOT, INITIAL_CAPITAL)
     metrics = risk_metrics_report(
-        str(journal_path), str(trades_path), initial_capital=INITIAL_CAPITAL,
-        metrics_json=str(metrics_path) if metrics_path.exists() else None)
+        str(journal_path), str(trades_path), initial_capital=INITIAL_CAPITAL)
 
     ev["metrics"]["per_structure"] = metrics.per_structure
     return ev

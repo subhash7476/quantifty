@@ -82,12 +82,10 @@ def load_window_evidence(data_root: Path,
     sessions_dir = data_root / "sessions"
     journal_path = data_root / "journal.jsonl"
     trades_path = data_root / "trading" / "trading.db"
-    metrics_path = data_root / "metrics.json"
 
     audit = audit_window(str(journal_path), str(trades_path))
     metrics = risk_metrics_report(
-        str(journal_path), str(trades_path), initial_capital=initial_capital,
-        metrics_json=str(metrics_path) if metrics_path.exists() else None)
+        str(journal_path), str(trades_path), initial_capital=initial_capital)
 
     # F-B1: closed structures per session from the audit's `session` field.
     closed_by_session: Dict[str, int] = Counter(
@@ -204,6 +202,7 @@ def load_window_evidence(data_root: Path,
             "avg_loss_r": metrics.avg_loss_r,
             "r_normalized_structures": metrics.r_normalized_structures,
             "profit_factor": metrics.profit_factor,
+            "max_drawdown_rs": metrics.max_drawdown_rs,
             "max_drawdown_pct": metrics.max_drawdown_pct,
             "peak_gross_exposure": metrics.peak_gross_exposure,
             "peak_margin_utilisation": metrics.peak_margin_utilisation,
@@ -211,6 +210,8 @@ def load_window_evidence(data_root: Path,
             "rejections_by_reason": dict(metrics.rejections_by_reason),
             "guard_events": dict(metrics.guard_events),
             "total_realized_pnl": metrics.total_realized_pnl,
+            "total_gross_pnl": metrics.total_gross_pnl,
+            "total_fees": metrics.total_fees,
         },
         "margin": {
             "rows": len(margin_rows),
@@ -310,7 +311,11 @@ def _fmt(evidence: Dict[str, Any]) -> Dict[str, str]:
                        else f"{metrics['avg_loss_r']:.2f}"),
         "profit_factor": ("N/A" if metrics["profit_factor"] is None
                           else f"{metrics['profit_factor']:.2f}"),
-        "max_dd_pct": f"{metrics['max_drawdown_pct']:.2%}",
+        "max_dd": (f"Rs {metrics['max_drawdown_rs']:,.0f} "
+                   f"({metrics['max_drawdown_pct']:.2%})"),
+        "net_pnl": (f"Rs {metrics['total_realized_pnl']:,.0f} (gross "
+                    f"Rs {metrics['total_gross_pnl']:,.0f}, fees "
+                    f"Rs {metrics['total_fees']:,.0f})"),
         "peak_gross": f"Rs {metrics['peak_gross_exposure']:,.0f}",
         "peak_margin_util": f"{metrics['peak_margin_utilisation']:.1%}",
         "conversion": f"{metrics['signal_fill_conversion']:.1%}",
@@ -365,7 +370,7 @@ def _replacement_map(v: Dict[str, str]) -> List[tuple]:
          f"— from `audit_window(...)`]"),
         ("[FILL from `risk_metrics_report(...)`]",
          f"[FILLED: RT={v['rt_count']} WR={v['win_rate']} avgWin={v['avg_win_r']}R "
-         f"avgLoss={v['avg_loss_r']}R PF={v['profit_factor']} maxDD={v['max_dd_pct']} "
+         f"avgLoss={v['avg_loss_r']}R PF={v['profit_factor']} netPnL={v['net_pnl']} maxDD={v['max_dd']} "
          f"peakGross={v['peak_gross']} peakMarginUtil={v['peak_margin_util']} "
          f"conv={v['conversion']} rejections=[{v['rejections']}] — from "
          f"`risk_metrics_report(...)`]"),

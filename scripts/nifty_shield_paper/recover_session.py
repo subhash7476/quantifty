@@ -16,8 +16,7 @@ FIXED pipeline exactly:
   pnl (position-tracker formula, multiplier 1.0) and fees accumulated across
   the round trip (`fees = fees + exit_fee`),
 - rewrites `metrics.json` + `session_summary.json` from the journal + ledger
-  (with `metrics_json=None`: the root metrics.json has since been overwritten
-  by later sessions, so max_drawdown is left 0.0 and that is disclosed),
+  (the drawdown comes from the ledger's net equity curve),
 - copies the live fact store into the package,
 - writes an honest `meta.json` disclosing the irrecoverable artifacts (driver
   bars / marks / signals lived in the crashed process's memory and are gone).
@@ -208,7 +207,7 @@ def _rebuild_package(data_root: Path, session: date, initial_capital: float) -> 
 
     metrics = risk_metrics_report(
         str(journal_path), str(trades_path),
-        initial_capital=initial_capital, metrics_json=None)
+        initial_capital=initial_capital)
     (pkg / "metrics.json").write_text(
         json.dumps(_jsonable(dataclasses.asdict(metrics)), indent=2, default=str),
         encoding="utf-8")

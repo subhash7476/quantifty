@@ -524,12 +524,12 @@ function paintWindowBand() {
         ['Counting sessions', (w.sessions_counting || 0) + ' / ' + (w.sessions_total || 0), 'target ≥ 20', C.teal],
         ['Round trips', n(w.round_trips_counting, 0), 'counting sessions only', C.ink],
         ['Attempted / entered', n(m.structures_attempted, 0) + ' / ' + n(m.structures_entered, 0), 'fill conversion ' + pct(m.signal_fill_conversion * 100, 1), C.ink],
-        ['Total realized PnL', rs(m.total_realized_pnl, 0), 'judgment fact, not pass/fail', m.total_realized_pnl >= 0 ? C.green : C.red],
+        ['Net realized PnL', rs(m.total_realized_pnl, 0), 'after fees · gross ' + rs(m.total_gross_pnl, 0) + ' · fees ' + rs(m.total_fees, 0), m.total_realized_pnl >= 0 ? C.green : C.red],
         ['Win rate', pct(m.win_rate * 100, 1), n(m.wins, 0) + 'W / ' + n(m.losses, 0) + 'L', C.ink],
-        ['Profit factor', pfText, 'gross win / gross loss', pf !== null && pf >= 1 ? C.green : C.red],
+        ['Profit factor', pfText, 'net win / net loss', pf !== null && pf >= 1 ? C.green : C.red],
         ['Avg win R', rn(m.avg_win_r), n(m.wins_with_r, 0) + ' with R', m.avg_win_r != null && m.avg_win_r > 0 ? C.green : C.ink],
         ['Avg loss R', rn(m.avg_loss_r), n(m.losses_with_r, 0) + ' with R', m.avg_loss_r != null && m.avg_loss_r < 0 ? C.red : C.ink],
-        ['Max drawdown', pct(m.max_drawdown_pct * 100, 2), 'from execution metrics', C.ink],
+        ['Max drawdown', rs(m.max_drawdown_rs, 0), pct(m.max_drawdown_pct * 100, 2) + ' · net equity curve', m.max_drawdown_rs > 0 ? C.red : C.ink],
         ['Peak margin use', pct(m.peak_margin_utilisation * 100, 1), 'of initial capital', C.ink]
     ];
     cells.forEach(([k, v, note, color]) => {
