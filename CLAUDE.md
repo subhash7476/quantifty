@@ -89,7 +89,11 @@ per `trading_calendar.is_session()`, logs to `data/ops/scheduled_runs.log`, and 
 on a non-zero exit. **Both jobs stop with exit 2 from 2027-01-01** until the 2027 holidays are added to
 `nse_holidays.py` / `trading_calendar.py`. Re-register with `scripts/ops/register_scheduled_tasks.ps1`
 (interactive logon; no time limit on the orchestrator). The tasks run whatever branch `F:\Nifty`
-has checked out.
+has checked out. **The token gate uses phone approval** (Upstox Access Token Request → Approve in
+the Upstox app or WhatsApp → webhook via an ngrok static domain; `scripts/ops/token_approval.py`) when
+`UPSTOX_NOTIFY_DOMAIN`/`UPSTOX_NOTIFY_SECRET` are set in `.env`; the browser login remains
+the fallback. Tokens expire at 03:30 after issue, not after an age limit. Setup: runbook
+`docs/reports/ops_data/OPS_ORCHESTRATOR_RUNBOOK.md`.
 
 ---
 
