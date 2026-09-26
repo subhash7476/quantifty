@@ -236,6 +236,47 @@ def test_entry_assembles_group_fills_at_marks_and_journals_margin(tmp_path, monk
     assert margin[0]["metadata"]["lots"] == 2
 
 
+def _fee_shadow(tmp_path):
+    rows = [json.loads(l) for l in open(str(tmp_path / "journal.jsonl"), encoding="utf-8")]
+    return [e["metadata"] for e in rows
+            if e["event_type"] == EventType.ENTRY_DIAGNOSTIC.value
+            and e["metadata"].get("rule") == "fee_feasibility"]
+
+
+def test_fee_feasibility_shadow_matches_the_live_bracket(tmp_path, monkeypatch):
+    """AUDIT_2026-09-25 R7, SHADOW ONLY: at entry, size the σ bracket from the
+    entry marks and journal whether its take-profit clears the fee floor — the
+    rule a fee-feasibility entry gate would apply. Paper fills land at the
+    marks, so the shadow must equal the bracket the live exit then uses."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _enter(tmp_path, monkeypatch, _bull_put_signals(), _BULL_PUT, journal=journal)
+    [md] = _fee_shadow(tmp_path)
+    bracket = handler.structure_bracket(handler.open_nifty_shield_groups()[0])
+    assert md["group_id"] == GROUP_ID and md["qty"] == _QTY
+    assert md["would_skip"] is False and bracket.tp_enabled is True
+    assert md["tp_rs"] == pytest.approx(bracket.tp_rs, abs=0.01)
+    assert md["fee_floor_rs"] == pytest.approx(bracket.fee_floor_rs, abs=0.01)
+
+
+def test_fee_feasibility_shadow_would_skip_but_the_entry_still_happens(tmp_path, monkeypatch):
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    signals = _bull_put_signals(exit={"bracket_sigma": 1.0, "tp_min_fee_multiple": 1000.0,
+                                      "hard_exit": "15:35", "max_portfolio_delta": 500})
+    handler = _enter(tmp_path, monkeypatch, signals, _BULL_PUT, journal=journal)
+    [md] = _fee_shadow(tmp_path)
+    assert md["would_skip"] is True
+    assert handler.open_nifty_shield_groups()          # observe-only: entered anyway
+
+
+def test_fee_feasibility_shadow_without_a_bracket_is_undecided(tmp_path, monkeypatch):
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _build_handler(tmp_path, monkeypatch, journal=journal)
+    results = [handler.process_signal(s, 24000.0) for s in _iron_fly_signals()]
+    [md] = _fee_shadow(tmp_path)
+    assert md["would_skip"] is None
+    assert results[3] is not None
+
+
 def test_a_span_snapshot_never_reaches_the_option_margin_backstop(tmp_path, monkeypatch):
     """ADR-025: NseMarginEngine is futures-only — the v400 snapshot carries one
     risk array per underlying ("NIFTY"), and SpanMarginCalculator looks up the

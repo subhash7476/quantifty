@@ -225,7 +225,11 @@ accumulate on one identity.
 
 ## 5. Fix plan for R1–R7 (2026-09-26)
 
-> **Status (2026-09-26): R1–R6 implemented. R7 is deferred.**
+> **Status (2026-09-26): R1–R6 implemented. R7 is built as a SHADOW gate only.** Every entry
+> journals `ENTRY_DIAGNOSTIC rule=fee_feasibility` with `would_skip` true, false or null (no
+> bracket), sized from the entry marks by the same `_size_bracket` the live exit uses. The trade is
+> never changed. Adopting it as a real gate stays a pre-declared, post-E008 decision, judged on the
+> forward trades it marks.
 >
 > - **R4 did not go as planned.** `NseMarginEngine` cannot price option structures: v400 has
 >   one risk array per underlying, looked up by contract symbol, so every option leg raises
