@@ -640,19 +640,22 @@ class ExecutionHandler:
                 sl_dist_f = 0.0
                 risk_r_f = 0.0
 
-            # 0. Manual Kill Switch File Flag
+            # 0. Manual Kill Switch File Flag (trips the switch; EXIT still
+            # proceeds — closing a position is never blocked, §D8).
             from unittest.mock import Mock
             broker_name = self.broker.__class__.__name__
             is_mock_broker = broker_name in {"MockBrokerAdapter", "MockBroker"} or isinstance(self.broker, Mock)
             if not getattr(self, '_kill_switch_disabled', False) and not is_mock_broker and os.path.exists("STOP"):
                 self.activate_kill_switch("Manual STOP file detected.")
-                return None
+                if signal.signal_type != SignalType.EXIT:
+                    return None
 
             # 1. Observability
             self.metrics.signals_received += 1
 
-            # 2. Kill Switch Check
-            if self._kill_switched:
+            # 2. Kill Switch Check (EXIT bypasses — a trip mid-position must
+            # not strand it, §D8; entries stay blocked).
+            if self._kill_switched and signal.signal_type != SignalType.EXIT:
                 return None
 
             # 3. Daily Trade Limit Check (EXIT bypasses — closing a position is

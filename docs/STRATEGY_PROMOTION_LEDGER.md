@@ -140,6 +140,16 @@ standing reference for the ledger format and auditability.
     - **Re-pinned 2026-09-26 (before any window session)** for R7, the fee-feasibility shadow
       gate. It is observe-only (journals `ENTRY_DIAGNOSTIC rule=fee_feasibility`) and changes no
       trade. New hash `e0e0236d…61a8e5`; `WINDOW_START` unchanged at 2026-09-28.
+    - **Re-pinned 2026-09-26 (before any window session)** for the kill-switch EXIT bypass.
+      `core/execution/handler.py` `process_signal` now lets EXIT signals through the
+      kill-switch latch and the STOP-file gate; entries stay blocked (§D8). Before, a trip
+      while a position was open stranded it. Trip sources: STOP file, broker auth error,
+      broker-error threshold, drawdown, stale feed. For NiftyShield that included the 15:35
+      hard exit, leaving a short structure open overnight. Tests:
+      `tests/execution/test_kill_switch_exit_bypass.py`. New hash `d66838c9…5ed0e6` (was
+      `e0e0236d…61a8e5`, the only difference being `handler.py`); `WINDOW_START` unchanged at
+      2026-09-28, still the first untraded session. Strategy identity unchanged
+      (`config_hash c5b722ff…536c`).
 - E009 — (first external strategy Stage 3 LIVE CANDIDATE grant)
 - E010 — (first external strategy Stage 4 LIVE APPROVED grant)
 - E011+ — (suspension, incident, audit, cap-raise entries)
