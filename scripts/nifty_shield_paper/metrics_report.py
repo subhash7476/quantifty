@@ -42,6 +42,7 @@ class RiskMetricsReport:
     structures_attempted: int = 0
     structures_entered: int = 0
     structures_skipped: int = 0
+    restart_replays: int = 0                 # already-entered structure re-signalled
     round_trips: int = 0                     # closed structures (1 RT = 1 structure)
     wins: int = 0
     losses: int = 0
@@ -111,8 +112,23 @@ def risk_metrics_report(
         e["event_type"] for e in events if e["event_type"] in GUARD_TYPES))
 
     entries = [e for e in events if is_structure_entry(e)]
-    skips = [e for e in events
-             if e["event_type"] == EventType.ENTRY_SKIPPED.value]
+    # R6 (AUDIT_2026-09-25 F7): a restart re-emits the 13:00 signal, and the
+    # handler rejects the structure it already entered. A skip whose group has
+    # an EARLIER ENTRY_MARGIN is that replay, not a skipped structure (a
+    # partial-leg skip is journaled before its own ENTRY_MARGIN).
+    entered_so_far: set = set()
+    skips: List[dict] = []
+    replays = 0
+    for e in events:
+        gid = (e.get("metadata") or {}).get("group_id")
+        if is_structure_entry(e):
+            entered_so_far.add(gid)
+        elif e["event_type"] == EventType.ENTRY_SKIPPED.value:
+            if gid is not None and gid in entered_so_far:
+                replays += 1
+            else:
+                skips.append(e)
+    report.restart_replays = replays
     closes = {e["metadata"]["group_id"]
               for e in events
               if e["event_type"] == EventType.STRUCTURE_CLOSE.value}

@@ -45,6 +45,8 @@ from zoneinfo import ZoneInfo
 
 import duckdb
 
+from scripts.nifty_shield_paper.identity import execution_hash
+
 from core.database.providers.base import MarketDataProvider
 from core.events import OHLCVBar, SignalEvent
 from core.execution.options.nifty_shield_marks import (
@@ -322,6 +324,8 @@ class SessionRecorder:
             "signals_emitted": n_signals,
             "session_bars_present": bool(n_session),
             "span_snapshot_hash": span_hash,
+            # R3: the execution identity this session ran (identity.py).
+            "execution_hash": execution_hash(Path(__file__).resolve().parents[2]),
             "prior_capture_merged": prior_exists,
         }
         (pkg / "meta.json").write_text(

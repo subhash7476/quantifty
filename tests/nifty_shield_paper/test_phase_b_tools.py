@@ -31,6 +31,7 @@ import pytest
 
 import scripts.daytype.publish_live_fact as live
 import scripts.nifty_shield_paper_runner as runner_mod
+from scripts.nifty_shield_paper import identity  # noqa: E402
 from core.clock import ReplayClock
 from core.database.manager import DatabaseManager
 from core.database.providers.base import MarketDataProvider
@@ -421,6 +422,8 @@ def _window_fixture(tmp_path) -> Path:
         (pkg / "session_summary.json").write_text(json.dumps({
             "session_date": d, "replay_inputs": replay_inputs,
         }), encoding="utf-8")
+        (pkg / "meta.json").write_text(json.dumps({
+            "execution_hash": identity.FROZEN_EXECUTION_HASH}), encoding="utf-8")
         (pkg / "telemetry.json").write_text(json.dumps({
             "session": d, "clean": clean,
             "violations": [] if clean
@@ -446,6 +449,8 @@ def test_counting_predicate_window_fixture(tmp_path, monkeypatch):
     from scripts.nifty_shield_paper.assemble_report import (
         assemble, load_window_evidence,
     )
+    from datetime import date as _date
+    monkeypatch.setattr(identity, "WINDOW_START", _date(2026, 8, 11))
     data_root = _window_fixture(tmp_path)
     evidence = load_window_evidence(data_root)
     counting = evidence["counting"]

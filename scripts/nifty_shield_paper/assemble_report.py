@@ -43,6 +43,7 @@ from typing import Any, Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.nifty_shield_paper.audit import audit_window
+from scripts.nifty_shield_paper import identity
 from scripts.nifty_shield_paper.metrics_report import risk_metrics_report
 from scripts.nifty_shield_paper.recorder import _commit_ref
 
@@ -119,6 +120,12 @@ def load_window_evidence(data_root: Path,
             reasons.append("telemetry-gap")
         if closed_count == 0:
             reasons.append("no-closed-structure")
+        # R3 (AUDIT_2026-09-25): one frozen execution identity from WINDOW_START.
+        if pkg.name < identity.WINDOW_START.isoformat():
+            reasons.append("before-window-start")
+        elif ((_read_json(pkg / "meta.json") or {}).get("execution_hash")
+              != identity.FROZEN_EXECUTION_HASH):
+            reasons.append("off-identity")
         session_details.append({
             "session": pkg.name,
             "telemetry_clean": telemetry_clean,
@@ -194,6 +201,7 @@ def load_window_evidence(data_root: Path,
             "round_trips": metrics.round_trips,
             "structures_entered": metrics.structures_entered,
             "structures_skipped": metrics.structures_skipped,
+            "restart_replays": metrics.restart_replays,
             "structures_attempted": metrics.structures_attempted,
             "wins": metrics.wins,
             "losses": metrics.losses,
@@ -318,7 +326,8 @@ def _fmt(evidence: Dict[str, Any]) -> Dict[str, str]:
                     f"Rs {metrics['total_fees']:,.0f})"),
         "peak_gross": f"Rs {metrics['peak_gross_exposure']:,.0f}",
         "peak_margin_util": f"{metrics['peak_margin_utilisation']:.1%}",
-        "conversion": f"{metrics['signal_fill_conversion']:.1%}",
+        "conversion": (f"{metrics['signal_fill_conversion']:.1%} "
+                       f"({metrics['restart_replays']} restart replays excluded)"),
         "rejections": (", ".join(f"{k}={v}" for k, v
                                  in metrics["rejections_by_reason"].items())
                        or "none"),
