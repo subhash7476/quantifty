@@ -343,6 +343,16 @@ def download_data(full: bool, lookback: int):
     else:
         print("\n  [1m-candles] SKIP (--skip-1m)")
 
+    # 7. NSE SPAN settlement files -> data/span. A resumable backfill over the
+    # lookback, so a missed night heals itself; already-archived dates are
+    # skipped. NiftyShield sizes on NseMarginEngine and refuses to start
+    # without the expected snapshot (AUDIT_2026-09-25 R4).
+    span_args = ["--backfill", "--start",
+                 (date.today() - timedelta(days=lookback)).isoformat()]
+    if not _run(SCRIPTS / "fetch_span_params.py", args=span_args,
+                label="span", timeout=600):
+        all_ok = False
+
     return all_ok
 
 

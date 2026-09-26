@@ -16,8 +16,8 @@ Two margin sources are available for the clamp:
 - `structure_margin_over_engine` — per-leg NseMarginEngine, kept for the
   offline/replay paths that have no broker session.
 
-The broker basket is the live sizing input by operator decision (2026-09-08).
-This departs from ADR-011/013, which make NseMarginEngine the sole sizing
+The broker basket is the live sizing input by operator decision (2026-09-08),
+recorded as ADR-025 (2026-09-26). This departs from ADR-011/013, which make NseMarginEngine the sole sizing
 authority in every mode, and the reason is empirical: with no SPAN snapshot
 present the engine degrades to the flat-rate MarginTracker, which priced the
 2026-09-07 bear call spread at Rs 4,619 against the broker's Rs 79,902. A

@@ -1518,3 +1518,63 @@ The following findings from PSB-1 are institutionalized as binding for all futur
 ## Status note (2026-09-05) — post-ADR-024 outcomes recorded outside ADRs (non-ADR)
 
 This file remains current through ADR-024 (2026-07-14). Subsequent program outcomes did **not** create new binding platform ADRs and are recorded in `docs/CHANGELOG_PLATFORM.md` + `docs/PROJECT_STATE.md` (catch-up 2026-09-05) instead: PSB-2 close / C2 retirement (2026-07-17/18), F1 NO-GO (2026-07-20), RFA FLOW ABANDON + v2 contract (2026-07-22), Carry SEALED PASS + production metrics (2026-07-22), TS Basis de-authorization + IVOL SEALED FAIL (2026-07-24), CB-N50 RFA PROCEED → CLOSED, ISD Phase-1 certification, NiftyShield sealed INCONCLUSIVE → PAPER, Options-Wall pilot, CAS adaptation, ops orchestrator. Margin authorities stand at ADR-011/012/013 (`NseMarginEngine` sizes, broker RMS accepts); span components are frozen per CLAUDE.md. Append a numbered ADR here if a future outcome changes a binding platform rule; do not edit the ADRs above.
+
+---
+
+## ADR-025 — Option Structures Are Sized On The Broker Basket; `NseMarginEngine` Stays Futures-Only
+
+**Date:** 2026-09-26
+
+**Status:** ACCEPTED (operator decision, 2026-09-26). This amends ADR-011/013 for option
+structures only.
+
+### Context
+
+ADR-013 makes `NseMarginEngine` the sole sizing authority in every mode. The NiftyShield E008 book
+audit (`docs/reports/index_research/NIFTY_SHIELD_PAPER_BOOK_AUDIT_2026-09-25.md`, F3/R4) found that
+this was never true for option structures, and that it cannot be made true with the frozen SPAN
+stack:
+
+- **The v400 parser is underlying-level.** `ParserV400` (frozen MM9.5) yields one risk array per
+  underlying (e.g. `NIFTY`, scan risk Rs 2,153.96/unit on 2026-09-24).
+- **The calculator looks up the contract.** `SpanMarginCalculator` (frozen MM10.2) looks up the
+  contract symbol. Every option leg (`NIFTY29SEP2623200CE`) raises `MissingRiskArray`.
+- **No option netting.** There are no option risk arrays (16-scenario), no net option value, and no
+  inter-leg hedge offset. The engine's credits are futures calendar spreads only.
+- **Nothing on this path ever sized on the engine.** The E008 window sized on the flat-rate
+  `MarginTracker` (2026-08-19 → 09-07), which understated a spread 17×, then on the Upstox basket
+  (`POST /v2/charges/margin`, from 2026-09-08 by operator decision, `f051fd3`), which was never
+  recorded as an ADR.
+- **The archive was stale.** The SPAN archive also stopped at 2026-08-06, because the working ingest
+  (`98ce531`) sat on an unmerged branch.
+
+### Decision
+
+1. **Option structures size on the broker basket.** For multi-leg option structures (NiftyShield,
+   and any later option strategy until options SPAN exists), the **broker basket margin is the sizing
+   authority** in LIVE-fed PAPER and LIVE. It is the only available figure that carries the hedge's
+   spread benefit.
+2. **If the basket is unavailable, the entry is skipped.** It never degrades to the flat rate.
+3. **Offline paths keep the flat-rate tracker.** REPLAY and offline paths have no broker session and
+   keep the flat-rate tracker. The per-entry `ENTRY_MARGIN.engine` label keeps the two apart. This is
+   a knowing departure from Principle 4 (Runner Is Neutral) for option sizing: a replay reproduces
+   the decision path, not the live margin figure.
+4. **`NseMarginEngine` stays futures-only and frozen.** It is never handed to an option handler
+   (`NiftyShieldExecutionHandler` drops `span_snapshot`). Wiring it in would raise on every leg.
+5. **The SPAN archive is maintained as evidence.**
+   - The nightly `download_all_data.py` runs `fetch_span_params.py --backfill` over its lookback.
+   - Sessions record the snapshot hash.
+6. **Futures sizing is unchanged.** ADR-011/013 still hold in full: `NseMarginEngine` sizes, the
+   broker RMS accepts.
+
+### Consequences
+
+- **E008 gate 5** is reworded from "real SPAN + ELM" to "broker basket margin journaled on every
+  entry (`engine = UpstoxBasketMargin`), with that session's SPAN snapshot archived".
+- **Options SPAN is a separate milestone.** Pricing option structures on exchange rules needs option
+  risk arrays and inter-leg offsets, which means unfreezing MM10.2/MM10.4. It is not scheduled.
+- **The broker figure is opaque.** Audit-First is weakened for option margin: the broker total cannot
+  be decomposed. Accepted, because the alternative figures were wrong by an order of magnitude.
+
+*Ref: NIFTY_SHIELD_PAPER_BOOK_AUDIT_2026-09-25.md §5 R4; `core/execution/options/nifty_shield_sizing.py`;
+`core/execution/options/nifty_shield_handler.py`; `scripts/fetch_span_params.py`; `98ce531`.*

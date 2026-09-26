@@ -99,6 +99,12 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         use_broker_margin: bool = False,
         **kwargs,
     ):
+        # ADR-025: NseMarginEngine is futures-only (one v400 risk array per
+        # underlying, looked up by contract symbol), so it raises
+        # MissingRiskArray on every option leg. The per-leg backstop stays on
+        # the flat-rate tracker; the snapshot is session evidence, not a
+        # margin input here.
+        kwargs.pop("span_snapshot", None)
         super().__init__(*args, **kwargs)
         self._marks_source = marks_source or StaticMarksSource({})
         self._strategy_cfg = dict(strategy_config or {})

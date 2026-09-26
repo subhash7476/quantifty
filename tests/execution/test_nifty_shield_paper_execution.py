@@ -236,6 +236,43 @@ def test_entry_assembles_group_fills_at_marks_and_journals_margin(tmp_path, monk
     assert margin[0]["metadata"]["lots"] == 2
 
 
+def test_a_span_snapshot_never_reaches_the_option_margin_backstop(tmp_path, monkeypatch):
+    """ADR-025: NseMarginEngine is futures-only — the v400 snapshot carries one
+    risk array per underlying ("NIFTY"), and SpanMarginCalculator looks up the
+    contract symbol, so every option leg raises MissingRiskArray. Once the SPAN
+    archive was backfilled (2026-09-26) a live session would have handed the
+    snapshot to the handler and failed every entry. The handler keeps the
+    flat-rate backstop it ran on for the whole E008 window."""
+    from datetime import date as _date
+    from core.risk.span.span_snapshot import SpanRiskArray, SpanSnapshot
+    snapshot = SpanSnapshot(
+        snapshot_date=_date(2023, 1, 9), schema_version="v400", exchange="NSE",
+        segment="FO", file_hash="x", is_settlement=True,
+        risk_arrays={"NIFTY": SpanRiskArray(
+            symbol="NIFTY", risk_metrics={"scan_risk": 2153.96})},
+        metadata={})
+    monkeypatch.setattr(
+        handler_mod, "ExecutionStore",
+        lambda *a, **k: ExecutionStore(str(tmp_path / "execution.db")))
+    DatabaseManager.reset_instance()
+    dm = DatabaseManager(data_root=tmp_path)
+    from core.database.schema import TRADING_TRADES_SCHEMA
+    with dm.trading_writer() as conn:
+        conn.execute(TRADING_TRADES_SCHEMA)
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = NiftyShieldExecutionHandler(
+        db_manager=dm, clock=ReplayClock(FIXED_DT), broker=PaperBroker(ReplayClock(FIXED_DT)),
+        config=nifty_shield_execution_config(initial_capital=1_000_000.0),
+        metrics_path=str(tmp_path / "metrics.json"), load_db_state=True,
+        initial_capital=1_000_000.0, journal=journal,
+        marks_source=StaticMarksSource(_entry_marks()),
+        strategy_config=dict(DEFAULT_CONFIG), span_snapshot=snapshot)
+
+    assert type(handler.margin_tracker).__name__ != "NseMarginEngine"
+    results = [handler.process_signal(s, 24000.0) for s in _iron_fly_signals()]
+    assert results[3] is not None
+
+
 def test_entry_skips_when_marks_missing(tmp_path, monkeypatch):
     journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
     handler = _build_handler(tmp_path, monkeypatch, journal=journal,
