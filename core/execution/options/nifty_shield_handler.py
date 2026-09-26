@@ -219,33 +219,20 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             return None
         md = group.legs[0].metadata
         md = getattr(md, "strategy_metadata", md)
-        exit_md = md.get("exit") or {}
-        cfg = self._strategy_cfg
-        sigma_mult = float(exit_md.get("bracket_sigma", cfg.get("bracket_sigma", 1.0)))
-        fee_mult = float(exit_md.get("tp_min_fee_multiple",
-                                     cfg.get("tp_min_fee_multiple", 3.0)))
+        sigma_mult = self._sigma_mult(md)
 
-        legs, round_trip = [], 0.0
+        legs = []
         for leg in group.legs:
             state = self.order_tracker.get_order(leg.correlation_id)
             if state is None or not state.filled_quantity:
                 continue
             leg_md = getattr(leg.metadata, "strategy_metadata", leg.metadata)
-            qty, price = float(state.filled_quantity), float(state.average_price)
             legs.append({"side": leg.side.value, "strike": leg_md.get("strike"),
                          "option_type": leg_md.get("option_type"),
-                         "price": price, "qty": qty})
-            round_trip += sum(
-                option_order_fees(premium=price, quantity=int(qty), side=side,
-                                  trade_date=leg.timestamp.date()).total
-                for side in ("BUY", "SELL"))
+                         "price": float(state.average_price),
+                         "qty": float(state.filled_quantity)})
 
-        bracket = sigma_bracket(
-            legs, spot=float(md.get("spot") or 0.0), dte_days=float(md.get("dte") or 0.0),
-            rate=float(cfg.get("risk_free_rate", 0.065)), sigma_mult=sigma_mult,
-            hold_hours=float(cfg.get("hold_hours", 2.5)),
-            session_hours=float(cfg.get("session_hours", 6.25)),
-            fee_floor_rs=fee_mult * round_trip)
+        bracket = self._size_bracket(legs, md, group.legs[0].timestamp.date())
         self._brackets[key] = bracket
         if bracket is None:
             self._record(
@@ -267,6 +254,76 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
                 fee_floor_rs=round(bracket.fee_floor_rs, 2),
                 tp_enabled=bracket.tp_enabled, sigma_mult=sigma_mult)
         return bracket
+
+    def _sigma_mult(self, md: Dict[str, Any]) -> float:
+        exit_md = md.get("exit") or {}
+        return float(exit_md.get("bracket_sigma",
+                                 self._strategy_cfg.get("bracket_sigma", 1.0)))
+
+    def _size_bracket(self, legs: List[Dict[str, Any]], md: Dict[str, Any],
+                      trade_date) -> Optional[Bracket]:
+        """The σ bracket for a leg set (side/strike/option_type/price/qty):
+        TP/SL at ±σ over the hold, TP disabled below `tp_min_fee_multiple` x
+        the round trip (every leg opened on one side and closed on the other).
+        One rule for the live exit (sized from fills) and the R7 shadow gate
+        (sized from the entry marks)."""
+        cfg = self._strategy_cfg
+        fee_mult = float((md.get("exit") or {}).get(
+            "tp_min_fee_multiple", cfg.get("tp_min_fee_multiple", 3.0)))
+        round_trip = sum(
+            option_order_fees(premium=leg["price"], quantity=int(leg["qty"]),
+                              side=side, trade_date=trade_date).total
+            for leg in legs for side in ("BUY", "SELL"))
+        return sigma_bracket(
+            legs, spot=float(md.get("spot") or 0.0), dte_days=float(md.get("dte") or 0.0),
+            rate=float(cfg.get("risk_free_rate", 0.065)), sigma_mult=self._sigma_mult(md),
+            hold_hours=float(cfg.get("hold_hours", 2.5)),
+            session_hours=float(cfg.get("session_hours", 6.25)),
+            fee_floor_rs=fee_mult * round_trip)
+
+    def _journal_fee_shadow(self, group_id: str, structure: str,
+                            signals: List[SignalEvent], marks: Dict[str, float],
+                            qty: int) -> None:
+        """R7 fee-feasibility gate, SHADOW ONLY (AUDIT_2026-09-25 §5).
+
+        Sizes the σ bracket from the entry marks at the routed quantity and
+        journals whether a gate that skips entries whose take-profit cannot
+        clear the fee floor WOULD have skipped this one. It changes nothing:
+        the entry proceeds either way. Runbook §9 forbids tuning toward
+        returns, so the rule is only evidence here — any adoption is a
+        pre-declared rule for a post-E008 identity, judged on the forward
+        trades this journals. Never raises.
+        """
+        try:
+            md = getattr(signals[0].metadata, "strategy_metadata", signals[0].metadata)
+            legs = [{"side": s.signal_type.value,
+                     "strike": s.metadata.get("strike"),
+                     "option_type": s.metadata.get("option_type"),
+                     "price": float(marks[s.symbol]), "qty": float(qty)}
+                    for s in signals]
+            bracket = self._size_bracket(legs, md, signals[0].timestamp.date())
+            if bracket is None:
+                self._record(EventType.ENTRY_DIAGNOSTIC,
+                             "fee-feasibility shadow: no bracket from entry marks "
+                             "(observe-only)", severity=Severity.INFO,
+                             group_id=group_id, rule="fee_feasibility",
+                             structure=structure, would_skip=None, qty=qty)
+                return
+            self._record(
+                EventType.ENTRY_DIAGNOSTIC,
+                f"fee-feasibility shadow: {'WOULD_SKIP' if not bracket.tp_enabled else 'would enter'}"
+                f" — TP {bracket.tp_rs:.0f} Rs vs fee floor {bracket.fee_floor_rs:.0f} Rs"
+                " (observe-only, no effect on the trade)",
+                severity=Severity.INFO, group_id=group_id, rule="fee_feasibility",
+                structure=structure, would_skip=not bracket.tp_enabled,
+                tp_enabled=bracket.tp_enabled, tp_rs=round(bracket.tp_rs, 2),
+                sl_rs=round(bracket.sl_rs, 2),
+                fee_floor_rs=round(bracket.fee_floor_rs, 2), qty=qty)
+        except Exception as exc:                              # noqa: BLE001
+            self._record(EventType.ENTRY_DIAGNOSTIC,
+                         f"fee-feasibility shadow failed: {exc}",
+                         severity=Severity.WARNING, group_id=group_id,
+                         rule="fee_feasibility", reason="shadow unavailable")
 
     def close_group(self, group_id: UUID, reason: str, bar_time: datetime,
                     marks: Dict[str, float]) -> None:
@@ -522,6 +579,7 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             )
             return None
         qty = lots * lot_size
+        self._journal_fee_shadow(group_id, structure, signals, marks, qty)
 
         # --- route each leg through the standard gate path, at the real mark ---
         routed = []

@@ -137,6 +137,9 @@ standing reference for the ledger format and auditability.
       `tests/nifty_shield_paper/test_window_identity.py` fails on any unfrozen execution change.
     - **Changing any of those files** is a new identity: re-pin both constants before the next
       session and add a note here.
+    - **Re-pinned 2026-09-26 (before any window session)** for R7, the fee-feasibility shadow
+      gate. It is observe-only (journals `ENTRY_DIAGNOSTIC rule=fee_feasibility`) and changes no
+      trade. New hash `e0e0236d…61a8e5`; `WINDOW_START` unchanged at 2026-09-28.
 - E009 — (first external strategy Stage 3 LIVE CANDIDATE grant)
 - E010 — (first external strategy Stage 4 LIVE APPROVED grant)
 - E011+ — (suspension, incident, audit, cap-raise entries)
