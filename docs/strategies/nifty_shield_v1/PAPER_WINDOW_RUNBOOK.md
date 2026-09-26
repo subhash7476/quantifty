@@ -192,7 +192,10 @@ grant (window dates, run commit, identity triple, all seven evidence items).
 3. Journal audit clean; divergence one-directional only.
 4. Drawdown declared max (Rs 30,000 single / Rs 150,000 5-day) never breached —
    the handler drawdown gate tripping **is** the breach.
-5. Margin gate exercised on every entry with real SPAN + ELM against real marks.
+5. Margin gate exercised on every entry: broker basket margin journaled
+   (`ENTRY_MARGIN.engine = UpstoxBasketMargin`) against real marks, with that
+   session's SPAN snapshot archived (ADR-025 — `NseMarginEngine` cannot price
+   option structures; reworded 2026-09-26 from "real SPAN + ELM").
 6. Kill-switch drill completed and captured.
 7. ≥1 session byte-identical end-to-end (replay).
 8. Full regression suite green at the window's platform commit (standing G1 red

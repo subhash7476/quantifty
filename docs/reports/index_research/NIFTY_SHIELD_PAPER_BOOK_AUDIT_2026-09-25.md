@@ -17,8 +17,8 @@ Two E008 gates are also in doubt:
 
 - **Gate 5 (real SPAN + ELM) has not been met since 2026-09-07.** Every session since then was sized
   on the Upstox basket margin, which also contradicts ADR-011/012/013.
-- **Gate 4 (drawdown) is unproven.** It is unclear whether the drawdown gate's equity survives the
-  daily restarts, and its 5% limit is not the declared Rs 30K/150K rule.
+- **Gate 4 (drawdown) cannot trip.** Confirmed 2026-09-26 (§5 R2): a restart restores positions but
+  never cash, and the gate only runs on entry signals, so it never sees a realised loss.
 
 Sources: `data/nifty_shield/journal.jsonl`, `data/nifty_shield/execution.db` (fills),
 `data/nifty_shield/trading/trading.db` (trades — reconciles to the fills: 40 rows, fees
@@ -74,7 +74,7 @@ As written, `assemble_report` would print **+Rs 846, PF 1.16, DD 0%** for a book
 PF 0.74, DD −Rs 2,374. Every gross-positive trade under ~Rs 130 is scored a "win" that lost money
 after fees.
 
-### F2 — the drawdown gate's equity input is unproven [MEDIUM, unverified, E008 gate 4]
+### F2 — the drawdown gate cannot see realised losses [HIGH, confirmed 2026-09-26, E008 gate 4]
 
 `data/nifty_shield/metrics.json` reads `cash_balance = total_equity = max_equity = 1,000,000.0`,
 `drawdown = 0.0`, `trades_executed = 0`. Its `last_update` of 13:25:58 is the last STARTUP, so this is
@@ -90,11 +90,19 @@ is whether that equity **persists across restarts**:
 
 Two further points:
 
-- The gate's limit is `max_drawdown_limit = 0.05`, i.e. Rs 50,000 on Rs 10 lakh. The declared E008
-  limits are **Rs 30,000 single / Rs 150,000 5-day**, which are a different rule.
+- The limit itself is correct: `nifty_shield_gates.py:76` sets `max_drawdown_limit = 30000 /
+  initial_capital`, the declared Rs 30,000 single-day figure. *(The first draft of this audit wrongly
+  quoted the 0.05 default.)* The Rs 150,000 5-day streak is a stressed declaration, not a gate.
 - `metrics.json` is not a valid drawdown source either way, which is part of F1.
 
-**Not established in this audit.** R2's forced-breach drill is the test.
+**Confirmed (2026-09-26).**
+
+- `handler.py:_replay_state` (317-361) replays orders, fills, positions and groups, but **never cash**.
+  So every start re-seeds `cash_balance = max_equity = initial_capital` (`handler.py:252-253`).
+- The gate is evaluated only for non-EXIT signals (`handler.py:673`), i.e. at the 13:00 entry, once a
+  session.
+- The loss lands at the exit and the process restarts before the next entry, so the gate never sees a
+  realised loss.
 
 ### F3 — sized on broker margin, SPAN unavailable every session since 2026-09-07 [HIGH, E008 gate 5 + architecture]
 
@@ -187,7 +195,7 @@ Every lever below is in execution or reporting.
 | # | Action | Why | Cost |
 |---|---|---|---|
 | R1 | **DONE 2026-09-25.** On the live book it reproduces net −1,640.6, PF 0.737, DD Rs 2,374.2 (0.237%). **Make `metrics_report` net.** P&L, wins/losses and PF after fees, and drawdown from the net per-structure equity curve instead of the runtime key. Add a gross column beside it. | F1. Blocks any honest E008 report. | Small; TDD against this book's numbers (−1,640.6 / 0.74 / −2,374.2). |
-| R2 | **Book paper P&L into runtime equity**, so the handler drawdown gate sees losses. Add a drill that forces a breach. | F2. Gate 4 is vacuous without it. | Medium; execution code, not the frozen package. |
+| R2 | See §5. **Book paper P&L into runtime equity**, so the handler drawdown gate sees losses. Add a drill that forces a breach. | F2. Gate 4 is vacuous without it. | Medium; execution code, not the frozen package. |
 | R3 | **Freeze the execution config and declare where the E008 count restarts.** Recommended: count from 09-16 (σ bracket), i.e. **8 of 30** round-trips, and ledger that choice now, before more trips arrive. | F4. Pooling three exit regimes is not a sample. | Governance only. At ~1 trip per session, ~22 more sessions (~5 weeks). |
 | R4 | **Resolve SPAN or amend gate 5** by explicit operator decision. | F3. | Operator decision, plus SPAN feed repair if it is kept. |
 | R5 | **Journal every silent exit skip** (stale marks, missing leg mark) at WARNING, rate-limited per group. Then diagnose F6. | F6. An unmonitored open structure must be visible. | Small. |
@@ -214,3 +222,188 @@ What the window *does* establish:
 
 Fix those (R1, R4, R2), freeze the config and restart the count (R3), and let the next ~22 sessions
 accumulate on one identity.
+
+## 5. Fix plan for R1–R7 (2026-09-26)
+
+> **Status (2026-09-26): R1–R6 implemented. R7 is deferred.**
+>
+> - **R4 did not go as planned.** `NseMarginEngine` cannot price option structures: v400 has
+>   one risk array per underlying, looked up by contract symbol, so every option leg raises
+>   `MissingRiskArray`. The operator chose ADR-025 (basket sizing for options) over building
+>   options SPAN.
+> - **The working SPAN ingest was never on main.** It was `98ce531`, stranded on an unmerged
+>   branch; it has been cherry-picked. 35 sessions were backfilled and the fetch is now nightly.
+> - **The backfill uncovered a bug.** With SPAN loadable, the handler would have raised on every
+>   option leg and failed every entry. The handler now drops `span_snapshot`.
+> - **R2 also found that the kill switch blocks exits** (`handler.py:655`), so a breach flattens
+>   first and then arms the switch.
+> - **The R3 window restarts on 2026-09-28** under the identity `616011bc…`.
+
+Order of work: **R4 → R2 → R5 → R6 → R3**, with R7 deferred.
+
+- R4 and R2 are the two E008 gates.
+- R5 closes a silent failure.
+- R6 is bookkeeping.
+- R3 is a governance entry, filed only once R2, R4 and R5 have landed. Each of them is an execution
+  change, so the count restarts from the last of them rather than from 09-16.
+
+All of it is execution, ops or reporting code. `strategies/nifty_shield_v1/` and `config_hash` are
+untouched.
+
+### R1 — net reporting · DONE
+
+`e7f7676` (PR #19). Reproduces −1,640.6 / PF 0.737 / DD Rs 2,374.2 on the live book.
+
+### R2 — make the drawdown gate see losses
+
+**Root cause (confirmed, F2):** a restart restores positions but never cash, and the gate only runs
+at entry.
+
+**Fix:**
+
+1. **Restore cash in `_replay_state`.**
+   - After step 2, fold every restored fill through the same arithmetic as `_update_equity_metrics`
+     (`handler.py:1243`): cash ∓ qty·price − fee.
+   - Seed `max_equity` from the running peak of that fold, not from `initial_capital`.
+   - Restored equity then equals initial capital + realised net P&L. On today's book that is
+     10,00,000 − 1,640.6.
+2. **Make the limit a single-day rule, as declared.**
+   - The datasheet says Rs 30,000 *single day*, but the handler's gate is peak-to-trough since start
+     of process.
+   - Add a session-start equity anchor, captured after the cash fold.
+   - Trip when the anchor minus current MTM equity ≥ Rs 30,000.
+   - Keep the peak rule as-is for other strategies. The new rule is NiftyShield-only, passed through
+     `ExecutionConfig` from `nifty_shield_gates.py`.
+3. **Evaluate the gate on every exit-loop tick, not only on entry signals.**
+   - `nifty_shield_handler.py:700-742` already prices the open structure every ~15 s.
+   - Compute MTM equity there and call `activate_kill_switch` on a breach. The kill switch then
+     flattens through the existing close-only path.
+   - Without this, an intraday loss is never checked, because no second entry signal arrives in a
+     session.
+4. **Persist the kill switch.**
+   - `activate_kill_switch` (`handler.py:1021`) only writes `metrics.json`, and a restart clears it.
+   - Journal a `KILL_SWITCH` event, and have `_replay_state` re-arm the switch if today's journal has
+     one.
+
+**Tests (TDD):**
+
+- Replay of a fill set restores cash and peak.
+- A −30,001 MTM against the session anchor trips the switch from the exit loop.
+- A restart after a trip stays kill-switched.
+- Forced-breach drill for gate 4 / E7-5: in REPLAY, inject marks that move a 2-lot fly Rs 30K against,
+  then assert a journal CRITICAL, a flatten and no re-entry after restart.
+
+**Cost:** medium. `core/execution/handler.py` is shared by every strategy, so the full suite must stay
+green, not only NiftyShield.
+
+### R4 — SPAN back as the sizing authority (gate 5, ADR-011/012/013)
+
+**Root cause:** the SPAN archive stops at **2026-08-06** (`data/span/nse_fo_span_2026-08-06.parquet`),
+and nothing schedules `scripts/fetch_span_params.py` (no caller in `scripts/` or the ops tasks). So
+`SpanRepository.load(expected_span_date())` raises on every session from 09-07, and `f051fd3` moved
+sizing onto the Upstox basket instead of failing loud.
+
+**Fix:**
+
+1. **Verify the fetcher runs.** Run `python scripts/fetch_span_params.py --date <last session>`. Its
+   URL template (`nseindia.com/span/span_{ddmmyyyy}.zip`) is itself flagged "must be verified". The
+   `data/span/staging/nsccl_*.zip` files suggest the NSCCL archive is the working source.
+   - Then backfill 2026-08-07 → today, so past sessions' SPAN+ELM can be recomputed offline as
+     evidence.
+2. **Schedule it.**
+   - Add a SPAN step to the 20:00 `DownloadAll` job (`scripts/download_all_data.py`) so the next
+     session's file exists by the next morning.
+   - Promote preflight's SPAN check from WARN to **BLOCK** for NiftyShield, matching gate 5.
+3. **Restore the authority order.**
+   - `NseMarginEngine` sizes the entry.
+   - The Upstox basket is logged beside it as comparison evidence only, which is the reconciliation
+     ADR-013 defers.
+   - A basket outage no longer skips an entry. Remove the 09-08 "Upstox basket margin unavailable"
+     skip path.
+   - Keeping broker sizing instead is an **ADR amendment for you to sign**. Gate 5's text then
+     changes before the window resumes, not after.
+4. **Tests:** an absent SPAN file blocks preflight, and sizing uses `NseMarginEngine`'s figure when
+   both figures exist.
+
+**Cost:** small code, plus one verification run against NSE.
+
+### R5 — no silent exit skips (F6)
+
+In the exit loop (`nifty_shield_handler.py:700-742`):
+
+1. **Missing-leg branch.** `if not all(sym in marks …): continue` becomes a WARNING journal
+   `EXIT_EVAL_SKIPPED` carrying reason `missing_leg_marks`, `group_id` and the missing symbols. It is
+   rate-limited to one record per group per 60 s, plus a "resolved" record when marks return (mirror
+   the edge-triggering in `_marks_are_stale`).
+2. **Stale branch.** It already journals on the edge. Add the open `group_id`s to that record, so
+   "stale while a structure is open" is visible as such.
+3. **The `_min_interval_s` early return** is expected behaviour and stays unjournaled.
+4. **Unmonitored-structure watchdog.** If a group has been open more than 60 s with no successful
+   evaluation, journal a CRITICAL. That is the exact F6 symptom, whatever its cause.
+5. **Diagnosis:** the next occurrence names its branch.
+
+**Tests:**
+
+- Marks missing a leg produce exactly one WARNING per 60 s and one resolve record.
+- A group open 61 s without evaluation produces a CRITICAL.
+
+**Cost:** small.
+
+### R6 — restart replays out of skip/conversion counts (F7)
+
+**Rule:** an `ENTRY_SKIPPED` whose `group_id` already has an `ENTRY_MARGIN` is a restart replay, not a
+skipped structure. The `group_id` is a deterministic `uuid5`, so the replayed signal carries the same
+id.
+
+**Fix:**
+
+- In `metrics_report.risk_metrics_report`, split `skips` into `replays` and `skips` using that rule.
+- Report `restart_replays` as its own count, and compute `structures_skipped`, `structures_attempted`
+  and `signal_fill_conversion` without the replays.
+- Apply the same split in `audit.py` wherever it counts skips.
+
+**Test:** the 09-25 shape (one entry and two skips with the same `group_id`) gives entered 1, skipped
+0, replays 2. On the live book: 18 entered, 7 skipped, 2 replays, conversion 0.72 (was 0.67).
+
+**Cost:** small.
+
+### R3 — freeze and restart the count (governance)
+
+1. **Freeze once R2, R4 and R5 are merged.**
+   - Record the execution identity: the commit, plus a hash over
+     `core/execution/options/nifty_shield_*.py`, `core/execution/handler.py`,
+     `scripts/nifty_shield_paper/` and `scripts/nifty_shield_paper_runner.py`.
+   - Put it in a note under E008 in `docs/STRATEGY_PROMOTION_LEDGER.md`.
+2. **Declare the window start** as the first session on that identity, before it starts (runbook §8.1
+   forbids deciding after seeing the count).
+   - R2 and R4 change risk and sizing behaviour, so the 8 σ-bracket trips (09-16 → 09-25) become
+     history, not window.
+   - Keeping them would need 09-16 as the declared start and R2/R4/R5 shipped as evidence-only. That
+     is not possible for R4, since it changes sizing.
+3. **Enforce it in code.**
+   - Add `WINDOW_START` and the execution hash to `assemble_report.py`.
+   - A session counts only if it is on or after `WINDOW_START` **and** its recorder's
+     `platform_commit` carries the frozen execution hash.
+   - Otherwise it prints as "off-identity", the way `sessions_counting` already excludes unclean
+     sessions.
+4. **Cost:** a ledger note plus a small `assemble_report` change. At about one trip per session, ~30
+   sessions (~6–7 weeks) to reach 30 round-trips.
+
+### R7 — fee-feasibility entry gate · DEFER
+
+**Mechanics (for later):**
+
+- `sigma_bracket()` (`nifty_shield_pricing.py:138`) needs only leg prices, spot, DTE and the fee
+  floor. The credit gate already holds pre-entry marks at 13:00, so the bracket can be sized from marks
+  before the fill, and the structure skipped when `tp_enabled` is False.
+- About 20 lines, next to the credit-floor gate.
+
+**Why defer:**
+
+- Runbook §9 forbids tuning toward returns, and three trades (09-16, 09-18, 09-25) split 2–1 on
+  whether it would have helped.
+- Adopting it mid-window restarts the count again.
+
+**Right path:** run it as a **shadow gate**, journaling `WOULD_SKIP` at entry without acting on it.
+That is observe-only and changes no behaviour. Then pre-declare it as a cost-feasibility rule for a
+post-E008 identity, judged on the forward trades it would have skipped.

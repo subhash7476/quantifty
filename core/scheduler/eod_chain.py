@@ -19,6 +19,11 @@ CHAIN_STEPS = [
     ("refresh_all_strategies.py", SCRIPTS / "refresh_all_strategies.py"),
     ("ts_basis_daily_signals.py", SCRIPTS / "ts_basis_daily_signals.py"),
     ("ts_basis_daily_options.py", SCRIPTS / "ts_basis_daily_options.py"),
+    # SPAN settlement-file archiving. Last: a late-published or absent SPAN
+    # file fails the chain visibly (chain_failed -> Telegram + EodStore) but
+    # never blocks the strategy work above it. Every day not archived is a day
+    # permanently lost for SE-5; the fetch asserts the archive is loadable.
+    ("fetch_span_params.py", SCRIPTS / "fetch_span_params.py"),
 ]
 
 STDERR_TAIL_LINES = 20

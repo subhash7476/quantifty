@@ -31,7 +31,8 @@ Components certified as stable and no longer receiving feature changes:
 - **Sizing/computation authority**: `NseMarginEngine` — sole margin calculator in research, backtest, paper, and LIVE (unchanged in every mode). It is a deterministic implementation of publicly available NSE Clearing margin rules, not a broker RMS clone — perfect broker parity is structurally unreachable at retail.
 - **Order-acceptance authority**: the broker RMS, at the gateway only — never consulted for sizing, never overrides `NseMarginEngine`'s computed margin.
 - Broker margin reconciliation (fetch/compare/log broker vs. local) is a **deferred LIVE-only capability** — no code exists today; do not build a `MarginProvider` abstraction or a validation-policy config ahead of a concrete need (no production strategy, no funded LIVE account exists yet).
-- *(ADR-011, ADR-012, ADR-013 — `docs/ARCHITECTURE_DECISIONS.md`)*
+- **Exception — option structures (ADR-025, 2026-09-26):** the frozen SPAN stack is futures-only (one v400 risk array per underlying, looked up by contract symbol → `MissingRiskArray` on every option leg), so option structures size on the **broker basket** in LIVE-fed PAPER/LIVE, and `NseMarginEngine` is never handed to an option handler. SPAN is archived nightly as evidence (`download_all_data.py` → `fetch_span_params.py --backfill`).
+- *(ADR-011, ADR-012, ADR-013, ADR-025 — `docs/ARCHITECTURE_DECISIONS.md`)*
 
 ## Architecture Principles (DO NOT VIOLATE)
 

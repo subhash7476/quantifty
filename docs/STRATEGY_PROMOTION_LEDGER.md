@@ -122,6 +122,21 @@ standing reference for the ledger format and auditability.
 *E004 consumed 2026-08-07, E005 consumed 2026-08-08, E006 consumed 2026-08-08, E007 consumed 2026-08-11 (GRANTED — see Entries above). The following slots remain reserved for `nifty_shield_v1`'s onward promotion path (or, if it is abandoned, the next external strategy's — a retired id is never reused, §5.2):*
 
 - E008 — (first external strategy Stage 2 PAPER VALIDATED grant)
+  - **E008 window restart — declared 2026-09-26, before the new window's first session**
+    (`NIFTY_SHIELD_PAPER_BOOK_AUDIT_2026-09-25.md` F4/R3). This is a note, not a grant.
+    - **Why the 18 prior trips don't count.** The trips 2026-08-19 → 09-25 ran under three exit
+      and sizing regimes. R2 (drawdown gate on the MTM book, cash restored on restart), R4
+      (ADR-025 basket sizing) and R5 (exit-evaluation journaling) change execution again, so
+      those 18 trips are history, not window.
+    - **What counts.** The window counts from **`WINDOW_START = 2026-09-28`**, on the execution
+      identity **`FROZEN_EXECUTION_HASH = 616011bc…44435`**. That is a SHA-256 over the 16
+      execution files in `scripts/nifty_shield_paper/identity.py`, CRLF-normalised.
+    - **Strategy identity is unchanged:** `config_hash c5b722ff…536c`, frozen package untouched.
+    - **How it is enforced.** Each session's recorder stamps `meta.json.execution_hash`.
+      `assemble_report` excludes sessions `before-window-start` or `off-identity`, and
+      `tests/nifty_shield_paper/test_window_identity.py` fails on any unfrozen execution change.
+    - **Changing any of those files** is a new identity: re-pin both constants before the next
+      session and add a note here.
 - E009 — (first external strategy Stage 3 LIVE CANDIDATE grant)
 - E010 — (first external strategy Stage 4 LIVE APPROVED grant)
 - E011+ — (suspension, incident, audit, cap-raise entries)

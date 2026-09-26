@@ -236,6 +236,43 @@ def test_entry_assembles_group_fills_at_marks_and_journals_margin(tmp_path, monk
     assert margin[0]["metadata"]["lots"] == 2
 
 
+def test_a_span_snapshot_never_reaches_the_option_margin_backstop(tmp_path, monkeypatch):
+    """ADR-025: NseMarginEngine is futures-only — the v400 snapshot carries one
+    risk array per underlying ("NIFTY"), and SpanMarginCalculator looks up the
+    contract symbol, so every option leg raises MissingRiskArray. Once the SPAN
+    archive was backfilled (2026-09-26) a live session would have handed the
+    snapshot to the handler and failed every entry. The handler keeps the
+    flat-rate backstop it ran on for the whole E008 window."""
+    from datetime import date as _date
+    from core.risk.span.span_snapshot import SpanRiskArray, SpanSnapshot
+    snapshot = SpanSnapshot(
+        snapshot_date=_date(2023, 1, 9), schema_version="v400", exchange="NSE",
+        segment="FO", file_hash="x", is_settlement=True,
+        risk_arrays={"NIFTY": SpanRiskArray(
+            symbol="NIFTY", risk_metrics={"scan_risk": 2153.96})},
+        metadata={})
+    monkeypatch.setattr(
+        handler_mod, "ExecutionStore",
+        lambda *a, **k: ExecutionStore(str(tmp_path / "execution.db")))
+    DatabaseManager.reset_instance()
+    dm = DatabaseManager(data_root=tmp_path)
+    from core.database.schema import TRADING_TRADES_SCHEMA
+    with dm.trading_writer() as conn:
+        conn.execute(TRADING_TRADES_SCHEMA)
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = NiftyShieldExecutionHandler(
+        db_manager=dm, clock=ReplayClock(FIXED_DT), broker=PaperBroker(ReplayClock(FIXED_DT)),
+        config=nifty_shield_execution_config(initial_capital=1_000_000.0),
+        metrics_path=str(tmp_path / "metrics.json"), load_db_state=True,
+        initial_capital=1_000_000.0, journal=journal,
+        marks_source=StaticMarksSource(_entry_marks()),
+        strategy_config=dict(DEFAULT_CONFIG), span_snapshot=snapshot)
+
+    assert type(handler.margin_tracker).__name__ != "NseMarginEngine"
+    results = [handler.process_signal(s, 24000.0) for s in _iron_fly_signals()]
+    assert results[3] is not None
+
+
 def test_entry_skips_when_marks_missing(tmp_path, monkeypatch):
     journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
     handler = _build_handler(tmp_path, monkeypatch, journal=journal,
@@ -294,6 +331,109 @@ def _enter_iron_fly(tmp_path, monkeypatch, journal=None):
     for s in _iron_fly_signals():
         handler.process_signal(s, 24000.0)
     return handler
+
+
+def _adverse_marks():
+    # short 18150CE 100 -> 400: (400 - 100) x 130 = Rs 39,000 against
+    return {**_entry_marks(), "NIFTY10JAN2318150CE": 400.0}
+
+
+def test_day_loss_over_the_limit_flattens_then_kill_switches(tmp_path, monkeypatch):
+    """AUDIT_2026-09-25 R2: the Rs 30,000 single-day limit was only checked on
+    entry signals — once a session, before the loss exists. The exit loop now
+    checks the day's MTM loss each tick, flattens, then arms the kill switch
+    (in that order: the kill switch blocks every signal, exits included)."""
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(_adverse_marks()))
+
+    assert handler.day_loss_rs(_adverse_marks()) > 30000.0
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+
+    assert handler._closed_groups.get(GROUP_ID) == "drawdown_kill"
+    assert handler._kill_switched
+    for sym in _entry_marks():
+        assert handler.position_tracker.net_quantity(sym) == 0.0
+
+
+def test_day_loss_under_the_limit_does_not_kill_switch(tmp_path, monkeypatch):
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    marks = {**_entry_marks(), "NIFTY10JAN2318150CE": 150.0}      # Rs 6,500 against
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(marks))
+
+    driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
+
+    assert not handler._kill_switched
+    assert handler._closed_groups.get(GROUP_ID) != "drawdown_kill"
+
+
+def test_restart_restores_cash_and_the_start_of_day_anchor(tmp_path, monkeypatch):
+    """A restart re-seeded cash at initial capital, so the drawdown gate never
+    saw a realised loss. Cash is now rebuilt from the persisted fills; the day
+    anchor is the equity at the start of the restart's session."""
+    handler = _enter_iron_fly(tmp_path, monkeypatch)
+    handler.close_group(__import__("uuid").UUID(GROUP_ID), "stop_loss",
+                        datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC),
+                        _adverse_marks())
+    fills = handler.fill_repo.get_all()
+    net = sum((1 if f.side == "SELL" else -1) * f.quantity * f.price - f.fee
+              for f in fills)
+    assert net < -30000.0
+
+    same_day = _build_handler(tmp_path, monkeypatch)
+    assert same_day.metrics.cash_balance == pytest.approx(1_000_000.0 + net)
+    assert same_day.day_loss_rs({}) == pytest.approx(-net)
+
+    next_day = _build_handler(tmp_path, monkeypatch,
+                              clock_start=FIXED_DT + __import__("datetime").timedelta(days=1))
+    assert next_day.metrics.cash_balance == pytest.approx(1_000_000.0 + net)
+    assert next_day.day_loss_rs({}) == pytest.approx(0.0)
+
+
+def _journal_lines(tmp_path):
+    return [json.loads(l) for l in
+            open(str(tmp_path / "journal.jsonl"), encoding="utf-8")]
+
+
+def test_a_missing_leg_mark_is_journaled_once_per_minute_and_on_resolve(tmp_path, monkeypatch):
+    """AUDIT_2026-09-25 F6/R5: an open structure missing a leg mark was skipped
+    with a bare `continue` — no journal line."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
+    partial = {k: v for k, v in _entry_marks().items() if k != "NIFTY10JAN2318050PE"}
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(partial))
+    base = datetime(2023, 1, 4, 13, 2, 0, tzinfo=pytz.UTC)
+    for secs in (0, 15, 30, 45, 75):
+        driver(base + __import__("datetime").timedelta(seconds=secs))
+    driver._marks_source = StaticMarksSource(_entry_marks())
+    driver(base + __import__("datetime").timedelta(seconds=90))
+
+    skipped = [e for e in _journal_lines(tmp_path)
+               if e["event_type"] == EventType.EXIT_EVAL_SKIPPED.value]
+    missing = [e for e in skipped if e["metadata"]["reason"] == "missing leg marks"]
+    assert len(missing) == 2                        # t=0 and t=75
+    assert missing[0]["metadata"]["group_id"] == GROUP_ID
+    assert missing[0]["metadata"]["missing_symbols"] == ["NIFTY10JAN2318050PE"]
+    assert [e for e in skipped if e["metadata"]["reason"] == "leg marks restored"]
+
+
+def test_an_evaluation_gap_on_an_open_structure_is_critical(tmp_path, monkeypatch):
+    """F6: 09-25's fly filled at 13:01:47 and was first evaluated at 13:09:31.
+    The next evaluation after a gap over 60 s journals how long the structure
+    went unmonitored."""
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _enter_iron_fly(tmp_path, monkeypatch, journal=journal)
+    driver = NiftyShieldExitDriver(handler, StaticMarksSource(_entry_marks()))
+
+    driver(datetime(2023, 1, 4, 13, 0, 30, tzinfo=pytz.UTC))    # 30 s after entry
+    driver(datetime(2023, 1, 4, 13, 1, 0, tzinfo=pytz.UTC))
+    driver(datetime(2023, 1, 4, 13, 8, 0, tzinfo=pytz.UTC))     # 7 min gap
+
+    gaps = [e for e in _journal_lines(tmp_path)
+            if e["event_type"] == EventType.EXIT_EVAL_SKIPPED.value
+            and e["metadata"]["reason"] == "exit evaluation gap"]
+    assert len(gaps) == 1
+    assert gaps[0]["severity"] == "CRITICAL"
+    assert gaps[0]["metadata"]["gap_s"] == pytest.approx(420.0)
 
 
 def test_exit_driver_time_exit_at_1535(tmp_path, monkeypatch):
@@ -655,7 +795,8 @@ def test_unavailable_bracket_journals_critical_and_sets_no_tp_or_stop(tmp_path, 
     assert handler.structure_bracket(gid) is None
 
     driver = NiftyShieldExitDriver(
-        handler, StaticMarksSource(_short_mark_for_pnl(-50_000.0)))
+        # Under the Rs 30,000 day limit, so only a (fabricated) stop could fire.
+        handler, StaticMarksSource(_short_mark_for_pnl(-20_000.0)))
     driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
     assert GROUP_ID not in handler._closed_groups
     critical = [e for e in _journal_events(tmp_path)

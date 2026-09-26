@@ -105,6 +105,7 @@ class EventType(Enum):
     # stop at spot +/-1 sigma over the hold), or CRITICAL when none could be
     # sized and the structure runs without either.
     ENTRY_BRACKET = "ENTRY_BRACKET"
+    EXIT_EVAL_SKIPPED = "EXIT_EVAL_SKIPPED"
 
 
 # Normative default severity per event type (section 15.4). BROKER_ERROR is
@@ -135,6 +136,7 @@ _DEFAULT_SEVERITY: Dict["EventType", "Severity"] = {
     EventType.ENTRY_MARGIN: Severity.INFO,
     EventType.ENTRY_DIAGNOSTIC: Severity.INFO,
     EventType.ENTRY_BRACKET: Severity.INFO,
+    EventType.EXIT_EVAL_SKIPPED: Severity.WARNING,
     EventType.ENTRY_SKIPPED: Severity.WARNING,
     EventType.STRUCTURE_CLOSE: Severity.INFO,
 }

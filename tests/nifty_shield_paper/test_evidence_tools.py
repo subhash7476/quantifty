@@ -344,6 +344,44 @@ def test_metrics_report_drawdown_from_net_equity_curve(tmp_path):
     assert m.max_drawdown_pct == pytest.approx(575.0 / 1_000_045.0)
 
 
+def _skip_event(gid, reason, ts="2026-06-05 13:10:00+05:30"):
+    return {"timestamp": ts, "event_type": EventType.ENTRY_SKIPPED.value,
+            "severity": "INFO", "source_component": "NiftyShieldExecutionHandler",
+            "message": "skipped", "metadata": {"group_id": gid, "reason": reason}}
+
+
+def test_restart_replays_are_not_skipped_structures(tmp_path):
+    """AUDIT_2026-09-25 F7/R6: a restart re-emits the 13:00 signal and the
+    handler rejects the already-entered structure. That is a replay, not a
+    skipped structure. A skip journaled BEFORE its structure's ENTRY_MARGIN
+    (a partial-leg rejection) is not a replay."""
+    gid = "11111111-2222-3333-4444-555555555555"
+    journal = tmp_path / "j.jsonl"
+    _write_journal(journal, [
+        _skip_event(gid, "partial leg rejection (see handler logs)",
+                    ts="2026-06-05 12:59:59+05:30"),
+        _margin_event(),
+        _skip_event(gid, "every leg rejected by a handler gate"),
+        _skip_event(gid, "every leg rejected by a handler gate"),
+        _skip_event("aaaaaaaa-0000-0000-0000-000000000000", "credit below fair-value floor"),
+        {"timestamp": "2026-06-05 14:00:00+05:30",
+         "event_type": EventType.EXIT_EVAL_SKIPPED.value, "severity": "WARNING",
+         "source_component": "x", "message": "held",
+         "metadata": {"reason": "option marks stale"}},
+    ])
+    db = tmp_path / "trades.db"
+    _trades_db(db, [])
+    m = risk_metrics_report(str(journal), str(db), initial_capital=1_000_000.0)
+    assert m.structures_entered == 1
+    assert m.restart_replays == 2
+    assert m.structures_skipped == 2
+    assert m.structures_attempted == 3
+    assert m.signal_fill_conversion == pytest.approx(1 / 3)
+    assert m.rejections_by_reason == {
+        "partial leg rejection (see handler logs)": 1,
+        "credit below fair-value floor": 1}
+
+
 def test_metrics_report_serializes_cleanly(tmp_path):
     """2026-08-19 incident: dataclasses.asdict() on a Counter (Python 3.13
     rebuilds dict subclasses via `type(obj)((k, v) for k, v in obj.items())`,

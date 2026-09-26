@@ -132,9 +132,10 @@ def test_all_event_types_present():
         "ENTRY_DIAGNOSTIC",
         # The exit bracket a NiftyShield structure was sized with.
         "ENTRY_BRACKET",
+        "EXIT_EVAL_SKIPPED",
     }
     assert {e.value for e in EventType} == expected
-    assert len(EventType) == 26
+    assert len(EventType) == 27
 
 
 def test_default_severity_defined_for_every_event_type():

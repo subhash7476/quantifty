@@ -99,6 +99,14 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         use_broker_margin: bool = False,
         **kwargs,
     ):
+        # ADR-025: NseMarginEngine is futures-only (one v400 risk array per
+        # underlying, looked up by contract symbol), so it raises
+        # MissingRiskArray on every option leg. The per-leg backstop stays on
+        # the flat-rate tracker; the snapshot is session evidence, not a
+        # margin input here.
+        kwargs.pop("span_snapshot", None)
+        self._initial_capital = float(kwargs.get("initial_capital", 100000.0))
+        self._day_anchor_equity = self._initial_capital
         super().__init__(*args, **kwargs)
         self._marks_source = marks_source or StaticMarksSource({})
         self._strategy_cfg = dict(strategy_config or {})
@@ -118,6 +126,48 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         """Warm the handler price cache from the marks source (no synthetic fill)."""
         for symbol, price in self.marks(symbols).items():
             self.update_market_price(symbol, price)
+
+    def _replay_state(self):
+        super()._replay_state()
+        self._restore_cash_from_fills()
+
+    def _restore_cash_from_fills(self) -> None:
+        """Rebuild cash from the persisted fills (AUDIT_2026-09-25 R2).
+
+        The base replay restores orders, positions and groups but not cash, so
+        every restart re-seeded `initial_capital` and the drawdown gate never
+        saw a realised loss. The day anchor is the equity at the start of the
+        clock's session — every fill before it — so a same-day restart keeps
+        the day's loss and a next-day restart starts the day flat.
+        `max_equity` is seeded at the anchor, making the base entry gate a
+        loss-since-session-start check as well.
+        """
+        today = self.clock.now().date()
+        cash = anchor = self._initial_capital
+        for fill in self.fill_repo.get_all():
+            flow = fill.quantity * fill.price
+            delta = (-flow if str(fill.side).upper().endswith("BUY") else flow) - fill.fee
+            cash += delta
+            if fill.timestamp.date() < today:
+                anchor += delta
+        self.metrics.cash_balance = cash
+        self.metrics.max_equity = anchor
+        self._day_anchor_equity = anchor
+
+    def day_loss_rs(self, marks: Dict[str, float]) -> float:
+        """The session's loss so far: start-of-day equity minus MTM equity
+        (cash plus every open NiftyShield leg at its mark). Legs without a mark
+        are left out — the caller only asks with a fully priced book."""
+        equity = self.metrics.cash_balance
+        for gid in self.open_nifty_shield_groups():
+            group = self.group_tracker.get_group(gid)
+            for sym in {leg.symbol for leg in group.legs}:
+                if sym in marks:
+                    equity += self.position_tracker.net_quantity(sym) * marks[sym]
+        return self._day_anchor_equity - equity
+
+    def day_loss_limit_rs(self) -> float:
+        return self.config.max_drawdown_limit * self._initial_capital
 
     def open_nifty_shield_groups(self) -> List[UUID]:
         """group_ids of NiftyShield structures with at least one open leg."""
@@ -662,6 +712,18 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         )
 
 
+EXIT_EVAL_REJOURNAL_S = 60.0
+EXIT_EVAL_GAP_S = 60.0
+
+
+def _seconds_between(start: Optional[datetime], end: datetime) -> Optional[float]:
+    """end - start in seconds; None when either side is missing or the two
+    mix naive and aware (a journal detail must never break the exit loop)."""
+    if start is None or (start.tzinfo is None) != (end.tzinfo is None):
+        return None
+    return (end - start).total_seconds()
+
+
 class NiftyShieldExitDriver:
     """Per-bar exit evaluation for open NiftyShield structures (D5).
 
@@ -692,6 +754,10 @@ class NiftyShieldExitDriver:
         # cannot. So a stale feed HOLDS and journals, it never decides.
         self._max_marks_age_s = max_marks_age_s
         self._stale_journaled = False
+        # R5 (AUDIT_2026-09-25 F6): per open group, when a missing leg mark was
+        # last journaled, and when the structure was last evaluated.
+        self._missing_journaled: Dict[str, datetime] = {}
+        self._last_eval: Dict[str, datetime] = {}
 
     def __call__(self, timestamp: datetime,
                  execution_handler: Optional[Any] = None) -> bool:
@@ -726,13 +792,30 @@ class NiftyShieldExitDriver:
             raise
         handler.warm_marks(list(marks))
 
+        # Datasheet §9 single-day limit, on the MTM book every tick (R2). It
+        # used to run only on entry signals, before any loss existed. Flatten
+        # first: the kill switch blocks every signal, exits included.
+        if (all(sym in marks for sym in symbols)
+                and handler.day_loss_rs(marks) >= handler.day_loss_limit_rs()):
+            loss = handler.day_loss_rs(marks)
+            for gid in group_ids:
+                handler.close_group(gid, "drawdown_kill", timestamp, marks)
+            handler.activate_kill_switch(
+                f"NiftyShield day loss Rs {loss:,.0f} >= "
+                f"Rs {handler.day_loss_limit_rs():,.0f} limit")
+            return False
+
         for gid in group_ids:
             group = handler.group_tracker.get_group(gid)
             if group is None:
                 continue
             leg_symbols = [leg.symbol for leg in group.legs]
-            if not all(sym in marks for sym in leg_symbols):
-                continue                     # unpriced structure -> cannot decide
+            missing = sorted({sym for sym in leg_symbols if sym not in marks})
+            if missing:                      # unpriced structure -> cannot decide
+                self._journal_missing_marks(str(gid), missing, timestamp)
+                continue
+            self._journal_resolved_marks(str(gid), timestamp)
+            self._journal_eval_gap(str(gid), group, timestamp)
             manager = self._manager_for(group.legs[0].metadata)
             portfolio_delta = self._portfolio_delta(marks)
             reason = manager.evaluate(
@@ -741,6 +824,42 @@ class NiftyShieldExitDriver:
             if reason is not None:
                 handler.close_group(gid, reason, timestamp, marks)
         return False
+
+    def _journal_missing_marks(self, gid: str, missing: List[str],
+                               timestamp: datetime) -> None:
+        """WARNING at most once a minute per group while a leg is unpriced."""
+        since = _seconds_between(self._missing_journaled.get(gid), timestamp)
+        if since is not None and since < EXIT_EVAL_REJOURNAL_S:
+            return
+        self._missing_journaled[gid] = timestamp
+        self._handler._record(
+            EventType.EXIT_EVAL_SKIPPED,
+            f"exit evaluation held: no mark for {', '.join(missing)} — TP/SL "
+            f"cannot be decided for this structure",
+            group_id=gid, reason="missing leg marks", missing_symbols=missing)
+
+    def _journal_resolved_marks(self, gid: str, timestamp: datetime) -> None:
+        if self._missing_journaled.pop(gid, None) is not None:
+            self._handler._record(
+                EventType.EXIT_EVAL_SKIPPED,
+                "exit evaluation resumed: every leg priced again",
+                group_id=gid, reason="leg marks restored")
+
+    def _journal_eval_gap(self, gid: str, group: OrderGroup,
+                          timestamp: datetime) -> None:
+        """CRITICAL when an open structure went unevaluated for over a minute
+        — since entry, or since its last evaluation (a restart included).
+        Journals the symptom whatever the cause."""
+        since = self._last_eval.get(gid) or group.legs[0].timestamp
+        self._last_eval[gid] = timestamp
+        gap = _seconds_between(since, timestamp)
+        if gap is not None and gap > EXIT_EVAL_GAP_S:
+            self._handler._record(
+                EventType.EXIT_EVAL_SKIPPED,
+                f"structure unmonitored for {gap:.0f}s: no exit evaluation "
+                f"between {since.isoformat()} and {timestamp.isoformat()}",
+                severity=Severity.CRITICAL, group_id=gid,
+                reason="exit evaluation gap", gap_s=round(gap, 1))
 
     def _marks_are_stale(self) -> bool:
         """True when the snapshot is too old to price an exit decision on.
@@ -757,7 +876,7 @@ class NiftyShieldExitDriver:
         if age is None or age <= self._max_marks_age_s:
             if self._stale_journaled:
                 self._handler._record(
-                    EventType.ENTRY_SKIPPED,
+                    EventType.EXIT_EVAL_SKIPPED,
                     "exit evaluation resumed: option marks fresh again",
                     severity=Severity.WARNING,
                     reason="marks freshness restored",
@@ -767,7 +886,7 @@ class NiftyShieldExitDriver:
             return False
         if not self._stale_journaled:
             self._handler._record(
-                EventType.ENTRY_SKIPPED,
+                EventType.EXIT_EVAL_SKIPPED,
                 f"exit evaluation held: option marks stale by {age:.0f}s "
                 f"(limit {self._max_marks_age_s:.0f}s) — TP/SL/time exits are "
                 f"NOT being evaluated while the chain poller is not publishing",
