@@ -795,7 +795,8 @@ def test_unavailable_bracket_journals_critical_and_sets_no_tp_or_stop(tmp_path, 
     assert handler.structure_bracket(gid) is None
 
     driver = NiftyShieldExitDriver(
-        handler, StaticMarksSource(_short_mark_for_pnl(-50_000.0)))
+        # Under the Rs 30,000 day limit, so only a (fabricated) stop could fire.
+        handler, StaticMarksSource(_short_mark_for_pnl(-20_000.0)))
     driver(datetime(2023, 1, 4, 13, 30, 0, tzinfo=pytz.UTC))
     assert GROUP_ID not in handler._closed_groups
     critical = [e for e in _journal_events(tmp_path)

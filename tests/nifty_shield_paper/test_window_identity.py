@@ -55,3 +55,13 @@ def test_window_counts_only_on_or_after_start_with_the_frozen_stamp(tmp_path, mo
     assert "before-window-start" in reasons["2026-09-25"]
     assert "off-identity" in reasons["2026-09-28"]
     assert reasons["2026-09-29"] == ["no-closed-structure"]   # stamp accepted
+
+
+def test_the_recorder_stamps_the_identity_it_started_with(tmp_path, monkeypatch):
+    """The live checkout can change while a session runs; the stamp must be
+    the code the process loaded, taken at start, not at finalize."""
+    from scripts.nifty_shield_paper import recorder as rec_mod
+    monkeypatch.setattr(rec_mod, "execution_hash", lambda root: "at-start")
+    r = rec_mod.SessionRecorder(str(tmp_path / "pkg"))
+    monkeypatch.setattr(rec_mod, "execution_hash", lambda root: "at-finalize")
+    assert r._execution_hash == "at-start"

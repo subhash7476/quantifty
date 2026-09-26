@@ -118,8 +118,10 @@ def main() -> int:
     candle_dir = work / "candles_1m"
     candle_dir.mkdir()
 
-    # Full session 09:15 -> 15:15 (361 bars) so the 15:15 hard exit fires.
-    bars_n = 361
+    # 09:15 + 381 min = 15:36, past the 15:35 hard exit (f051fd3). At 361 bars
+    # the session ended at 15:15, the structure never closed, and the smoke
+    # failed on RT=0.
+    bars_n = 382
     nf = _session_frame(seed=1, base=24000.0, bars=bars_n)
     bn = _session_frame(seed=2, base=52000.0, bars=bars_n)
     vix = _stable_vix(bars_n)

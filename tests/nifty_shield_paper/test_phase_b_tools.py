@@ -488,6 +488,7 @@ def test_assemble_report_fills_skeleton(synthetic_session, tmp_path, monkeypatch
                         encoding="utf-8")
     monkeypatch.setattr("scripts.nifty_shield_paper.assemble_report._commit_ref",
                         lambda: "testcommit")
+    monkeypatch.setattr(identity, "WINDOW_START", SESSION)
     result = assemble(data_root=work, report_path=report, skeleton_path=skeleton)
     text = report.read_text(encoding="utf-8")
     assert "**[FILL AT CLOSE]**" not in text

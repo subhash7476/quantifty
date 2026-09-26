@@ -197,13 +197,15 @@ const EVENT_LABEL = {
     ENTRY_SKIPPED: 'Entry skipped', STRUCTURE_CLOSE: 'Structure close',
     KILL_SWITCH_ACTIVATED: 'Kill switch', WATCHDOG_STALE_DATA: 'Stale data',
     STRATEGY_ERROR: 'Strategy error', STRATEGY_QUARANTINED: 'Quarantined',
-    SIGNAL_CONTRACT_REJECTED: 'Contract rejected', BROKER_ERROR: 'Broker error'
+    SIGNAL_CONTRACT_REJECTED: 'Contract rejected', BROKER_ERROR: 'Broker error',
+    EXIT_EVAL_SKIPPED: 'Exit eval held'
 };
 const EVENT_TONE = {
     ENTRY_MARGIN: C.teal, STRUCTURE_CLOSE: C.teal, FACT_PUBLISH_SKIPPED: C.amber,
     ENTRY_SKIPPED: C.amber, KILL_SWITCH_ACTIVATED: C.red, WATCHDOG_STALE_DATA: C.red,
     STRATEGY_ERROR: C.red, STRATEGY_QUARANTINED: C.red,
-    SIGNAL_CONTRACT_REJECTED: C.red, BROKER_ERROR: C.red, STOPPED: C.muted
+    SIGNAL_CONTRACT_REJECTED: C.red, BROKER_ERROR: C.red, STOPPED: C.muted,
+    EXIT_EVAL_SKIPPED: C.red
 };
 
 let state = {

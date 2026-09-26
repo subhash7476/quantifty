@@ -210,6 +210,9 @@ class SessionRecorder:
         self._signals: List[dict] = []
         self._session_date: Optional[date] = None
         self._started_at = _now_iso()
+        # R3: hash the execution code at session START — the modules this
+        # process loaded. At finalize the live checkout may already differ.
+        self._execution_hash = execution_hash(Path(__file__).resolve().parents[2])
 
     @property
     def package_dir(self) -> Path:
@@ -325,7 +328,7 @@ class SessionRecorder:
             "session_bars_present": bool(n_session),
             "span_snapshot_hash": span_hash,
             # R3: the execution identity this session ran (identity.py).
-            "execution_hash": execution_hash(Path(__file__).resolve().parents[2]),
+            "execution_hash": self._execution_hash,
             "prior_capture_merged": prior_exists,
         }
         (pkg / "meta.json").write_text(
