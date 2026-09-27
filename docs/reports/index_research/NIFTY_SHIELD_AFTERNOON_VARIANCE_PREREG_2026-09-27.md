@@ -1,0 +1,74 @@
+# W2 — NiftyShield Afternoon Variance and Trend Term: Pre-Analysis Note
+
+**Date:** 2026-09-27, written and committed **before** any return in the windows below was read.
+**Plan item:** W2 of `docs/superpowers/plans/2026-09-27-research-library-implementation.md` (approved 2026-09-27). Triage: T§3.1–3.2.
+**Class (b):** diagnostic only.
+- Changes no NiftyShield rule and touches no hashed file.
+- Reads **no options data**, so the protected 2016–22 Nifty options window is untouched.
+
+## 1. Questions
+
+1. **Bracket scaling.**
+   - `nifty_shield_pricing.py:173` sizes the TP/SL bracket as spot × IV × √(2.5 / (252 × 6.25)).
+   - That assumes the 13:00 → close window carries **2.5/6.25 = 0.40** of close-to-close variance: uniform intraday variance and no overnight share.
+   - Q1: what share does it actually carry?
+2. **Trend term.**
+   - An unhedged short straddle or strangle pays against (S_exit − S_entry)², not against the path's Σ D² (Dao et al. 2016).
+   - Q2: do Nifty afternoons trend (variance ratio above 1) or revert (below 1), and does that differ by the 13:00 DayType label?
+
+## 2. Data
+
+- **Spot:** `NSE_INDEX|Nifty 50` 1m bars, `data/market_data/nse/candles/1m/`, sessions **2023-01-02 → 2026-09-25**.
+  - Labelling is resolved per session with `core/market/bar_labeling.py`. A session it refuses is dropped and counted.
+  - Special sessions (any whose `session_window` is not 09:15–15:30) are excluded.
+  - `is_synthetic` is not used, since it is an `NSE_EQ` predicate.
+- **Closes:** `NSE_INDEX|Nifty 50` from `data/market_data/nse/candles/1d/`. Close-to-close return r_cc = ln(C_t / C_{t−1}); overnight return r_on = ln(O_t / C_{t−1}).
+- **DayType:** `data/features/day_type/day_type_facts.duckdb`, checkpoint `13pm`, column `regime`.
+  - The model is `train_thru2023`, so **2023 labels are in-sample**.
+  - DayType-grouped results use **2024-01-01 onward** as primary and report 2023 separately as in-sample.
+  - Sessions with no fact are excluded from the grouped table only.
+
+## 3. Windows (pinned)
+
+| Era | Sessions | Window | Bracket's assumed share | Uniform share of that window |
+|---|---|---|---|---|
+| Pre-CAS | 2023-01-02 → 2026-07-31 | 13:00 → 15:30 | 0.40 | 0.40 |
+| Post-CAS | 2026-08-03 → 2026-09-25 | 13:00 → 15:15; the index is stale from 15:15 to the auction print | 0.40 | 0.36 |
+
+- S_13 is the index level at 13:00, the close of the bar covering 12:59–13:00.
+- S_end is the close of the bar ending at the window end.
+- **Post-CAS has about 38 sessions: it is descriptive only**, and no decision rests on it.
+
+## 4. Measurements
+
+**Primary returns** are **5-minute** log returns D inside the window. That damps the stale-constituent autocorrelation of 1-min index returns (Ferson 2006). 1-minute is a robustness row.
+
+- **Q1 — hold share:** H = Σ_s Σ_window D² / Σ_s r_cc², a ratio of sums across sessions.
+- **Descriptive, alongside Q1:**
+  - intraday share Σ_window D² / Σ_(09:15→close) D²;
+  - overnight share Σ r_on² / Σ r_cc².
+- **Q2 — variance ratio:** VR = Σ_s (ln S_end/S_13)² / Σ_s Σ_window D². Also the mean trend term T = (ln S_end/S_13)² − Σ D², in bp².
+- **Uncertainty:** a moving-block bootstrap over sessions, block 20, 10,000 replications, seed 20260927, 95% percentile interval, on each ratio of sums. Never a mean of per-session ratios.
+- **Grouping for Q2:** by `regime` ∈ {BullTrend, BearTrend, Choppy}, 2024+ primary.
+
+## 5. What each result changes (pinned before reading)
+
+| Result | Recorded conclusion | Decision it feeds |
+|---|---|---|
+| **Q1:** pre-CAS 95% CI for H excludes 0.40 **and** \|f − 1\| ≥ 0.10, where f = √(H / 0.40) | "√t bracket misstates the hold move by factor f." | A corrected-σ bracket becomes a **v2 candidate** for the MM12.5 promotion pipeline (new identity). **E008 is not changed.** |
+| **Q1:** otherwise | "√t scaling is adequate for the bracket." | No v2 item from this question. |
+| **Q2:** pooled pre-CAS VR CI excludes 1 | Afternoons trend (VR > 1) or revert (VR < 1). If they trend, the unhedged book pays trend on top of variance, and stops sized from √t are tighter than the path warrants. | Interpretation of E008 P&L. Input to the §3.1 attribution rules. |
+| **Q2:** Choppy VR CI lies entirely below both trend-label CIs (2024+) | "The DayType gate has a mechanical rationale: path autocorrelation differs by label." | Evidence for keeping the regime gate in any v2. |
+| **Q2:** labels' CIs overlap | "No detectable path difference by label." The gate's value, if any, must come from elsewhere (e.g. level of variance). | Same. |
+
+**Not allowed from these results:**
+- choosing a new bracket multiple, entry time or window by search;
+- editing any NiftyShield file;
+- reading forward E008 P&L.
+
+Any v2 proposal is a separate pre-registration.
+
+## 6. Output
+
+- **Script:** `scripts/research/nifty_shield_diag/afternoon_variance.py`. Deterministic; the seed is pinned.
+- **Report:** `docs/reports/index_research/NIFTY_SHIELD_AFTERNOON_VARIANCE_2026-09-27.md`, generated by the script. It lists the dropped-session counts and the reasons.

@@ -1,0 +1,68 @@
+# W6 — Stock-Straddle `ca_in_hold` Split and Kinked Beta: Pre-Analysis Note
+
+**Date:** 2026-09-27, written and committed **before** the dropped cycles were read.
+**Plan item:** W6 (approved 2026-09-27). Triage: T§4.
+**What this is:** the "minimum next research action" of `STOCK_STRADDLE_SELLING_EVIDENCE_AUDIT_2026-09-24.md` §9, which is on branch `research/funnels-filter`.
+**Class (b):** accounting on a spent window.
+- Restoring dropped crash cycles can only add seller losses.
+- So it can confirm or kill the result, **not rescue it**.
+- No new filter, variant or parameter is chosen from it.
+
+## 1. Question
+
+`build_stock_straddles.py:61/104` flags a hold-period day with |ln futures return| ≥ 0.25 on the front future. `cycle_study.load()` drops every cycle with `ca_in_hold ≠ 0`.
+
+- That flag is an **outcome**: a live book cannot un-trade a crash.
+- Q: how many cycles does it drop, how many of them are real corporate actions (legitimately excludable from an ex-ante calendar), and does the result survive once the pure moves are put back?
+
+## 2. Data and construct (unchanged code, unchanged build)
+
+- **Rows:** `data/scratch/options_seller_edge/stock_straddles.parquet`, built 2026-09-11.
+  - Its SHA-256 is recorded in the report.
+  - It is **not rebuilt**, because a rebuild could differ from what the study read.
+- **Construct**, from audit §9.1: variant **`m10`**, stock underlyings only (`underlying ≠ 'NIFTY'`).
+- **Clean filters:** every `cycle_study.load()` filter **except** `ca_in_hold == 0`:
+  - `ce_exit`, `pe_exit` and `fut_exit` not null;
+  - `n20 ≥ 15`, `n60 ≥ 40`, `rv20 > 0`.
+- **Returns and costs:** seller return and the fee model exactly as `cycle_study.load()`, and `net(d, s)` at **s = 2%**.
+- **Statistic:** the per-expiry mean across names, then the mean and t across expiries.
+- **Windows (entry_date):**
+  - discovery 2016-01-01 → 2022-12-31;
+  - confirmation 2023-01-01 → **2026-08-24** (the study's own confirmation command, study usage table);
+  - post-reform 2024-11-20 → 2026-08-24.
+
+## 3. Steps
+
+1. **Reproduction gate.**
+   - With the filter in place, reproduce the study's m10 net @2% figures: discovery **+11.5%, t 4.98, 166 expiries** (study §2.1) and confirmation **+8.2%, t 2.90** (study §5.2).
+   - If either mean differs by more than 0.1 pp or either t by more than 0.05, **stop** and report the mismatch; don't proceed.
+2. **Dropped set D:** rows passing every other clean filter with `ca_in_hold > 0`. Report the count by window, and as a share of rows.
+3. **Classify D:**
+   - **CA-verified** if the symbol has a SPLIT or BONUS in `equity_bhavcopy.duckdb:corporate_actions`, or any row in `adjustment_factors`, with `ex_date` in (entry_date, exit_date], **or** a demerger or other disposition in `scripts/psb1/disposition_register.py` in that interval.
+   - Otherwise **pure move**.
+   - Every pure-move row is listed individually (symbol, dates, max |daily return|, seller return), so it can be checked by eye.
+   - Symbols with no match in the register at all are flagged.
+4. **Restore.** CA-verified rows stay dropped: their strikes were adjusted mid-hold, so the exit price belongs to a different contract. Pure-move rows are restored. Recompute the statistic in all three windows.
+5. **Tail disclosure:** crash frequency p = pure-move rows / all clean rows; the mean seller return on them; the worst five.
+6. **Kinked market beta** (Mitchell–Pulvino 2000):
+   - Per expiry, y = the equal-weight mean `pnl_f` (seller P&L as % of futures notional) across names.
+   - x = the Nifty 50 return from the entry_date close to the exit_date close, from the 1d index store.
+   - Fit y = a + β·x + γ·min(x − k, 0) with **k = −3%**, fixed here, with HC1-robust standard errors. Report β_down = β + γ and the number of cycles with x < k.
+   - Fit it twice: filter kept, and pure moves restored.
+   - Report y on x² as a descriptive short-gamma check.
+   - Few cycles fall below k, so the kinked fit is **descriptive**; say so.
+
+## 4. What the result changes (pinned before reading; taken from the audit's §9)
+
+| Result, confirmation window, pure moves restored, s = 2% | Classification |
+|---|---|
+| mean ≤ 0, **or** t < 1.645 | **CLOSE**: the historical result does not survive its only known look-ahead |
+| mean > 0 **and** t ≥ 1.645 | **Survives its look-ahead.** Still INSUFFICIENT for a construct. The next step, at the operator's decision, is an RFA declaration with an independently defended Sharpe band (the audit's §8 expects ABANDON or a long-horizon PROCEED) |
+
+- The discovery and post-reform windows are reported and do not decide.
+- A significantly negative β_down is recorded as "the book is short market-crash risk". It is **not** a filter proposal.
+
+## 5. Output
+
+- **Script:** `scripts/research/options_seller_edge/ca_filter_split.py`. It reads the parquet, the CA register and the 1d store; `build_stock_straddles.py`, `cycle_study.py` and `analyze_stock_straddles.py` are unchanged.
+- **Report:** `docs/reports/strategies/STRADDLE_CA_FILTER_SPLIT_2026-09-27.md`, generated by the script.
