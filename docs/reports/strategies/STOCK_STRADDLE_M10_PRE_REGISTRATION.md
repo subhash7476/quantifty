@@ -1,7 +1,8 @@
 # STOCK-STRADDLE-M10 — Forward Pre-Registration
 
-**Status: DRAFT, awaiting operator approval of D1–D14 (§11).** It freezes at the commit that
-records the approval. From then on it is immutable: SHA-256 over the file's LF bytes, recorded
+**Status: DRAFT, awaiting operator approval of D1–D14 (§11) and at least one live dry run (§10).**
+It freezes at the commit that records both. Dry-run coverage, which contains no P&L, may still
+change D2, D3 or D7 before the freeze; nothing may change after it. **Freeze-by date: Fri 2026-10-09.** From then on it is immutable: SHA-256 over the file's LF bytes, recorded
 in the freeze commit message and the CLAUDE.md RFA table.
 
 **Deadline.** The freeze commit must exist **and be pushed to origin before 2026-10-12 15:15 IST**,
@@ -65,7 +66,7 @@ A name is **eligible** for cycle E if all of the following hold.
 
 | # | Rule | Source |
 |---|---|---|
-| U1 | Stock (not index) future listed for E in the instrument master snapshot used at entry | master; `INDEX_NAMES` excluded |
+| U1 | Stock future listed for E in the instrument master snapshot used at entry, and a FUTSTK underlying in `futures_bhavcopy` on T-11. The symbol is the first token of `tradingsymbol`; the master's `name` is the company name | master + `futures_bhavcopy` |
 | U2 | An ATM strike exists under §4, with both legs two-sided and traded that day | entry capture |
 | U3 | History filters from `cycle_study.load()`: `n20 ≥ 15`, `n60 ≥ 40`, `rv20 > 0` | front-future daily log returns in `futures_bhavcopy` (same contract, consecutive sessions, days with \|ln r\| ≥ 0.25 excluded, as in `build_stock_straddles.py`), **through T-11**, the previous session (D4) |
 | U4 | Not in the F&O ban period on the entry date | captured `fo_secban.csv` (D6) |
@@ -84,11 +85,13 @@ The selection uses the **primary pass** (c-5, §5).
 1. **Reference price** = the pass's last traded price of the same-expiry future.
 2. **Candidate strikes** are those where both the CE and the PE have a best bid > 0, a best ask > 0 and volume > 0 for the day. This is the live equivalent of the study's "both legs traded at entry".
 3. **ATM** = the candidate nearest the reference price. A tie goes to the lower strike, as in the study.
-4. The ATM must lie within **5 %** of the reference price. Otherwise the name fails U2.
+4. The ATM must lie **strictly within 5 %** of the reference price (`|K/F − 1| < 0.05`, as in the study). Otherwise the name fails U2.
 
 **If a name's primary pass is unusable**, the whole name is taken from the next pass in the order
 **c-2, c-10, c-20**. Unusable means `api_fail`, no future quote, or no candidate strike. Legs are
-never mixed across passes. If no pass qualifies, the name fails U2. That is an ex-ante exclusion:
+never mixed across passes. **A pass counts only if it started within 60 s of its planned time**
+(`started_ts − planned_ts ≤ 60 s` in `capture_runs`). A late pass, e.g. one run after a delayed
+task start, is unusable for §4 and §6. If no pass qualifies, the name fails U2. That is an ex-ante exclusion:
 nothing about the outcome is known at 15:35 on T-10.
 
 ## 5. Quote capture (the Sep-29 failure mode)
@@ -99,12 +102,13 @@ Capture is now a scheduled, alerting job:
 - **Trigger:** Windows task `\Nifty\StraddleCapture`, daily at 15:15, through `scripts/ops/run_if_session.py straddle_capture`.
   - It is a no-op unless today is T-10 or T-1 of the next monthly expiry.
   - A non-zero exit sends a Telegram alert. That happens if futures coverage < 90 % on any pass, if any quote chunk fails after 3 retries, or if the job starts after the derivatives close.
-  - Success sends a one-line Telegram summary.
+  - The **first failed pass alerts at once** ("check the Upstox token"), so the operator has about 15 minutes to re-approve before the c-5 pass. The token is re-read before every pass.
+  - Every non-dry capture ends with a one-line Telegram summary.
 - **Passes (D2):** at 20, 10, 5 and 2 minutes before the derivatives close, from `session_schedule`. Post-CAS that is 15:20, 15:30, **15:35 (primary)** and 15:38.
 - **What each pass quotes:**
-  - every stock future for E;
+  - every stock future for E (U1's FUTSTK set, 210 names for 10-27);
   - at entry, every CE/PE within 10 % of that pass's future LTP;
-  - at exit, **exactly the option keys captured at entry**, with ATM never recomputed.
+  - at exit, **exactly the option keys captured at entry**, read from the store, with ATM never recomputed. A held key missing from the exit-day master is still quoted and recorded.
 - **Method (D1):** batched Upstox `market-quote/quotes`, 450 keys per call, about 15 calls per pass.
   - A chunk that still fails after retries is stored as `api_fail`, distinct from `missing`.
   - Zero prices are stored as NULL.
@@ -165,7 +169,9 @@ Capture is now a scheduled, alerting job:
   - **F2:** the cumulative sum of cycle net returns is ≤ **−100 % of premium**, i.e. the book has given back more than a full cycle's premium in aggregate.
   - Either one ends the test as **FALSIFIED**.
 - **Why this does not inflate the confirmation error rate:** stopping early can only prevent a rejection of H0, never cause one. It costs power, not size.
+- **F1 is a kill rule, not a test.** It is applied after every cycle from 6 to 35, so its own false-kill rate is not controlled at 1 %. It is accepted as the price of stopping a short-crash book early.
 - **For scale:** the confirmation window's per-cycle SD was about 18.6 % of premium (mean +8.07 % at t 2.85 over 43 cycles, W6). F2 is about 5 average cycle SDs.
+- **What F2 means in practice:** the audit's Apr-2025 cycle lost −2.95 % of notional, about 7 average cycles, which is roughly −55 % to −60 % of premium. **Two such crash cycles early, plus a few ordinary ones, reach F2.**
 
 ## 10. Dry-run evidence (filled before freeze)
 
@@ -186,7 +192,7 @@ Run it from `F:\Nifty` once it is on main, before 15:20. A worktree needs
 `--credentials F:/Nifty/config/credentials.json --master F:/Nifty/data/instruments/nse_fo_instruments.duckdb`.
 
 The 2026-09-27 (Sunday) smoke run confirmed the plumbing:
-- 213 stock futures and 11,995 listed options for 10-27;
+- 210 stock futures (after keying on the symbol) and 11,833 listed options for 10-27;
 - both artifacts fetched, including a ban file stamped "Trade Date 28-SEP-2026";
 - every quote chunk recorded as `api_fail` (HTTP 401, expired token) rather than as absent.
 
@@ -198,9 +204,9 @@ It is **not** live evidence.
 |---|---|---|
 | D1 | Quote source | Batched `market-quote` (future + options in about 15 calls), not per-name option-chain (spot only, 200+ calls) |
 | D2 | Pass times; which is primary | c-20 / c-10 / **c-5** / c-2 off the derivatives close, primary c-5 (15:35 post-CAS). The cash auction has ended and 5 minutes of F&O trading remain |
-| D3 | Live ATM definition | Nearest strike to the c-5 future LTP among strikes with both legs two-sided **and** volume > 0, within 5 %. Whole-name fallback to c-2, c-10, c-20 |
+| D3 | Live ATM definition | Nearest strike to the c-5 future LTP among strikes with both legs two-sided **and** volume > 0, strictly within 5 %. Whole-name fallback to c-2, c-10, c-20; a pass started more than 60 s late is unusable |
 | D4 | History window for U3 | Through **T-11**. At 15:35 there is no T-10 bhavcopy yet; the study's window included the entry day |
-| D5 | Corporate-action rule | Exclude when the NSE list captured at entry shows an ex-date in (entry, exit] for any purpose **other than a dividend**, or a dividend ≥ **2 %** of the c-5 future LTP. If the capture failed, the operator runs `download_corporate_actions.fetch(entry+1, exit)` before the T-9 open. If that also fails, the cycle carries no CA exclusion, and this is disclosed. `equity_bhavcopy.duckdb:corporate_actions` is used **only afterwards**, to report CAs in the hold that were unknown at entry. Those names stay in the book |
+| D5 | Corporate-action rule | Exclude when the NSE list captured at entry shows an ex-date in (entry, exit] for any purpose **other than a dividend**, or a dividend ≥ **2 %** of the c-5 future LTP. A header-only response is a valid "none announced" and is stored ok/empty. If the capture failed, the operator runs `download_corporate_actions.fetch(entry+1, exit)` before the T-9 open. If that also fails, the cycle carries no CA exclusion, and this is disclosed. `equity_bhavcopy.duckdb:corporate_actions` is used **only afterwards**, to report CAs in the hold that were unknown at entry. Those names stay in the book |
 | D6 | Ban rule | Exclude names on the captured `fo_secban.csv` **whose header trade date equals the entry date**. Otherwise use NSE's dated archive file for the entry date. If neither exists, apply no ban exclusion and disclose it |
 | D7 | Missing-quote rule | §6: entry is whole-name pass fallback, else ineligible. Exit is ask pass fallback, else 1.10 × max(LTP, bhavcopy close or settle). Never drop |
 | D8 | Void cycles | §8: void only on an entry-capture failure, and the window extends by one. Escalate at more than 3 voids |
