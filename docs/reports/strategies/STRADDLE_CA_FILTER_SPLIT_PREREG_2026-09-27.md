@@ -28,14 +28,14 @@
 - **Statistic:** the per-expiry mean across names, then the mean and t across expiries.
 - **Windows (entry_date):**
   - discovery 2016-01-01 → 2022-12-31;
-  - confirmation 2023-01-01 → 2026-08-31;
-  - post-reform 2024-11-20 → 2026-08-31.
+  - confirmation 2023-01-01 → **2026-08-24** (the study's own confirmation command, study usage table);
+  - post-reform 2024-11-20 → 2026-08-24.
 
 ## 3. Steps
 
 1. **Reproduction gate.**
-   - With the filter in place, reproduce the study's confirmation m10 figure (+8.2% of premium, t 2.90) and its discovery figure.
-   - If the confirmation mean differs by more than 0.1 pp, **stop** and report the mismatch; don't proceed.
+   - With the filter in place, reproduce the study's m10 net @2% figures: discovery **+11.5%, t 4.98, 166 expiries** (study §2.1) and confirmation **+8.2%, t 2.90** (study §5.2).
+   - If either mean differs by more than 0.1 pp or either t by more than 0.05, **stop** and report the mismatch; don't proceed.
 2. **Dropped set D:** rows passing every other clean filter with `ca_in_hold > 0`. Report the count by window, and as a share of rows.
 3. **Classify D:**
    - **CA-verified** if the symbol has a SPLIT or BONUS in `equity_bhavcopy.duckdb:corporate_actions`, or any row in `adjustment_factors`, with `ex_date` in (entry_date, exit_date], **or** a demerger or other disposition in `scripts/psb1/disposition_register.py` in that interval.
