@@ -336,6 +336,7 @@ class WallPoller:
         Returns {name: rows_written} (or -1 on fetch error, 0 on empty).
         """
         rows_by_name = {}
+        far_due = []
         market_data = UpstoxMarketData()
         for name, sym in UNDERLYINGS.items():
             try:
@@ -397,15 +398,18 @@ class WallPoller:
                 rows_by_name[name] = -1
                 self._record_step("fetch", name, exc)
             if name in self._far_underlyings and rows_by_name.get(name, -1) > 0:
-                try:
-                    far = self._far_step(provider, market_data, name, sym, expiry)
-                except Exception as exc:
-                    rows_by_name[f"{name}:far"] = -1
-                    self._record_step("far_fetch", name, exc)
-                else:
-                    if far is not None:
-                        rows_by_name[f"{name}:far"] = far
-                        self._record_step("far_fetch", name)
+                far_due.append((name, sym, expiry))
+        # after every underlying's main capture, so the far chains never delay one
+        for name, sym, expiry in far_due:
+            try:
+                far = self._far_step(provider, market_data, name, sym, expiry)
+            except Exception as exc:
+                rows_by_name[f"{name}:far"] = -1
+                self._record_step("far_fetch", name, exc)
+            else:
+                if far is not None:
+                    rows_by_name[f"{name}:far"] = far
+                    self._record_step("far_fetch", name)
         self._write_heartbeat(rows_by_name)
         return rows_by_name
 
