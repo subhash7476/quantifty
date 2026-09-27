@@ -112,6 +112,7 @@
      - The SSF 2023+ window has already been read three times on the same universe (post-mortem P8), though with different signals.
      - Whether that window counts as unread for a reversal construct is an **operator decision**.
 - **Cheapest honest next step:** an RFA declaration, which reads no data and costs nothing. `rank_ic` on about 180 SSF names daily, with its effect band anchored on the **shrunk** HOLDOUT IC (+0.029, not +0.059) and haircut again for the options-listed short leg. If ABANDON, the lead is closed at zero cost. **Not done, pending the operator's go-ahead.**
+- **Correction (2026-09-27): the close sibling was already declared.** N50-LS, a Nifty 50 cross-sectional long-short book, returned **RFA ABANDON** (max power 0.7466 < 0.80; `governance/rfa/declarations/n50_ls.py`, merged to main in PR #25). A futures residual-reversal declaration must explain what a wider cross-section of about 180 names changes relative to N50-LS before it is worth writing. Without that, treat the lead as closed.
 
 **Other stock papers re-examined, and why they remain no:**
 
