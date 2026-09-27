@@ -149,3 +149,8 @@
   - A freeze by **2026-10-12** is needed to claim the Oct-27 cycle.
   - Audit §8: power 0.80 needs 6–15 years of cycles at post-reform Sharpe.
 - **Still open:** merging `research/funnels-filter` to main.
+
+**Straddle RFA (2026-09-27, operator-requested):** `governance/rfa/declarations/stock_straddle_m10.py` is a DRAFT, not yet frozen.
+- Band: net Sharpe [0.65, 1.51] at cadence 12, over 36 forward cycles.
+- Verdict **PROCEED**: max power 0.8211, n_required 34 / 65 / 177. Report: `docs/reports/STOCK-STRADDLE-M10_RFA.md`.
+- The file freezes on operator approval. The pre-registration (pinning live bid/ask capture) must be frozen before 2026-10-12 to claim the Oct-27 cycle.
