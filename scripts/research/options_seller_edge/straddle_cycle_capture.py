@@ -33,9 +33,9 @@ from core.market.trading_calendar import is_session  # noqa: E402
 
 DEFAULT_DB = ROOT / "data" / "research" / "straddle_m10" / "capture.duckdb"
 MASTER_DB = ROOT / "data" / "instruments" / "nse_fo_instruments.duckdb"
+FUTURES_DB = ROOT / "data" / "market_data" / "futures_bhavcopy.duckdb"
 BAN_URL = "https://nsearchives.nseindia.com/content/fo/fo_secban.csv"
 
-INDEX_NAMES = frozenset({"NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50"})
 MIN_MONTHLY_NAMES = 100      # a stock monthly expiry lists ~210 names; weeklies/odd dates list <20
 ENTRY_OFFSET, EXIT_OFFSET = 10, 1
 STRIKE_BAND = 0.10           # capture band; the pre-registered ATM rule uses 5% inside it
@@ -91,12 +91,31 @@ def cycle_role(today: date, expiries: list[date], session_fn=is_session):
     return None
 
 
-def load_universe(master: duckdb.DuckDBPyConnection, snap: date, expiry: date):
-    q = ("select instrument_key, name as underlying, instrument_type, strike, expiry, lot_size "
-         "from instruments where snapshot_date = ? and expiry = ? and instrument_type in ({})")
+def stock_symbols(futures_db: str, today: date) -> set[str]:
+    """FUTSTK underlyings on the last bhavcopy session before today (T-11 on an entry day)."""
+    con = duckdb.connect(futures_db, read_only=True)
+    try:
+        return {u for (u,) in con.execute(
+            "select distinct underlying from futures_bhavcopy where inst_type = 'FUTSTK' and "
+            "trade_date = (select max(trade_date) from futures_bhavcopy where trade_date < ?)",
+            [today]).fetchall()}
+    finally:
+        con.close()
+
+
+def load_universe(master: duckdb.DuckDBPyConnection, snap: date, expiry: date, stocks: set[str]):
+    """Stock futures + options for `expiry`, keyed on the NSE symbol.
+
+    The master's `name` is the company name ("HDFC BANK LTD"); the symbol that bhavcopy, the ban
+    file and the corporate-action list use is the first token of `tradingsymbol`. The master also
+    lists index and commodity futures, so only FUTSTK symbols are kept.
+    """
+    q = ("select instrument_key, split_part(tradingsymbol, ' ', 1) as underlying, instrument_type, "
+         "strike, expiry, lot_size from instruments where snapshot_date = ? and expiry = ? "
+         "and instrument_type in ({})")
     futs = master.execute(q.format("'FUT'"), [str(snap), str(expiry)]).df()
     opts = master.execute(q.format("'CE','PE'"), [str(snap), str(expiry)]).df()
-    futs = futs[~futs.underlying.isin(INDEX_NAMES)].reset_index(drop=True)
+    futs = futs[futs.underlying.isin(stocks)].reset_index(drop=True)
     opts = opts[opts.underlying.isin(set(futs.underlying))].reset_index(drop=True)
     return futs, opts
 
@@ -141,21 +160,24 @@ def _rows(run_id, frame, quotes, failed):
     return out
 
 
-def entry_keys_from_store(con, entry_role: str, expiry: date) -> list[str]:
-    return [k for (k,) in con.execute(
-        "select distinct q.instrument_key from quotes q join capture_runs r using (run_id) "
+def entry_options_from_store(con, entry_role: str, expiry: date) -> pd.DataFrame:
+    """Every option row quoted at entry, from the store itself: a held key that has left
+    today's master (e.g. a CA-adjusted contract) is still re-quoted and recorded, never dropped."""
+    return con.execute(
+        "select distinct q.instrument_key, q.underlying, q.instrument_type, q.strike, q.expiry, "
+        "q.lot_size from quotes q join capture_runs r using (run_id) "
         "where r.role = ? and r.expiry = ? and q.instrument_type in ('CE','PE')",
-        [entry_role, expiry]).fetchall()]
+        [entry_role, expiry]).df()
 
 
 def run_pass(con, md, role, expiry, snap, futs, opts, label, planned_ts, sleep=time.sleep):
     """One snapshot: futures first, then the option set (band at entry, entry keys at exit)."""
     run_id, started = uuid.uuid4().hex[:12], datetime.now()
     fq, ffail, errors = quote_all(md, list(futs.instrument_key), sleep)
-    held = (entry_keys_from_store(con, role.replace("exit", "entry"), expiry)
-            if role.endswith("exit") else [])
-    if held:
-        sel = opts[opts.instrument_key.isin(held)]
+    held = (entry_options_from_store(con, role.replace("exit", "entry"), expiry)
+            if role.endswith("exit") else pd.DataFrame())
+    if len(held):
+        sel = held
     else:
         ltp = {r.underlying: _px(fq.get(r.instrument_key, {}).get("ltp"))
                for r in futs.itertuples(index=False)}
@@ -214,7 +236,12 @@ def fetch_artifacts(con, today: date, expiry: date, exit_day: date, http_get=Non
         body, err = None, None
         try:
             body = job()
-        except (Exception, SystemExit) as e:   # ca_fetch sys.exits on a bad NSE response
+        except SystemExit as e:   # ca_fetch sys.exits on a bad NSE response
+            if "no data rows" in str(e):   # header-only: a valid "nothing announced"
+                body, err = b"", "no rows - none announced"
+            else:
+                err = f"SystemExit: {e}"
+        except Exception as e:
             err = f"{type(e).__name__}: {e}"
         con.execute("insert into artifacts values (?,?,?,?,?,?,?)",
                     [today, expiry, kind, datetime.now(), body is not None, err, body])
@@ -233,6 +260,10 @@ def pass_times(today: date, immediate: bool) -> list[tuple[str, datetime]]:
     return [(f"c-{m}", close - timedelta(minutes=m)) for m in PASS_OFFSETS_MIN]
 
 
+def _pass_failed(cov: dict) -> bool:
+    return bool(cov["api_fail"]) or cov["names"] == 0 or cov["fut_quoted"] / cov["names"] < MIN_FUT_COVERAGE
+
+
 def _telegram(text: str) -> None:
     try:
         from dotenv import load_dotenv
@@ -247,6 +278,7 @@ def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, art
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=str(DEFAULT_DB))
     ap.add_argument("--master", default=str(MASTER_DB))
+    ap.add_argument("--futures", default=str(FUTURES_DB))
     ap.add_argument("--credentials", help="credentials.json to read the token from")
     ap.add_argument("--role", choices=("auto", "entry", "exit"), default="auto")
     ap.add_argument("--expiry", help="YYYY-MM-DD; default: from the calendar")
@@ -255,9 +287,8 @@ def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, art
     a = ap.parse_args(argv)
     today = today or date.today()
 
-    if a.credentials:
-        import core.auth.credentials as cred
-        cred.credentials = cred.CredentialManager(a.credentials)
+    import core.auth.credentials as cred
+    cred_path = a.credentials or str(cred.DEFAULT_PATH)
     master = duckdb.connect(a.master, read_only=True)
     snap = master.execute("select max(snapshot_date) from instruments where snapshot_date <= ?",
                           [str(today)]).fetchone()[0]
@@ -278,7 +309,7 @@ def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, art
     if not a.immediate and datetime.now() >= close:
         print(f"{tag} {today}: started after the derivatives close {close:%H:%M} - no live quotes")
         return 1
-    futs, opts = load_universe(master, snap, expiry)
+    futs, opts = load_universe(master, snap, expiry, stock_symbols(a.futures, today))
     master.close()
     print(f"{tag} {today} expiry {expiry} master {snap}: {len(futs)} stock futures, "
           f"{len(opts)} options listed")
@@ -301,11 +332,13 @@ def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, art
             print(f"  artifact {kind}: {'ok' if ok else 'FAILED ' + str(err)}")
         con.close()
 
-    results = []
+    results, alerted = [], False
     for label, planned in pass_times(today, a.immediate):
         wait = (planned - datetime.now()).total_seconds()
         if wait > 0:
             sleep(wait)
+        # Re-read the token every pass: a token re-approved after 15:15 must reach the c-5 pass.
+        cred.credentials = cred.CredentialManager(cred_path)
         con = duckdb.connect(a.db)
         run_id = run_pass(con, md, tag, expiry, snap, futs, opts, label, planned, sleep)
         cov = coverage(con, run_id)
@@ -316,9 +349,13 @@ def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, art
               f"names two-sided in 5% band {cov['names_two_sided']} (traded {cov['names_tradable']}), "
               f"option rows {cov['opt_rows']} two-sided {0 if share is None else share:.1%}, "
               f"api_fail {cov['api_fail']} missing {cov['missing']} one-sided {cov['one_sided']}")
+        if _pass_failed(cov) and not alerted and not a.dry_run:
+            notify(f"STRADDLE-M10 {tag} {today}: pass {label} FAILED (futures {cov['fut_quoted']}/"
+                   f"{cov['names']}, api_fail {cov['api_fail']}) - check the Upstox token now; "
+                   f"primary pass is c-5")
+            alerted = True
 
-    bad = [lb for lb, c in results
-           if c["api_fail"] or c["names"] == 0 or c["fut_quoted"] / c["names"] < MIN_FUT_COVERAGE]
+    bad = [lb for lb, c in results if _pass_failed(c)]
     primary = dict(results).get("c-5")
     summary = (f"STRADDLE-M10 {tag} {today} (exp {expiry}): c-5 futures "
                f"{primary['fut_quoted']}/{primary['names']}, two-sided names "
