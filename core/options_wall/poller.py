@@ -25,13 +25,16 @@ import os
 import signal
 import sys
 import time
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import duckdb
+
 from core.data import options_wall_store as store
+from core.data import options_provider
 from core.data.options_provider import OptionsProvider
 from core.options_wall import persistence
 from core.options_wall.engine import UNDERLYINGS
@@ -50,6 +53,59 @@ POLL_INTERVAL_S = 5.0
 IDLE_INTERVAL_S = 30.0
 TOKEN_RETRY_INTERVAL_S = 30.0
 SCAN_PERSIST_INTERVAL_S = 30.0   # throttle scan_results/regime writes below the 5s cycle
+# Term-structure capture (research-library plan W3): Nifty's next expiries go to
+# the store's FAR_TABLE once a minute - the slope moves slowly and each far chain
+# is another append holding the file lock.
+FAR_UNDERLYINGS = ("NIFTY",)
+FAR_PERSIST_INTERVAL_S = 60.0
+FAR_MIN_DTE = 2          # a leg at <= 1 DTE says little about the term structure
+
+
+def _today() -> date:
+    return date.today()
+
+
+def _listed_expiries(index_name: str) -> list:
+    """Live expiries for `index_name` from the instrument master.
+
+    Raises rather than calculating: `OptionsProvider.get_expiry_list` falls back
+    to every-7-days dates, which miss holiday-shifted expiries (it gives
+    2026-11-24 for the 2026-11-23 monthly) and so would pick the wrong monthly.
+    """
+    path = options_provider.INSTRUMENT_DB_PATH
+    if not path.exists():
+        raise FileNotFoundError(f"instrument master missing: {path}")
+    conn = duckdb.connect(str(path), read_only=True)
+    try:
+        rows = conn.execute("""
+            SELECT DISTINCT expiry FROM instruments
+            WHERE name = ? AND instrument_type = 'CE' AND expiry >= ?
+              AND snapshot_date = (SELECT MAX(snapshot_date) FROM instruments)
+            ORDER BY expiry""", [index_name, _today().isoformat()]).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        raise RuntimeError(f"no live {index_name} expiries in the instrument master")
+    return [r[0] for r in rows]
+
+
+def far_expiries(expiries, today: date, nearest: str) -> list:
+    """Expiries beyond `nearest` that a term-structure slope needs.
+
+    The first expiry at >= FAR_MIN_DTE calendar days, and the first monthly after
+    it (a month's last listed expiry; monthlies are listed months ahead, so the
+    last one listed in a month is that month's monthly). `nearest` is dropped -
+    the main table already holds it.
+    """
+    live = sorted({str(e)[:10] for e in expiries if str(e)[:10] >= today.isoformat()})
+    front = next((e for e in live if (date.fromisoformat(e) - today).days >= FAR_MIN_DTE), None)
+    if front is None:
+        return []
+    month_last = {}
+    for e in live:
+        month_last[e[:7]] = e
+    monthly = next((e for e in sorted(month_last.values()) if e > front), None)
+    return [e for e in (front, monthly) if e and e != nearest]
 
 
 def _token_ok() -> bool:
@@ -94,7 +150,9 @@ class WallPoller:
                  poll_interval_s: float = POLL_INTERVAL_S,
                  idle_interval_s: float = IDLE_INTERVAL_S,
                  token_retry_interval_s: float = TOKEN_RETRY_INTERVAL_S,
-                 scan_persist_interval_s: float = SCAN_PERSIST_INTERVAL_S):
+                 scan_persist_interval_s: float = SCAN_PERSIST_INTERVAL_S,
+                 far_underlyings: tuple = (),
+                 far_persist_interval_s: float = FAR_PERSIST_INTERVAL_S):
         self._heartbeat_path = Path(heartbeat_path)
         self._pid_path = Path(pid_path)
         # None → the store writes to the per-day file for each cycle's date; an
@@ -107,6 +165,9 @@ class WallPoller:
         self._idle_interval_s = idle_interval_s
         self._token_retry_interval_s = token_retry_interval_s
         self._scan_persist_interval_s = scan_persist_interval_s
+        self._far_underlyings = tuple(far_underlyings)
+        self._far_persist_interval_s = far_persist_interval_s
+        self._far_last: dict = {}          # name → monotonic ts of last far capture
         self._stop = False
         self._health = StepHealth()
 
@@ -249,6 +310,26 @@ class WallPoller:
     def stop(self) -> None:
         self._stop = True
 
+    def _far_step(self, provider, market_data, name, sym, nearest) -> Optional[int]:
+        """Append this underlying's next-expiry chains to FAR_TABLE (throttled).
+
+        Returns rows written, or None when throttled. Never touches the main table."""
+        now = time.monotonic()
+        if now - self._far_last.get(name, float("-inf")) < self._far_persist_interval_s:
+            return None
+        self._far_last[name] = now
+        written = 0
+        for expiry in far_expiries(_listed_expiries(name), _today(), nearest):
+            rows = provider.fetch_option_chain(sym, expiry)
+            if not rows:
+                continue
+            keys = [r.instrument_key for r in rows if r.instrument_key]
+            quotes = market_data.fetch_quotes_batch(keys).get("quotes", {}) if keys else {}
+            store.append_snapshot(rows, sym, expiry, db_path=self._snapshot_db_path,
+                                  quotes=quotes, table=store.FAR_TABLE)
+            written += len(rows)
+        return written
+
     def _poll_cycle(self, provider) -> dict:
         """Fetch both chains, append to the store, write heartbeat.
 
@@ -315,6 +396,16 @@ class WallPoller:
             except Exception as exc:
                 rows_by_name[name] = -1
                 self._record_step("fetch", name, exc)
+            if name in self._far_underlyings and rows_by_name.get(name, -1) > 0:
+                try:
+                    far = self._far_step(provider, market_data, name, sym, expiry)
+                except Exception as exc:
+                    rows_by_name[f"{name}:far"] = -1
+                    self._record_step("far_fetch", name, exc)
+                else:
+                    if far is not None:
+                        rows_by_name[f"{name}:far"] = far
+                        self._record_step("far_fetch", name)
         self._write_heartbeat(rows_by_name)
         return rows_by_name
 
@@ -357,6 +448,7 @@ def main() -> int:
         poll_interval_s=args.poll_interval,
         idle_interval_s=args.idle_interval,
         token_retry_interval_s=args.token_retry_interval,
+        far_underlyings=FAR_UNDERLYINGS,
     )
 
     if not poller._acquire_lock():

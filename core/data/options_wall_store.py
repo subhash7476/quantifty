@@ -71,8 +71,16 @@ def _connect_ro(db_path: Path) -> duckdb.DuckDBPyConnection:
                 time.sleep(READ_RETRY_WAIT_S)
     raise last
 
+SNAPSHOT_TABLE = "option_chain_snapshot"
+# Nifty's next expiries (term-structure capture, research-library plan W3). A
+# separate table, not extra rows in option_chain_snapshot: readers such as
+# options_wall_counterfactual/battery.py select that table without an expiry
+# filter and would silently mix two expiries.
+FAR_TABLE = "option_chain_snapshot_far"
+_TABLES = (SNAPSHOT_TABLE, FAR_TABLE)
+
 _SNAPSHOT_TABLE_SQL = """
-CREATE TABLE IF NOT EXISTS option_chain_snapshot (
+CREATE TABLE IF NOT EXISTS {table} (
     snapshot_id       INTEGER DEFAULT nextval('snapshot_id_seq'),
     snapshot_timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     underlying_symbol  VARCHAR NOT NULL,
@@ -111,7 +119,7 @@ CREATE TABLE IF NOT EXISTS option_chain_snapshot (
 # pure cost. The column stays; only the index goes.
 
 _INSERT_SQL = """
-INSERT INTO option_chain_snapshot (
+INSERT INTO {table} (
     snapshot_timestamp, underlying_symbol, expiry_date, strike_price,
     option_type, instrument_key, tradingsymbol, ltp, open, high, low, close,
     oi, oi_change, oi_change_pct, volume, iv, delta, gamma, theta, vega, rho,
@@ -122,7 +130,8 @@ INSERT INTO option_chain_snapshot (
 
 def init_schema(conn: duckdb.DuckDBPyConnection) -> None:
     conn.execute("CREATE SEQUENCE IF NOT EXISTS snapshot_id_seq START 1")
-    conn.execute(_SNAPSHOT_TABLE_SQL)
+    for table in _TABLES:
+        conn.execute(_SNAPSHOT_TABLE_SQL.format(table=table))
     # migrate an existing store created before best_bid/best_ask were added
     conn.execute("ALTER TABLE option_chain_snapshot ADD COLUMN IF NOT EXISTS best_bid DOUBLE")
     conn.execute("ALTER TABLE option_chain_snapshot ADD COLUMN IF NOT EXISTS best_ask DOUBLE")
@@ -147,14 +156,20 @@ def append_snapshot(
     db_path: Optional[Path] = None,
     quotes: Optional[dict] = None,
     base_dir: Path = WALL_SNAPSHOT_DIR,
+    table: str = SNAPSHOT_TABLE,
 ) -> datetime:
     """Append one full chain snapshot for (underlying, expiry) under a single ts.
+
+    `table` is `SNAPSHOT_TABLE` (the nearest expiry every reader consumes) or
+    `FAR_TABLE` (Nifty's next expiries, read by research only).
 
     Writes to the per-day file for `ts` unless an explicit `db_path` is given.
     `quotes` (optional, keyed by instrument_key with best_bid/best_ask) is the
     bid/ask enrichment from `UpstoxMarketData.fetch_quotes_batch`; when absent the
     two columns are stored NULL.
     """
+    if table not in _TABLES:
+        raise ValueError(f"unknown snapshot table {table!r}; expected one of {_TABLES}")
     ts = ts or datetime.now()
     if db_path is None:
         db_path = db_for_date(ts.date(), base_dir)
@@ -181,7 +196,7 @@ def append_snapshot(
         # one batched statement: the write lock is held for the insert, not for
         # 288 round-trips (readers ride the residue out with _connect_ro)
         if params:
-            conn.executemany(_INSERT_SQL, params)
+            conn.executemany(_INSERT_SQL.format(table=table), params)
         conn.commit()
     finally:
         conn.close()
