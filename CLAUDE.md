@@ -591,6 +591,57 @@ Follow-the-trend pair construct: long stronger index, short weaker, weekly rebal
 
 ---
 
+## OSC — Option Surface Cross-section (ABANDONED 2026-08-02)
+
+**Status:** ABANDONED — RFA gate failed. No declaration was frozen. **The 2016-02-11 → 2022-12-31 window (1,701 formations) remains UNREAD.**
+
+OSC proposed ranking Nifty option strike-expiry cells by richness (IV residual from a fitted fair surface) against a delta-hedged Bakshi-Kapadia return, as a `rank_ic` construct — using the option surface as a genuine cross-section to escape the index `per_trade_pnl` power wall.
+
+### Probe findings
+
+| Finding | Value | Detail |
+|---------|-------|--------|
+| Same-day IC (contaminated) | −0.0615, t=−8.49 | Bounce artifact contributed −0.0813; sign-reversing |
+| Skip-a-day IC (clean level) | +0.0198, sd=0.2068 | Level predictor; Green rung |
+| Static-tilt hypothesis | Rejected | E-4 level-component t=−1.05, insignificant |
+| Incremental daily signal (E-3) | +0.0395, t=4.19 | Deviation from own 10-day norm |
+| Within-moneyness IC (D-5) | **+0.0167, t=2.06, sd=0.2502** | 58% artifact; the honest effect size |
+| N_eff | 1.9 | ~2 independent bets; PC1 61%; rank invariance |
+
+### Why it died
+
+At E-3's `sd_IC = 0.2502` and `n = 1,701` confirmatory formations, power 0.80 two-sided requires δ ≥ 0.01701. The cleanest TRAIN measurement is +0.0167 — and that is the *un-shrunk in-sample* number. CB-N50 measured the out-of-sample shrinkage on the same daily cross-sectional rank-IC method at **50.8%** (TRAIN +0.059 → HOLDOUT +0.029). Apply any non-zero haircut and power collapses. **OSC fails on demonstrability, not on absence of signal** — same wall as every prior index construct.
+
+`ncp = (δ/sd)·√n = 0.067 × 41.2 = 2.75` against ~2.80 required. The `rank_ic` escape route worked (√n = 41.2 from a true cross-section), but `N_eff ≈ 1.9` meant 283 cells/day was nominal, not effective breadth, and the moneyness control cost more in sd than it saved in bias.
+
+### Cost
+
+Zero. The entire sequence — probe, three reviews, two corrective runs — ran on the already-burned 2023-2025 window. None of the 1,701 unread formations were spent.
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `docs/reports/INDEX_CONSTRUCT_DIAGNOSIS.md` | Why index constructs die + the option-surface escape hypothesis |
+| `docs/reports/OSC_SD_PROBE_PROMPT.md` | SD/breadth probe specification |
+| `docs/reports/OSC_SD_PROBE_REPORT.md` | Script-generated probe report (sd_IC, N_eff, IC comparison) |
+| `docs/reports/OSC_SD_PROBE_REVIEW.md` | Round 1 review — CRITICAL-1 contamination finding |
+| `docs/reports/OSC_SD_PROBE_REVIEW_2.md` | Round 2 review — CRITICAL-2 (surface intercept), sign discovery |
+| `scripts/osc/sd_probe.py` | Probe pipeline + `build_paired_panel()` |
+| `docs/reports/OSC_REGIME_DIAGNOSTIC_PROMPT.md` | Regime-vs-signal diagnostic spec (D-1 through D-4/E-3/E-4/D-5) |
+| `docs/reports/OSC_REGIME_DIAGNOSTIC_REPORT.md` | Script-generated diagnostic report |
+| `docs/reports/OSC_REGIME_DIAGNOSTIC_REVIEW.md` | Round 3 review — D-4 window mismatch, E-3/E-4 replacement |
+| `docs/reports/OSC_RFA_ABANDON.md` | **Terminal artifact** — feasibility verdict and power arithmetic |
+| `scripts/osc/regime_diagnostic.py` | Regime diagnostic (imports `build_paired_panel`) |
+| `tests/osc/test_sd_probe.py` | Black-76, parity forward, fence tests (16 passing) |
+| `tests/osc/test_regime_diagnostic.py` | D-2 double-lag, D-4 trailing-window tests (7 passing) |
+
+### Still open
+
+BankNifty options are absent from `data/market_data/options_bhavcopy.duckdb` by an ingest filter, not by source availability (`INDEX_CONSTRUCT_DIAGNOSIS.md` §5). Recovering them widens the index-option surface independently of this verdict.
+
+---
+
 ## Options Analysis Dashboard — In Progress
 
 Real-time options structural analysis (PCR, Net GEX, OI buildup, Max Pain, IV smile) for Nifty 50 and BankNifty, from the Upstox V3 option chain at 5-second snapshots.
