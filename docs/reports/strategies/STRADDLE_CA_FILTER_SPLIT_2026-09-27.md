@@ -105,3 +105,25 @@ y = equal-weight mean P&L (% of futures notional) per expiry; x = Nifty 50 entry
 | pure moves restored | 123 | 12 | +0.060 (0.098) | +0.550 (0.081) | -2.75 (-2.80) |
 
 All windows pooled (2016 → 2026-08). Few cycles fall below the kink, so β_down is imprecise; it is reported, not used to choose anything.
+
+## 6. Supplementary check (added after the run; not pinned in the note)
+
+No dropped row was CA-verified, which means corporate actions leave the sample earlier, through the missing-exit filter. Is that filter a second outcome filter?
+
+- Rows (m10, stock, other clean filters) with a missing exit leg or future: **59 of 21717** (0.27%); CA-verified 35, unmatched 24
+- Unmatched rows: median max |daily move| 5.0%; 6 with a move ≥ 15%
+
+| symbol | entry | exit | max \|daily move\| |
+|---|---|---|--:|
+| ABFRL | 2025-05-15 | 2025-05-28 | 109.2% |
+| ARVIND | 2018-11-14 | 2018-11-28 | 104.8% |
+| KPIT | 2019-01-17 | 2019-01-30 | 51.9% |
+| TATAMOTORS | 2025-10-13 | 2025-10-27 | 51.2% |
+| M&MFIN | 2020-07-16 | 2020-07-29 | 36.1% |
+| MOTHERSUMI | 2022-01-12 | 2022-01-25 | 23.4% |
+| TORNTPOWER | 2023-02-09 | 2023-02-22 | 10.4% |
+| L&TFH | 2021-01-13 | 2021-01-27 | 9.4% |
+| VEDL | 2020-10-15 | 2020-10-28 | 7.8% |
+| RECLTD | 2023-07-13 | 2023-07-26 | 6.9% |
+
+The large-move unmatched rows are corporate events absent from the repo's demerger register (e.g. ABFRL 2025, ARVIND 2018, KPIT 2019, TATAMOTORS 2025, MOTHERSUMI 2022 demergers). A missing exit leaves no seller P&L to restore, and the set is too small to move the per-expiry mean, so the pinned verdict stands.

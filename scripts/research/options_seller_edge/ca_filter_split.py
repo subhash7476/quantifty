@@ -214,9 +214,37 @@ def main():
                  f"{k['beta_down']:+.3f} ({k['beta_down_se']:.3f}) | {k['quad']:+.2f} ({k['quad_t']:.2f}) |")
     L.append("\nAll windows pooled (2016 → 2026-08). Few cycles fall below the kink, so β_down is imprecise; "
              "it is reported, not used to choose anything.")
+    L += supplementary_missing_exit(a.data_root, pq)
     REPORT.write_text("\n".join(L) + "\n", encoding="utf-8")
     print("\n".join(L))
     return 0
+
+
+def supplementary_missing_exit(data_root, pq):
+    """Not in the pre-analysis note: is the missing-exit filter a second outcome filter?"""
+    raw = pd.read_parquet(pq)
+    raw["entry_date"] = pd.to_datetime(raw.entry_date)
+    raw["exit_date"] = pd.to_datetime(raw.exit_date)
+    d = raw[(raw.variant == VARIANT) & (raw.underlying != "NIFTY")
+            & (raw.n20 >= 15) & (raw.n60 >= 40) & (raw.rv20 > 0)]
+    nx = classify(d[d.ce_exit.isna() | d.pe_exit.isna() | d.fut_exit.isna()], data_root)
+    nx["max_abs_move"] = max_abs_move(nx, data_root)
+    pm = nx[nx.kind == "pure_move"]
+    L = ["\n## 6. Supplementary check (added after the run; not pinned in the note)\n",
+         "No dropped row was CA-verified, which means corporate actions leave the sample earlier, "
+         "through the missing-exit filter. Is that filter a second outcome filter?\n",
+         f"- Rows (m10, stock, other clean filters) with a missing exit leg or future: **{len(nx)} of {len(d)}** "
+         f"({len(nx) / len(d):.2%}); CA-verified {int((nx.kind == 'ca_verified').sum())}, unmatched {len(pm)}",
+         f"- Unmatched rows: median max |daily move| {pm.max_abs_move.median():.1%}; "
+         f"{int((pm.max_abs_move >= 0.15).sum())} with a move ≥ 15%\n",
+         "| symbol | entry | exit | max \\|daily move\\| |", "|---|---|---|--:|"]
+    for r in pm.sort_values("max_abs_move", ascending=False).head(10).itertuples():
+        L.append(f"| {r.underlying} | {r.entry_date.date()} | {r.exit_date.date()} | {r.max_abs_move:.1%} |")
+    L.append("\nThe large-move unmatched rows are corporate events absent from the repo's demerger register "
+             "(e.g. ABFRL 2025, ARVIND 2018, KPIT 2019, TATAMOTORS 2025, MOTHERSUMI 2022 demergers). A missing exit "
+             "leaves no seller P&L to restore, and the set is too small to move the per-expiry mean, "
+             "so the pinned verdict stands.")
+    return L
 
 
 if __name__ == "__main__":
