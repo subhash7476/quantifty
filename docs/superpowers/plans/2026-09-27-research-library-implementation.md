@@ -132,3 +132,20 @@
 3. W3 next-expiry capture: yes or no (the only decaying item; it touches the live poller)?
 4. Write the SSF residual-reversal RFA declaration (§4), or close the lead unexamined?
 5. Commit and push this branch?
+
+---
+
+## 6. Outcomes (2026-09-27)
+
+| Item | Status | Result | Artifacts |
+|---|---|---|---|
+| W2 | **Done** | H = 0.181 [0.151, 0.223] vs the bracket's 0.40 (overnight share 0.44; afternoon share of intraday 0.30). f = 0.673: the √t bracket is about 1.5× too wide in realized-σ terms, so it's a **v2 candidate** per the pinned rule, and E008 is unchanged. VR 1.046 [0.917, 1.204]: no detectable afternoon trend, and no path difference by DayType label. Choppy's point VR of 1.24 is within noise; don't read it either way. | `index_research/NIFTY_SHIELD_AFTERNOON_VARIANCE_PREREG_2026-09-27.md` + `…_2026-09-27.md`; `scripts/research/nifty_shield_diag/afternoon_variance.py` |
+| W6 | **Done** | Reproduction PASS. All 44 dropped rows are genuine moves (0 corporate actions). Restored confirmation: +8.07%, t 2.85, which **SURVIVES** under the pinned rule and is still INSUFFICIENT for a construct. β_down +0.55 (se 0.08) and x² t −2.80: short crash risk and short gamma. The missing-exit filter is corporate events, not a second outcome filter. | `strategies/STRADDLE_CA_FILTER_SPLIT_PREREG_2026-09-27.md` + `…_2026-09-27.md`; `scripts/research/options_seller_edge/ca_filter_split.py` |
+| W3 | **Built, not deployed** | Nifty's first ≥2-DTE expiry and the next monthly go to `option_chain_snapshot_far` once a minute. Expiries come from the instrument master and fail loudly. It's off unless `main()` enables it, and the orchestrator's `wall_poller` child runs `main()`. The poller is outside the NiftyShield identity hash, so E008 doesn't restart. **It captures nothing until it's on the branch `F:\Nifty` runs.** | `core/options_wall/poller.py`, `core/data/options_wall_store.py`, `tests/options_wall/test_poller_far_expiries.py` |
+
+**New decisions:**
+- **Deploy W3:** cherry-pick onto the live branch, or go through a PR to main. Every session it isn't deployed goes uncaptured.
+- **Straddle:** W6 survives, so the audit's §9 next step (an RFA declaration) is open.
+  - A freeze by **2026-10-12** is needed to claim the Oct-27 cycle.
+  - Audit §8: power 0.80 needs 6–15 years of cycles at post-reform Sharpe.
+- **Still open:** merging `research/funnels-filter` to main.
