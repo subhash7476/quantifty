@@ -289,6 +289,12 @@ def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, art
 
     import core.auth.credentials as cred
     cred_path = a.credentials or str(cred.DEFAULT_PATH)
+    missing = [f"--{flag} {path}" for flag, path in
+               (("master", a.master), ("futures", a.futures), ("credentials", cred_path))
+               if not Path(path).is_file()]
+    if missing:   # a worktree has no data/ or config/: point these at the live checkout
+        print("missing input(s): " + ", ".join(missing) + " - pass the F:/Nifty paths")
+        return 2
     master = duckdb.connect(a.master, read_only=True)
     snap = master.execute("select max(snapshot_date) from instruments where snapshot_date <= ?",
                           [str(today)]).fetchone()[0]

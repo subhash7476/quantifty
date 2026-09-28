@@ -158,6 +158,7 @@ def test_exit_pass_requotes_the_entry_keys_not_a_new_band(tmp_path):
 def _run_main(tmp_path, md, today, extra=(), ca_fetch=lambda frm, to: b'"SYMBOL"\n'):
     _master(tmp_path / "m.duckdb")
     _futures(tmp_path / "f.duckdb")
+    (tmp_path / "cred.json").write_text("{}")
     sent = []
     rc = cap.main(["--db", str(tmp_path / "cap.duckdb"), "--master", str(tmp_path / "m.duckdb"),
                    "--futures", str(tmp_path / "f.duckdb"),
@@ -214,3 +215,12 @@ def test_dry_run_sends_nothing_and_is_tagged(tmp_path):
     con = duckdb.connect(str(tmp_path / "cap.duckdb"), read_only=True)
     roles = {r for (r,) in con.execute("select distinct role from capture_runs").fetchall()}
     assert sent == [] and roles == {"dry-entry"}
+
+
+def test_missing_live_stores_fail_with_a_message_not_a_traceback(tmp_path, capsys):
+    rc = cap.main(["--db", str(tmp_path / "cap.duckdb"), "--master", str(tmp_path / "nope.duckdb"),
+                   "--futures", str(tmp_path / "nope2.duckdb"),
+                   "--credentials", str(tmp_path / "cred.json")], md=_FakeMD(),
+                  today=date(2026, 10, 12), sleep=_no_sleep, notify=lambda _: None)
+    out = capsys.readouterr().out
+    assert rc == 2 and "--master" in out and "--futures" in out and "--credentials" in out

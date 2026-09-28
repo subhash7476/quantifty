@@ -1,6 +1,6 @@
 # STOCK-STRADDLE-M10 — Forward Pre-Registration
 
-**Status: DRAFT, awaiting operator approval of D1–D14 (§11) and at least one live dry run (§10).**
+**Status: DRAFT. D1–D14 APPROVED by the operator 2026-09-28 as recommended (§11); awaiting at least one live dry run (§10).**
 It freezes at the commit that records both. Dry-run coverage, which contains no P&L, may still
 change D2, D3 or D7 before the freeze; nothing may change after it. **Freeze-by date: Fri 2026-10-09.** From then on it is immutable: SHA-256 over the file's LF bytes, recorded
 in the freeze commit message and the CLAUDE.md RFA table.
@@ -200,7 +200,7 @@ It is **not** live evidence.
 
 ## 11. Operator decisions
 
-| # | Decision | Recommendation |
+| # | Decision | Recommendation (all **approved as recommended**, operator, 2026-09-28) |
 |---|---|---|
 | D1 | Quote source | Batched `market-quote` (future + options in about 15 calls), not per-name option-chain (spot only, 200+ calls) |
 | D2 | Pass times; which is primary | c-20 / c-10 / **c-5** / c-2 off the derivatives close, primary c-5 (15:35 post-CAS). The cash auction has ended and 5 minutes of F&O trading remain |
