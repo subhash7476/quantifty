@@ -175,7 +175,7 @@ Capture is now a scheduled, alerting job:
 
 ## 10. Dry-run evidence (filled before freeze)
 
-**Pending.** Monday 2026-09-28 is the first live close. Each dry run records:
+**Timed run at the pinned pass times: pending** (the freeze waits for it). Each dry run records:
 - futures coverage;
 - names with a two-sided, traded ATM pair within 5 %;
 - the share of option rows with both bid and ask;
@@ -189,7 +189,21 @@ python scripts/research/options_seller_edge/straddle_cycle_capture.py --dry-run 
 ```
 
 Run it from `F:\Nifty` once it is on main, before 15:20. A worktree needs
-`--credentials F:/Nifty/config/credentials.json --master F:/Nifty/data/instruments/nse_fo_instruments.duckdb`.
+`--credentials F:/Nifty/config/credentials.json --master F:/Nifty/data/instruments/nse_fo_instruments.duckdb
+--futures F:/Nifty/data/market_data/futures_bhavcopy.duckdb`.
+
+**2026-09-28 13:36, `--immediate` (midday, all four passes back to back — plumbing and coverage,
+not the pinned c-5 timing; no D-item is adjusted from it).** Master snapshot 2026-09-28;
+210 stock futures, 11,883 options listed for 10-27. Both artifacts ok.
+
+| Pass | Time | Futures | Names two-sided in 5 % band (traded) | Option rows | Two-sided share | api_fail | missing | one-sided |
+|---|---|--:|--:|--:|--:|--:|--:|--:|
+| c-20 | 13:36:16 | 210/210 | 210 (208) | 6,100 | 97.2 % | 0 | 0 | 147 |
+| c-10 | 13:36:33 | 210/210 | 210 (208) | 6,102 | 97.1 % | 0 | 0 | 148 |
+| c-5 | 13:36:50 | 210/210 | 210 (208) | 6,104 | 97.1 % | 0 | 0 | 149 |
+| c-2 | 13:37:12 | 210/210 | 210 (208) | 6,106 | 97.1 % | 0 | 0 | 150 |
+
+Each pass took about 17–22 s against ~6,300 keys, well inside the 5-minute pass spacing.
 
 The 2026-09-27 (Sunday) smoke run confirmed the plumbing:
 - 210 stock futures (after keying on the symbol) and 11,833 listed options for 10-27;
