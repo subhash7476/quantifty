@@ -1,6 +1,6 @@
-# DRAFT declaration stock_straddle_m10 - per_trade_pnl, one-sided. NOT FROZEN.
-# It freezes on operator approval (SHA-256 over this whole file, recorded in the
-# gate report); until then it may be corrected, after that never.
+# FROZEN declaration stock_straddle_m10 - per_trade_pnl, one-sided. Sharpe band
+# [0.65, 1.51] annualized at cadence 12, approved by the operator 2026-09-27.
+# Body SHA-256 (excludes this header): 9ecb911697ac15f2cc4a2b19ca9e1ef69677b32e4aaffc47f4590e7b92d6bc0b
 # Gate report (whole-file digest): docs/reports/STOCK-STRADDLE-M10_RFA.md
 from governance.rfa.declaration import Declaration
 

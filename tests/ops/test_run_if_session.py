@@ -54,3 +54,9 @@ def test_outside_calendar_coverage_fails_loudly(tmp_path):
     assert calls == []
     assert len(alerts) == 1 and "nse_holidays" in alerts[0]
     assert "ERROR" in log
+
+
+def test_straddle_capture_target_points_at_the_capture_script(tmp_path):
+    assert ris.TARGETS["straddle_capture"].is_file()
+    rc, calls, _, _ = _run("straddle_capture", date(2026, 10, 12), tmp_path)
+    assert (rc, calls) == (0, [("straddle_cycle_capture.py", [])])

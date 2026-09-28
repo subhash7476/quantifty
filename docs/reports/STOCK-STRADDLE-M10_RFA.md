@@ -3,7 +3,7 @@
 **VERDICT: PROCEED** — not provably infeasible — this is a floor, not authorization to build.
 
 - Methodology version: `2.0.0`
-- Declaration SHA-256: `410767e0561ec40fbb817187af0e659e39e4e561061238fb9c6291e99555e741`
+- Declaration SHA-256: `a2015e0f135f470a13c2ad388d7bb4bc6c9b00328897c46f2f42adb2c4a891c5`
 - Metric: per_trade_pnl | Test: one_sided | Power hurdle: 0.8
 - Formations available: 36 (monthly (one equal-weight book of short ATM single-stock straddles per monthly expiry: entry at the close 10 sessions before expiry, exit at the T-1 close), Forward window only: 36 monthly cycles, the first being the 2026-10-27 expiry (entry 2026-10-12 close, 10 sessions before expiry) if the pre-registration is frozen before 2026-10-12, through the Sep-2029 expiry. 36 is the shortest round horizon (3 years) and is chosen because the gate is hardest there; the report's n_required figures give the horizon at every corner.
 Instrument: NSE single-stock options, monthly expiry, ATM strike off the same-expiry future, both legs traded at entry; exit at T-1 close (physical settlement avoided). Forward fills must be at live bid/ask (the Sep-29 paper cycle was never run because no stock-option quotes were captured at entry - audit s5); capturing entry and exit quotes is a precondition the pre-registration must pin, not this RFA.

@@ -3,6 +3,7 @@
 Usage (from Windows Task Scheduler, see register_scheduled_tasks.ps1):
   python scripts/ops/run_if_session.py orchestrator
   python scripts/ops/run_if_session.py download [-- extra args for the target]
+  python scripts/ops/run_if_session.py straddle_capture
 
 Non-sessions (weekends, NSE holidays, special closures) are logged and skipped
 with exit 0. A date outside trading_calendar coverage exits 2 and alerts: the
@@ -26,6 +27,7 @@ from core.market.trading_calendar import OutsideCoverage, is_session  # noqa: E4
 TARGETS = {
     "orchestrator": ROOT / "scripts" / "ops" / "orchestrator.py",
     "download": ROOT / "scripts" / "download_all_data.py",
+    "straddle_capture": ROOT / "scripts" / "research" / "options_seller_edge" / "straddle_cycle_capture.py",
 }
 LOG_PATH = ROOT / "data" / "ops" / "scheduled_runs.log"
 
