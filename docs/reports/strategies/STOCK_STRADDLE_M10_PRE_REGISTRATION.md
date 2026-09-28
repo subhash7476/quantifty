@@ -1,9 +1,10 @@
 # STOCK-STRADDLE-M10 — Forward Pre-Registration
 
-**Status: DRAFT. D1–D14 APPROVED by the operator 2026-09-28 as recommended (§11); awaiting at least one live dry run (§10).**
-It freezes at the commit that records both. Dry-run coverage, which contains no P&L, may still
-change D2, D3 or D7 before the freeze; nothing may change after it. **Freeze-by date: Fri 2026-10-09.** From then on it is immutable: SHA-256 over the file's LF bytes, recorded
-in the freeze commit message and the CLAUDE.md RFA table.
+**Status: FROZEN 2026-09-28.** D1–D14 approved by the operator 2026-09-28 as recommended (§11);
+the live dry run at the pinned pass times passed the same day (§10), and no D-item was changed by
+it. From this commit on the document is immutable: SHA-256 over the file's LF bytes, recorded in
+the freeze commit message and the CLAUDE.md RFA table. Only §12 may be appended to, and only to log
+mechanical fixes to the capture tool.
 
 **Deadline.** The freeze commit must exist **and be pushed to origin before 2026-10-12 15:15 IST**,
 when the first entry capture runs. If it misses, cycle 1 becomes the **2026-11-23** expiry, not
@@ -175,7 +176,22 @@ Capture is now a scheduled, alerting job:
 
 ## 10. Dry-run evidence (filled before freeze)
 
-**Timed run at the pinned pass times: pending** (the freeze waits for it). Each dry run records:
+**2026-09-28, timed run at the pinned pass times: PASS.** It was started before 15:20, slept to
+each pass, and every pass started within 0.2 s of its planned time (`started_ts − planned_ts` 0.20 /
+0.04 / 0.10 / 0.11 s), so the §4 60-second rule held with a wide margin. Both artifacts were ok. The
+ban file fetched at 15:00 is stamped "Trade Date 28-SEP-2026", which is the D6 date check.
+
+| Pass | Finished | Futures | Names two-sided in 5 % band (traded) | Option rows | Two-sided share | api_fail | missing | one-sided |
+|---|---|--:|--:|--:|--:|--:|--:|--:|
+| c-20 | 15:20:16 | 210/210 | 210 (208) | 6,068 | 97.2 % | 0 | 0 | 148 |
+| c-10 | 15:30:19 | 210/210 | 210 (208) | 6,082 | 96.6 % | 0 | 0 | 167 |
+| **c-5** | **15:35:35** | **210/210** | **210 (208)** | **6,062** | **97.2 %** | **0** | **0** | **143** |
+| c-2 | 15:38:25 | 210/210 | 210 (208) | 6,066 | 96.4 % | 0 | 0 | 186 |
+
+Coverage at the close matches midday, so D2, D3 and D7 stand as approved. One-sided rows rise
+toward the close (143 at c-5, 186 at c-2), which is one more reason c-5, not c-2, is primary.
+
+Each dry run records:
 - futures coverage;
 - names with a two-sided, traded ATM pair within 5 %;
 - the share of option rows with both bid and ask;
