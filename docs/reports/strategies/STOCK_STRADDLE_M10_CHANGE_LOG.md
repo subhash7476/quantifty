@@ -17,9 +17,14 @@ These are readings of the frozen text, written down before any cycle is scored.
 1. **Per-rule exclusion counts** attribute each name to the *first* rule it fails, in the U1–U5 table order.
    - Example: in the ban period a name's options stop trading, so it usually fails U2 (no traded ATM pair) before U4 is reached.
    - It is excluded either way. Only the attribution in the report changes.
-2. **D5, a dividend whose amount cannot be read from `PURPOSE`,** is excluded.
-   - This is the conservative reading of "a dividend ≥ 2 % of the c-5 future LTP": an unsized dividend cannot be shown to be below the limit.
-   - Several amounts in one purpose, such as a final and a special dividend, are summed.
+2. **D5 and combined purposes** (amended 2026-09-28, before any live CA list was captured).
+   - NSE often puts several actions in one `PURPOSE`, e.g. "Bonus 1:1/ Dividend- Rs 5 Per Share" or "Annual General Meeting / Dividend - Re 0.60/- Per Share / Bonus 1 : 1". The register holds at least 15 such rows.
+   - The scorer drops the `/-` rupee suffixes and any `(…)` notes, then splits the purpose into components on `/` and "and".
+   - A component naming a general meeting is **neutral**. A dividend component contributes its amount, read as `Rs` or `Re`; "NIL Dividend" counts as 0.
+   - **Any other component is a price-adjusting action and excludes the name, whatever the size of an accompanying dividend.** This follows D5's "any purpose other than a dividend".
+   - A dividend whose amount cannot be read (a bare "Dividend" or "Special Dividend") excludes the name. An unsized dividend cannot be shown to be under 2 %.
+   - Several dividend amounts, such as a final and a special dividend, are summed.
+   - Swept over all 40 distinct dividend purposes in `corporate_actions`: none was misread as adjusting. The 7 without a readable amount were a bare "Dividend", "Final Dividend", "Interim Dividend", "Special Dividend", preference-share and mutual-fund dividends (neither can match a FUTSTK symbol), and "NIL Dividend", which is now read as 0.
 3. **D5 symbol match** is on NSE `SYMBOL`, for any series.
    - The capture's universe is FUTSTK symbols, so a gold-bond or debt series can never match.
 4. **§6 exit fallback reference** = the maximum of two values:

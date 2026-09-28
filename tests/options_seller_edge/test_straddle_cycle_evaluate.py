@@ -253,3 +253,30 @@ def test_falsification_f1_and_f2_only_from_cycle_six():
     s = ev.summary(crash)
     assert s["falsified"].startswith("F2 at cycle 6")
     assert ev.summary([-0.6, -0.6, 0.1, 0.1, 0.1])["falsified"] is None   # before cycle 6
+
+
+@pytest.mark.parametrize("purpose, adjusting, amounts", [
+    ("Dividend - Rs 2.35 Per Share", False, [2.35]),
+    ("Interim Dividend - Rs 1.50/- Per Share", False, [1.50]),
+    ("Dividend Of Rs.2.50 Per Share", False, [2.50]),
+    ("Annual General Meeting/Dividend-Re.1/- Per Share", False, [1.0]),
+    ("Annual General Meeting / Dividend - Re 0.60/- Per Share / Bonus 1 : 1", True, [0.60]),
+    ("Bonus 1:1/ Dividend- Rs 5 Per Share", True, [5.0]),
+    ("Bonus 1:2 And Dividend Rs.8/- Per Share", True, [8.0]),
+    ("Interim Dividend Rs 2/- Per Share And Face Value Split From Rs 10/- To Rs 2/-", True, [2.0]),
+    ("Face Value Split (Sub-Division) - From Rs 10/- Per Share To Re 1/- Per Share", True, []),
+    ("Final Dividend - Rs 7/- Per Share And Special Dividend - Rs 10/- Per Share", False, [7.0, 10.0]),
+    ("Special Dividend", False, [None]),
+    ("Annual General Meeting", False, []),
+    ("NIL Dividend", False, [0.0]),
+    ("Bonus 1:1/Interim Dividend Rs 2/- Per Share (Purpose Revised)", True, [2.0]),
+])
+def test_purpose_components_split_combined_nse_purposes(purpose, adjusting, amounts):
+    assert ev.purpose_components(purpose) == (adjusting, amounts)
+
+
+def test_a_small_dividend_combined_with_a_bonus_is_still_excluded():
+    ca = (CA_HDR + '"BON","x","EQ","Bonus 1:1/ Dividend- Rs 0.5 Per Share","10","20-Oct-2026","20-Oct-2026"\n'
+          + '"AGM","x","EQ","Annual General Meeting/Dividend-Re.1/- Per Share","10","20-Oct-2026","20-Oct-2026"\n'
+          ).encode()
+    assert ev.ca_excluded(ca, ENTRY, EXIT, {"BON": 100.0, "AGM": 100.0})[0] == {"BON"}

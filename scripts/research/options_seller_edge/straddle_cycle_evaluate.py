@@ -178,7 +178,32 @@ def ban_set(body: bytes | None, entry_date: date):
     return names, "captured fo_secban"
 
 
-_RS = re.compile(r"Rs\.?\s*([\d.]+)", re.I)
+_AMOUNT = re.compile(r"R[se]\.?\s*(\d+(?:\.\d+)?)", re.I)
+_SPLIT = re.compile(r"/|\band\b", re.I)
+_NIL = re.compile(r"\bnil\b")
+
+
+def purpose_components(purpose: str) -> tuple[bool, list]:
+    """(has a price-adjusting action, dividend amounts per share) for one NSE PURPOSE string.
+
+    NSE combines actions in one purpose ("Bonus 1:1/ Dividend- Rs 5 Per Share", "Annual General
+    Meeting / Dividend - Re 0.60/- Per Share / Bonus 1 : 1"). "/-" is a rupee suffix, not a
+    separator, and "(Purpose Revised)" is a note. A general-meeting component is neutral; a
+    dividend component contributes its amount (0 for "NIL", None if unreadable); anything else
+    adjusts price.
+    """
+    text = re.sub(r"\([^)]*\)", " ", purpose.replace("/-", " "))
+    adjusting, amounts = False, []
+    for part in (p.strip(" -") for p in _SPLIT.split(text)):
+        low = part.lower()
+        if not low or "general meeting" in low:
+            continue
+        if "dividend" in low:
+            m = _AMOUNT.search(part)
+            amounts.append(float(m.group(1)) if m else 0.0 if _NIL.search(low) else None)
+        else:
+            adjusting = True
+    return adjusting, amounts
 
 
 def ca_excluded(body: bytes | None, entry_date: date, exit_date: date, fut_ltp: dict) -> tuple:
@@ -194,12 +219,8 @@ def ca_excluded(body: bytes | None, entry_date: date, exit_date: date, fut_ltp: 
         ex = datetime.strptime(row["EX-DATE"].strip(), "%d-%b-%Y").date()
         if not (entry_date < ex <= exit_date):
             continue
-        purpose = row.get("PURPOSE") or ""
-        if "dividend" not in purpose.lower():
-            out.add(sym)
-            continue
-        amounts = [float(a) for a in _RS.findall(purpose) if a.strip(".")]
-        if not amounts or sum(amounts) >= DIVIDEND_LIMIT * fut_ltp[sym]:
+        adjusting, amounts = purpose_components(row.get("PURPOSE") or "")
+        if adjusting or None in amounts or sum(amounts) >= DIVIDEND_LIMIT * fut_ltp[sym]:
             out.add(sym)
     return out, "captured ca_forward" if body else "captured ca_forward (none announced)"
 
