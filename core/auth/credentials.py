@@ -38,15 +38,35 @@ class CredentialManager:
     def __init__(self, config_path: str = str(DEFAULT_PATH)):
         self.path = Path(config_path)
         self._cache: Dict[str, Any] = {}
+        self._stamp: Optional[tuple] = None
         self._load()
 
+    def _file_stamp(self) -> Optional[tuple]:
+        try:
+            st = self.path.stat()
+        except OSError:
+            return None
+        return (st.st_mtime_ns, st.st_size)
+
     def _load(self):
-        if self.path.exists():
-            try:
-                with open(self.path, "r") as f:
-                    self._cache = json.load(f)
-            except Exception:
-                self._cache = {}
+        stamp = self._file_stamp()
+        if stamp is None:
+            return
+        try:
+            with open(self.path, "r") as f:
+                self._cache = json.load(f)
+            self._stamp = stamp
+        except Exception:
+            # Keep the last good cache: a failed read must not look like "no token".
+            logger.warning("could not read %s; keeping cached credentials", self.path)
+
+    def _reload_if_changed(self):
+        # Long-lived processes (Flask, pollers) must see a token saved by another
+        # process: a stale in-memory token sent Flask to a login that revoked the
+        # live one (2026-09-28).
+        stamp = self._file_stamp()
+        if stamp is not None and stamp != self._stamp:
+            self._load()
 
     def save(self, data: Dict[str, Any]):
         """Persists credential data to disk. Records token_saved_at and last_refresh_date.
@@ -68,12 +88,15 @@ class CredentialManager:
         with open(tmp, "w") as f:
             json.dump(self._cache, f, indent=4)
         os.replace(tmp, self.path)
+        self._stamp = self._file_stamp()
 
     def get(self, key: str, default: Any = None) -> Any:
         """Retrieves a credential value."""
+        self._reload_if_changed()
         return self._cache.get(key, default)
 
     def get_all(self) -> Dict[str, Any]:
+        self._reload_if_changed()
         return self._cache.copy()
 
     @property

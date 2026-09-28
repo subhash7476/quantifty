@@ -38,6 +38,24 @@ def test_save_rereads_file_so_a_stale_process_cannot_clobber_newer_keys(tmp_path
     assert on_disk["redirect_uri"] == "r" and on_disk["api_key"] == "k"
 
 
+def test_long_lived_instance_sees_token_saved_by_another_process(tmp_path):
+    path = tmp_path / "credentials.json"
+    path.write_text(json.dumps({"access_token": "friday", "token_saved_at": time.time() - 4 * 86400}))
+    flask = CredentialManager(str(path))          # started 09:10, before the token gate
+    assert flask.needs_daily_refresh
+    CredentialManager(str(path)).save({"access_token": "monday"})   # phone approval
+    assert flask.get("access_token") == "monday"
+    assert not flask.needs_daily_refresh
+
+
+def test_instance_survives_file_disappearing(tmp_path):
+    path = tmp_path / "credentials.json"
+    path.write_text(json.dumps({"access_token": "t"}))
+    mgr = CredentialManager(str(path))
+    path.unlink()
+    assert mgr.get("access_token") == "t"
+
+
 def test_save_is_atomic_leaves_no_temp_file(tmp_path):
     path = tmp_path / "credentials.json"
     CredentialManager(str(path)).save({"access_token": "x"})
