@@ -162,8 +162,9 @@ def _run_main(tmp_path, md, today, extra=(), ca_fetch=lambda frm, to: b'"SYMBOL"
     sent = []
     rc = cap.main(["--db", str(tmp_path / "cap.duckdb"), "--master", str(tmp_path / "m.duckdb"),
                    "--futures", str(tmp_path / "f.duckdb"),
-                   "--credentials", str(tmp_path / "cred.json"), "--immediate", *extra],
+                   "--credentials", str(tmp_path / "cred.json"), *extra],
                   md=md, today=today, sleep=_no_sleep, notify=sent.append,
+                  passes=lambda d: cap.pass_times(d, immediate=True),
                   artifacts_kw={"http_get": lambda url: (_ for _ in ()).throw(OSError("offline")),
                                 "ca_fetch": ca_fetch})
     return rc, sent
@@ -224,3 +225,13 @@ def test_missing_live_stores_fail_with_a_message_not_a_traceback(tmp_path, capsy
                   today=date(2026, 10, 12), sleep=_no_sleep, notify=lambda _: None)
     out = capsys.readouterr().out
     assert rc == 2 and "--master" in out and "--futures" in out and "--credentials" in out
+
+
+def test_manual_role_or_immediate_without_dry_run_is_refused(tmp_path):
+    md = _FakeMD()
+    for i, extra in enumerate((["--immediate"], ["--role", "entry", "--expiry", str(EXP)])):
+        d = tmp_path / str(i)
+        d.mkdir()
+        rc, sent = _run_main(d, md, date(2026, 10, 12), extra)
+        assert rc == 2 and sent == [] and not (d / "cap.duckdb").exists()
+    assert md.calls == []

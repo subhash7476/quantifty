@@ -274,7 +274,8 @@ def _telegram(text: str) -> None:
         print(f"telegram failed: {type(e).__name__}: {e}")
 
 
-def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, artifacts_kw=None):
+def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, artifacts_kw=None,
+         passes=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=str(DEFAULT_DB))
     ap.add_argument("--master", default=str(MASTER_DB))
@@ -286,6 +287,11 @@ def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, art
     ap.add_argument("--immediate", action="store_true", help="take every pass now")
     a = ap.parse_args(argv)
     today = today or date.today()
+    if (a.immediate or a.role != "auto") and not a.dry_run:
+        # Only the calendar-driven run may write production rows: a manual entry capture would
+        # give the cycle a second, undefined entry snapshot (pre-registration section 12, M1).
+        print("--immediate and --role entry|exit are dry-run only - add --dry-run")
+        return 2
 
     import core.auth.credentials as cred
     cred_path = a.credentials or str(cred.DEFAULT_PATH)
@@ -312,7 +318,7 @@ def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, art
         expiry = date.fromisoformat(a.expiry) if a.expiry else next(e for e in expiries if e > today)
     tag = f"dry-{role}" if a.dry_run else role
     close = datetime.combine(today, session_window("derivatives", today)[1])
-    if not a.immediate and datetime.now() >= close:
+    if passes is None and not a.immediate and datetime.now() >= close:
         print(f"{tag} {today}: started after the derivatives close {close:%H:%M} - no live quotes")
         return 1
     futs, opts = load_universe(master, snap, expiry, stock_symbols(a.futures, today))
@@ -339,7 +345,7 @@ def main(argv=None, md=None, today=None, sleep=time.sleep, notify=_telegram, art
         con.close()
 
     results, alerted = [], False
-    for label, planned in pass_times(today, a.immediate):
+    for label, planned in (passes(today) if passes else pass_times(today, a.immediate)):
         wait = (planned - datetime.now()).total_seconds()
         if wait > 0:
             sleep(wait)
