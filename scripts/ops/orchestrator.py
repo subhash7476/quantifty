@@ -442,8 +442,8 @@ def _catchup_due(*, stamp_path: Path = CATCHUP_STAMP,
     The catch-up is a whole-pipeline bhavcopy/1m re-walk that costs hundreds of
     Upstox calls; firing it on every orchestrator start meant a restart mid-session
     re-ran it against the same stores while the live pollers competed for the same
-    rate limit. The EOD chain (`core/scheduler/eod_job.py`) still runs it
-    unconditionally after close — that is the run which picks up today's bhavcopy.
+    rate limit. The 22:00 DownloadAll scheduled task is the run that picks up
+    today's bhavcopy and does the derived builds; this one only downloads.
     """
     today = (now or datetime.now()).date().isoformat()
     try:
@@ -468,11 +468,13 @@ def _dispatch_catchup(*, stamp_path: Path = CATCHUP_STAMP, log_dir: Path = CATCH
     """Fire download_all_data as a detached background one-shot; never blocks.
 
     At most once per calendar day (`_catchup_due`). Output goes to a dated log —
-    a detached child's console output is otherwise lost, failures included."""
+    a detached child's console output is otherwise lost, failures included.
+    `--download-only`: the derived builds ran out of memory beside the live stack
+    on 2026-09-29, so they stay with the 22:00 run."""
     if not _catchup_due(stamp_path=stamp_path):
         _logger.info("catch-up download already dispatched today — skipping")
         return
-    argv = [PY, str(ROOT / "scripts" / "download_all_data.py")]
+    argv = [PY, str(ROOT / "scripts" / "download_all_data.py"), "--download-only"]
     flags = _CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     kw = {"cwd": str(ROOT), "stderr": subprocess.STDOUT,
           "env": {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}}

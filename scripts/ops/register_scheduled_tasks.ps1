@@ -1,6 +1,8 @@
 # Register (or re-register) the NSE-session-gated Windows scheduled tasks.
 #   \Nifty\Orchestrator     daily 09:10  -> run_if_session.py orchestrator
-#   \Nifty\DownloadAll      daily 20:00  -> run_if_session.py download
+#   \Nifty\DownloadAll      daily 22:00  -> run_if_session.py download
+#     (20:00 missed the F&O bhavcopy on 2026-09-28; this run owns the derived
+#     builds — the orchestrator's morning catch-up is download-only)
 #   \Nifty\StraddleCapture  daily 15:15  -> run_if_session.py straddle_capture
 #     (STOCK-STRADDLE-M10 quotes; a no-op unless today is T-10 or T-1 of a monthly expiry)
 # Idempotent: existing tasks of the same name are replaced.
@@ -30,5 +32,5 @@ function Register-NiftyTask($Name, $At, $Target, $TimeLimit) {
 }
 
 Register-NiftyTask 'Orchestrator' '09:10' 'orchestrator' ([TimeSpan]::Zero)
-Register-NiftyTask 'DownloadAll'  '20:00' 'download'     (New-TimeSpan -Hours 4)
+Register-NiftyTask 'DownloadAll'  '22:00' 'download'     (New-TimeSpan -Hours 4)
 Register-NiftyTask 'StraddleCapture' '15:15' 'straddle_capture' (New-TimeSpan -Minutes 45)
