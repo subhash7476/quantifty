@@ -30,6 +30,30 @@ PY = sys.executable
 OPS_DIR = ROOT / "data" / "ops"
 
 _CREATE_NEW_PROCESS_GROUP = 0x00000200  # Windows creationflag
+_ENABLE_QUICK_EDIT_MODE = 0x0040
+_ENABLE_EXTENDED_FLAGS = 0x0080
+_STD_INPUT_HANDLE = -10
+
+
+def _quickedit_off(mode: int) -> int:
+    return (mode & ~_ENABLE_QUICK_EDIT_MODE) | _ENABLE_EXTENDED_FLAGS
+
+
+def _disable_quickedit() -> bool:
+    """Turn off QuickEdit on the console every child inherits.
+
+    A click in the window starts a selection that blocks every process writing
+    to it; on 2026-09-29 it froze the whole stack mid-start for five minutes.
+    """
+    if os.name != "nt":
+        return False
+    import ctypes
+    kernel32 = ctypes.windll.kernel32
+    handle = kernel32.GetStdHandle(_STD_INPUT_HANDLE)
+    mode = ctypes.c_uint32()
+    if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+        return False   # no console (redirected stdin): nothing to freeze
+    return bool(kernel32.SetConsoleMode(handle, _quickedit_off(mode.value)))
 
 
 @dataclass(frozen=True)
@@ -585,6 +609,9 @@ def _cmd_start(dry_run: bool) -> int:
     if not pidfile.acquire_lock(ORCH_LOCK):
         print(f"another orchestrator is running (see {ORCH_LOCK})")
         return 1
+    if not _disable_quickedit():
+        _logger.warning("could not disable console QuickEdit — a click in this "
+                        "window pauses every child until Esc")
     started: dict = {}
     sup = Supervisor(started=started)
     deps = _live_deps(started)
