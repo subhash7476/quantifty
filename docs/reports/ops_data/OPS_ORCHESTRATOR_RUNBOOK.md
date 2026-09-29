@@ -22,9 +22,11 @@ package); an already-running EOD worker is left alone.
 - WARN:  SPAN snapshot, instrument-master age, EOD feed freshness, EOD worker alive.
 
 ## Scheduled start and phone approval
-Task Scheduler (`\Nifty\Orchestrator` 09:10, `\Nifty\DownloadAll` 20:00) runs both
+Task Scheduler (`\Nifty\Orchestrator` 09:10, `\Nifty\DownloadAll` 22:00) runs both
 through `scripts/ops/run_if_session.py`, which skips non-sessions. Re-register with
-`scripts/ops/register_scheduled_tasks.ps1`.
+`scripts/ops/register_scheduled_tasks.ps1`. The 22:00 run downloads and builds; the
+orchestrator's once-a-day morning catch-up runs `download_all_data.py --download-only`
+(the builds ran out of memory beside the live stack on 2026-09-29).
 
 When the token is stale the orchestrator uses Upstox's **Access Token Request** flow
 (`scripts/ops/token_approval.py`): it starts a one-route listener on 127.0.0.1:5055,

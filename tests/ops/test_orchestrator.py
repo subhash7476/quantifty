@@ -320,7 +320,17 @@ def test_dispatch_catchup_spawns_once_per_day(tmp_path, monkeypatch):
     orch._dispatch_catchup(stamp_path=stamp, log_dir=tmp_path)
     orch._dispatch_catchup(stamp_path=stamp, log_dir=tmp_path)
     assert len(spawned) == 1
-    assert "download_all_data.py" in spawned[0][-1]
+    assert "download_all_data.py" in spawned[0][-2]
+
+
+def test_dispatch_catchup_is_download_only(tmp_path, monkeypatch):
+    # The full build ran out of memory beside the live stack on 2026-09-29; the
+    # 22:00 DownloadAll task owns the builds, the morning catch-up only downloads.
+    spawned = []
+    monkeypatch.setattr(orch.subprocess, "Popen",
+                        lambda argv, **kw: spawned.append(argv) or _FakePopen(argv))
+    orch._dispatch_catchup(stamp_path=tmp_path / "s.json", log_dir=tmp_path)
+    assert spawned[0][-1] == "--download-only"
 
 
 def test_dispatch_catchup_captures_output_to_a_dated_log(tmp_path, monkeypatch):
