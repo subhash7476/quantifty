@@ -736,3 +736,16 @@ def test_token_wait_done_not_called_when_token_already_fresh():
 
 def test_cmd_start_allows_a_long_wait_for_phone_approval():
     assert orch.TOKEN_TIMEOUT_S >= 2 * 3600
+
+
+def test_quickedit_off_clears_quickedit_and_sets_extended_flags():
+    # 0x1F7 is a typical cmd.exe input mode with QuickEdit (0x40) on.
+    mode = orch._quickedit_off(0x1F7)
+    assert mode & 0x40 == 0
+    assert mode & 0x80
+    assert mode & 0x1 and mode & 0x20   # other input flags untouched
+
+
+def test_disable_quickedit_is_noop_without_a_console(monkeypatch):
+    monkeypatch.setattr(orch.os, "name", "posix")
+    assert orch._disable_quickedit() is False
