@@ -6,6 +6,10 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-09-30 — VWAP extreme reversion (M1c × M5c): empirical test closed, C5 construct-scoped
+
+First empirical test of session-VWAP displacement reversion (M5c was Group D, M1c was C2 in the closure ledger), on branch `research/vwap-extreme-reversion` in worktree `F:\Nifty_vwap` (the live checkout stayed on `main`). Protocol `VWAP-XREV-1` v1.0 was frozen (sha256 over the protocol, nine modules and the membership file) before any forward return existed; TRAIN 2023-05→2024-06, VAL 2024-07→2025-03, one-shot HOLDOUT 2025-04→2026-09 on 12,570 events in PIT F&O names the 1m store carries. Three VAL-confirmed cells (up/h5, down/h10, down/h30) all failed the HOLDOUT (none confirmed; up/h5 reversed); HOLDOUT market-excess reversion ≈ 0; event-weighted net of costs negative in all ten HOLDOUT cells at every slippage scenario. Frozen-tree output C6, Vault category assigned after Opus Review C: **C5, construct-scoped**. M1c and M5c stay open as mechanisms. Side findings: the certified ISD `pit_universe` F&O flag under-counts eight names; the 1m store's name list looks chosen on a later universe (coverage 75–78% of PIT F&O names through Feb 2025). Three Opus reviews (pre-freeze, post-primary, closure) recorded under `docs/reports/research/opus/`. *(docs/reports/research/VWAP_EXTREME_REVERSION_RESEARCH_REPORT.md; research log; `scripts/vwap_rev/`, 35 tests)*
+
 ## 2026-09-25 — TS Basis Daily combo: forward PAPER book under the orchestrator
 
 The combo (recovery filter + |z| > 0.7, filtered Q1/Q5 legs, no TP, no sector cap) is a supervised orchestrator child, `ts_combo`. It trades each new formation once the facts refresh has settled, which the orchestrator's daily catch-up (`download_all_data.py` → `refresh_all_strategies.py`) produces. It persists the book, trades and daily futures + spot P&L to `data/paper/ts_daily_combo/combo_paper.duckdb`, and resumes across restarts. The `/ts-basis-daily/` page shows it as the Combo Paper Book panel, with a live futures mark.
