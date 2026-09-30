@@ -1,0 +1,190 @@
+{
+  "protocol_id": "VWAP-XREV-1",
+  "version": "1.0-RC1",
+  "construct": "M1c x M5c: single-instrument extreme displacement from session VWAP, contrarian (reversion) direction",
+  "hypothesis": {
+    "H1": "Mean forward return in the reversion direction (long after negative displacement, short after positive) is > 0 at each of 5 horizons, separately for each displacement sign",
+    "H0": "mean <= 0",
+    "alternative_not_tested": "continuation (mean < 0) is a distinct finding, reported but never re-labelled as support"
+  },
+  "data": {
+    "store": "data/market_data/nse/candles/1m/{date}.duckdb, symbols NSE_EQ|*, native start-labelled 1m bars",
+    "first_session": "2023-01-02",
+    "last_session": "2026-09-29",
+    "session_selection": "weekdays with a store file, excluding core.market.session_schedule.SPECIAL_SESSIONS (3 Muhurat + 2 special Saturdays)",
+    "valid_bar": "stored, is_synthetic = FALSE, volume > 0, all prices > 0; every other slot is missing (never imputed, never forward-filled)",
+    "price_basis": "CA-adjusted 1m prices; every quantity is a within-session ratio or a within-session return, so the adjustment basis cancels; overnight returns are never used"
+  },
+  "universe": {
+    "primary": "PIT F&O members: a FUTSTK contract on the underlying traded that session (futures_bhavcopy), joined via ISIN with rename closure, present in the 1m store that session",
+    "membership_source": "scripts/vwap_rev/universe.py reusing scripts.isd.build_pit_universe helpers; agreement with certified ISD pit_universe on the overlap is asserted",
+    "robustness_only": "all intraday-present NSE_EQ symbols",
+    "coverage_disclosure": "Outcome-free census: the 1m store carries ~140 of ~191 PIT F&O underlyings in 2023-2024 (73%), rising to ~172 from Dec-2024 and ~100% from mid-2025; 62 of the 98 sampled absent underlyings are no longer F&O by 2026-09-29. The tested universe is therefore 'PIT F&O members that the store carries', which is survivorship-shaped in TRAIN/early-VAL (names later dropped from F&O are under-represented) and broadens over time. Composition is reported per stage; liquidity terciles and an all-symbols universe are robustness-only.",
+    "certified_table_finding": "Recomputed membership is a strict superset of the certified ISD pit_universe fno flag (0 certified-only symbol-sessions; 7,334 recomputed-only, concentrated in 8 names verified to have FUTSTK contracts: DLF, BRITANNIA, KOTAKBANK, BAJAJFINSV, ABB, MOTHERSON, CHOLAFIN, PIIND). The certified artifact is not modified."
+  },
+  "vwap": {
+    "primary": "cumulative session VWAP through decision bar k inclusive = sum(typical_price*volume)/sum(volume) over valid bars from 09:15; typical_price = (H+L+C)/3",
+    "robustness_only": "close-weighted VWAP (sum(close*volume)/sum(volume))",
+    "missing_bars": "zero weight, no imputation",
+    "zero_volume_or_synthetic_bars": "treated as missing",
+    "partial_sessions": "a name-bar is eligible only if valid bars / elapsed bars >= 0.90 through the decision bar (information available at decision time only)"
+  },
+  "displacement": {
+    "primary": "z = (close_k - VWAP_k) / (VWAP_k * sigma_prior * sqrt(D)), D = k+1 elapsed minutes since 09:15",
+    "sigma_prior": "mean over the prior 20 sessions (strictly before today; >= 15 available) of that name's per-session RMS of consecutive valid 1m log-returns (>= 200 return pairs); today's data never enters",
+    "robustness_only": [
+      "range-based prior scale x sqrt(D/375)",
+      "raw displacement in bp (no normalisation)"
+    ]
+  },
+  "extreme_threshold": {
+    "primary": "|z| >= c[b] where c[b] = q-quantile of |z| pooled over ALL eligible universe name-bars of the PRIOR 60 sessions in the same 15-minute decision bucket b (16 buckets covering D in [60,295]); symmetric in sign; today and future sessions never enter",
+    "q_selection_rule": "Outcome-free: among q in {0.99,0.995,0.999} choose the q whose TRAIN event incidence (share of eligible name-sessions with >=1 event, both sides) is closest to 10% (M1c ledger precedent: ~10% of name-sessions); ties to larger q. No forward return, entry or exit price was computed when the rule was evaluated.",
+    "q_candidates": [
+      0.99,
+      0.995,
+      0.999
+    ],
+    "q_selection_evidence": {
+      "TRAIN_incidence": {
+        "0.99": 0.0906,
+        "0.995": 0.0517,
+        "0.999": 0.0175
+      },
+      "TRAIN_events": {
+        "0.99": 3668,
+        "0.995": 2082,
+        "0.999": 692
+      },
+      "selected": 0.99,
+      "source": "data/research/vwap_extreme_reversion/diagnostics_outcome_free.json"
+    },
+    "q_frozen": 0.99
+  },
+  "decision_window": {
+    "decision_elapsed_minutes": [
+      60,
+      295
+    ],
+    "clock": "10:15 - 14:10 (decision at close of bar k, k in slots 59..294)",
+    "why": "60 minutes of VWAP formation; every horizon (max 60) exits by 15:10, before the CAS carry-forward region (15:15+) and MIS square-off (15:12), identically in every era",
+    "same_event_set_for_all_horizons": true
+  },
+  "event_rules": {
+    "trigger": "first qualifying decision bar per (name, session, side)",
+    "sides": "z>0 up-displacement -> short in reversion direction; z<0 down-displacement -> long",
+    "max_events_per_name_session": 2,
+    "overlap": "same-name same-side events cannot overlap (one per session); opposite-side events are both kept; cross-name overlap is handled by session-level aggregation",
+    "warmup_sessions": 80,
+    "events_near_close": "not generated after 14:10"
+  },
+  "outcome": {
+    "entry": "OPEN of bar k+1 (first tradable price after the decision bar closes); missing entry bar -> NaN",
+    "exit": "CLOSE of bar k+H, H bars held from the entry open; missing exit bar -> NaN, no imputation",
+    "horizons_min": [
+      5,
+      10,
+      15,
+      30,
+      60
+    ],
+    "primary_statistic": "R_H = reversion-direction gross return in bp = sign * (exit/entry - 1) * 1e4",
+    "secondary_per_event": [
+      "MFE_H",
+      "MAE_H (bar high/low, entry-open basis)",
+      "static distance-to-VWAP change (|exit-VWAP_k|-|entry-VWAP_k|)/VWAP_k",
+      "moving distance-to-VWAP change (|exit-VWAP_exit|/VWAP_exit - |entry-VWAP_k|/VWAP_k)",
+      "fraction toward VWAP",
+      "fraction R_H>0",
+      "excess return over the equal-weight universe return in the identical window"
+    ]
+  },
+  "splits": {
+    "warmup": "first 80 sessions (state only, no events)",
+    "TRAIN": [
+      "2023-01-02",
+      "2024-06-30"
+    ],
+    "VAL": [
+      "2024-07-01",
+      "2025-03-31"
+    ],
+    "HOLDOUT": [
+      "2025-04-01",
+      "2026-09-29"
+    ],
+    "discipline": "no parameter is tuned; TRAIN is discovery/diagnostic; VAL is the first confirmatory stage; HOLDOUT is evaluated exactly once, after everything below is frozen"
+  },
+  "inference": {
+    "unit": "the session: for each (stage, side, horizon) the events of a session are averaged into one number (equal weight per event within session); the session series is the sample",
+    "primary_test": "mean of the session series > 0, Newey-West (Bartlett, lag floor(4*(n/100)^(2/9))) one-sided p, Student-t n-1 df",
+    "ci": "95% circular moving-block bootstrap CI of the session-series mean (block = NW lag + 1, 10000 reps, seed 20260930)",
+    "secondary": [
+      "event-level pooled mean with two-way (name x session) clustered SE",
+      "unweighted-by-event session mean vs event-weighted mean",
+      "leave-top-k-sessions-out",
+      "name concentration"
+    ],
+    "family": "10 cells = 2 sides x 5 horizons; Holm-Bonferroni within stage at alpha = 0.05 (one-sided)",
+    "confirmation_rule": "a cell is VAL-confirmed iff Holm-adjusted p < 0.05 in VAL; it is HOLDOUT-confirmed iff it is VAL-confirmed AND HOLDOUT one-sided p < 0.05 (Holm over the VAL-confirmed cells) with the same sign; TRAIN is descriptive only",
+    "effect_size_reported": [
+      "mean bp",
+      "session-series SD",
+      "standardised d",
+      "MDE at 80% power"
+    ]
+  },
+  "economics": {
+    "cost_model": "core/execution/equity/intraday_fees.round_trip_fees at Rs 5,00,000 ticket (era-accurate dates) + slippage kappa bp per side",
+    "kappa_scenarios_bp_per_side": [
+      0.0,
+      1.0,
+      2.75,
+      5.0
+    ],
+    "base_scenario_kappa_bp": 2.75,
+    "kappa_source": "ISD G6b measured drift_p90_abs bp per liquidity decile (2.35-2.90, pooled ~2.75)",
+    "economic_gate": "phenomenon is 'economically meaningful' only if HOLDOUT net mean at the base scenario is > 0 with a bootstrap 95% CI lower bound > 0 in at least one HOLDOUT-confirmed cell",
+    "not_a_strategy": "no sizing, no portfolio, no capital, no stops"
+  },
+  "robustness_only_labels": "every variation below is POST-PRIMARY and labelled; none is ever promoted",
+  "robustness": {
+    "threshold_q": "the two candidate q values not chosen",
+    "normalisation": [
+      "range",
+      "raw_bp"
+    ],
+    "vwap": [
+      "close"
+    ],
+    "entry_delay_bars": 2,
+    "dedup": "all qualifying bars (non-declustered), session clustered",
+    "universe": "all",
+    "extra_horizons_min": [
+      20,
+      45
+    ],
+    "time_of_day": [
+      "10:15-11:29",
+      "11:30-12:44",
+      "12:45-14:10"
+    ],
+    "vol_regime": "prior-session India VIX close, expanding-window terciles (>= 60 sessions)",
+    "market_regime": "Nifty 50 trailing-60-session return at prior close: >= +5% bull, <= -5% bear, else choppy",
+    "liquidity": "terciles of prior-20-session mean traded value within the session's eligible universe",
+    "stock_volatility": "terciles of sigma_prior within the session's eligible universe",
+    "cas_era": "sessions >= 2026-08-03 vs earlier"
+  },
+  "classification": {
+    "vocabulary_note": "C0-C9 as applied in RESEARCH_CLOSURE_LEDGER_2026-09-29: C5 = predefined criterion tested and failed; C6 = positive but incomplete; C7 = HOLDOUT-confirmed (complete statistical chain); C8 = economically confirmed; C9 = replicated/stable across independent windows. The repo does not define C7-C9 textually; this mapping is inferred from ledger usage and is stated, not assumed.",
+    "rules": [
+      "C8: >=1 cell VAL-confirmed AND HOLDOUT-confirmed AND HOLDOUT net (base kappa) bootstrap CI lower bound > 0 in that cell",
+      "C7: >=1 cell VAL-confirmed AND HOLDOUT-confirmed but the economic gate fails (real but sub-cost phenomenon; economics stated separately)",
+      "C6: >=1 cell VAL-confirmed and HOLDOUT positive-signed but not significant, or confirmation only in a single stage/sub-period",
+      "C5: no cell VAL-confirmed, or VAL-confirmed and HOLDOUT null/reversed -- criterion-scoped failure; a precision statement (HOLDOUT MDE, 95% CI upper bound vs the base round-trip cost) accompanies it and the report states whether the null rules out an economically meaningful effect",
+      "C4/unresolved: a data or methodological defect voids the read (stated with the defect)",
+      "C9 is not reachable in this experiment (no independent replication window exists)"
+    ],
+    "continuation_finding": "a significant NEGATIVE mean (continuation) in any cell is reported as a distinct empirical finding; it is not support for H1 and does not change the H1 classification"
+  }
+}
