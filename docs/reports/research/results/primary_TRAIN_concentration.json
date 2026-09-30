@@ -1,0 +1,47 @@
+{
+ "h5": {
+  "top10_event_days_share": 0.20910577971646674,
+  "top10_names_share": 0.1134133042529989,
+  "max_events_one_session": 168,
+  "mean_ex_top1_sessions": 1.5050932490302082,
+  "mean_ex_top5_sessions": 0.7689712632362959,
+  "mean_ex_top10_sessions": 0.016272543173138327,
+  "mean_ex_top20_sessions": -1.1615162779784316
+ },
+ "h10": {
+  "top10_event_days_share": 0.20910577971646674,
+  "top10_names_share": 0.1134133042529989,
+  "max_events_one_session": 168,
+  "mean_ex_top1_sessions": 0.44182413849482327,
+  "mean_ex_top5_sessions": -0.6359897916242913,
+  "mean_ex_top10_sessions": -1.4992200656293555,
+  "mean_ex_top20_sessions": -2.9571223258214756
+ },
+ "h15": {
+  "top10_event_days_share": 0.20910577971646674,
+  "top10_names_share": 0.1134133042529989,
+  "max_events_one_session": 168,
+  "mean_ex_top1_sessions": -0.8626398516622981,
+  "mean_ex_top5_sessions": -2.1910370459787387,
+  "mean_ex_top10_sessions": -3.317329216065775,
+  "mean_ex_top20_sessions": -5.162764798622917
+ },
+ "h30": {
+  "top10_event_days_share": 0.20916280338151078,
+  "top10_names_share": 0.11344423234251431,
+  "max_events_one_session": 168,
+  "mean_ex_top1_sessions": -0.656344111318527,
+  "mean_ex_top5_sessions": -2.044475344684624,
+  "mean_ex_top10_sessions": -3.3330121940387825,
+  "mean_ex_top20_sessions": -5.604374021639688
+ },
+ "h60": {
+  "top10_event_days_share": 0.20916280338151078,
+  "top10_names_share": 0.11344423234251431,
+  "max_events_one_session": 168,
+  "mean_ex_top1_sessions": -0.9268009870667083,
+  "mean_ex_top5_sessions": -2.5388502028223683,
+  "mean_ex_top10_sessions": -4.120305022976435,
+  "mean_ex_top20_sessions": -6.696828626227444
+ }
+}

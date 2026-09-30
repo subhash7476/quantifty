@@ -1,0 +1,21 @@
+{
+  "protocol_id": "VWAP-XREV-1",
+  "version": "1.0",
+  "hashes": {
+    "protocol": "49473baa2aba22671e951136dc0c101d63ad87d8764b356532da84e2f0e294b4",
+    "membership_json": "31f90242f7bd276bf7ad3a02c166f4476b84b21410be07f556b3b1f40d623a65",
+    "scripts/vwap_rev/engine.py": "378f7e8a675210fd7003b6b283eb6896b4834690781c674dc8821cf09f66e33d",
+    "scripts/vwap_rev/analyze.py": "a7091f3b22cacec70f0b4fb491b96146a3352d272147519de98a0cf654307537",
+    "scripts/vwap_rev/stats.py": "be76cd199d6e13e9f16e409c5242d1e5354f1216897e5f1e53cd19f3edaf36ab",
+    "scripts/vwap_rev/universe.py": "0a4f989ed313cc389a4107b13658ff05a9c4896d793c06ce334a52e8ec849f15",
+    "scripts/vwap_rev/common.py": "14d67a0e64343178b72a63693b20d452dce5378b50332783185df0adb403b8a9",
+    "scripts/vwap_rev/classify.py": "d3fa488e788d1f6535cc1a3006216391a609a08714fa0ee6b59f59ef165ec478",
+    "scripts/vwap_rev/freeze.py": "3c763b4d569c00b8c46ff9e0470718df357490b6ca7f9d0e9bdf5a90707f5757",
+    "scripts/vwap_rev/run_primary.py": "b4702ad3555e1b6d6b4d462e4ce161037bed075b559bc8abcad6846c9c42b799",
+    "scripts/vwap_rev/run_classify.py": "9c5b8ba3d2f0f93b9c67b7d99242dfc00e9153ce3b449e488da023a8562aaa88"
+  },
+  "git_head_at_freeze": "03a8bb62f589b553a790bb65a3b0d65686c993b6",
+  "frozen_at": "2026-09-30T14:14:02",
+  "outcomes_computed_before_freeze": false,
+  "history": []
+}
