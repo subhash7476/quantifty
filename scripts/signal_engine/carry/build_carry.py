@@ -116,6 +116,85 @@ def _adv_at_date(con, fdate, lookback=ADV_WINDOW_DAYS):
     return {r[0]: r[1] for r in rows}
 
 
+def _prune_offgrid(sig, grid_dates):
+    """Delete stored formations the grid no longer contains; return them.
+
+    The weekly grid takes each week's last trading day, so a run mid-week stores that
+    day and the next night's run a later one. Without this, every nightly run left its
+    day behind as a phantom formation (07-23 onward, 2026-09-30).
+    """
+    grid = set(grid_dates)
+    stale = [r[0] for r in sig.execute(
+        "SELECT formation_date FROM formations ORDER BY formation_date").fetchall()
+        if r[0] not in grid]
+    for d in stale:
+        sig.execute("DELETE FROM signals WHERE formation_date = ?", [d])
+        sig.execute("DELETE FROM formations WHERE formation_date = ?", [d])
+    return stale
+
+
+def _repoint_forward(sig):
+    """Point every formation at the next stored one; return how many moved.
+
+    A formation is inserted before its successor exists, so its pointer starts NULL and
+    must be set later. A moved pointer invalidates the forward return measured to it.
+    """
+    moved = sig.execute("""
+        SELECT formation_date, nxt FROM (
+            SELECT formation_date, fwd_formation_date,
+                   LEAD(formation_date) OVER (ORDER BY formation_date) AS nxt
+            FROM formations)
+        WHERE fwd_formation_date IS DISTINCT FROM nxt
+    """).fetchall()
+    for d, nxt in moved:
+        sig.execute("UPDATE formations SET fwd_formation_date = ? WHERE formation_date = ?", [nxt, d])
+        sig.execute("UPDATE signals SET fwd_ret_1m = NULL WHERE formation_date = ?", [d])
+    return len(moved)
+
+
+def _fill_forward_returns(sig):
+    """Compute every missing forward return whose next formation now exists; return the count.
+
+    Only formations added in the current run used to be considered, and those never have a
+    successor yet, so incremental runs filled nothing (fwd_ret_1m NULL after 07-24).
+    """
+    sig.execute("""
+        CREATE OR REPLACE TEMP TABLE pending AS
+        SELECT s.formation_date, s.underlying, f.fwd_formation_date
+        FROM signals s JOIN formations f USING (formation_date)
+        WHERE s.fwd_ret_1m IS NULL AND f.fwd_formation_date IS NOT NULL
+    """)
+    lo, hi = sig.execute(
+        "SELECT MIN(formation_date), MAX(fwd_formation_date) FROM pending").fetchone()
+    if lo is None:
+        sig.execute("DROP TABLE pending")
+        return 0
+
+    # The adjusted view is evaluated whole before any filter applies; materialize only
+    # the symbols and span needed (the memory cap is set by the caller).
+    sig.execute("""
+        CREATE OR REPLACE TEMP TABLE eq_subset AS
+        SELECT symbol, trade_date, close
+        FROM eq.equity_bhavcopy_adjusted
+        WHERE symbol IN (SELECT DISTINCT underlying FROM pending)
+          AND trade_date BETWEEN ? AND ?
+          AND series = 'EQ' AND close IS NOT NULL AND close > 0
+    """, [lo, hi])
+    print(f"  Equity subset: {sig.execute('SELECT COUNT(*) FROM eq_subset').fetchone()[0]:,} rows")
+
+    n = sig.execute("""
+        UPDATE signals s
+        SET fwd_ret_1m = (a2.close - a1.close) / a1.close
+        FROM pending p, eq_subset a1, eq_subset a2
+        WHERE p.formation_date = s.formation_date AND p.underlying = s.underlying
+          AND a1.symbol = p.underlying AND a1.trade_date = p.formation_date
+          AND a2.symbol = p.underlying AND a2.trade_date = p.fwd_formation_date
+    """).fetchone()[0]
+    sig.execute("DROP TABLE eq_subset")
+    sig.execute("DROP TABLE pending")
+    return n
+
+
 def main():
     weekly = "--weekly" in sys.argv
     incremental = "--incremental" in sys.argv
@@ -148,11 +227,8 @@ def main():
 
     fmt_dates = [d for d in all_fmt_dates if d not in existing_dates]
     if not fmt_dates:
-        print("  All formations already built — nothing to do.")
-        con.close()
-        return 0
-
-    if incremental and existing_dates:
+        print("  No new formations.")
+    elif incremental and existing_dates:
         print(f"  {len(fmt_dates)} new formations: {fmt_dates[0]} -> {fmt_dates[-1]}")
     else:
         print(f"  {len(fmt_dates)} formations: {fmt_dates[0]} -> {fmt_dates[-1]}")
@@ -197,17 +273,15 @@ def main():
         sig.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
         sig.execute("SET threads=2")
 
-    fwd_map = {}
-    all_dates = sorted(set(existing_dates) | set(fmt_dates))
-    for i, d in enumerate(all_dates):
-        fwd_map[d] = all_dates[i + 1] if i + 1 < len(all_dates) else None
+    if weekly and incremental:
+        stale = _prune_offgrid(sig, all_fmt_dates)
+        if stale:
+            print(f"  Removed {len(stale)} off-grid formations: {stale[0]} -> {stale[-1]}")
 
     n_total = len(fmt_dates)
     for idx, fdate in enumerate(fmt_dates):
         if (idx + 1) % 10 == 0:
             print(f"  formation {idx+1}/{n_total}: {fdate}")
-
-        nfdate = fwd_map.get(fdate)
 
         rows = con.execute(f"""
             SELECT bp.underlying, bp.entity, bp.annualized_basis,
@@ -286,7 +360,7 @@ def main():
 
         sig.execute(
             "INSERT INTO formations VALUES (?, ?, ?, ?, ?, ?)",
-            [fdate, nfdate, n_liquid, n_scored, mean_b, sd_b],
+            [fdate, None, n_liquid, n_scored, mean_b, sd_b],
         )
 
         sig_con = sig.cursor()
@@ -298,66 +372,17 @@ def main():
                  d["z_carry"], d["liquid"]],
             )
 
-    # 4. Forward returns — pre-filter equity to avoid OOM
+    # 4. Forward returns
     print("Computing forward returns...")
     sig.close()
     sig = duckdb.connect(str(SIG_DB))
     sig.execute("SET threads=1")
-    sig.execute("SET memory_limit='4GB'")
+    # Kept well under this machine's free RAM so the adjusted view spills to disk: at
+    # 4GB the allocation failed outright (Out of Memory, 2026-09-29 22:10).
+    sig.execute("SET memory_limit='1GB'")
     sig.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
-
-    # Only compute fwd_ret for signals that don't have it yet
-    new_date_str = ", ".join(f"DATE '{d}'" for d in fmt_dates)
-    sig.execute(f"""
-        CREATE TEMP TABLE new_signals AS
-        SELECT formation_date, underlying FROM signals
-        WHERE formation_date IN ({new_date_str}) AND fwd_ret_1m IS NULL
-    """)
-
-    # Pre-filter equity to only needed symbols and date range
-    sym_rows = sig.execute("SELECT DISTINCT underlying FROM new_signals").fetchall()
-    all_syms = [r[0] for r in sym_rows]
-
-    if all_syms and fmt_dates:
-        sym_str = ", ".join(f"'{s}'" for s in all_syms)
-        lo = fmt_dates[0]
-        # forward date range extends to last fwd_date
-        last_fwd = fwd_map.get(fmt_dates[-1]) if fmt_dates else None
-        hi = max(last_fwd or fmt_dates[-1], fmt_dates[-1])
-
-        sig.execute(f"""
-            CREATE TEMP TABLE eq_subset AS
-            SELECT symbol, trade_date, close
-            FROM eq.equity_bhavcopy_adjusted
-            WHERE symbol IN ({sym_str})
-              AND trade_date >= DATE '{lo}'
-              AND trade_date <= DATE '{hi}'
-              AND series = 'EQ' AND close IS NOT NULL AND close > 0
-        """)
-        n_eq = sig.execute("SELECT COUNT(*) FROM eq_subset").fetchone()[0]
-        print(f"  Equity subset: {n_eq:,} rows")
-
-        sig.execute("""
-            CREATE TEMP TABLE fwd_returns AS
-            SELECT s.formation_date, s.underlying,
-                   (a2.close - a1.close) / a1.close AS fwd_ret
-            FROM new_signals s
-            JOIN formations f ON f.formation_date = s.formation_date AND f.fwd_formation_date IS NOT NULL
-            JOIN eq_subset a1
-                ON a1.symbol = s.underlying AND a1.trade_date = s.formation_date
-            JOIN eq_subset a2
-                ON a2.symbol = s.underlying AND a2.trade_date = f.fwd_formation_date
-        """)
-        sig.execute("""
-            UPDATE signals s
-            SET fwd_ret_1m = fr.fwd_ret
-            FROM fwd_returns fr
-            WHERE fr.formation_date = s.formation_date AND fr.underlying = s.underlying
-        """)
-        sig.execute("DROP TABLE IF EXISTS fwd_returns")
-        sig.execute("DROP TABLE IF EXISTS eq_subset")
-
-    sig.execute("DROP TABLE IF EXISTS new_signals")
+    print(f"  {_repoint_forward(sig)} forward pointers set")
+    print(f"  {_fill_forward_returns(sig):,} forward returns filled")
 
     total_sig = sig.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
     n_form = sig.execute("SELECT COUNT(DISTINCT formation_date) FROM formations").fetchone()[0]
