@@ -31,6 +31,10 @@ def test_holdout_needs_val_cells_operator_authorisation_and_is_one_shot(tmp_path
     with pytest.raises(RuntimeError, match="authorisation"):
         F.holdout_guard(val)
     (tmp_path / "auth.json").write_text("{}")
+    monkeypatch.setattr(C, "OUT_DIR", tmp_path)
+    with pytest.raises(RuntimeError, match="manifest_full"):
+        F.holdout_guard(val)
+    (tmp_path / "manifest_full.json").write_text("{}")
     F.holdout_guard(val)                                     # now allowed
     (tmp_path / "read.json").write_text("{}")
     with pytest.raises(RuntimeError, match="one-shot"):

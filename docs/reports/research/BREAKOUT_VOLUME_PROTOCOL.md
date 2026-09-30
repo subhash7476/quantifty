@@ -150,7 +150,7 @@ adjusted volume (shares).
 |---|---|---|
 | TRAIN | 2012-01-02 → 2017-12-29 (1,474 sessions) | Descriptive only; **no parameter is pinned or changed on it** (all are pre-declared). Debugging of defects only, logged. |
 | VAL | 2018-01-01 → 2022-12-30 (1,233 sessions) | Single confirmatory family (§7.4) — run as pinned or STOP |
-| HOLDOUT | 2023-01-02 → 2026-09-29, one-shot | **Read only if (a) ≥ 1 VAL cell is confirmed, (b) the operator explicitly authorises the spend (record `breakout_volume_HOLDOUT_AUTHORISATION.json`), (c) a register row is added.** Otherwise it is never read, and the full-panel snapshot is never built. |
+| HOLDOUT | 2023-01-02 → 2026-09-29, one-shot | **Read only if (a) ≥ 1 VAL cell is confirmed, (b) the operator explicitly authorises the spend (record `breakout_volume_HOLDOUT_AUTHORISATION.json`), (c) a register row is added.** The full snapshot's file hashes and the store's unfenced max date are written into the one-shot read marker, so the read is reconstructable even though the store is mutated nightly. Otherwise it is never read, and the full-panel snapshot is never built. |
 
 If VAL confirms nothing → **STOP: no HOLDOUT read, no re-specification, no second family/N/H.**
 
@@ -186,10 +186,10 @@ Results that cannot be reproduced by the independent paths are labelled **NOT AU
 | # | Check | Two methods | Tolerance |
 |---|---|---|---|
 | VP1 | every event: existence, arm, AV, R, R_m, f | numpy/pandas engine vs **pure-SQL** window-function re-derivation from the same snapshot (its own calendar, membership, flags, windows, terminal rule, benchmark) | sets equal; arms equal; f within 1e-6 bp |
-| VP2 | seeded event sample (3 per N×kind×arm), CA-free spans | engine vs **plain-Python loops over the RAW as-traded table** (own Mx/median/AV/entry/exit/R) | 1e-9 |
+| VP2 | seeded event sample (3 per N×kind×arm); events with any adjustment factor in [t−83, exit] are skipped and counted | engine vs **plain-Python loops over the RAW as-traded table** (own Mx/median/AV/entry/exit/R). Compared quantities are **scale-free** (AV, R, breakout margin `C_t/level − 1`): adjusted price *levels* differ from raw ones for any name with a *later* bonus/split, by construction | 1e-9 |
 | VP3 | every cell: cohort d(t), d̄, SE, t, p | table vs dict arithmetic from the event ledger + a pure-Python NW + `statsmodels.stats.sandwich_covariance.S_hac_simple` kernel | 1e-6 |
 | VP4 | accounting: formed = resolved + dropped + contained-out + no-benchmark; A = B ⊔ C; unique event keys; one R_m per (date, H) | identity | exact |
-| VP5 | volume: adjusted = raw volume on names with no bonus/split; abnormal-flag agreement between volume-based and turnover-based (CA-invariant) AV | reasonableness (agreement rate reported) | adjusted = raw within 1e-6 |
+| VP5 | volume: (a) adjusted = raw volume on names with no bonus/split (gate); (b) abnormal-flag agreement between volume-based and turnover-based (CA-invariant) AV (reported); (c) for names *with* a bonus/split, adjusted close and volume rebuilt from `adjustment_factors` (price = raw × Π later factors, volume = raw ÷ Π later bonus/split factors) — agreement rate reported | (a) 1e-6 |
 | VP6 | fees: one BUY + one SELL by hand from the schedules vs the library | arithmetic | 1e-9 |
 
 Report-only agreement checks (no pass/fail, but a sign flip of significance at 0.05 between the NW and the
@@ -212,7 +212,7 @@ before the freeze: the two engines agree exactly there, and the verifier fails o
 | Duplicated observations | unique (entity, t, N, kind); PSB rn = 1 listing pick; test + VP4 | VP4 |
 | Weighting mistakes | cohort-weighted primary + event-weighted beside it; `A = B ⊔ C` identity | §7.6, VP4 |
 | Corporate-action basis | certified adjusted view for prices and volume; no 1m/bhavcopy join; events with a CA in the span reported as a post-primary exclusion sensitivity | §13 |
-| Special / short sessions | rule-based removal of 26 snapshot-span dates (§4) | §4 |
+| Special / short sessions | rule-based removal of 26 snapshot-span dates (§4). The centred 21-session median uses ten future sessions' turnover; checked outcome-free that a strictly-prior trailing-21 median drops the **identical** 10 short-session dates (max dropped ratio 0.30 vs min kept 0.52 — the 0.40 cut sits in a wide empty gap), so the calendar is not sensitive to the look-ahead | `breakout_volume_diagnostics_outcome_free.json`, log L8 |
 | Denominator errors | every count reconciles by identity (`accounting_*.json`) | VP4 |
 | Multiple testing / parameter selection | 8-cell family, Holm; nothing tuned on TRAIN; post-primary variants are disclosure only | §7.4, §13 |
 | Cost assumptions | existing delivery-fee model; κ disclosed, break-even reported; short leg is proxy-priced | §9 |
@@ -222,7 +222,7 @@ before the freeze: the two engines agree exactly there, and the verifier fails o
 (R1) high/low-based range instead of closes; (R2) AV thresholds 1.5 and 3.0; (R3) non-declustered events (expected to be
 a look-ahead-weighting artefact — the VWAP report's non-declustered variant was one); (R4) exclude events with any
 bonus/split/special-dividend adjustment in [t−83, t+H+1]; (R5) overnight-gap vs post-open decomposition of f;
-(R6) turnover-based AV flag; (R7) by calendar year (stability); (R8) excluding terminal-truncated windows.
+(R6) turnover-based AV flag; (R7) by calendar year (stability); (R8) excluding terminal-truncated windows; **(R9) move-size confound**: B days are by construction larger-move days (bigger day-t return, deeper breakout, likely a bigger t+1 gap), so a positive B − C could mean "deep breakouts continue" rather than "volume confirms". Declared now, report-only: the paired B − C contrast (same NW) **within terciles of breakout penetration depth** `|C_t/level − 1|`, with tercile cut points fixed **once per (N, side) from the pooled TRAIN ∪ VAL A-arm events** and applied unchanged to any later stage, plus the share of B events in each tercile. It gates nothing.
 Anything else is a new pre-registration.
 
 ## 14. Power, and what a null can and cannot say

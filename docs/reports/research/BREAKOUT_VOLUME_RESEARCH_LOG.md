@@ -8,3 +8,5 @@
 | L4 | 17:0x | Outcome-free diagnostics: event counts by stage/arm/N (`breakout_volume_diagnostics_outcome_free.json`). Counts only. |
 | L5 | 17:2x | Pipeline validated on a SYNTHETIC snapshot (130 names, delistings, holes): numpy engine and SQL verifier agree event-for-event (0 exceptions); verifier flags a tampered ledger. No real price used. |
 | L6 | 17:3x | Protocol + JSON written; Params mirrored by test; freeze next. |
+| L7 | 17:5x | Advisor pass 2 (pre-freeze). Fixed: VP2 compared adjusted vs raw price LEVELS (would fail on any name with a later bonus/split -> spurious C4) -> now compares scale-free margin; dry-run fixture now contains real 2:1 splits (VP2 skips/passes correctly, VP5(c) rebuilds adjusted from factors at 100%); the HOLDOUT marker now records the full-snapshot hashes; R9 move-size confound declared. |
+| L8 | 17:5x | Outcome-free: strictly-prior trailing-21 turnover median drops the identical 10 short-session dates as the centred median (max dropped 0.30, min kept 0.52). |

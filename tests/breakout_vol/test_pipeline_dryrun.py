@@ -49,8 +49,19 @@ def synth(tmp_path_factory):
     memb.to_parquet(out / "membership_dev.parquet", index=False)
     raw = out / "raw.duckdb"
     con = duckdb.connect(str(raw))
-    con.execute("CREATE TABLE equity_bhavcopy AS SELECT symbol, series, CAST(trade_date AS DATE) trade_date, open, high, low, close, volume, turnover FROM panel")
+    # 2:1 splits at session 200 on every 10th name: the snapshot holds ADJUSTED values (prices x0.5, volume x2 before the
+    # ex-date, as the certified view produces); the raw table holds the AS-TRADED values.
+    ex_date = dates[200]
+    ca_ents = {f"E{e:03d}" for e in range(3, E, 10)}
+    raw_df = panel.copy()
+    pre = raw_df["entity"].isin(ca_ents) & (raw_df["trade_date"] < ex_date)
+    for col in ("open", "high", "low", "close"):
+        raw_df.loc[pre, col] = raw_df.loc[pre, col] / 0.5
+    raw_df.loc[pre, "volume"] = raw_df.loc[pre, "volume"] * 0.5
+    con.execute("CREATE TABLE equity_bhavcopy AS SELECT symbol, series, CAST(trade_date AS DATE) trade_date, open, high, low, close, volume, turnover FROM raw_df")
     con.execute("CREATE TABLE adjustment_factors (symbol VARCHAR, ex_date DATE, action_type VARCHAR, factor DOUBLE)")
+    for ent in sorted(ca_ents):
+        con.execute("INSERT INTO adjustment_factors VALUES (?, ?, 'SPLIT', 0.5)", [f"S{int(ent[1:])}", ex_date.date()])
     con.close()
     old = (C.OUT_DIR, C.EQUITY_DB, C.STAGES["TRAIN"])
     C.OUT_DIR, C.EQUITY_DB = out, raw
@@ -88,6 +99,9 @@ def test_independent_paths_pass(ran):
     for k in ("vp2_raw", "vp3_stats", "vp4_accounting", "vp5_volume", "vp6_fee"):
         assert ver[k]["pass"], (k, ver[k])
     assert ver["vp2_raw"]["verified"] >= 10
+    assert ver["vp2_raw"]["skipped_ca"] > 0                          # events spanning the ex-date are skipped, not forced
+    assert ver["vp2_raw"]["level_differs_by_later_CA_events"] > 0    # levels DO differ before the ex-date; the margin ratio does not
+    assert ver["vp5_volume"]["names_with_bonus_or_split"] > 0 and ver["vp5_volume"]["ca_reconstruction_rate"] == 1.0
     print("VP2", ver["vp2_raw"]); print("VP3 diffs", ver["vp3_stats"]["max_abs_diff"]); print("VP5", ver["vp5_volume"])
     assert not ver["stop"]
 

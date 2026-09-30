@@ -185,9 +185,12 @@ def vp2_raw_sample(stage: str, tag: str, n_per_cell: int = 3, seed: int = 202609
         med = (vols[9] + vols[10]) / 2
         av = by[sess[t]][2] / med
         ref = max(closes) if r.kind in ("up",) else min(closes) if r.kind in ("dn",) else float("nan")
+        margin_raw = by[sess[t]][1] / ref - 1 if ref == ref else float("nan")
+        margin_led = r.close / r.ref_level - 1 if r.ref_level == r.ref_level else float("nan")
         entry, exit5, exit20 = by[sess[t + 1]][0], by[sess[t + 5]][1], by[sess[t + 20]][1]
         rows.append({"entity": r.entity, "date": str(sess[t]), "N": N, "kind": r.kind, "arm": r.arm,
                      "close_t": by[sess[t]][1], "ref_level": ref, "ledger_ref": r.ref_level,
+                     "margin_raw": margin_raw, "margin_ledger": margin_led,
                      "vol_t": by[sess[t]][2], "median_prior20": med, "av_raw": av, "av_ledger": r.av,
                      "entry_open": entry, "exit_close_h5": exit5, "exit_close_h20": exit20,
                      "R5_raw": exit5 / entry - 1, "R5_ledger": r.R5, "R20_raw": exit20 / entry - 1, "R20_ledger": r.R20})
@@ -200,9 +203,10 @@ def vp2_raw_sample(stage: str, tag: str, n_per_cell: int = 3, seed: int = 202609
         out["R5_max_abs_diff"] = float((d["R5_raw"] - d["R5_ledger"]).abs().max())
         out["R20_max_abs_diff"] = float((d["R20_raw"] - d["R20_ledger"]).abs().max())
         brk = d[d["kind"].isin(["up", "dn"])]
-        out["ref_max_abs_diff"] = float((brk["ref_level"] - brk["ledger_ref"]).abs().max()) if len(brk) else 0.0
+        out["margin_max_abs_diff"] = float((brk["margin_raw"] - brk["margin_ledger"]).abs().max()) if len(brk) else 0.0
+        out["level_differs_by_later_CA_events"] = int(((brk["ref_level"] - brk["ledger_ref"]).abs() > 1e-9).sum()) if len(brk) else 0
         out["pass"] = bool(out["av_max_rel_diff"] < 1e-9 and out["R5_max_abs_diff"] < 1e-9 and
-                           out["R20_max_abs_diff"] < 1e-9 and out["ref_max_abs_diff"] < 1e-9)
+                           out["R20_max_abs_diff"] < 1e-9 and out["margin_max_abs_diff"] < 1e-9)
     else:
         out["pass"] = False
     d.to_csv(_res() / f"vp2_raw_sample_{stage}.csv", index=False)
@@ -308,6 +312,7 @@ def vp5_volume(stage: str, tag: str, n: int = 4000, seed: int = 7) -> dict:
     panel = pd.read_parquet(C.OUT_DIR / f"panel_{tag}.parquet", columns=["entity", "trade_date", "symbol", "volume", "turnover", "close"])
     ca_syms = set(r[0] for r in con.execute(
         "SELECT DISTINCT symbol FROM adjustment_factors WHERE action_type IN ('BONUS','SPLIT')").fetchall())
+    con_fac = duckdb.connect(str(C.EQUITY_DB), read_only=True)
     clean = panel[~panel["symbol"].isin(ca_syms)]
     samp = clean.sample(min(n, len(clean)), random_state=seed)
     dates = tuple(pd.to_datetime(samp["trade_date"]).dt.date.unique())
@@ -316,7 +321,33 @@ def vp5_volume(stage: str, tag: str, n: int = 4000, seed: int = 7) -> dict:
     con.close()
     m = samp.assign(td=pd.to_datetime(samp["trade_date"])).merge(raw.assign(td=pd.to_datetime(raw["trade_date"])),
                                                                   on=["symbol", "td"], suffixes=("_adj", "_raw"))
+    fac = con_fac.execute(
+        "SELECT symbol, ex_date, action_type, factor FROM adjustment_factors "
+        "WHERE action_type IN ('BONUS','SPLIT','SPECIAL_DIVIDEND')").df()
+    con_fac.close()
+    fac["ex_date"] = pd.to_datetime(fac["ex_date"])
+    has_ca = panel["symbol"].isin(ca_syms)
+    ca_rows = panel[has_ca].sample(min(3000, int(has_ca.sum())), random_state=seed) if has_ca.any() else panel.iloc[0:0]
+    rec_ok, rec_n = 0, 0
+    if len(ca_rows):
+        con2 = duckdb.connect(str(C.EQUITY_DB), read_only=True)
+        d2 = tuple(pd.to_datetime(ca_rows["trade_date"]).dt.date.unique())
+        raw2 = con2.execute("SELECT symbol, trade_date, close raw_close, volume raw_vol FROM equity_bhavcopy "
+                            "WHERE series IN ('EQ','BE') AND trade_date IN (" + ",".join(["?"] * len(d2)) + ")", list(d2)).df()
+        con2.close()
+        j = ca_rows.assign(td=pd.to_datetime(ca_rows["trade_date"])).merge(
+            raw2.assign(td=pd.to_datetime(raw2["trade_date"])), on=["symbol", "td"])
+        by_sym = {k: g for k, g in fac.groupby("symbol")}
+        for r in j.itertuples():
+            g = by_sym.get(r.symbol)
+            later = g[g["ex_date"] > r.td] if g is not None else fac.iloc[0:0]
+            pf = float(np.prod(later["factor"])) if len(later) else 1.0
+            vf = float(np.prod(later.loc[later["action_type"].isin(["BONUS", "SPLIT"]), "factor"])) if len(later) else 1.0
+            rec_n += 1
+            rec_ok += int(abs(r.close - r.raw_close * pf) <= 1e-6 * abs(r.close) and abs(r.volume - r.raw_vol / vf) <= 1e-6 * abs(r.volume))
     out = {"stage": stage, "names_with_bonus_or_split": len(ca_syms), "rows_checked": int(len(m)),
+           "ca_rows_reconstructed": rec_n, "ca_rows_reconstruction_agree": rec_ok,
+           "ca_reconstruction_rate": (rec_ok / rec_n) if rec_n else None,
            "adj_vs_raw_max_abs_diff_no_CA_names": float((m["volume_adj"] - m["volume_raw"]).abs().max())}
     # turnover-based flag agreement on the event set
     pv = panel.copy()

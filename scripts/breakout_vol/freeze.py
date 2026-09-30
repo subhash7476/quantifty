@@ -80,12 +80,18 @@ def holdout_guard(val_cells_csv) -> None:
         raise RuntimeError("VAL cells file missing: VAL must be read before HOLDOUT")
     if not HOLDOUT_AUTH.exists():
         raise RuntimeError("no operator authorisation record: the HOLDOUT window is not spent without a go-ahead")
+    if not (C.OUT_DIR / "manifest_full.json").exists():
+        raise RuntimeError("manifest_full.json missing: build the full snapshot (prep --holdout) so the read is reconstructable")
 
 
 def mark_holdout_read(note: str) -> None:
+    man = json.loads((C.OUT_DIR / "manifest_full.json").read_text())
     HOLDOUT_MARKER.write_text(json.dumps({
         "read_at": dt.datetime.now().isoformat(timespec="seconds"),
-        "protocol_sha": json.loads(FREEZE_PATH.read_text())["hashes"]["protocol"], "note": note}, indent=2))
+        "protocol_sha": json.loads(FREEZE_PATH.read_text())["hashes"]["protocol"],
+        "snapshot_full_files": {k: v["sha256"] for k, v in man["files"].items()},
+        "snapshot_full_built_at": man["built_at"], "store_unfenced_max_date": man["store_unfenced_max_date"],
+        "note": note}, indent=2))
 
 
 if __name__ == "__main__":
