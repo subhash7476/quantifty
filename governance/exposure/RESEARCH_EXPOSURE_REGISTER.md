@@ -368,3 +368,24 @@ test.
 
 *This note is prose, not a second table row, deliberately: the screen's guard requires exactly one
 committed line beginning `| G-S1 |` and refuses on a duplicate.*
+
+## 11. Register — BKV-1 (M3a × M5b closing-range breakout × abnormal volume) (appended 2026-09-30, **after** the read)
+
+**Authority:** operator request 2026-09-30. **Recorded after the read, not before** (contrary to §8): the study's protocol carried its own
+prior-exposure disclosure (`docs/reports/research/BREAKOUT_VOLUME_PROTOCOL.md` §3), but this register was not updated first. Stated here so a
+successor can weigh it. Frozen protocol: `docs/reports/research/BREAKOUT_VOLUME_PROTOCOL.md` v1.0, freeze commit `84fcd99`
+(`breakout_volume_FREEZE.json`; amendments A1–A3 logged); merged in PR #36 (`7e03fd8`).
+
+| # | Surface | Window | Level | Hypothesis family | Consumer | Evidence |
+|---|---|---|---|---|---|---|
+| Q-7 | Equity EOD (adjusted OHLCV + adjusted volume; PIT top-200 turnover universe) | TRAIN 2012-01-02 → 2017-12-29 and VAL 2018-01-01 → 2022-12-30 (snapshot ends 2022-12-30) | **signal** (gated; TRAIN descriptive, VAL confirmatory) | BKV-1 — closing-range onset breakout continuation, with vs without abnormal volume (M3a × M5b) | `scripts/breakout_vol/` (`run_stage.py`, `verify_independent.py`) at PR #36 | `docs/reports/research/BREAKOUT_VOLUME_RESEARCH_REPORT.md`; `docs/reports/research/breakout_volume/` (event, cohort, benchmark, cost ledgers); snapshot hashes in `breakout_volume_FREEZE.json` |
+
+**Outcome of the read:** VAL 0 of 8 cells confirmed; category C5, construct-scoped (closure ledger addendum 2026-09-30 (b)).
+
+**What this spends.** The 2012 → 2022-12-30 equity EOD panel was already signal-spent for other families (Q-1…Q-3, G-S1, MRLC); it is now also
+spent for the breakout-continuation × volume-flag family, so it can never again serve as a confirmatory window for that family (GR-1.3). Beyond the
+returns of the events themselves, the read touched adjusted volume for the first time as a signal input.
+
+**What this did NOT spend.** The 2023-01-02 → present equity EOD window: the dev snapshot ends 2022-12-30, no full snapshot was built, and the one-shot
+HOLDOUT guard (`breakout_volume_HOLDOUT_READ.json`) was never written. Q-6 (CSMP momentum, 2023-01 → 2026-06) and the 2026-09-19 operator ruling that
+2023-01-02 → 2026-09-11 is signal-spent for other reasons are unaffected by this entry.
