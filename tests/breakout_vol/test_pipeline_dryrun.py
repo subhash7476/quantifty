@@ -53,6 +53,9 @@ def synth(tmp_path_factory):
     # ex-date, as the certified view produces); the raw table holds the AS-TRADED values.
     ex_date = dates[200]
     ca_ents = {f"E{e:03d}" for e in range(3, E, 10)}
+    ren = panel["entity"].eq("E003") & (panel["trade_date"] >= dates[100])
+    panel.loc[ren, "symbol"] = "S3B"                                   # rename chain inside the panel
+    panel.to_parquet(out / "panel_dev.parquet", index=False)           # snapshot carries the renamed symbol
     raw_df = panel.copy()
     pre = raw_df["entity"].isin(ca_ents) & (raw_df["trade_date"] < ex_date)
     for col in ("open", "high", "low", "close"):
@@ -61,7 +64,12 @@ def synth(tmp_path_factory):
     con.execute("CREATE TABLE equity_bhavcopy AS SELECT symbol, series, CAST(trade_date AS DATE) trade_date, open, high, low, close, volume, turnover FROM raw_df")
     con.execute("CREATE TABLE adjustment_factors (symbol VARCHAR, ex_date DATE, action_type VARCHAR, factor DOUBLE)")
     for ent in sorted(ca_ents):
-        con.execute("INSERT INTO adjustment_factors VALUES (?, ?, 'SPLIT', 0.5)", [f"S{int(ent[1:])}", ex_date.date()])
+        sym = "S3B" if ent == "E003" else f"S{int(ent[1:])}"             # E003's factor is keyed to its NEW symbol
+        con.execute("INSERT INTO adjustment_factors VALUES (?, ?, 'SPLIT', 0.5)", [sym, ex_date.date()])
+    con.execute("CREATE TABLE symbol_entity_intervals (symbol VARCHAR, valid_from DATE, valid_to DATE, entity VARCHAR)")
+    for e in range(E):
+        con.execute("INSERT INTO symbol_entity_intervals VALUES (?, DATE '2000-01-01', DATE '2100-01-01', ?)", [f"S{e}", f"E{e:03d}"])
+    con.execute("INSERT INTO symbol_entity_intervals VALUES ('S3B', DATE '2000-01-01', DATE '2100-01-01', 'E003')")
     con.close()
     old = (C.OUT_DIR, C.EQUITY_DB, C.STAGES["TRAIN"])
     C.OUT_DIR, C.EQUITY_DB = out, raw
@@ -101,7 +109,7 @@ def test_independent_paths_pass(ran):
     assert ver["vp2_raw"]["verified"] >= 10
     assert ver["vp2_raw"]["skipped_ca"] > 0                          # events spanning the ex-date are skipped, not forced
     assert ver["vp2_raw"]["level_differs_by_later_CA_events"] > 0    # levels DO differ before the ex-date; the margin ratio does not
-    assert ver["vp5_volume"]["names_with_bonus_or_split"] > 0 and ver["vp5_volume"]["ca_reconstruction_rate"] == 1.0
+    assert ver["vp5_volume"]["entities_with_bonus_or_split"] > 0 and ver["vp5_volume"]["ca_reconstruction_rate"] == 1.0
     print("VP2", ver["vp2_raw"]); print("VP3 diffs", ver["vp3_stats"]["max_abs_diff"]); print("VP5", ver["vp5_volume"])
     assert not ver["stop"]
 

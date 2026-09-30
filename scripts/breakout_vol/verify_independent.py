@@ -32,6 +32,14 @@ def _res():
 TOL = 1e-9
 
 
+def entity_symbols(con) -> dict:
+    """entity -> every symbol it ever traded under (certified symbol_entity_intervals)."""
+    d = {}
+    for ent, sym in con.execute("SELECT entity, symbol FROM symbol_entity_intervals").fetchall():
+        d.setdefault(ent, set()).add(sym)
+    return d
+
+
 # ------------------------------------------------------------------ VP1
 def _sql_events(tag: str) -> tuple[duckdb.DuckDBPyConnection, int]:
     con = duckdb.connect()
@@ -154,6 +162,7 @@ def vp2_raw_sample(stage: str, tag: str, n_per_cell: int = 3, seed: int = 202609
     sess = [pd.Timestamp(x).date() for x in sessions]
     panel = pd.read_parquet(C.OUT_DIR / f"panel_{tag}.parquet", columns=["entity", "trade_date", "symbol"])
     con = duckdb.connect(str(C.EQUITY_DB), read_only=True)
+    ent_syms = entity_symbols(con)
     rng = np.random.default_rng(seed)
     picks = []
     for (N, kind, arm), g in led.groupby(["N", "kind", "arm"]):
@@ -169,8 +178,10 @@ def vp2_raw_sample(stage: str, tag: str, n_per_cell: int = 3, seed: int = 202609
             skipped_sym += 1
             continue
         sym = syms[0]
-        ca = con.execute("SELECT count(*) FROM adjustment_factors WHERE symbol = ? AND ex_date BETWEEN ? AND ?",
-                         [sym, d0, d1]).fetchone()[0]
+        all_syms = sorted(ent_syms.get(r.entity, {sym}) | {sym})
+        ca = con.execute("SELECT count(*) FROM adjustment_factors WHERE symbol IN ("
+                         + ",".join(["?"] * len(all_syms)) + ") AND ex_date BETWEEN ? AND ?",
+                         all_syms + [d0, d1]).fetchone()[0]
         if ca:
             skipped_ca += 1
             continue
@@ -313,7 +324,9 @@ def vp5_volume(stage: str, tag: str, n: int = 4000, seed: int = 7) -> dict:
     ca_syms = set(r[0] for r in con.execute(
         "SELECT DISTINCT symbol FROM adjustment_factors WHERE action_type IN ('BONUS','SPLIT')").fetchall())
     con_fac = duckdb.connect(str(C.EQUITY_DB), read_only=True)
-    clean = panel[~panel["symbol"].isin(ca_syms)]
+    ent_syms = entity_symbols(con_fac)
+    ca_ents = {e for e, ss in ent_syms.items() if ss & ca_syms}                 # A1: adjustment is per ENTITY
+    clean = panel[~panel["entity"].isin(ca_ents)]
     samp = clean.sample(min(n, len(clean)), random_state=seed)
     dates = tuple(pd.to_datetime(samp["trade_date"]).dt.date.unique())
     raw = con.execute("SELECT symbol, trade_date, volume FROM equity_bhavcopy WHERE series IN ('EQ','BE') AND trade_date IN ("
@@ -326,7 +339,7 @@ def vp5_volume(stage: str, tag: str, n: int = 4000, seed: int = 7) -> dict:
         "WHERE action_type IN ('BONUS','SPLIT','SPECIAL_DIVIDEND')").df()
     con_fac.close()
     fac["ex_date"] = pd.to_datetime(fac["ex_date"])
-    has_ca = panel["symbol"].isin(ca_syms)
+    has_ca = panel["entity"].isin(ca_ents)
     ca_rows = panel[has_ca].sample(min(3000, int(has_ca.sum())), random_state=seed) if has_ca.any() else panel.iloc[0:0]
     rec_ok, rec_n = 0, 0
     if len(ca_rows):
@@ -337,15 +350,17 @@ def vp5_volume(stage: str, tag: str, n: int = 4000, seed: int = 7) -> dict:
         con2.close()
         j = ca_rows.assign(td=pd.to_datetime(ca_rows["trade_date"])).merge(
             raw2.assign(td=pd.to_datetime(raw2["trade_date"])), on=["symbol", "td"])
-        by_sym = {k: g for k, g in fac.groupby("symbol")}
+        by_ent = {}
+        for e in set(j["entity"]):
+            by_ent[e] = fac[fac["symbol"].isin(ent_syms.get(e, set()))]
         for r in j.itertuples():
-            g = by_sym.get(r.symbol)
+            g = by_ent.get(r.entity)
             later = g[g["ex_date"] > r.td] if g is not None else fac.iloc[0:0]
             pf = float(np.prod(later["factor"])) if len(later) else 1.0
             vf = float(np.prod(later.loc[later["action_type"].isin(["BONUS", "SPLIT"]), "factor"])) if len(later) else 1.0
             rec_n += 1
             rec_ok += int(abs(r.close - r.raw_close * pf) <= 1e-6 * abs(r.close) and abs(r.volume - r.raw_vol / vf) <= 1e-6 * abs(r.volume))
-    out = {"stage": stage, "names_with_bonus_or_split": len(ca_syms), "rows_checked": int(len(m)),
+    out = {"stage": stage, "symbols_with_bonus_or_split": len(ca_syms), "entities_with_bonus_or_split": len(ca_ents), "rows_checked": int(len(m)),
            "ca_rows_reconstructed": rec_n, "ca_rows_reconstruction_agree": rec_ok,
            "ca_reconstruction_rate": (rec_ok / rec_n) if rec_n else None,
            "adj_vs_raw_max_abs_diff_no_CA_names": float((m["volume_adj"] - m["volume_raw"]).abs().max())}

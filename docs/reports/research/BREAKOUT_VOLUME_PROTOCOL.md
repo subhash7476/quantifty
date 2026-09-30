@@ -258,3 +258,17 @@ python -m scripts.breakout_vol.run_stage CLASSIFY
 ```
 Determinism: seeded bootstrap (20260930) and permutation (20260931); every threshold is a function of prior sessions;
 results reproduce byte-for-byte from the hashed snapshot.
+
+---
+
+## Amendments (append-only; each is logged in the freeze record `history` and the research log)
+
+**A1 — 2026-09-30, verifier population only (VP2 skip rule, VP5 "clean" set and rebuild).** VP5(a) as frozen defined
+"names with no bonus/split" at the **symbol** level. Run on TRAIN it failed (max |adjusted − raw| = 2.4e7 shares on 103 of
+4,000 sampled rows). Diagnosis: all 11 offending entities had a bonus/split keyed to *another symbol of the same entity*
+(PHILIPCARB→PCBL, SRTRANSFIN→SHRIRAMFIN, NIITTECH→COFORGE, …); the certified view adjusts per **entity**, so the check's
+population, not the data or the engine, was wrong. Corrected to entity level in three places: VP5(a) clean set, VP5(c)
+rebuild (factors of every symbol of the entity), and the VP2 skip rule (any factor of any symbol of the entity in
+[t−83, exit]). The synthetic dry run now contains a rename chain with the split keyed to the new symbol; the symbol-level
+check fails on it and the entity-level check passes. **No engine, analysis, classification or protocol-parameter code
+changed; TRAIN results were computed before the amendment and are unchanged** (VP1, VP3, VP4 are unaffected by A1).
