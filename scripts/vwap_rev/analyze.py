@@ -42,8 +42,9 @@ def session_series(ev: pd.DataFrame, col: str) -> pd.Series:
 def cell_stats(ev: pd.DataFrame, H: int, col: str | None = None) -> dict:
     col = col or f"R_h{H}"
     sub = ev.dropna(subset=[col])
+    n_all = len(ev)
     if len(sub) == 0:
-        return {"n_events": 0}
+        return {"n_events": 0, "n_all_events": n_all, "n_nan": n_all, "nan_share": 1.0 if n_all else np.nan}
     ss = session_series(sub, col)
     nw = S.nw_mean_test(ss.to_numpy())
     bb = S.block_bootstrap_mean(ss.to_numpy())
@@ -51,6 +52,8 @@ def cell_stats(ev: pd.DataFrame, H: int, col: str | None = None) -> dict:
     d = S.describe(sub[col].to_numpy())
     sd_s = float(ss.std(ddof=1)) if len(ss) > 1 else np.nan
     return {
+        "n_all_events": int(n_all), "n_nan": int(n_all - len(sub)),
+        "nan_share": float((n_all - len(sub)) / n_all) if n_all else np.nan,
         "n_events": int(len(sub)), "n_names": int(sub["symbol"].nunique()),
         "n_sessions": int(len(ss)),
         "mean_bp_event": d["mean"], "median_bp_event": d["median"], "sd_event": d["sd"],
@@ -94,8 +97,25 @@ def stage_table(ev: pd.DataFrame, stage: str, horizons=HORIZONS, with_holm: bool
     if with_holm:
         prim = tab[tab["side"] != "pooled"]
         adj = S.holm({(r.side, r.H): r.p_one_nw for r in prim.itertuples()})
-        tab["p_holm"] = [adj.get((r.side, r.H), np.nan) for r in tab.itertuples()]
+        tab["p_holm_all10"] = [adj.get((r.side, r.H), np.nan) for r in tab.itertuples()]
     return tab
+
+
+def net_lower_bound(ev: pd.DataFrame, side: int, H: int, kappa: float, alpha: float) -> float:
+    """One-sided bootstrap lower bound (percentile alpha) of the session-mean NET return for one cell."""
+    e = add_costs(ev[(ev["side"] == side)], (H,))
+    ss = session_series(e, f"N_h{H}_k{kappa}")
+    b = S.block_bootstrap_mean(ss.to_numpy(), lb_alpha=alpha)
+    return b["lb"]
+
+
+def first_bar_split(ev: pd.DataFrame, H: int) -> dict:
+    """Descriptive: events at the first window bar (inherited states) vs later bars."""
+    out = {}
+    for name, m in (("k59", ev["k"] == 59), ("later", ev["k"] > 59)):
+        c = cell_stats(ev[m], H)
+        out[name] = {k: c.get(k) for k in ("n_events", "n_sessions", "session_mean_bp", "nw_t", "p_one_nw")}
+    return out
 
 
 def cost_table(ev: pd.DataFrame, stage: str, horizons=HORIZONS) -> pd.DataFrame:

@@ -41,7 +41,8 @@ class Params:
     norm_mode: str = "rms1m"              # rms1m | range | raw_bp
     entry_delay: int = 1
     dedup: str = "first_per_side"         # first_per_side | all
-    universe: str = "fno"                 # fno | all
+    universe: str = "fno"                 # fno | all | core (names present in >=90% of the warm-up sessions)
+    exit_fill: str = "strict"            # strict | last_valid (last valid close at or before the exit slot)
 
 
 STAGES = (
@@ -131,7 +132,8 @@ class _State:
 
 
 def _prior(state: _State, sym: str, t_idx: int, p: Params):
-    rows = [r for r in state.hist.get(sym, ()) if t_idx - p.sigma_lookback <= r[0] < t_idx]
+    rows = [r for r in state.hist.get(sym, ())
+            if t_idx - p.sigma_lookback <= r[0] < t_idx and np.isfinite(r[1])]
     if len(rows) < p.sigma_min_sessions:
         return np.nan, np.nan, np.nan
     a = np.array([[r[1], r[2], r[3]] for r in rows], float)
@@ -176,11 +178,14 @@ def run_sessions(p: Params, sessions=None, membership=None, with_outcomes: bool 
     membership = membership if membership is not None else U.load()
     state = _State()
     ev_rows, sess_rows = [], []
+    core = _core_names(sessions, p) if p.universe == "core" else None
     for t_idx, (d, path) in enumerate(sessions):
         s = C.cached_session(d, path)
         syms = [str(x) for x in s["symbols"]]
         if p.universe == "fno":
             member = np.array([x in membership.get(d.isoformat(), ()) for x in syms])
+        elif p.universe == "core":
+            member = np.array([x in core and x in membership.get(d.isoformat(), ()) for x in syms])
         else:
             member = np.ones(len(syms), bool)
         vwap, ok = session_vwap(s, p.vwap_mode)
@@ -272,14 +277,18 @@ def _outcomes(s, i, k, side, vwap, ok, p) -> dict:
     for H in p.horizons:
         x = e - 1 + H
         key = f"h{H}"
-        if not entry_ok or x >= C.N_SLOTS or not np.isfinite(Cc[x]):
+        xx = x
+        if p.exit_fill == "last_valid" and x < C.N_SLOTS and not np.isfinite(Cc[x]) and entry_ok:
+            back = np.nonzero(np.isfinite(Cc[e:x + 1]))[0]
+            xx = e + int(back[-1]) if len(back) else x
+        if not entry_ok or x >= C.N_SLOTS or not np.isfinite(Cc[xx]):
             for f in ("R", "MFE", "MAE", "dstat", "dmov", "R_ex"):
                 out[f"{f}_{key}"] = np.nan
             continue
         E = float(O[e])
-        X = float(Cc[x])
-        seg_h = Hh[e:x + 1]
-        seg_l = Ll[e:x + 1]
+        X = float(Cc[xx])
+        seg_h = Hh[e:xx + 1]
+        seg_l = Ll[e:xx + 1]
         mx = float(np.nanmax(seg_h)) if np.isfinite(seg_h).any() else np.nan
         mn = float(np.nanmin(seg_l)) if np.isfinite(seg_l).any() else np.nan
         # reversion direction: side=+1 (up-displacement) -> short (-1); side=-1 -> long (+1)
@@ -289,7 +298,7 @@ def _outcomes(s, i, k, side, vwap, ok, p) -> dict:
             mfe, mae = (mx / E - 1.0) * 1e4, (mn / E - 1.0) * 1e4
         else:
             mfe, mae = (1.0 - mn / E) * 1e4, -(mx / E - 1.0) * 1e4
-        Vx = vwap[i, x]
+        Vx = vwap[i, xx]
         out[f"R_{key}"] = R
         out[f"MFE_{key}"] = mfe
         out[f"MAE_{key}"] = mae
@@ -298,6 +307,17 @@ def _outcomes(s, i, k, side, vwap, ok, p) -> dict:
         out[f"R_ex_{key}"] = np.nan          # filled by market_benchmark()
     out["E"] = float(O[e]) if entry_ok else np.nan
     return out
+
+
+def _core_names(sessions, p: Params) -> set:
+    """Constant-name subset defined from the warm-up sessions ONLY: names present in >= 90%
+    of the first `first_event_session_index` sessions (no outcome information)."""
+    import collections
+    n = p.first_event_session_index
+    cnt = collections.Counter()
+    for d, path in sessions[:n]:
+        cnt.update(str(x) for x in C.cached_session(d, path)["symbols"])
+    return {k for k, v in cnt.items() if v >= 0.9 * n}
 
 
 def market_benchmark(s, member, k_e_list, horizons, entry_delay) -> dict:

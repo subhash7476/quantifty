@@ -42,14 +42,14 @@ def nw_mean_test(x) -> dict:
 
 
 def block_bootstrap_mean(x, block: int | None = None, n_boot: int = N_BOOT,
-                         seed: int = BOOT_SEED) -> dict:
+                         seed: int = BOOT_SEED, lb_alpha: float | None = None) -> dict:
     """Circular moving-block bootstrap of the mean over the session series.
     CI = percentile CI; p_one = share of RE-CENTRED bootstrap means >= observed mean."""
     x = np.asarray(x, float)
     x = x[np.isfinite(x)]
     n = len(x)
     if n < 5:
-        return {"ci_lo": np.nan, "ci_hi": np.nan, "p_one": np.nan, "block": 0}
+        return {"ci_lo": np.nan, "ci_hi": np.nan, "p_one": np.nan, "block": 0, "lb": np.nan}
     b = block or max(2, nw_lag(n) + 1)
     rng = np.random.default_rng(seed)
     nblk = int(math.ceil(n / b))
@@ -58,7 +58,8 @@ def block_bootstrap_mean(x, block: int | None = None, n_boot: int = N_BOOT,
     means = x[idx.reshape(n_boot, -1)[:, :n]].mean(axis=1)
     obs = x.mean()
     return {"ci_lo": float(np.percentile(means, 2.5)), "ci_hi": float(np.percentile(means, 97.5)),
-            "p_one": float(((means - obs) >= obs).mean()), "block": b}
+            "p_one": float(((means - obs) >= obs).mean()), "block": b,
+            "lb": float(np.percentile(means, 100 * lb_alpha)) if lb_alpha is not None else np.nan}
 
 
 def twoway_cluster_mean(y, g1, g2) -> dict:

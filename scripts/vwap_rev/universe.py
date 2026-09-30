@@ -68,6 +68,24 @@ def agreement_with_certified(membership: dict[str, set]) -> dict:
             "agreement": 1.0 - n_diff / n_total if n_total else None}
 
 
+def certified_only_share(membership: dict[str, set]) -> float:
+    """Share of certified-flagged symbol-sessions (union basis) that the recomputed table lacks."""
+    con = duckdb.connect(str(C.ISD_PIT_DB), read_only=True)
+    try:
+        rows = con.execute("select session_date, isin from pit_membership where fno_member").fetchall()
+    finally:
+        con.close()
+    cert: dict[str, set] = {}
+    for d, key in rows:
+        cert.setdefault(d.isoformat(), set()).add(key)
+    n_union = n_cert_only = 0
+    for s, mine in membership.items():
+        if s in cert:
+            n_union += len(mine | cert[s])
+            n_cert_only += len(cert[s] - mine)
+    return n_cert_only / n_union if n_union else 0.0
+
+
 def save(membership: dict[str, set]) -> None:
     C.OUT_DIR.mkdir(parents=True, exist_ok=True)
     UNIVERSE_JSON.write_text(json.dumps({k: sorted(v) for k, v in membership.items()}))
