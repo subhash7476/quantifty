@@ -1,0 +1,33 @@
+{
+  "label": "C6",
+  "defects": [],
+  "val_confirmed": [
+    [
+      "up_disp_short",
+      5
+    ],
+    [
+      "down_disp_long",
+      10
+    ],
+    [
+      "down_disp_long",
+      30
+    ]
+  ],
+  "holdout_confirmed_clean": [],
+  "microstructure_contaminated": [],
+  "economic_pass_cells": [],
+  "holdout_positive_among_val_confirmed": [
+    [
+      "down_disp_long",
+      10
+    ],
+    [
+      "down_disp_long",
+      30
+    ]
+  ],
+  "net_lower_bounds_bp": {},
+  "certified_only_share": 0.0
+}
