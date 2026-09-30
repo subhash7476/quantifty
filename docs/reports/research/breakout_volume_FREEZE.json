@@ -3,7 +3,7 @@
   "version": "1.0",
   "hashes": {
     "protocol": "5ee5429e185b6a3a818b9afdaa90c17dccf40f2e813335b89ec8b9e56ae06ca4",
-    "protocol_md": "85465be15705f1eed4ec379df1dee4120934dc10aba169a7a96320274d1b5395",
+    "protocol_md": "7578648ab2888d11191b5c94c2d76d87cf29657430458a4193b950991a4d2728",
     "scripts/breakout_vol/common.py": "a5fc6d0a29748154c3641b227685a164a8a5c3feee12357fb76b3f8882fcac28",
     "scripts/breakout_vol/prep.py": "6830939d3938a18dc547281541495c6ceeb105ff47ce77745a0f49a7f27ee9b6",
     "scripts/breakout_vol/engine.py": "901da5719471f4ec654840f651dc84cf97d71ba54d68e812a12c3d2f584e1943",
@@ -12,15 +12,40 @@
     "scripts/breakout_vol/classify.py": "e93b1537b9b90a08bccc5be5f18ef633d31510837273b92fb1e26b0204607e81",
     "scripts/breakout_vol/freeze.py": "1be45f2a379ab8588f5ed40e0a9f56e2dd5fc722be9da4beda9a88075652946b",
     "scripts/breakout_vol/run_stage.py": "9853ec158ba1536d4689b2281c23ce7e01e0f1d13ece6b430b5dc807f5a2293e",
-    "scripts/breakout_vol/verify_independent.py": "58db8e01bc74b03dd68d74cd8a5c711202f099c0bab3ec4071724643d0866b19",
+    "scripts/breakout_vol/verify_independent.py": "ed4891b4b7f66c475a09cdda90be9fd4798a15b1712fcc4278b739aed24fe6a4",
     "scripts/vwap_rev/stats.py": "be76cd199d6e13e9f16e409c5242d1e5354f1216897e5f1e53cd19f3edaf36ab",
     "core/execution/equity/delivery_fees.py": "e14b1b700724b720bbdcbf25ff204343339a072609f084296f3367893251a16a",
     "snapshot_dev/calendar": "73addee2e5ff60a50dc28c8afe0065e034c3262eb8935c418bfd0c5d43b90639",
     "snapshot_dev/membership": "db87add8c97f4785a150abb3ea51bd80666d9bd20c1b74ce1da38365294f7101",
     "snapshot_dev/panel": "46de7d4d6b3c1fc2d0a4954ccc3455787c6f86af2d30054ae549764a2a3b2ef4"
   },
-  "git_head_at_freeze": "d6bb5278559d73c9036ddccc35e0b69c6f0ea2b3",
-  "frozen_at": "2026-09-30T17:05:28",
+  "git_head_at_freeze": "549ebd0f597d5522a8517bb54730fb6112bdb3e3",
+  "frozen_at": "2026-09-30T17:09:34",
   "outcomes_computed_before_freeze": false,
-  "history": []
+  "history": [
+    {
+      "version": "1.0",
+      "hashes": {
+        "protocol": "5ee5429e185b6a3a818b9afdaa90c17dccf40f2e813335b89ec8b9e56ae06ca4",
+        "protocol_md": "85465be15705f1eed4ec379df1dee4120934dc10aba169a7a96320274d1b5395",
+        "scripts/breakout_vol/common.py": "a5fc6d0a29748154c3641b227685a164a8a5c3feee12357fb76b3f8882fcac28",
+        "scripts/breakout_vol/prep.py": "6830939d3938a18dc547281541495c6ceeb105ff47ce77745a0f49a7f27ee9b6",
+        "scripts/breakout_vol/engine.py": "901da5719471f4ec654840f651dc84cf97d71ba54d68e812a12c3d2f584e1943",
+        "scripts/breakout_vol/stats.py": "19ee70e1fc18ce52f41707b07d425d080a934bb73ef8b4de29e8923c9c1478e8",
+        "scripts/breakout_vol/analyze.py": "bc2794d17097ee4c4fbf3052952dbde823e9209e8f7089fe99ee5f44456bd6b1",
+        "scripts/breakout_vol/classify.py": "e93b1537b9b90a08bccc5be5f18ef633d31510837273b92fb1e26b0204607e81",
+        "scripts/breakout_vol/freeze.py": "1be45f2a379ab8588f5ed40e0a9f56e2dd5fc722be9da4beda9a88075652946b",
+        "scripts/breakout_vol/run_stage.py": "9853ec158ba1536d4689b2281c23ce7e01e0f1d13ece6b430b5dc807f5a2293e",
+        "scripts/breakout_vol/verify_independent.py": "58db8e01bc74b03dd68d74cd8a5c711202f099c0bab3ec4071724643d0866b19",
+        "scripts/vwap_rev/stats.py": "be76cd199d6e13e9f16e409c5242d1e5354f1216897e5f1e53cd19f3edaf36ab",
+        "core/execution/equity/delivery_fees.py": "e14b1b700724b720bbdcbf25ff204343339a072609f084296f3367893251a16a",
+        "snapshot_dev/calendar": "73addee2e5ff60a50dc28c8afe0065e034c3262eb8935c418bfd0c5d43b90639",
+        "snapshot_dev/membership": "db87add8c97f4785a150abb3ea51bd80666d9bd20c1b74ce1da38365294f7101",
+        "snapshot_dev/panel": "46de7d4d6b3c1fc2d0a4954ccc3455787c6f86af2d30054ae549764a2a3b2ef4"
+      },
+      "git_head_at_freeze": "d6bb5278559d73c9036ddccc35e0b69c6f0ea2b3",
+      "frozen_at": "2026-09-30T17:05:28",
+      "superseded_for": "A1: verifier population at entity level (VP2 skip rule, VP5); engine/analysis unchanged; TRAIN computed pre-amend"
+    }
+  ]
 }
