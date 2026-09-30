@@ -361,3 +361,35 @@ VWAP_EXTREME_REVERSION_RESEARCH_REPORT.md` (PR #32, `18ac346`).
 Substrate findings recorded with this entry (independent of the result): the certified ISD `pit_universe` F&O flag under-counts eight
 names (DLF, BRITANNIA, KOTAKBANK, BAJAJFINSV, ABB, MOTHERSON, CHOLAFIN, PIIND); the 1m store's name list appears chosen on a later
 universe (store covers 75–78% of PIT F&O underlyings through Feb 2025, 100% by 2026-09-29).
+
+## Addendum 2026-09-30 (b) — M3a × M5b closing-range breakout + abnormal volume (first empirical test)
+
+Added after the v1 ledger date and after the VWAP addendum. It changes no v1 row: the RELIANCE (M2c/M3a) and MRLC (M3b, with M1c/M5b as
+conjuncts) rows remain as recorded. This is a different construct (daily, PIT top-200 turnover universe, breakout continuation split by a
+same-day volume flag; MRLC tested a *reversal* after a sweep).
+
+| Construct | Mech | Tested hypothesis | Spec | Data | Prereg | TRAIN | VAL | HOLD | Econ | Result | Closed? | Primary proposition |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| BKV-1 closing-range onset breakout × abnormal volume | M3a × M5b | Breakouts of the prior-N-session closing range (N = 20, 63; onset only) whose same-day volume is ≥ 2× the prior-20-session median continue more (H = 5, 20 sessions; entry t+1 open; direction-signed, market-excess) than breakouts without it | FROZEN (hash-gated, `84fcd99`) | Y | Y | Y (descriptive) | Y | **N (unread — pre-declared stop rule; window unspent)** | Y (descriptive; gate not reached) | 0 of 8 cells confirmed in VAL 2018–22 (Holm-8; smallest unadjusted p 0.159); up-side B − C negative in all four cells in both TRAIN and VAL; MDE 67–253 bp; independent SQL re-derivation matched every event | **C5, construct-scoped** | A, qualified (see below) |
+
+**Qualification on proposition A.** The predefined criterion (paired B − C > 0, Holm-8, VAL) was tested on data and failed, which is what C5
+requires (§2(i)); but the design could only have detected effects of roughly 67–253 bp per cell. The failure is therefore evidence against a
+*large* volume premium in this specification, not against a small one. The HOLDOUT (2023-01 → 2026-09, equity EOD) was never read and remains
+unspent; row Q-6 of the exposure register reserves that window for the CSMP momentum lineage.
+
+**Mechanism-level effect (these are notes, not v1 row edits).**
+
+| Mechanism | v1 status | After BKV-1 |
+|---|---|---|
+| M3a | B / C4 thin descriptive | Still open. Volume-conditioned closing-range continuation on daily top-200 names: C5 construct-scoped. Breakouts alone (arm A) are descriptive only: TRAIN down-side N = 63 shows market-excess continuation (+82 bp H = 5, t = 5.09; +83 bp H = 20, t = 2.34) that does not replicate in VAL (t 0.38, 0.98) — unadjusted, no decision |
+| M5b | C / C3 conjunct only | Still open. The "volume confirms a breakout" form is tested and not confirmed in this specification; OBV/MFI/volume-breakout variants and other event definitions are untouched |
+
+Scope (§7 narrow default): closes this exact construct only. **M3a and M5b remain open as mechanisms**; nothing here extends to highs-based ranges
+(a post-primary variant, disclosure only), other volume thresholds (the AV ≥ 3.0 down-side pattern, two cells at unadjusted p 0.03–0.04 among 56
+variant cells, is not promoted), other horizons, universes, event definitions or eras, and C9 is unreachable. Any category citation must carry
+"construct-scoped". Source: `docs/reports/research/BREAKOUT_VOLUME_RESEARCH_REPORT.md` (PR #36, merge `7e03fd8`; protocol frozen `84fcd99`).
+
+Governance note recorded with this entry: three logged amendments after the freeze (A1 verifier population at entity level — a symbol-level
+"clean name" check failed on renamed tickers because corporate-action adjustment is per entity; A2 JSON output; A3 protocol erratum — the
+overnight gap is not part of R). None changed an engine, analysis or classification rule or any reported number. Still owed to the operator: an
+exposure-register row for the 2012–22 equity-EOD signal read.
