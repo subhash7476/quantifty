@@ -21,6 +21,7 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+import tempfile
 import time
 from datetime import datetime
 from pathlib import Path
@@ -101,6 +102,11 @@ def _build_into(con, out_path: Path, existing_dates: set) -> tuple[int, int]:
     con.execute(f"ATTACH '{FUT_DB}' AS fut (READ_ONLY)")
     con.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
     con.execute("SET threads=4")
+    # The default cap (80% of RAM) is more than this machine can back, so materializing
+    # equity_bhavcopy_adjusted failed the allocation outright (Out of Memory, 2026-09-29
+    # 22:10). A 1GB cap makes DuckDB spill instead.
+    con.execute("SET memory_limit='1GB'")
+    con.execute(f"SET temp_directory='{Path(tempfile.gettempdir()) / 'duckdb_ts_basis_daily'}'")
     fresh = not out_path.exists()
     con.execute(f"ATTACH '{out_path}' AS out")
 
