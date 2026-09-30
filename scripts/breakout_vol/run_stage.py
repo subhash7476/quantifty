@@ -124,8 +124,15 @@ def classify_final() -> dict:
         for c in h:
             econ[c] = econ_gate(ev, pn.sessions, "HOLDOUT", c, len(h))["pass"]
     res = K.classify(val, hold, econ_pass=econ)
-    (_res() / "classification.json").write_text(json.dumps(res, indent=2, default=str))
-    return res
+    def _keys(o):
+        if isinstance(o, dict):
+            return {(",".join(map(str, k)) if isinstance(k, tuple) else k): _keys(v) for k, v in o.items()}
+        if isinstance(o, list):
+            return [_keys(x) for x in o]
+        return o
+    out = _keys(res)
+    (_res() / "classification.json").write_text(json.dumps(out, indent=2, default=str))
+    return out
 
 
 if __name__ == "__main__":

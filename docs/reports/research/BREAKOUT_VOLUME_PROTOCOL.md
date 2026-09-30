@@ -272,3 +272,8 @@ rebuild (factors of every symbol of the entity), and the VP2 skip rule (any fact
 [t−83, exit]). The synthetic dry run now contains a rename chain with the split keyed to the new symbol; the symbol-level
 check fails on it and the entity-level check passes. **No engine, analysis, classification or protocol-parameter code
 changed; TRAIN results were computed before the amendment and are unchanged** (VP1, VP3, VP4 are unaffected by A1).
+
+**A2 — 2026-09-30, output serialization only (`run_stage.py`).** After VAL, `CLASSIFY` computed its label but failed to write
+`classification.json` (`TypeError: keys must be ... not tuple` — cell keys `(N, H, side)` in the info dicts). The fix stringifies
+tuple keys on output. The classification function (`classify.py`) and every number are unchanged; VAL had already run, and its
+cell table is byte-identical before and after.
