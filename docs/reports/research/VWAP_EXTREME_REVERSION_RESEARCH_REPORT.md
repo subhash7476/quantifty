@@ -693,3 +693,12 @@ Determinism: seeded bootstrap (20260930); all thresholds/σ are functions of pri
 * **None on this construct.** Nothing here justifies a successor: the market-relative effect decayed to ≈ 0 out-of-sample and sits below plausible costs even where it was strongest. Re-opening with a different threshold, anchor, horizon, subgroup, or event definition (onset vs persistence) would be a **new pre-registration**, not a continuation — the post-primary variants and subgroup cuts here are disclosure and cannot seed a rescue.
 * **Ledger/registry hygiene (justified, cheap):** add this experiment to the closure ledger as M1c×M5c — **C5, construct-scoped (frozen-tree output C6 on point-estimate sign, preserved verbatim)**, EMPIRICALLY TESTED (no longer C2/D); record that the certified ISD `pit_universe.duckdb` F&O flag under-counts eight names and that the 1m store's name list appears chosen on a later universe (both are substrate findings independent of this result).
 * **Monitoring note, not research:** the dated disappearance of market-relative reversion (≈ 2025Q3) is a descriptive observation worth remembering when any future intraday-reversion idea is pre-registered (it argues for a forward-only confirmatory window).
+
+
+## 31. Resolution of the labelling question (added 2026-09-30, after merge)
+
+The operator delegated the C5-vs-C6 choice. **Resolved: the closure ledger carries C5, construct-scoped**, with the pre-registered
+frozen-tree output C6 preserved verbatim in `results/classification.json` and the C5 assignment recorded as a post-hoc re-mapping
+recommended by Opus Review C. Rationale and the ledger entry: `docs/reports/external/RESEARCH_CLOSURE_LEDGER_2026-09-29.md`,
+Addendum 2026-09-30 (the ledger and the two RFA audits it accompanies were committed in the same change as this note). No number,
+table or frozen file changed; §1 and §29 above remain as written, and their "the operator chooses" wording is superseded by this section.
