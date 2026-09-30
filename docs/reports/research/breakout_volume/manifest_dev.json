@@ -1,0 +1,27 @@
+{
+  "tag": "dev",
+  "cutoff": "2022-12-30",
+  "built_at": "2026-09-30T16:46:04",
+  "store_unfenced_max_date": "2026-09-29",
+  "fence_vacuous": false,
+  "raw_equity_rows_le_cutoff": 5077338,
+  "panel_max_date": "2022-12-30",
+  "duplicate_listings_dropped": 0,
+  "files": {
+    "calendar": {
+      "path": "F:\\Nifty\\data\\research\\breakout_volume\\calendar_dev.parquet",
+      "rows": 3229,
+      "sha256": "73addee2e5ff60a50dc28c8afe0065e034c3262eb8935c418bfd0c5d43b90639"
+    },
+    "membership": {
+      "path": "F:\\Nifty\\data\\research\\breakout_volume\\membership_dev.parquet",
+      "rows": 26400,
+      "sha256": "db87add8c97f4785a150abb3ea51bd80666d9bd20c1b74ce1da38365294f7101"
+    },
+    "panel": {
+      "path": "F:\\Nifty\\data\\research\\breakout_volume\\panel_dev.parquet",
+      "rows": 1341582,
+      "sha256": "46de7d4d6b3c1fc2d0a4954ccc3455787c6f86af2d30054ae549764a2a3b2ef4"
+    }
+  }
+}
