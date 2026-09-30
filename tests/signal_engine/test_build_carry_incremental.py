@@ -26,7 +26,7 @@ def sig(tmp_path):
     eq.execute("CREATE TABLE equity_bhavcopy_adjusted "
                "(symbol VARCHAR, trade_date DATE, series VARCHAR, close DOUBLE)")
     closes = {D(2026, 7, 17): 100.0, D(2026, 7, 23): 104.0, D(2026, 7, 24): 110.0,
-              D(2026, 7, 31): 121.0, D(2026, 8, 7): 133.1}
+              D(2026, 7, 31): 121.0, D(2026, 8, 7): 133.1, D(2026, 8, 10): 140.0}
     eq.executemany("INSERT INTO equity_bhavcopy_adjusted VALUES ('AAA', ?, 'EQ', ?)",
                    list(closes.items()))
     eq.close()
@@ -96,3 +96,16 @@ def test_repoint_leaves_correct_pointers_and_returns_alone(sig):
     sig.execute("UPDATE signals SET fwd_ret_1m = 0.5 WHERE formation_date = DATE '2026-07-24'")
     assert B._repoint_forward(sig) == 0
     assert _fwd(sig)[D(2026, 7, 24)] == 0.5
+
+
+def test_final_only_leaves_the_link_to_an_incomplete_week_open(sig):
+    # Monday night: 08-10 is this week's formation so far. 08-07 -> 08-10 is a one-day
+    # return that ts_basis, which never rewrites rows, would keep for good.
+    sig.execute("INSERT INTO formations VALUES (DATE '2026-08-10', NULL, 1, 1, 0, 0)")
+    sig.execute("INSERT INTO signals (formation_date, underlying, liquid) VALUES (DATE '2026-08-10', 'AAA', TRUE)")
+    B._prune_offgrid(sig, GRID + [D(2026, 8, 10)])
+    B._repoint_forward(sig)
+    B._fill_forward_returns(sig, final_only=True)
+    fwd = _fwd(sig)
+    assert fwd[D(2026, 7, 31)] == pytest.approx(0.10)
+    assert fwd[D(2026, 8, 7)] is None

@@ -152,17 +152,21 @@ def _repoint_forward(sig):
     return len(moved)
 
 
-def _fill_forward_returns(sig):
+def _fill_forward_returns(sig, final_only=False):
     """Compute every missing forward return whose next formation now exists; return the count.
 
     Only formations added in the current run used to be considered, and those never have a
     successor yet, so incremental runs filled nothing (fwd_ret_1m NULL after 07-24).
+
+    final_only skips links to the newest formation. On the weekly grid that is the current
+    week's day so far, not its last, and ts_basis never rewrites a stored return.
     """
-    sig.execute("""
+    sig.execute(f"""
         CREATE OR REPLACE TEMP TABLE pending AS
         SELECT s.formation_date, s.underlying, f.fwd_formation_date
         FROM signals s JOIN formations f USING (formation_date)
         WHERE s.fwd_ret_1m IS NULL AND f.fwd_formation_date IS NOT NULL
+          {"AND f.fwd_formation_date < (SELECT MAX(formation_date) FROM formations)" if final_only else ""}
     """)
     lo, hi = sig.execute(
         "SELECT MIN(formation_date), MAX(fwd_formation_date) FROM pending").fetchone()
@@ -374,6 +378,7 @@ def main():
 
     # 4. Forward returns
     print("Computing forward returns...")
+    con.close()
     sig.close()
     sig = duckdb.connect(str(SIG_DB))
     sig.execute("SET threads=1")
@@ -382,7 +387,7 @@ def main():
     sig.execute("SET memory_limit='1GB'")
     sig.execute(f"ATTACH '{EQ_DB}' AS eq (READ_ONLY)")
     print(f"  {_repoint_forward(sig)} forward pointers set")
-    print(f"  {_fill_forward_returns(sig):,} forward returns filled")
+    print(f"  {_fill_forward_returns(sig, final_only=weekly):,} forward returns filled")
 
     total_sig = sig.execute("SELECT COUNT(*) FROM signals").fetchone()[0]
     n_form = sig.execute("SELECT COUNT(DISTINCT formation_date) FROM formations").fetchone()[0]
@@ -390,7 +395,6 @@ def main():
     print(f"  Signals DB: {SIG_DB}")
 
     sig.close()
-    con.close()
     return 0
 
 
