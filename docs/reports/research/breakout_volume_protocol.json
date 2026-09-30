@@ -1,0 +1,69 @@
+{
+  "protocol_id": "BKV-1",
+  "version": "1.0",
+  "title": "M3a x M5b - closing-range breakout with abnormal-volume confirmation (daily, PIT top-200 turnover universe)",
+  "params": {
+    "range_n": [
+      20,
+      63
+    ],
+    "horizons": [
+      5,
+      20
+    ],
+    "onset_quiet": 20,
+    "vol_window": 20,
+    "av_threshold": 2.0,
+    "lookback_required": 84,
+    "min_bench_names": 100,
+    "short_session_ratio": 0.4,
+    "short_session_window": 21,
+    "calendar_min_symbols": 200,
+    "terminal_guard": 60,
+    "universe_size": 200,
+    "alpha": 0.05,
+    "notional": 500000.0,
+    "base_kappa_bp": 5.0,
+    "kappas_bp": [
+      0.0,
+      2.5,
+      5.0,
+      10.0
+    ],
+    "n_boot": 10000,
+    "boot_seed": 20260930,
+    "n_perm": 5000,
+    "perm_seed": 20260931
+  },
+  "stages": {
+    "TRAIN": [
+      "2012-01-02",
+      "2017-12-29"
+    ],
+    "VAL": [
+      "2018-01-01",
+      "2022-12-30"
+    ],
+    "HOLDOUT": [
+      "2023-01-02",
+      "2026-09-29"
+    ]
+  },
+  "dev_cutoff": "2022-12-30",
+  "primary_family": {
+    "cells": "N in {20,63} x H in {5,20} x side in {up,dn}",
+    "size": 8,
+    "statistic": "mean over formation dates with >=1 B and >=1 C event of [mean_B f - mean_C f]",
+    "test": "one-sided calendar-aware Newey-West, lag = H, Student-t n-1 df",
+    "multiplicity": "Holm over the 8 VAL cells at alpha 0.05; HOLDOUT Holm over the VAL-confirmed cells"
+  },
+  "estimand": "f = sign * (R_i - R_m) * 1e4 bp; R = C[t+H]/O[t+1]-1 (adjusted); R_m = equal-weight mean over PIT members with a resolved window",
+  "classification": {
+    "C4": "defect trigger",
+    "C5": "no VAL cell confirmed, or VAL-confirmed but HOLDOUT read and unconfirmed (construct-scoped)",
+    "C6": "VAL-confirmed, HOLDOUT unread",
+    "C7": "HOLDOUT-confirmed, economic gate fails",
+    "C8": "HOLDOUT-confirmed and economic gate passes",
+    "C9": "unreachable"
+  }
+}

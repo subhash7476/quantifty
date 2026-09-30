@@ -1,0 +1,228 @@
+{
+  "entities": 508,
+  "regular_sessions": 3203,
+  "dropped_calendar_dates": [
+    {
+      "trade_date": "2010-02-06",
+      "n_symbols": 1283,
+      "tot_turnover_eq": 18182847306.769997,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2010-05-16",
+      "n_symbols": 7,
+      "tot_turnover_eq": 1723896483.35,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2010-11-05",
+      "n_symbols": 1412,
+      "tot_turnover_eq": 42145867104.29001,
+      "reason": "short_session_turnover"
+    },
+    {
+      "trade_date": "2011-10-26",
+      "n_symbols": 1467,
+      "tot_turnover_eq": 21824962273.28997,
+      "reason": "short_session_turnover"
+    },
+    {
+      "trade_date": "2012-01-07",
+      "n_symbols": 1345,
+      "tot_turnover_eq": 10940821045.690012,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2012-03-03",
+      "n_symbols": 1374,
+      "tot_turnover_eq": 12530704652.489996,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2012-04-28",
+      "n_symbols": 1315,
+      "tot_turnover_eq": 9051191196.48,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2012-09-08",
+      "n_symbols": 1355,
+      "tot_turnover_eq": 10415805624.109999,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2012-11-11",
+      "n_symbols": 14,
+      "tot_turnover_eq": 13371091607.5,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2012-11-13",
+      "n_symbols": 1491,
+      "tot_turnover_eq": 29362673723.02004,
+      "reason": "short_session_turnover"
+    },
+    {
+      "trade_date": "2013-05-11",
+      "n_symbols": 1249,
+      "tot_turnover_eq": 10060734183.509998,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2013-11-03",
+      "n_symbols": 1279,
+      "tot_turnover_eq": 21809991795.109997,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2014-03-22",
+      "n_symbols": 1342,
+      "tot_turnover_eq": 13074804469.689983,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2014-10-23",
+      "n_symbols": 1452,
+      "tot_turnover_eq": 25953609251.320026,
+      "reason": "short_session_turnover"
+    },
+    {
+      "trade_date": "2015-02-28",
+      "n_symbols": 1457,
+      "tot_turnover_eq": 213441573491.42017,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2015-11-11",
+      "n_symbols": 1426,
+      "tot_turnover_eq": 27797004258.10997,
+      "reason": "short_session_turnover"
+    },
+    {
+      "trade_date": "2016-04-19",
+      "n_symbols": 0,
+      "tot_turnover_eq": 0.0,
+      "reason": "n_symbols<200"
+    },
+    {
+      "trade_date": "2016-10-30",
+      "n_symbols": 1553,
+      "tot_turnover_eq": 34593596215.72003,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2017-07-10",
+      "n_symbols": 1561,
+      "tot_turnover_eq": 62432009769.41994,
+      "reason": "short_session_turnover"
+    },
+    {
+      "trade_date": "2017-10-19",
+      "n_symbols": 1576,
+      "tot_turnover_eq": 57125006010.98989,
+      "reason": "short_session_turnover"
+    },
+    {
+      "trade_date": "2018-11-07",
+      "n_symbols": 1598,
+      "tot_turnover_eq": 39478018748.17004,
+      "reason": "short_session_turnover"
+    },
+    {
+      "trade_date": "2019-10-27",
+      "n_symbols": 1613,
+      "tot_turnover_eq": 57983689544.609955,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2020-02-01",
+      "n_symbols": 1627,
+      "tot_turnover_eq": 376048958000.0,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2020-11-14",
+      "n_symbols": 1676,
+      "tot_turnover_eq": 94703802000.0,
+      "reason": "weekend"
+    },
+    {
+      "trade_date": "2021-11-04",
+      "n_symbols": 1794,
+      "tot_turnover_eq": 114107129000.0,
+      "reason": "short_session_turnover"
+    },
+    {
+      "trade_date": "2022-10-24",
+      "n_symbols": 1967,
+      "tot_turnover_eq": 103180886000.0,
+      "reason": "short_session_turnover"
+    }
+  ],
+  "membership_name_days": 537200,
+  "eligible_name_days": 536634,
+  "sessions_by_stage": {
+    "TRAIN": 1474,
+    "VAL": 1233
+  },
+  "events": {
+    "TRAIN": {
+      "N20": {
+        "ddn:D": 761,
+        "dn:B": 718,
+        "dn:C": 4000,
+        "dup:D": 1457,
+        "up:B": 1800,
+        "up:C": 2733
+      },
+      "N63": {
+        "ddn:D": 1150,
+        "dn:B": 554,
+        "dn:C": 1733,
+        "dup:D": 2121,
+        "up:B": 1478,
+        "up:C": 1256
+      }
+    },
+    "VAL": {
+      "N20": {
+        "ddn:D": 692,
+        "dn:B": 627,
+        "dn:C": 3392,
+        "dup:D": 1291,
+        "up:B": 1426,
+        "up:C": 2349
+      },
+      "N63": {
+        "ddn:D": 1023,
+        "dn:B": 591,
+        "dn:C": 1521,
+        "dup:D": 1940,
+        "up:B": 1217,
+        "up:C": 998
+      }
+    }
+  },
+  "eligible_name_days_by_stage": {
+    "TRAIN": 290347,
+    "VAL": 246287
+  },
+  "members_name_days_by_stage": {
+    "TRAIN": 290600,
+    "VAL": 246600
+  },
+  "breakout_flags_before_onset": {
+    "TRAIN": {
+      "N20:up": 36408,
+      "N20:dn": 29615,
+      "N63:up": 21743,
+      "N63:dn": 14421
+    },
+    "VAL": {
+      "N20:up": 30248,
+      "N20:dn": 27637,
+      "N63:up": 16850,
+      "N63:dn": 13677
+    }
+  }
+}
