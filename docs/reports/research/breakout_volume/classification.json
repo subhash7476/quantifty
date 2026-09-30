@@ -1,0 +1,51 @@
+{
+  "label": "C5",
+  "defects": [],
+  "val_confirmed": [],
+  "val_info": {
+    "20,5,up": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -52.44623559276384
+    },
+    "20,5,dn": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": 39.08719649979391
+    },
+    "20,20,up": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -104.29778013209516
+    },
+    "20,20,dn": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": 58.52189416808761
+    },
+    "63,5,up": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -6.11693748144371
+    },
+    "63,5,dn": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -6.808694674709116
+    },
+    "63,20,up": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -23.75026675190044
+    },
+    "63,20,dn": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -117.35899842460692
+    }
+  },
+  "holdout_read": false,
+  "holdout_confirmed": [],
+  "holdout_info": {},
+  "economic_pass_cells": []
+}
