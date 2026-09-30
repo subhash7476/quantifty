@@ -226,4 +226,4 @@ python -m scripts.breakout_vol.verify_independent TRAIN ; python -m scripts.brea
 python -m scripts.breakout_vol.run_stage CLASSIFY
 python -m scripts.breakout_vol.post_primary ; python -m scripts.breakout_vol.worked_examples ; python -m scripts.breakout_vol.build_report
 ```
-Determinism: seeded bootstrap (20260930) and permutation (20260931); results reproduce byte-for-byte from the hashed snapshot. Data paths are absolute under `F:/Nifty/data` (the worktree carries no `data/`).
+Determinism: seeded bootstrap (20260930) and permutation (20260931); results reproduce byte-for-byte from the hashed snapshot. **Tested, not asserted:** after amendments A1–A3 the final freeze was used to re-run TRAIN (first run pre-A1) and VAL (first run pre-A2); `cells`, `cohort`, `costs`, `bench` and `accounting` files were identical byte-for-byte and both event ledgers identical frame-for-frame (19,761 and 17,067 events). Data paths are absolute under `F:/Nifty/data` (the worktree carries no `data/`).

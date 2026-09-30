@@ -14,3 +14,4 @@
 | L10 | 17:2x | VAL run + verification (all six checks pass, stop=false). CLASSIFY crashed on JSON tuple keys (output only) -> amendment A2, logged re-freeze. VAL: 0 of 8 cells confirmed (min one-sided p 0.159) -> STOP, HOLDOUT never read. |
 | L11 | 17:5x | Post-primary R1-R9, worked examples, report built from CSVs; changelog entry. Final: C5 construct-scoped; HOLDOUT unread. |
 | L12 | 18:0x | Final review found: gap-decomposition mislabel (R excludes the gap) -> erratum A3 + rebuilt table; prose claims scoped/corrected (TRAIN up-side net, by-year, arm A TRAIN dn N63 t=5.09 not replicated in VAL, R9 tercile-cut granularity, 'none typed by hand'). Next: reproducibility re-run under the current freeze. |
+| L13 | 18:2x | Reproducibility tested: TRAIN+VAL re-run under the final freeze (after A1-A3) -> cells/cohort/costs/bench/accounting byte-identical, event ledgers frame-identical. |
