@@ -13,9 +13,7 @@ FREEZE_PATH = C.REPO / "docs" / "reports" / "research" / "vwap_extreme_reversion
 
 
 def protocol_sha() -> str:
-    raw = C.PROTOCOL_PATH.read_bytes().replace(b"
-", b"
-")     # immune to autocrlf
+    raw = C.PROTOCOL_PATH.read_bytes().replace(bytes([13, 10]), bytes([10]))   # immune to autocrlf
     return hashlib.sha256(raw).hexdigest()
 
 
