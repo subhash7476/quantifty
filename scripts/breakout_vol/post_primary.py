@@ -128,15 +128,18 @@ def main() -> None:
     allv = pd.concat(tabs.values(), ignore_index=True)
     allv.to_csv(OUT / "post_primary_variants.csv", index=False)
 
-    # R5 gap decomposition (raw signed overnight gap vs the rest), VAL and TRAIN, per N x side, cohort-paired B-C
+    # R5 decomposition (VAL/TRAIN, raw direction-signed means, bp): R starts at the t+1 OPEN, so the overnight gap
+    # G = O[t+1]/C[t]-1 is NOT inside R. From the day-t close the move is (1+G)(1+R)-1 = gap + post-open (+ cross term).
     gap_rows = []
     for st in STAGES:
         lo, hi = G.stage_bounds(pn.sessions, st)
         for N in P.range_n:
             for side, kinds, sg in (("up", ("up",), 1), ("dn", ("dn",), -1)):
                 e = ev_all[(ev_all["N"] == N) & ev_all["kind"].isin(kinds) & (ev_all["t"] >= lo) & (ev_all["t"] <= hi) & ev_all["gap"].notna()]
-                e = e.assign(sg=1e4 * sg * e["gap"], rest5=e["raw5"] - 1e4 * sg * e["gap"], rest20=e["raw20"] - 1e4 * sg * e["gap"])
-                for col in ("sg", "rest5", "rest20", "raw5", "raw20"):
+                e = e.assign(gap_bp=1e4 * sg * e["gap"], post_open5=e["raw5"], post_open20=e["raw20"],
+                             from_close5=1e4 * sg * ((1 + e["gap"]) * (1 + e["R5"]) - 1),
+                             from_close20=1e4 * sg * ((1 + e["gap"]) * (1 + e["R20"]) - 1))
+                for col in ("gap_bp", "post_open5", "from_close5", "post_open20", "from_close20"):
                     b, c = e[e["arm"] == "B"], e[e["arm"] == "C"]
                     gap_rows.append({"stage": st, "N": N, "side": side, "quantity": col, "n_B": len(b), "n_C": len(c),
                                      "mean_B": b[col].mean(), "mean_C": c[col].mean(), "diff_B_minus_C": b[col].mean() - c[col].mean()})

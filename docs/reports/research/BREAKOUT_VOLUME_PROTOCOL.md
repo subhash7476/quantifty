@@ -277,3 +277,8 @@ changed; TRAIN results were computed before the amendment and are unchanged** (V
 `classification.json` (`TypeError: keys must be ... not tuple` — cell keys `(N, H, side)` in the info dicts). The fix stringifies
 tuple keys on output. The classification function (`classify.py`) and every number are unchanged; VAL had already run, and its
 cell table is byte-identical before and after.
+
+**A3 — 2026-09-30, erratum (text only).** §6 states that the overnight gap `G = O_{t+1}/C_t − 1` "is part of R". It is not:
+`R = C_{t+H}/O_{t+1} − 1` starts at the t+1 open, in the engine and in the independent SQL verifier alike, so G is excluded from R — the
+tradable definition (a trader who acts on a close-of-t signal enters at the open, after the gap). The estimand, the code and every number are
+unchanged; only the sentence was wrong. The post-primary gap table, which had inherited the error, was rebuilt (report §9.4).

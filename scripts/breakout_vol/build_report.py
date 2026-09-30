@@ -111,10 +111,16 @@ def terciles() -> str:
 
 def gap() -> str:
     g = pd.read_csv(RES / "post_primary_gap_decomposition.csv")
-    g = g[(g.stage == "VAL") & g.quantity.isin(["sg", "rest5", "raw5", "rest20", "raw20"])]
-    g["quantity"] = g.quantity.map({"sg": "overnight gap (t close → t+1 open)", "rest5": "post-open drift, H=5", "raw5": "total raw, H=5",
-                                    "rest20": "post-open drift, H=20", "raw20": "total raw, H=20"})
-    return md(g.drop(columns=["stage"]), {c_: "{:.1f}" for c_ in ("mean_B", "mean_C", "diff_B_minus_C")})
+    order = ["gap_bp", "post_open5", "from_close5", "post_open20", "from_close20"]
+    g = g[(g.stage == "VAL") & g.quantity.isin(order)].copy()
+    g["quantity"] = g.quantity.map({"gap_bp": "overnight gap G (t close → t+1 open) — NOT in R",
+                                    "post_open5": "post-open return = R, H=5 (the primary quantity, raw)",
+                                    "from_close5": "from the t close, H=5: (1+G)(1+R)−1",
+                                    "post_open20": "post-open return = R, H=20 (raw)",
+                                    "from_close20": "from the t close, H=20: (1+G)(1+R)−1"})
+    g["_o"] = g.quantity.map({q: i for i, q in enumerate(g.quantity.unique())})
+    g = g.sort_values(["N", "side", "_o"]).drop(columns=["stage", "_o"])
+    return md(g, {c_: "{:.1f}" for c_ in ("mean_B", "mean_C", "diff_B_minus_C")})
 
 
 def by_year() -> str:

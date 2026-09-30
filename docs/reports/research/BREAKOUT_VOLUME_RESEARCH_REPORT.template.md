@@ -2,7 +2,7 @@
 
 **Question.** When an individual stock breaks out of a multi-day closing range, does unusually high same-day volume distinguish breakouts that continue from breakouts that fail?
 **Protocol:** `BREAKOUT_VOLUME_PROTOCOL.md` v1.0, frozen at commit `84fcd99` (record `breakout_volume_FREEZE.json`); **no forward return existed before that commit.** Two logged verifier/output amendments followed (A1, A2 — §7.4); neither touched the engine, the analysis, the classification rule or any result.
-**Branch / worktree:** `research/breakout-volume`, `F:\Nifty_bkv`. **Every number below is rendered by `scripts/breakout_vol/build_report.py` from the files in `docs/reports/research/breakout_volume/`;** none is typed by hand.
+**Branch / worktree:** `research/breakout-volume`, `F:\Nifty_bkv`. **All tables are rendered by `scripts/breakout_vol/build_report.py` from the files in `docs/reports/research/breakout_volume/`. Numbers quoted in the prose were transcribed by hand and cross-checked against those tables (the cross-check found and corrected the errors listed in §7.4, item E).**
 
 ---
 
@@ -13,7 +13,7 @@
 * **The up-side sign is opposite to the hypothesis in every cell and both windows.** Volume-confirmed *upside* breakouts continued *less* than unconfirmed ones (VAL d̄ = −52, −104, −6, −24 bp; TRAIN −10, −87, −39, −80 bp). The pre-registered test is one-sided in the continuation direction, so this is a **distinct finding, never counted as support**, and no test of it was pre-registered (the two-sided p for the N=20 H=5 cell would be ≈ 0.05 unadjusted).
 * **Power is the binding constraint, and it is disclosed as such.** The minimum detectable effect (80 % power, one-sided) is 67–253 bp per cell in VAL (§5). A null here means *this design cannot demonstrate a volume premium smaller than that*; it does **not** show that volume is irrelevant.
 * **Auditability.** All six independent checks pass in both stages (§6): a pure-SQL re-derivation matches the engine on **19,761 (TRAIN) and 17,067 (VAL) events with zero exceptions** (max |Δf| ≈ 2e-12 bp); a raw as-traded rebuild, a hand Newey–West + `statsmodels` kernel, accounting identities and fee arithmetic agree. Nothing is marked NOT AUDITABLE.
-* **Economics (descriptive).** Round-trip statutory + DP cost ≈ 22 bp of notional before slippage. The B arm on the up-side is negative net of cost in all four cells; the down-side B arm shows positive short-proxy nets in VAL but is not distinguishable from C and flips sign across windows (§8).
+* **Economics (descriptive).** Round-trip statutory + DP cost ≈ 22 bp of notional before slippage. In VAL the up-side B arm is negative net of cost in all four cells; in TRAIN it is net-positive in three of four (largest at H = 20, which carries 2012–17 market drift in a raw, un-netted number). The down-side B arm shows positive short-proxy nets in VAL but is not distinguishable from C and flips sign across windows (§8).
 
 ## 2. Frozen research question and protocol
 
@@ -79,7 +79,7 @@ Arm means are of per-date cohort means (bp, market-excess) with NW t against zer
 
 {{SECONDARY_TRAIN}}
 
-**Reading.** (i) The three estimators of B − C (cohort-paired, event-weighted, two-way-clustered) agree in sign in every VAL cell except the N=63 H=5 *up* cell (−6.1 vs −2.1 vs +8.2 bp — all ≈ 0). (ii) In VAL the permutation p and the NW p are both > 0.05 in all eight cells (no disagreement about the 0.05 line); the two-way-clustered event p is also > 0.05 everywhere (closest: 0.066 and 0.073 at down N=20). In TRAIN (descriptive) one cell differs: down N=20 H=5 has clustered-event p = 0.018 against NW p = 0.129 and permutation p = 0.119. (iii) The attrition bound moves nothing: dropped/terminal events number single digits per cell in VAL (funnel table). (iv) The control D (abnormal volume without a breakout, signed by the day's direction) shows no reliable continuation at any cell in VAL (|t| ≤ 1.96, and the only |t| near 2 is negative). (v) Breakouts as such (A) do not reliably continue in the market-excess sense; the one A cell with t > 2 (down-side N=20 H=5, +25.5 bp) is unadjusted and one of the 32 arm-cells tested (4 arms × 8 cells).
+**Reading.** (i) The three estimators of B − C (cohort-paired, event-weighted, two-way-clustered) agree in sign in every VAL cell except the N=63 H=5 *up* cell (−6.1 vs −2.1 vs +8.2 bp — all ≈ 0). (ii) In VAL the permutation p and the NW p are both > 0.05 in all eight cells (no disagreement about the 0.05 line); the two-way-clustered event p is also > 0.05 everywhere (closest: 0.066 and 0.073 at down N=20). In TRAIN (descriptive) one cell differs: down N=20 H=5 has clustered-event p = 0.018 against NW p = 0.129 and permutation p = 0.119. (iii) The attrition bound moves nothing: dropped/terminal events number single digits per cell in VAL (funnel table). (iv) The control D (abnormal volume without a breakout, signed by the day's direction) shows no reliable continuation at any cell in VAL (|t| ≤ 1.96, and the only |t| near 2 is negative). (v) **Breakouts as such (arm A, the M3a-alone question), descriptive and unadjusted.** In VAL only one A cell has t > 2 (down-side N=20 H=5, +25.5 bp, t = 2.23, one of the 32 arm-cells). In **TRAIN** the down-side N = 63 arm A shows strong market-excess continuation — +82 bp at H = 5 (t = 5.09, 2,286 events) and +83 bp at H = 20 (t = 2.34) — that does **not** replicate in VAL (+6 bp, t = 0.38; +34 bp, t = 0.98). That is the most informative M3a-alone fact in the study: long-range downside breakouts continued in 2012–17 and did not in 2018–22. It is a TRAIN observation (descriptive, unadjusted, no decision) and it is not about volume.
 
 ## 6. Independent verification (two methods per headline number; disagreement ⇒ STOP)
 
@@ -96,7 +96,7 @@ Arm means are of per-date cohort means (bp, market-excess) with NW t against zer
 | Look-ahead in signal | flags use t−N…t only; entry = open of t+1; test perturbs everything after t and shows events ≤ t unchanged | `test_signal_is_causal…`; VP1 |
 | Volume alignment | median over t−20…t−1 (today excluded); one row per (entity, date) for OHLC and V; test: ×1000 today's volume leaves its baseline unchanged | `test_volume_baseline_excludes_today`; VP1/VP2 |
 | Price/volume timestamp mismatch | both come from the same daily row on the same regular-calendar index | VP2 (raw rows) |
-| Info from t used as if earlier | none: the signal is a close-of-t object; earliest trade is the t+1 open; the overnight gap is a disclosed part of R (decomposition in §9.4) | protocol §6 |
+| Info from t used as if earlier | none: the signal is a close-of-t object; earliest trade is the t+1 open; **R starts at that open, so the overnight gap G is excluded from R** (the tradable definition; decomposition in §9.4) | protocol §6 (erratum A3), `window_returns` |
 | Survivorship / universe changes | PIT monthly top-200 by trailing turnover; membership strictly before t; delisted names kept while listed; terminal-price rule; attrition bound | §4; dropped/terminal events: single digits per cell |
 | Overlapping events | onset-only with a 20-session quiet period = longest H; non-declustered variant (R3) reported separately | §9 |
 | Event clustering | per-date cohort observation; HAC lag H; permutation & clustered checks | §5.3 |
@@ -122,15 +122,17 @@ Arm means are of per-date cohort means (bp, market-excess) with NW t against zer
 | Prediction | Outcome |
 |---|---|
 | A = B ⊔ C exactly in every cell | ✓ (all 16 cell-rows, both stages) |
-| Σ(R − R_m) = 0 to machine precision on every date | ✓ (worked example: 1.4e-15) |
+| Σ(R − R_m) = 0 over the benchmark set on every date | ✓ by construction (worked example: 1.4e-15); the independent evidence is VP1's separately computed SQL R_m matching the ledger's on every event date (max abs Δ 1.7e-16) |
 | Outcome-free event counts reproduce | ✓ (e.g. TRAIN N20 up B/C formed 1,800/2,733 in diagnostics; funnel shows formed 1,800 / 2,733 before containment) |
 | VP1 agrees with the ledger with zero exceptions | ✓ (19,761 and 17,067 events) |
 | < 1 of 8 VAL cells confirms under H0; modal outcome C5 | ✓ (0 of 8; C5) |
 
-### 7.4 Deviations and amendments (all logged)
+### 7.4 Deviations, amendments, and report errata (all logged)
 
 * **A1** — VP5 "clean" names were defined by symbol, but adjustment is per entity; run on TRAIN it failed on 103/4,000 rows, all 11 offending entities carrying a corporate action under a *renamed* symbol (PHILIPCARB→PCBL etc.). The verifier population (VP5, and the VP2 skip rule) was corrected to entity level and tested on a synthetic rename chain. No engine/analysis code and no TRAIN number changed.
 * **A2** — `classification.json` failed to serialise tuple keys; output-only fix, VAL cell table byte-identical.
+* **A3** — protocol erratum (text only): §6 said the overnight gap is "part of R"; it is not — the engine (and the SQL verifier) start R at the t+1 open, which is the tradable definition. Corrected in the protocol amendments section; the estimand and every number are unchanged. The post-primary gap table (§9.4) had inherited the error and was rebuilt.
+* **E — errata found by the final cross-check of the prose:** the gap decomposition mislabelled the post-open return; "up-side B is negative net of cost in every cell" was VAL-only; "no cell is stable across years" overstated; the arm-A reading omitted TRAIN; the tercile-cut granularity differed from the protocol text; "none typed by hand" was untrue. All corrected above.
 * **Departure from the advisor's suggestion:** the HOLDOUT-spend question was not put to the operator up front; it is only relevant if VAL confirms, which it did not.
 
 ## 8. Economic / cost analysis (descriptive; the economic gate is conditional on a HOLDOUT confirmation and was not reached)
@@ -145,7 +147,7 @@ Round trip on ₹5,00,000: BUY at the entry-open date + SELL at the exit date, p
 
 {{COSTS_TRAIN}}
 
-**Reading.** Up-side B is negative net of cost in every cell and every κ (even at κ = 0) — the gross raw mean is ≤ +7 bp against a 22 bp fee. Down-side B shows positive short-proxy nets in VAL (24–164 bp at κ = 5), but (i) it is not distinguishable from the C arm (§5.1), (ii) it is not stable — TRAIN B raw signed means at down/N=20 are +35 bp (H=5) and −37 bp (H=20) — and (iii) a multi-day cash short is not implementable, so this is not an economic finding. The break-even κ is large and positive only where the raw mean is large.
+**Reading.** In **VAL**, up-side B is negative net of cost in every cell and every κ (even at κ = 0) — the gross raw mean is ≤ +7 bp against a 22 bp fee. In **TRAIN** it is not: up-side B nets +1, +84, −37, +39 bp at κ = 5 (N20H5, N20H20, N63H5, N63H20); the raw number includes 2012–17 market drift (it is not netted against the universe) and there is no B − C evidence behind it (§5.2). Down-side B shows positive short-proxy nets in VAL (24–164 bp at κ = 5), but (i) it is not distinguishable from the C arm (§5.1), (ii) it is not stable — TRAIN B raw signed means at down/N=20 are +35 bp (H=5) and −37 bp (H=20) — and (iii) a multi-day cash short is not implementable, so this is not an economic finding. The break-even κ is large and positive only where the raw mean is large.
 
 ## 9. Post-primary disclosure analyses (declared in protocol §13; **cannot change the label or be promoted**)
 
@@ -163,19 +165,21 @@ Two down-side cells reach unadjusted p < 0.05 **only** under the AV ≥ 3.0 vari
 
 {{BY_YEAR}}
 
-Year-to-year sign changes are large; no cell is stable across years.
+Reading (VAL, all eight cells, by year): the up-side d̄ is negative in 4 of 5 years at N = 20 (both horizons) and in 3 of 5 years at N = 63, and positive only in 2022 at N = 20; the down-side changes sign across years in every cell (negative in 1–3 of 5 years). The wrong-signed up-side result is therefore reasonably persistent inside VAL, but each year has only 60–110 paired dates and no yearly cell is significant — descriptive only.
 
-### 9.3 Breakout-depth terciles (R9; cuts fixed once per N × side from pooled TRAIN ∪ VAL events)
+### 9.3 Breakout-depth terciles (R9; cuts fixed from pooled TRAIN ∪ VAL events — **per (N, side, H)** in the code, whereas the protocol text says per (N, side): a disclosed difference, because the resolved-event set differs slightly by H; the cuts barely move)
 
 {{TERCILES}}
 
 **Confound check.** B share rises steeply with depth (e.g. up N=20: 21 % → 30 % → 62 %), confirming that abnormal-volume breakouts are the deep ones. Within terciles, B − C is not significantly positive anywhere (largest positive t = 1.25, up N=63 H=5 deepest tercile); the largest |t| is negative (−1.96, up N=20 H=20 deepest tercile). So the wrong-signed pooled up-side result is not removed by conditioning on depth.
 
-### 9.4 Overnight gap vs post-open drift (VAL, raw direction-signed means, bp)
+### 9.4 Overnight gap vs the primary window (VAL, raw direction-signed means, bp)
+
+**R starts at the t+1 open, so the overnight gap G = O_{t+1}/C_t − 1 is not inside R.** The table shows G separately, R itself ("post-open"), and the move measured from the t close, (1+G)(1+R) − 1.
 
 {{GAP}}
 
-The volume-confirmed up-side breakouts gap more (overnight-gap component B > C) and then drift *less* after the open (post-open drift B − C ≈ −81 bp at H = 5, N=20) — the continuation that exists is captured by the open, not after it.
+Volume-confirmed up-side breakouts gap up more than unconfirmed ones (G: +21 bp at N = 20) but their post-open return R is lower (B − C = −60 bp at H = 5, −150 bp at H = 20, N = 20), so measured from the t close they are still behind (−40 / −130 bp). The tradable definition (entry at the open) therefore *reports the post-gap continuation only*; whatever continuation the gap contains is not credited to the strategy, and the B − C result is not driven by it.
 
 ## 10. Arithmetic / reconstruction ledger
 
@@ -200,6 +204,8 @@ Everything below is reproduced from raw rows and hand arithmetic; the files are 
 **Ledger-consistent Vault category: C5 — construct-scoped.** The pre-registered criterion (8-cell paired B − C > 0, Holm-8 in VAL) was tested on data and failed (0 of 8; smallest unadjusted p 0.159). C5 needs a predefined criterion that predates the read — it did (frozen at `84fcd99`).
 
 *Scope of the closure (must always accompany the label):* the construct as specified — closing-range onset breakouts (N = 20, 63) in the PIT top-200 turnover universe, abnormal volume = same-day volume ≥ 2× the prior-20-session median, entry at the next open, holds of 5 and 20 sessions, market-excess continuation returns, 2018–2022 confirmatory window. It does **not** close M3a (range-escape continuation) or M5b (volume-confirmed moves) as mechanisms, and says nothing about other range definitions, thresholds, horizons, universes, event definitions or eras. C6 does not apply (no VAL confirmation), C7–C9 do not apply; C9 is unreachable on this substrate. The HOLDOUT window remains unspent.
+
+*Reading `classification.json`:* every VAL cell carries `"fragile": true`. That flag is mechanical — the attrition-bound p inherits the primary's non-significance (Holm-adjusted bound p ≥ 0.05 in every cell), so it is not an attrition finding; attrition itself is single digits per cell and moves no estimate (§5.3).
 
 **What the data establish.** On 2018–22 top-200 stocks there is no detectable positive difference between the continuation of volume-confirmed and unconfirmed breakouts at the pre-declared specification; on the up-side the point estimates are negative in every cell in both windows.
 **What they do not establish.** That volume is irrelevant: the MDE (67–253 bp) means effects of a size plausible for a volume premium (tens of bp) could not have been detected. Nor anything about the unspent 2023-01 → 2026-09 window.
