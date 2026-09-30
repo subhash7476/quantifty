@@ -13,6 +13,7 @@ Cell format: session-mean gross bp in the reversion direction (one-sided NW p), 
 | norm_raw_bp | down_disp_long/h5, down_disp_long/h10, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | none | C6 |
 | vwap_close | none | none | C5 |
 | delay2 | none | none | C5 |
+| dedup_all | up_disp_short/h5, up_disp_short/h10, up_disp_short/h15, up_disp_short/h30, up_disp_short/h60, down_disp_long/h5, down_disp_long/h10, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | up_disp_short/h15, up_disp_short/h30, up_disp_short/h60, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | C7 |
 | universe_all | down_disp_long/h5, down_disp_long/h10, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | none | C6 |
 | universe_core | up_disp_short/h5, down_disp_long/h5, down_disp_long/h10, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | none | C6 |
 | exit_last_valid | up_disp_short/h5, down_disp_long/h10, down_disp_long/h30 | none | C6 |
@@ -124,7 +125,18 @@ Cell format: session-mean gross bp in the reversion direction (one-sided NW p), 
 
 ## dedup_all
 
-(not run)
+| side | H | TRAIN mean bp (p) | VAL mean bp (p) | HOLDOUT mean bp (p) |
+|---|---|---|---|---|
+| up_disp_short | 5 | +5.3 (0.000) n=54496 | +9.3 (0.000) n=24058 | +3.7 (0.000) n=84593 |
+| up_disp_short | 10 | +7.6 (0.000) n=54500 | +14.4 (0.000) n=24058 | +7.3 (0.000) n=84593 |
+| up_disp_short | 15 | +9.2 (0.000) n=54501 | +17.0 (0.000) n=24057 | +10.3 (0.000) n=84592 |
+| up_disp_short | 30 | +14.3 (0.000) n=54495 | +22.0 (0.000) n=24054 | +15.7 (0.000) n=84593 |
+| up_disp_short | 60 | +16.0 (0.000) n=54493 | +31.9 (0.000) n=24056 | +22.5 (0.000) n=84591 |
+| down_disp_long | 5 | +8.2 (0.000) n=62108 | +12.0 (0.000) n=37887 | +6.5 (0.000) n=90968 |
+| down_disp_long | 10 | +12.6 (0.000) n=62110 | +17.9 (0.000) n=37885 | +9.9 (0.000) n=90968 |
+| down_disp_long | 15 | +16.3 (0.000) n=62110 | +23.7 (0.000) n=37886 | +12.7 (0.000) n=90967 |
+| down_disp_long | 30 | +25.7 (0.000) n=62109 | +31.8 (0.000) n=37889 | +16.0 (0.000) n=90962 |
+| down_disp_long | 60 | +35.4 (0.000) n=62105 | +36.4 (0.000) n=37888 | +23.0 (0.000) n=90965 |
 
 ## universe_all
 

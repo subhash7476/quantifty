@@ -104,7 +104,11 @@ mean (continuation) is a distinct finding, reported but never counted as support
   link to 5–60-minute reversion is plausibly weak and probably conservative (absent names skew less liquid). **The tested universe is "PIT F&O members that the store carries".**
 * **Stage composition (events, names):**
 
-{{TABLE:comp}}
+| stage | sessions | first | last | mean_member_names | mean_eligible_names | events | events_up | events_down | distinct_names | events_per_session | share_first_bar |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| TRAIN | 285 | 2023-05-03 | 2024-06-28 | 138.73 | 138.62 | 3668 | 1827 | 1841 | 140 | 12.87 | 0.13 |
+| VAL | 186 | 2024-07-01 | 2025-03-28 | 153.91 | 153.68 | 2450 | 1031 | 1419 | 182 | 13.17 | 0.15 |
+| HOLDOUT | 369 | 2025-04-01 | 2026-09-29 | 197.07 | 195.44 | 6452 | 3332 | 3120 | 220 | 17.49 | 0.13 |
 
 ## 8. Exact protocol
 
@@ -181,18 +185,51 @@ Reversion-direction gross return in bp, one number per session, one-sided Newey�
 
 ### 16.1 TRAIN (descriptive; cannot confirm)
 
-{{TABLE:primary:TRAIN}}
+| side | H | events | names | sessions | session mean bp | 95% CI (boot) | NW t | p (1-sided NW) | Holm-10 p | event mean bp | event median bp | frac R>0 | MDE@80% bp |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| up-disp -> short | 5 | 1827 | 140 | 265 | 1.01 | [-1.5, +3.6] | 0.77 | 0.2202 | 1.0000 | -0.36 | 1.30 | 0.514 | 3.54 |
+| up-disp -> short | 10 | 1827 | 140 | 265 | 0.43 | [-3.2, +4.3] | 0.22 | 0.4116 | 1.0000 | -3.31 | 1.03 | 0.508 | 4.84 |
+| up-disp -> short | 15 | 1827 | 140 | 265 | -0.75 | [-5.0, +3.5] | -0.34 | 0.6342 | 1.0000 | -4.85 | 0.49 | 0.502 | 5.43 |
+| up-disp -> short | 30 | 1826 | 140 | 265 | -1.28 | [-7.5, +5.0] | -0.40 | 0.6549 | 1.0000 | -6.98 | 1.49 | 0.505 | 7.37 |
+| up-disp -> short | 60 | 1826 | 140 | 265 | -2.17 | [-9.6, +5.1] | -0.57 | 0.7158 | 1.0000 | -8.14 | 0.00 | 0.498 | 9.24 |
+| down-disp -> long | 5 | 1841 | 140 | 242 | 4.15 | [+0.3, +7.8] | 2.20 | 0.0144 | 0.0864 | 1.28 | 2.96 | 0.532 | 4.77 |
+| down-disp -> long | 10 | 1841 | 140 | 242 | 7.52 | [+3.2, +11.9] | 3.40 | 0.0004 | 0.0032 | -0.94 | 3.59 | 0.531 | 6.01 |
+| down-disp -> long | 15 | 1841 | 140 | 242 | 8.26 | [+2.9, +13.9] | 2.94 | 0.0018 | 0.0128 | -1.77 | 3.68 | 0.525 | 7.47 |
+| down-disp -> long | 30 | 1841 | 140 | 242 | 12.54 | [+6.1, +19.5] | 3.66 | 0.0002 | 0.0014 | -1.75 | 5.44 | 0.532 | 9.53 |
+| down-disp -> long | 60 | 1841 | 140 | 242 | 19.83 | [+11.5, +28.6] | 4.60 | 0.0000 | 0.0000 | -5.51 | 3.36 | 0.521 | 12.35 |
 
 ### 16.2 VAL (first confirmatory stage — Holm over the ten cells)
 
-{{TABLE:primary:VAL}}
+| side | H | events | names | sessions | session mean bp | 95% CI (boot) | NW t | p (1-sided NW) | Holm-10 p | event mean bp | event median bp | frac R>0 | MDE@80% bp |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| up-disp -> short | 5 | 1031 | 174 | 161 | 4.63 | [+1.5, +8.0] | 2.82 | 0.0027 | 0.0269 | 1.55 | 2.71 | 0.537 | 4.77 |
+| up-disp -> short | 10 | 1031 | 174 | 161 | 5.66 | [-0.2, +11.5] | 1.92 | 0.0283 | 0.1133 | 0.31 | 2.67 | 0.522 | 7.28 |
+| up-disp -> short | 15 | 1031 | 174 | 161 | 5.57 | [-1.8, +12.6] | 1.53 | 0.0644 | 0.1931 | 0.58 | 4.10 | 0.540 | 8.13 |
+| up-disp -> short | 30 | 1030 | 174 | 161 | 3.60 | [-5.3, +12.4] | 0.80 | 0.2137 | 0.2137 | -3.31 | 4.52 | 0.533 | 11.18 |
+| up-disp -> short | 60 | 1031 | 174 | 161 | 8.38 | [-3.8, +20.5] | 1.35 | 0.0887 | 0.1931 | -5.00 | 4.04 | 0.509 | 16.57 |
+| down-disp -> long | 5 | 1419 | 177 | 150 | 8.86 | [+1.9, +16.8] | 2.35 | 0.0101 | 0.0693 | 10.11 | 3.36 | 0.546 | 9.82 |
+| down-disp -> long | 10 | 1419 | 177 | 150 | 11.11 | [+2.9, +20.1] | 2.56 | 0.0057 | 0.0458 | 11.43 | 3.39 | 0.533 | 11.11 |
+| down-disp -> long | 15 | 1419 | 177 | 150 | 11.46 | [+1.7, +22.0] | 2.24 | 0.0134 | 0.0693 | 13.04 | 3.89 | 0.531 | 13.55 |
+| down-disp -> long | 30 | 1419 | 177 | 150 | 18.66 | [+4.8, +32.9] | 2.62 | 0.0049 | 0.0438 | 17.38 | 6.65 | 0.548 | 16.45 |
+| down-disp -> long | 60 | 1418 | 177 | 150 | 18.04 | [+2.8, +32.9] | 2.36 | 0.0099 | 0.0693 | 15.91 | 7.42 | 0.536 | 18.00 |
 
 **VAL-confirmed cells (Holm-10 p < 0.05, mean > 0):** up-displacement→short **h5** (Holm p 0.0269), down-displacement→long **h10** (0.0458) and **h30** (0.0438). down h5/h15/h60 were at Holm p 0.069.
 **Pre-VAL prediction scorecard (log L23/L24):** "up-displacement will not reject" — **wrong**; "down positive, longer horizons likeliest" — partly right (down positive everywhere; confirmed at h10 and h30, not h60).
 
 ### 16.3 HOLDOUT (one-shot)
 
-{{TABLE:primary:HOLDOUT}}
+| side | H | events | names | sessions | session mean bp | 95% CI (boot) | NW t | p (1-sided NW) | Holm-10 p | event mean bp | event median bp | frac R>0 | MDE@80% bp |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| up-disp -> short | 5 | 3332 | 219 | 362 | -2.02 | [-4.6, +0.4] | -1.55 | 0.9395 | 1.0000 | -1.84 | 1.06 | 0.509 | 3.10 |
+| up-disp -> short | 10 | 3332 | 219 | 362 | -1.15 | [-3.9, +1.5] | -0.84 | 0.7997 | 1.0000 | -1.08 | 1.48 | 0.514 | 3.41 |
+| up-disp -> short | 15 | 3332 | 219 | 362 | -0.54 | [-3.8, +2.5] | -0.34 | 0.6313 | 1.0000 | -0.46 | 2.74 | 0.527 | 4.28 |
+| up-disp -> short | 30 | 3332 | 219 | 362 | 1.90 | [-2.5, +6.1] | 0.87 | 0.1919 | 1.0000 | 0.38 | 4.35 | 0.535 | 5.72 |
+| up-disp -> short | 60 | 3330 | 219 | 362 | 7.69 | [+2.2, +13.2] | 2.73 | 0.0033 | 0.0331 | 2.96 | 7.30 | 0.545 | 7.17 |
+| down-disp -> long | 5 | 3120 | 215 | 342 | 0.72 | [-3.1, +5.0] | 0.35 | 0.3618 | 1.0000 | -0.53 | 1.26 | 0.512 | 4.42 |
+| down-disp -> long | 10 | 3120 | 215 | 342 | 1.74 | [-2.7, +6.9] | 0.71 | 0.2377 | 1.0000 | -0.33 | 1.22 | 0.512 | 5.65 |
+| down-disp -> long | 15 | 3120 | 215 | 342 | 2.57 | [-3.0, +8.4] | 0.90 | 0.1855 | 1.0000 | 0.40 | 2.08 | 0.519 | 6.53 |
+| down-disp -> long | 30 | 3120 | 215 | 342 | 4.09 | [-3.4, +11.5] | 1.09 | 0.1384 | 1.0000 | 1.47 | 1.95 | 0.513 | 8.51 |
+| down-disp -> long | 60 | 3120 | 215 | 342 | 7.64 | [+0.5, +15.3] | 2.03 | 0.0216 | 0.1946 | 0.26 | 2.01 | 0.511 | 8.38 |
 
 | VAL-confirmed cell | VAL mean bp (p) | HOLDOUT mean bp | HOLDOUT p (1-sided) | HOLDOUT 95% CI | HOLDOUT-confirmed? |
 |---|---|---|---|---|---|
@@ -218,15 +255,48 @@ Nominally significant HOLDOUT cells exist — up/h60 (+7.7 bp, Holm-10 p 0.033) 
 Event-level distribution of the reversion-direction return (bp). Complete quantiles for every stage/cell are in `results/primary_*_cells.csv`; HOLDOUT and VAL below, TRAIN in the CSV.
 
 ### HOLDOUT
-{{TABLE:dist:HOLDOUT}}
+| side | H | q01 | q05 | q10 | q25 | q50 | q75 | q90 | q95 | q99 | mean | sd | skew | kurt |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| up-disp -> short | 5 | -130.62 | -65.92 | -43.33 | -17.25 | 1.06 | 17.55 | 36.83 | 52.75 | 92.17 | -1.84 | 40.59 | -1.20 | 17.54 |
+| up-disp -> short | 10 | -150.11 | -79.91 | -53.11 | -22.84 | 1.48 | 23.57 | 48.84 | 68.43 | 122.07 | -1.08 | 50.96 | -1.02 | 14.95 |
+| up-disp -> short | 15 | -162.11 | -90.36 | -62.31 | -26.10 | 2.74 | 28.97 | 57.93 | 81.86 | 142.63 | -0.46 | 57.62 | -0.73 | 7.91 |
+| up-disp -> short | 30 | -228.72 | -122.61 | -76.07 | -31.43 | 4.35 | 38.03 | 75.50 | 107.44 | 184.95 | 0.38 | 76.89 | -0.67 | 11.43 |
+| up-disp -> short | 60 | -280.98 | -142.98 | -96.42 | -39.89 | 7.30 | 51.03 | 98.23 | 133.62 | 235.10 | 2.96 | 91.64 | -0.34 | 5.98 |
+| down-disp -> long | 5 | -136.52 | -52.84 | -33.89 | -14.08 | 1.26 | 15.76 | 33.78 | 49.70 | 100.36 | -0.53 | 40.36 | -1.28 | 17.23 |
+| down-disp -> long | 10 | -171.28 | -70.14 | -45.86 | -18.99 | 1.22 | 22.21 | 46.11 | 69.88 | 123.18 | -0.33 | 52.35 | -1.36 | 19.41 |
+| down-disp -> long | 15 | -195.72 | -82.98 | -54.57 | -22.03 | 2.08 | 27.19 | 57.59 | 79.89 | 149.56 | 0.40 | 62.07 | -1.89 | 26.88 |
+| down-disp -> long | 30 | -233.60 | -101.93 | -66.71 | -30.82 | 1.95 | 35.14 | 78.23 | 108.58 | 208.76 | 1.47 | 81.37 | -1.88 | 48.86 |
+| down-disp -> long | 60 | -294.67 | -135.55 | -91.95 | -40.88 | 2.01 | 46.35 | 97.15 | 132.76 | 235.77 | 0.26 | 101.30 | -1.67 | 27.03 |
 
 ### VAL
-{{TABLE:dist:VAL}}
+| side | H | q01 | q05 | q10 | q25 | q50 | q75 | q90 | q95 | q99 | mean | sd | skew | kurt |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| up-disp -> short | 5 | -110.03 | -54.41 | -40.36 | -15.98 | 2.71 | 20.86 | 39.79 | 56.58 | 99.62 | 1.55 | 37.77 | -0.31 | 5.42 |
+| up-disp -> short | 10 | -137.93 | -77.38 | -52.91 | -25.86 | 2.67 | 28.55 | 55.53 | 72.47 | 129.05 | 0.31 | 49.76 | -0.63 | 5.46 |
+| up-disp -> short | 15 | -177.76 | -99.00 | -68.99 | -27.27 | 4.10 | 34.02 | 64.91 | 85.93 | 144.24 | 0.58 | 58.82 | -0.68 | 2.88 |
+| up-disp -> short | 30 | -232.03 | -131.36 | -95.97 | -42.16 | 4.52 | 40.87 | 79.90 | 103.99 | 164.97 | -3.31 | 77.23 | -0.74 | 3.83 |
+| up-disp -> short | 60 | -311.13 | -174.18 | -119.76 | -52.80 | 4.04 | 50.52 | 101.26 | 132.03 | 235.75 | -5.00 | 101.35 | -0.62 | 3.54 |
+| down-disp -> long | 5 | -93.31 | -46.70 | -30.10 | -13.94 | 3.36 | 22.12 | 53.07 | 77.25 | 225.53 | 10.11 | 55.92 | 3.21 | 37.00 |
+| down-disp -> long | 10 | -137.00 | -62.63 | -45.87 | -20.06 | 3.39 | 32.54 | 67.08 | 108.93 | 296.15 | 11.43 | 73.95 | 2.27 | 26.85 |
+| down-disp -> long | 15 | -172.64 | -89.18 | -62.09 | -26.92 | 3.89 | 42.36 | 88.77 | 135.98 | 320.19 | 13.04 | 84.39 | 2.07 | 19.33 |
+| down-disp -> long | 30 | -259.47 | -114.33 | -75.63 | -32.14 | 6.65 | 52.33 | 114.15 | 193.76 | 395.49 | 17.38 | 107.25 | 0.90 | 8.15 |
+| down-disp -> long | 60 | -317.54 | -135.39 | -98.79 | -47.84 | 7.42 | 64.11 | 147.24 | 222.66 | 392.47 | 15.91 | 124.77 | 0.41 | 12.76 |
 
 **Excursions and distance to VWAP** (gross bp from the entry open; MFE/MAE from bar high/low; static anchor = the event-time VWAP, so it is a pure price statement; the moving-VWAP distance change is mechanically biased toward reversion and is **not evidential** — Opus A F10):
 
 ### HOLDOUT
-{{TABLE:exc:HOLDOUT}}
+| side | H | mfe_mean | mfe_median | mae_mean | mae_median | frac R>0 | frac toward VWAP (static) | dist chg mean bp | dist chg median bp |
+|---|---|---|---|---|---|---|---|---|---|
+| up-disp -> short | 5 | 25.16 | 18.62 | -28.46 | -17.96 | 0.509 | 0.509 | 2.13 | -1.04 |
+| up-disp -> short | 10 | 33.42 | 24.85 | -37.49 | -23.98 | 0.514 | 0.514 | 1.64 | -1.46 |
+| up-disp -> short | 15 | 39.10 | 29.83 | -43.62 | -28.68 | 0.527 | 0.526 | 1.10 | -2.72 |
+| up-disp -> short | 30 | 50.98 | 38.81 | -56.05 | -37.88 | 0.535 | 0.533 | 1.42 | -4.25 |
+| up-disp -> short | 60 | 65.27 | 50.10 | -68.77 | -46.60 | 0.545 | 0.541 | 1.07 | -6.87 |
+| down-disp -> long | 5 | 23.79 | 16.38 | -26.15 | -15.34 | 0.512 | 0.512 | 0.72 | -1.24 |
+| down-disp -> long | 10 | 32.28 | 22.35 | -35.17 | -21.31 | 0.512 | 0.512 | 0.80 | -1.18 |
+| down-disp -> long | 15 | 38.40 | 27.00 | -41.15 | -25.37 | 0.519 | 0.518 | 0.53 | -2.01 |
+| down-disp -> long | 30 | 51.23 | 36.09 | -53.18 | -34.14 | 0.513 | 0.511 | 0.62 | -1.64 |
+| down-disp -> long | 60 | 65.46 | 47.88 | -68.81 | -46.74 | 0.511 | 0.509 | 3.67 | -1.67 |
 
 The distributions are heavy-tailed (kurtosis ≫ 3), with a positive median and a near-zero mean: a small majority of events move toward VWAP (fraction R>0 ≈ 0.51–0.55) but the tails
 (price-band moves, results days, market-wide selloffs) dominate the mean. The largest VAL event (KPIT, 2025-01-29, +947 bp in 10 min) is genuine results-day trading, verified against raw 1m bars.
@@ -237,13 +307,46 @@ Costs: era-accurate statutory round trip from `core/execution/equity/intraday_fe
 κ scenarios 0 / 1 / 2.75 / 5 bp; base 2.75 bp = pooled ISD G6b p90 |next-open drift| (a *different* construct's measurement; at extreme-displacement moments spreads are plausibly wider, hence the 5 bp scenario). **Session-weighted rows are not implementable P&L** (equal weight per session needs the day's final event count at allocation time — Opus B); the tradeable figure is the **event-weighted net**, shown beside it.
 
 ### HOLDOUT
-{{TABLE:costs:HOLDOUT}}
+| side | H | gross session | fees bp | net session (k=0.0) | net EVENT (k=0.0) | net session (k=2.75) | net EVENT (k=2.75) | net session (k=5.0) | net EVENT (k=5.0) |
+|---|---|---|---|---|---|---|---|---|---|
+| down-disp -> long | 5 | 0.72 | 4.47 | -3.75 | -5.00 | -9.25 | -10.50 | -13.75 | -15.00 |
+| down-disp -> long | 10 | 1.74 | 4.47 | -2.73 | -4.79 | -8.23 | -10.29 | -12.73 | -14.79 |
+| down-disp -> long | 15 | 2.57 | 4.47 | -1.90 | -4.07 | -7.40 | -9.57 | -11.90 | -14.07 |
+| down-disp -> long | 30 | 4.09 | 4.47 | -0.38 | -2.99 | -5.88 | -8.49 | -10.38 | -12.99 |
+| down-disp -> long | 60 | 7.64 | 4.47 | 3.18 | -4.21 | -2.32 | -9.71 | -6.82 | -14.21 |
+| up-disp -> short | 5 | -2.02 | 4.47 | -6.49 | -6.31 | -11.99 | -11.81 | -16.49 | -16.31 |
+| up-disp -> short | 10 | -1.15 | 4.47 | -5.62 | -5.55 | -11.12 | -11.05 | -15.62 | -15.55 |
+| up-disp -> short | 15 | -0.54 | 4.47 | -5.01 | -4.93 | -10.51 | -10.43 | -15.01 | -14.93 |
+| up-disp -> short | 30 | 1.90 | 4.47 | -2.57 | -4.09 | -8.07 | -9.59 | -12.57 | -14.09 |
+| up-disp -> short | 60 | 7.69 | 4.47 | 3.23 | -1.51 | -2.27 | -7.01 | -6.77 | -11.51 |
 
 ### VAL
-{{TABLE:costs:VAL}}
+| side | H | gross session | fees bp | net session (k=0.0) | net EVENT (k=0.0) | net session (k=2.75) | net EVENT (k=2.75) | net session (k=5.0) | net EVENT (k=5.0) |
+|---|---|---|---|---|---|---|---|---|---|
+| down-disp -> long | 5 | 8.86 | 4.50 | 4.35 | 5.61 | -1.15 | 0.11 | -5.65 | -4.39 |
+| down-disp -> long | 10 | 11.11 | 4.50 | 6.61 | 6.93 | 1.11 | 1.43 | -3.39 | -3.07 |
+| down-disp -> long | 15 | 11.46 | 4.50 | 6.95 | 8.54 | 1.45 | 3.04 | -3.05 | -1.46 |
+| down-disp -> long | 30 | 18.66 | 4.50 | 14.16 | 12.88 | 8.66 | 7.38 | 4.16 | 2.88 |
+| down-disp -> long | 60 | 18.04 | 4.50 | 13.53 | 11.41 | 8.03 | 5.91 | 3.53 | 1.41 |
+| up-disp -> short | 5 | 4.63 | 4.50 | 0.12 | -2.95 | -5.38 | -8.45 | -9.88 | -12.95 |
+| up-disp -> short | 10 | 5.66 | 4.50 | 1.15 | -4.18 | -4.35 | -9.68 | -8.85 | -14.18 |
+| up-disp -> short | 15 | 5.57 | 4.50 | 1.06 | -3.91 | -4.44 | -9.41 | -8.94 | -13.91 |
+| up-disp -> short | 30 | 3.60 | 4.50 | -0.91 | -7.81 | -6.41 | -13.31 | -10.91 | -17.81 |
+| up-disp -> short | 60 | 8.38 | 4.50 | 3.87 | -9.49 | -1.63 | -14.99 | -6.13 | -19.49 |
 
 ### TRAIN
-{{TABLE:costs:TRAIN}}
+| side | H | gross session | fees bp | net session (k=0.0) | net EVENT (k=0.0) | net session (k=2.75) | net EVENT (k=2.75) | net session (k=5.0) | net EVENT (k=5.0) |
+|---|---|---|---|---|---|---|---|---|---|
+| down-disp -> long | 5 | 4.15 | 4.58 | -0.43 | -3.30 | -5.93 | -8.80 | -10.43 | -13.30 |
+| down-disp -> long | 10 | 7.52 | 4.58 | 2.94 | -5.53 | -2.56 | -11.03 | -7.06 | -15.53 |
+| down-disp -> long | 15 | 8.26 | 4.58 | 3.68 | -6.35 | -1.82 | -11.85 | -6.32 | -16.35 |
+| down-disp -> long | 30 | 12.54 | 4.58 | 7.96 | -6.33 | 2.46 | -11.83 | -2.04 | -16.33 |
+| down-disp -> long | 60 | 19.83 | 4.58 | 15.25 | -10.09 | 9.75 | -15.59 | 5.25 | -20.09 |
+| up-disp -> short | 5 | 1.01 | 4.58 | -3.58 | -4.95 | -9.08 | -10.45 | -13.58 | -14.95 |
+| up-disp -> short | 10 | 0.43 | 4.58 | -4.15 | -7.89 | -9.65 | -13.39 | -14.15 | -17.89 |
+| up-disp -> short | 15 | -0.75 | 4.58 | -5.33 | -9.43 | -10.83 | -14.93 | -15.33 | -19.43 |
+| up-disp -> short | 30 | -1.28 | 4.58 | -5.86 | -11.57 | -11.36 | -17.07 | -15.86 | -21.57 |
+| up-disp -> short | 60 | -2.17 | 4.58 | -6.75 | -12.72 | -12.25 | -18.22 | -16.75 | -22.72 |
 
 **Reading.** In HOLDOUT every gross cell is below the ≈ 4.5 bp statutory cost alone at short horizons, and **all ten net cells are negative at κ = 0, 2.75 and 5** (event-weighted and session-weighted). In TRAIN/VAL a few session-weighted long-side cells at h30/h60 net positive at κ ≤ 2.75 — not implementable, not confirmed, and largely market-level (§21).
 The frozen economic gate (a bootstrap lower bound > 0 at level 0.05/m in a clean HOLDOUT-confirmed cell) was **not reached** because no cell was HOLDOUT-confirmed. **The raw phenomenon does not survive plausible costs.**
@@ -253,7 +356,19 @@ The frozen economic gate (a bootstrap lower bound > 0 at level 0.05/m in a clean
 Variants (frozen protocol §robustness): q 0.995 / 0.999; range-based and raw-bp normalisation; close-weighted VWAP; entry delay 2 bars; non-declustered events; all-symbols universe; constant-name "core" universe (names in ≥ 90% of the warm-up sessions); last-valid-exit sensitivity; extra horizons 20/45. Full per-cell tables: `results/ROBUSTNESS.md`.
 **No variant can change the label or be promoted; the table below applies the frozen tree illustratively.**
 
-{{TABLE:robust_labels}}
+| variant | VAL-confirmed cells | HOLDOUT-confirmed (VAL-conditional Holm) | tree output (no delay-2 qualifier, no economics) |
+|---|---|---|---|
+| primary | up_disp_short/h5, down_disp_long/h10, down_disp_long/h30 | none | C6 |
+| q995 | none | none | C5 |
+| q999 | down_disp_long/h5, down_disp_long/h10 | none | C6 |
+| norm_range | none | none | C5 |
+| norm_raw_bp | down_disp_long/h5, down_disp_long/h10, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | none | C6 |
+| vwap_close | none | none | C5 |
+| delay2 | none | none | C5 |
+| dedup_all | up_disp_short/h5, up_disp_short/h10, up_disp_short/h15, up_disp_short/h30, up_disp_short/h60, down_disp_long/h5, down_disp_long/h10, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | up_disp_short/h15, up_disp_short/h30, up_disp_short/h60, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | C7 |
+| universe_all | down_disp_long/h5, down_disp_long/h10, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | none | C6 |
+| universe_core | up_disp_short/h5, down_disp_long/h5, down_disp_long/h10, down_disp_long/h15, down_disp_long/h30, down_disp_long/h60 | none | C6 |
+| exit_last_valid | up_disp_short/h5, down_disp_long/h10, down_disp_long/h30 | none | C6 |
 
 **Headline — the out-of-sample non-confirmation is robust; the in-sample confirmation is not.**
 
@@ -271,37 +386,148 @@ Per-variant TRAIN/VAL/HOLDOUT tables (both sides, all horizons, session-mean bp,
 
 **Quarterly market-excess series (h30)** — the exhibit that dates the break (Opus B item 1):
 
-{{TABLE:quarterly}}
+| quarter | stage | down events | down raw sess | down R_ex event | down R_ex sess | up events | up raw sess | up R_ex event | up R_ex sess |
+|---|---|---|---|---|---|---|---|---|---|
+| 2023Q2 | TRAIN | 289 | 12.25 | 3.77 | 10.43 | 329 | -10.40 | -10.36 | -12.03 |
+| 2023Q3 | TRAIN | 371 | 0.43 | 4.26 | -1.27 | 391 | -4.11 | -13.36 | -6.43 |
+| 2023Q4 | TRAIN | 424 | 19.25 | 6.28 | 15.41 | 422 | -0.13 | -9.44 | -1.77 |
+| 2024Q1 | TRAIN | 389 | 10.39 | 2.72 | 2.04 | 290 | 17.86 | 7.96 | 12.44 |
+| 2024Q2 | TRAIN | 368 | 23.33 | 11.66 | 19.53 | 395 | -11.03 | -5.46 | -12.18 |
+| 2024Q3 | VAL | 422 | 29.20 | 15.20 | 16.97 | 257 | -3.72 | -8.82 | -6.32 |
+| 2024Q4 | VAL | 383 | 12.26 | 0.27 | 10.39 | 282 | 7.21 | 1.20 | 3.43 |
+| 2025Q1 | VAL | 614 | 15.15 | 6.37 | 5.10 | 492 | 7.57 | -1.01 | 2.88 |
+| 2025Q2 | HOLDOUT | 428 | 20.63 | 3.79 | 16.39 | 441 | 2.25 | -1.33 | -0.31 |
+| 2025Q3 | HOLDOUT | 663 | 1.95 | 5.36 | 0.20 | 623 | -7.83 | -3.00 | -10.11 |
+| 2025Q4 | HOLDOUT | 425 | -2.83 | 1.06 | -5.29 | 607 | 1.12 | -0.58 | -0.01 |
+| 2026Q1 | HOLDOUT | 815 | 0.53 | -1.54 | -5.34 | 513 | 4.75 | -1.98 | -2.86 |
+| 2026Q2 | HOLDOUT | 296 | 5.22 | -2.12 | 0.32 | 440 | 8.80 | 5.82 | 7.82 |
+| 2026Q3 | HOLDOUT | 493 | 2.46 | 0.20 | 1.48 | 708 | 3.10 | 5.69 | 2.46 |
 
 **Event- vs session-weighting and singleton sessions** (sessions with exactly one event on that side):
 
-{{TABLE:weight}}
+| stage | side | H | sess raw | event raw | sess raw ex-singleton | sess R_ex | sess R_ex ex-singleton | singleton share |
+|---|---|---|---|---|---|---|---|---|
+| HOLDOUT | down-disp -> long | 10 | 1.74 | -0.33 | 2.23 | 0.36 | 0.85 | 0.11 |
+| HOLDOUT | down-disp -> long | 30 | 4.09 | 1.47 | 3.16 | 0.82 | 0.18 | 0.11 |
+| HOLDOUT | up-disp -> short | 10 | -1.15 | -1.08 | -0.64 | -1.95 | -1.10 | 0.09 |
+| HOLDOUT | up-disp -> short | 30 | 1.90 | 0.38 | 2.23 | -0.54 | 0.31 | 0.09 |
+| TRAIN | down-disp -> long | 10 | 7.52 | -0.94 | 4.24 | 6.23 | 3.41 | 0.20 |
+| TRAIN | down-disp -> long | 30 | 12.54 | -1.75 | 9.44 | 8.63 | 5.66 | 0.20 |
+| TRAIN | up-disp -> short | 10 | 0.43 | -3.31 | -0.85 | -1.08 | -1.97 | 0.12 |
+| TRAIN | up-disp -> short | 30 | -1.28 | -6.98 | -5.17 | -3.73 | -6.97 | 0.12 |
+| VAL | down-disp -> long | 10 | 11.11 | 11.43 | 6.18 | 7.74 | 2.65 | 0.20 |
+| VAL | down-disp -> long | 30 | 18.66 | 17.38 | 13.34 | 10.70 | 5.58 | 0.20 |
+| VAL | up-disp -> short | 10 | 5.66 | 0.31 | 0.69 | 4.17 | 0.22 | 0.17 |
+| VAL | up-disp -> short | 30 | 3.60 | -3.31 | -3.61 | -0.09 | -5.18 | 0.17 |
 
 **Time of day (HOLDOUT):**
 
-{{TABLE:sub:tod}}
+| level | side | H | events | sessions | raw sess mean | raw p | R_ex sess mean | R_ex p |
+|---|---|---|---|---|---|---|---|---|
+| 10:15-11:29 | down-disp -> long | 10 | 1815 | 300 | 4.13 | 0.016 | 2.04 | 0.119 |
+| 10:15-11:29 | down-disp -> long | 30 | 1815 | 300 | 9.10 | 0.026 | 5.54 | 0.114 |
+| 10:15-11:29 | up-disp -> short | 10 | 1919 | 330 | 1.20 | 0.247 | 0.85 | 0.301 |
+| 10:15-11:29 | up-disp -> short | 30 | 1919 | 330 | 4.75 | 0.051 | 2.61 | 0.183 |
+| 11:30-12:44 | down-disp -> long | 10 | 669 | 225 | 1.31 | 0.338 | 1.03 | 0.366 |
+| 11:30-12:44 | down-disp -> long | 30 | 669 | 225 | 3.52 | 0.190 | 1.71 | 0.330 |
+| 11:30-12:44 | up-disp -> short | 10 | 818 | 266 | 2.65 | 0.158 | 1.53 | 0.274 |
+| 11:30-12:44 | up-disp -> short | 30 | 818 | 266 | 1.58 | 0.334 | -0.50 | 0.558 |
+| 12:45-14:10 | down-disp -> long | 10 | 636 | 203 | -5.49 | 0.867 | -5.24 | 0.858 |
+| 12:45-14:10 | down-disp -> long | 30 | 636 | 203 | -6.94 | 0.794 | -7.21 | 0.806 |
+| 12:45-14:10 | up-disp -> short | 10 | 595 | 236 | -2.92 | 0.821 | -3.92 | 0.890 |
+| 12:45-14:10 | up-disp -> short | 30 | 595 | 236 | 2.56 | 0.298 | -0.02 | 0.501 |
 
 **Market regime (Nifty 50 trailing-60-session return at the prior close; ≥ +5% bull, ≤ −5% bear, else choppy) — HOLDOUT:**
 
-{{TABLE:sub:mkt_regime}}
+| level | side | H | events | sessions | raw sess mean | raw p | R_ex sess mean | R_ex p |
+|---|---|---|---|---|---|---|---|---|
+| bear | down-disp -> long | 10 | 384 | 49 | 0.22 | 0.482 | -2.70 | 0.716 |
+| bear | down-disp -> long | 30 | 384 | 49 | 5.72 | 0.124 | -3.38 | 0.738 |
+| bear | up-disp -> short | 10 | 463 | 52 | -4.05 | 0.930 | -3.87 | 0.948 |
+| bear | up-disp -> short | 30 | 463 | 52 | 5.72 | 0.074 | 4.28 | 0.150 |
+| bull | down-disp -> long | 10 | 437 | 67 | 7.39 | 0.196 | 7.14 | 0.190 |
+| bull | down-disp -> long | 30 | 437 | 67 | 12.76 | 0.105 | 12.71 | 0.088 |
+| bull | up-disp -> short | 10 | 490 | 73 | 2.55 | 0.216 | 1.47 | 0.330 |
+| bull | up-disp -> short | 30 | 490 | 73 | 9.45 | 0.033 | 7.07 | 0.078 |
+| choppy | down-disp -> long | 10 | 2299 | 226 | 0.40 | 0.429 | -0.99 | 0.675 |
+| choppy | down-disp -> long | 30 | 2299 | 226 | 1.16 | 0.396 | -1.79 | 0.658 |
+| choppy | up-disp -> short | 10 | 2379 | 237 | -1.65 | 0.827 | -2.58 | 0.937 |
+| choppy | up-disp -> short | 30 | 2379 | 237 | -1.27 | 0.671 | -3.94 | 0.923 |
 
 **Volatility regime (prior-session India VIX tercile, expanding window) — HOLDOUT:**
 
-{{TABLE:sub:vix}}
+| level | side | H | events | sessions | raw sess mean | raw p | R_ex sess mean | R_ex p |
+|---|---|---|---|---|---|---|---|---|
+| high | down-disp -> long | 10 | 683 | 92 | 8.01 | 0.128 | 6.09 | 0.186 |
+| high | down-disp -> long | 30 | 683 | 92 | 13.99 | 0.039 | 8.10 | 0.153 |
+| high | up-disp -> short | 10 | 726 | 103 | -1.31 | 0.680 | -2.53 | 0.827 |
+| high | up-disp -> short | 30 | 726 | 103 | 6.19 | 0.063 | 3.20 | 0.221 |
+| low | down-disp -> long | 10 | 1783 | 190 | -0.69 | 0.613 | -1.73 | 0.777 |
+| low | down-disp -> long | 30 | 1783 | 190 | -1.35 | 0.609 | -2.71 | 0.715 |
+| low | up-disp -> short | 10 | 1949 | 193 | -1.69 | 0.851 | -2.02 | 0.902 |
+| low | up-disp -> short | 30 | 1949 | 193 | -2.66 | 0.816 | -4.56 | 0.941 |
+| mid | down-disp -> long | 10 | 654 | 60 | -0.16 | 0.516 | -1.82 | 0.705 |
+| mid | down-disp -> long | 30 | 654 | 60 | 6.14 | 0.198 | 0.84 | 0.445 |
+| mid | up-disp -> short | 10 | 657 | 66 | 0.67 | 0.432 | -0.83 | 0.589 |
+| mid | up-disp -> short | 30 | 657 | 66 | 8.50 | 0.089 | 5.35 | 0.184 |
 
 **Liquidity tercile (prior-20-session traded value within the eligible universe) — HOLDOUT:**
 
-{{TABLE:sub:liq}}
+| level | side | H | events | sessions | raw sess mean | raw p | R_ex sess mean | R_ex p |
+|---|---|---|---|---|---|---|---|---|
+| low | down-disp -> long | 10 | 975 | 272 | 4.63 | 0.030 | 3.04 | 0.097 |
+| low | down-disp -> long | 30 | 975 | 272 | 3.31 | 0.145 | 0.94 | 0.380 |
+| low | up-disp -> short | 10 | 1043 | 297 | 4.28 | 0.036 | 3.37 | 0.078 |
+| low | up-disp -> short | 30 | 1043 | 297 | 9.01 | 0.008 | 7.20 | 0.025 |
+| mid | down-disp -> long | 10 | 1036 | 265 | 1.09 | 0.369 | 0.05 | 0.494 |
+| mid | down-disp -> long | 30 | 1036 | 265 | 3.74 | 0.213 | 1.23 | 0.392 |
+| mid | up-disp -> short | 10 | 1088 | 300 | -1.76 | 0.795 | -1.91 | 0.822 |
+| mid | up-disp -> short | 30 | 1088 | 300 | 2.29 | 0.228 | 0.64 | 0.414 |
+| high | down-disp -> long | 10 | 1109 | 278 | -1.20 | 0.680 | -2.26 | 0.823 |
+| high | down-disp -> long | 30 | 1109 | 278 | 4.49 | 0.212 | 1.66 | 0.381 |
+| high | up-disp -> short | 10 | 1201 | 315 | -2.59 | 0.877 | -2.83 | 0.906 |
+| high | up-disp -> short | 30 | 1201 | 315 | -1.89 | 0.715 | -3.20 | 0.843 |
 
 **Own-volatility tercile — HOLDOUT:**
 
-{{TABLE:sub:svol}}
+| level | side | H | events | sessions | raw sess mean | raw p | R_ex sess mean | R_ex p |
+|---|---|---|---|---|---|---|---|---|
+| low | down-disp -> long | 10 | 1124 | 278 | 4.06 | 0.057 | 2.41 | 0.157 |
+| low | down-disp -> long | 30 | 1124 | 278 | 7.29 | 0.021 | 4.18 | 0.110 |
+| low | up-disp -> short | 10 | 1194 | 308 | -1.21 | 0.778 | -1.41 | 0.835 |
+| low | up-disp -> short | 30 | 1194 | 308 | 2.23 | 0.152 | 0.69 | 0.373 |
+| mid | down-disp -> long | 10 | 1059 | 278 | 3.56 | 0.087 | 2.33 | 0.176 |
+| mid | down-disp -> long | 30 | 1059 | 278 | 2.15 | 0.284 | -1.06 | 0.616 |
+| mid | up-disp -> short | 10 | 1126 | 312 | 0.13 | 0.474 | -0.53 | 0.609 |
+| mid | up-disp -> short | 30 | 1126 | 312 | 1.15 | 0.346 | -0.07 | 0.510 |
+| high | down-disp -> long | 10 | 937 | 256 | -2.08 | 0.752 | -2.89 | 0.843 |
+| high | down-disp -> long | 30 | 937 | 256 | 2.07 | 0.352 | 0.24 | 0.481 |
+| high | up-disp -> short | 10 | 1012 | 295 | 0.57 | 0.404 | 0.40 | 0.431 |
+| high | up-disp -> short | 30 | 1012 | 295 | 5.39 | 0.111 | 3.52 | 0.204 |
 
 **CAS era (post-2026-08-03) and first-bar events — HOLDOUT:**
 
-{{TABLE:sub:era}}
+| level | side | H | events | sessions | raw sess mean | raw p | R_ex sess mean | R_ex p |
+|---|---|---|---|---|---|---|---|---|
+| post-CAS | down-disp -> long | 10 | 319 | 39 | 0.61 | 0.422 | -0.45 | 0.554 |
+| post-CAS | down-disp -> long | 30 | 319 | 39 | -1.18 | 0.635 | -3.33 | 0.824 |
+| post-CAS | up-disp -> short | 10 | 431 | 41 | 4.59 | 0.017 | 3.85 | 0.028 |
+| post-CAS | up-disp -> short | 30 | 431 | 41 | 7.66 | 0.005 | 5.92 | 0.019 |
+| pre-CAS | down-disp -> long | 10 | 2801 | 303 | 1.89 | 0.243 | 0.46 | 0.430 |
+| pre-CAS | down-disp -> long | 30 | 2801 | 303 | 4.77 | 0.129 | 1.36 | 0.371 |
+| pre-CAS | up-disp -> short | 10 | 2901 | 321 | -1.88 | 0.897 | -2.69 | 0.971 |
+| pre-CAS | up-disp -> short | 30 | 2901 | 321 | 1.16 | 0.315 | -1.37 | 0.719 |
 
-{{TABLE:sub:bar}}
+| level | side | H | events | sessions | raw sess mean | raw p | R_ex sess mean | R_ex p |
+|---|---|---|---|---|---|---|---|---|
+| first-bar k59 | down-disp -> long | 10 | 466 | 172 | 6.75 | 0.028 | 4.75 | 0.071 |
+| first-bar k59 | down-disp -> long | 30 | 466 | 172 | 7.24 | 0.082 | 7.24 | 0.073 |
+| first-bar k59 | up-disp -> short | 10 | 353 | 175 | -3.32 | 0.860 | -1.18 | 0.656 |
+| first-bar k59 | up-disp -> short | 30 | 353 | 175 | -1.13 | 0.573 | -0.51 | 0.535 |
+| later | down-disp -> long | 10 | 2654 | 335 | 1.06 | 0.340 | -0.13 | 0.521 |
+| later | down-disp -> long | 30 | 2654 | 335 | 3.49 | 0.192 | 0.32 | 0.467 |
+| later | up-disp -> short | 10 | 2979 | 359 | -1.17 | 0.776 | -2.06 | 0.917 |
+| later | up-disp -> short | 30 | 2979 | 359 | 1.41 | 0.256 | -1.10 | 0.695 |
 
 *Every cut above is a post-primary description of where the primary result lives. With ~10 cuts × 3 stages × 2 sides × 5 horizons, individual subgroup p-values are unadjusted and **none is a finding** (refused as forking paths by Opus B: regime-/side-conditional "works in …" claims).*
 
