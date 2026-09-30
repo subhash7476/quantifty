@@ -759,3 +759,39 @@ def test_quickedit_off_clears_quickedit_and_sets_extended_flags():
 def test_disable_quickedit_is_noop_without_a_console(monkeypatch):
     monkeypatch.setattr(orch.os, "name", "posix")
     assert orch._disable_quickedit() is False
+
+
+def _token_after(polls):
+    n = {"i": 0}
+
+    def fresh():
+        n["i"] += 1
+        return n["i"] > polls
+    return fresh
+
+
+def _browser_deps(phone_ok, polls):
+    browser = []
+    deps, calls = _deps(token_fresh=_token_after(polls),
+                        open_login=lambda: phone_ok,
+                        open_browser=lambda: browser.append(1))
+    return deps, browser
+
+
+def test_phone_approval_skips_browser_when_token_arrives_in_time():
+    deps, browser = _browser_deps(phone_ok=True, polls=10)
+    assert orch.start_sequence(deps, poll_s=2.0) == "started"
+    assert browser == []
+
+
+def test_browser_opens_once_after_ten_minutes_without_approval():
+    deps, browser = _browser_deps(phone_ok=True, polls=400)   # ~13 min at 2 s
+    assert orch.start_sequence(deps, poll_s=2.0,
+                               token_timeout_s=orch.TOKEN_TIMEOUT_S) == "started"
+    assert browser == [1]
+
+
+def test_browser_opens_at_once_when_phone_approval_unavailable():
+    deps, browser = _browser_deps(phone_ok=False, polls=2)
+    assert orch.start_sequence(deps, poll_s=2.0) == "started"
+    assert browser == [1]

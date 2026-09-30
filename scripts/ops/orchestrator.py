@@ -161,7 +161,8 @@ class Deps:
     spawn: Callable
     child_alive: Callable
     token_fresh: Callable[[], bool]
-    open_login: Callable[[], None]
+    # Requests phone approval; True when the request went out.
+    open_login: Callable[[], bool]
     preflight: Callable[[], str]
     marks_warm: Callable[[], bool]
     vix_warm: Callable[[], bool]
@@ -191,6 +192,10 @@ class Deps:
     # Called once after a token wait with whether a fresh token arrived, on every
     # exit path, so the phone-approval tunnel never outlives the wait.
     token_wait_done: Callable[[bool], None] = lambda ok: None
+    # Browser login fallback. Opened at once when phone approval is unavailable,
+    # else only after BROWSER_FALLBACK_S without a token: a login completed after
+    # the phone approval issues a second token and revokes the approved one.
+    open_browser: Callable[[], None] = lambda: None
 
 
 def _ensure(deps: Deps, name: str) -> None:
@@ -227,16 +232,21 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
     #     and feed gates below, so a morning without a login still keeps it running.
     _ensure(deps, "ts_combo")
 
-    # 3. Token gate — request phone approval and open the login page once, then
-    #    block-poll until fresh.
+    # 3. Token gate — request phone approval, fall back to the browser login,
+    #    then block-poll until fresh.
     if not deps.token_fresh():
         fresh = False
         try:
-            deps.open_login()
+            browser_opened = not deps.open_login()
+            if browser_opened:
+                deps.open_browser()
             waited = 0.0
             while not deps.token_fresh():
                 if waited >= token_timeout_s:
                     return "timeout:token"
+                if not browser_opened and waited >= BROWSER_FALLBACK_S:
+                    deps.open_browser()
+                    browser_opened = True
                 deps.sleep(poll_s)
                 waited += poll_s
             fresh = True
@@ -325,6 +335,7 @@ ORCH_LOCK = OPS_DIR / "orchestrator.pid"
 # Phone approval can take a while when the 09:10 request finds you away from the
 # phone; the market opens 09:15 and the feed gates park until then anyway.
 TOKEN_TIMEOUT_S = 3 * 3600
+BROWSER_FALLBACK_S = 10 * 60
 SESSION_FINALIZE_BUDGET_S = 90.0
 
 
@@ -547,7 +558,12 @@ def _live_deps(started: dict) -> Deps:
         if phone is not None and phone.start():
             approval["phone"] = phone
             print("\n>>> Upstox approval requested — tap Approve in the Upstox app "
-                  "or WhatsApp.")
+                  f"or WhatsApp. The browser login opens only if no token arrives "
+                  f"within {BROWSER_FALLBACK_S // 60} min.")
+            return True
+        return False
+
+    def _open_browser():
         url = "http://127.0.0.1:5000/ops/login/upstox"
         print(f"\n>>> Upstox token required. Opening {url}\n"
               f">>> Complete the browser login; the orchestrator will continue "
@@ -587,6 +603,7 @@ def _live_deps(started: dict) -> Deps:
     return Deps(
         spawn=_spawn, child_alive=child_alive, token_fresh=_token_fresh,
         open_login=_open_login,
+        open_browser=_open_browser,
         preflight=lambda: preflight.verdict(preflight.run_preflight(preflight.build_context())),
         marks_warm=_marks_warm, vix_warm=_vix_warm,
         dispatch_catchup=_dispatch_catchup,
