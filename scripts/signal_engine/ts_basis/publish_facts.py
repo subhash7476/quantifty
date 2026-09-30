@@ -86,7 +86,8 @@ def main():
             return 0
         fc = duckdb.connect(str(TS_FACTS_DB))
         fc.executemany(
-            "INSERT INTO carry_facts VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO carry_facts (formation_date, underlying, z_carry_neut, quintile, eligible) "
+            "VALUES (?, ?, ?, ?, ?)",
             [(str(fd), u, z, q, elig) for fd, u, z, q, elig in fact_rows],
         )
     else:
@@ -98,12 +99,15 @@ def main():
                 z_carry_neut     DOUBLE,
                 quintile         TINYINT,
                 eligible         BOOLEAN NOT NULL,
+                raw_z            DOUBLE,
+                basis_reverting  BOOLEAN DEFAULT FALSE,
                 PRIMARY KEY (formation_date, underlying)
             )
         """)
         fc.execute("CREATE INDEX idx_facts_date ON carry_facts (formation_date)")
         fc.executemany(
-            "INSERT INTO carry_facts VALUES (?, ?, ?, ?, ?)",
+            "INSERT INTO carry_facts (formation_date, underlying, z_carry_neut, quintile, eligible) "
+            "VALUES (?, ?, ?, ?, ?)",
             [(str(fd), u, z, q, elig) for fd, u, z, q, elig in facts],
         )
 
