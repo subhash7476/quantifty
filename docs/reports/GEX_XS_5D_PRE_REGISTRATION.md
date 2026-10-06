@@ -1,7 +1,7 @@
 # GEX-XS-5D — Pre-Registration
 
-**Status: DRAFT 2026-10-06 — not frozen, not approved.** It freezes when the operator approves
-D1–D11 (§13) and precondition P1 (§11) is certified. From the freeze commit on it is immutable:
+**Status: DRAFT 2026-10-06 — D1–D11 APPROVED as recommended by the operator 2026-10-06; not
+frozen.** It freezes once precondition P1 (§11) is certified. From the freeze commit on it is immutable:
 SHA-256 over the file's LF bytes, recorded in the freeze commit message and the CLAUDE.md RFA
 table. Only §14 may be appended to, and only to log mechanical fixes.
 
@@ -212,9 +212,14 @@ Per stage:
 - **P1 — results calendar.** A committed ingest script writes the NSE board-meeting archive,
   2016-01-01 → E_s, to `data/research/gex_xs_5d/board_meetings.duckdb`, raw rows plus parsed
   known time. Certification reads no option, price or outcome data:
-  - (a) every month from 2016-01 to E_s returns rows;
-  - (b) for each calendar year, ≥ 90 % of that year's FUTSTK names have ≥ 3 results rows;
-  - (c) known time ≤ meeting date on ≥ 99 % of results rows;
+  - (a) every month from 2016-01 to E_s returns rows. The API filters on meeting date (verified
+    2026-10-06), so month-by-month fetches cover every meeting. Fetches are by month, and a
+    busy month was checked to return the same rows whole as in halves;
+  - (b) for each calendar year, ≥ 90 % of that year's FUTSTK names have ≥ 3 **distinct**
+    results meeting dates in that year. The denominator is names with a FUTSTK row on ≥ 60 %
+    of that year's sessions, so names listed in F&O mid-year are not counted against the
+    calendar;
+  - (c) known date ≤ meeting date on ≥ 99 % of results rows;
   - (d) ≥ 98 % of FUTSTK names map to archive rows by ISIN or symbol;
   - (e) per year, the count and share of results rows with a non-null `oriiginalMeetingDate` or
     `proposedMeetingDate`, and of duplicate rows per (ISIN, meeting).
@@ -222,6 +227,10 @@ Per stage:
     window touches it declared void** in whichever stage it falls. It is not re-specified after
     the fact. If voids then exceed 10 % of a stage, the operator is told (§8) and the rules do
     not change.
+  - **A failure of (a), (c) or (d) means P1 is not certified and the freeze is blocked.** The
+    operator decides what to do, and any change is logged before the freeze. Calendar data is
+    not outcome data, so the change stays pre-read, but it is disclosed.
+  - These consequences were pinned 2026-10-06, before any archive month was ingested.
 - **P2 — order of commits:**
   1. The P1 ingest is committed and certified. This may happen before the freeze, because it
      reads calendar data only.
