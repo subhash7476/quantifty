@@ -15,6 +15,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import time
@@ -48,6 +49,7 @@ MIN_KNOWN_BEFORE = 0.99
 MIN_MAPPED = 0.98
 MAX_REVISION_SHARE = 0.02
 RESCHEDULE_DAYS = 21         # descriptive only: close-dated meetings of one company
+SEP = "\x1f"                # field separator for the calendar digest
 
 
 class FetchError(RuntimeError):
@@ -236,6 +238,14 @@ def reschedule_pairs(rows: list[dict]) -> dict:
     return {"pairs": pairs, "later_filed": later}
 
 
+def calendar_digest(con, end: date) -> str:
+    """SHA-256 over the parsed rows with meeting date <= end: sorted, fixed column order.
+    Pinned in the pre-registration; both stage runners refuse a store that differs."""
+    cur = con.execute(f"SELECT {', '.join(_COLS)} FROM board_meetings WHERE bm_date <= ?", [end])
+    lines = sorted(SEP.join("" if v is None else str(v) for v in r) for r in cur.fetchall())
+    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
+
+
 def _rows(con, end: date) -> list[dict]:
     cur = con.execute(f"SELECT {', '.join(_COLS)} FROM board_meetings WHERE bm_date <= ?", [end])
     return [dict(zip(_COLS, r)) for r in cur.fetchall()]
@@ -272,6 +282,7 @@ def certify(end: date, db: Path = DB, futures_db: Path = FUTURES_DB,
     con = duckdb.connect(str(db), read_only=True)
     rows = _rows(con, end)
     miss = missing_months(con, FIRST_MONTH, end)
+    digest = calendar_digest(con, end)
     con.close()
     years, every = _futstk_names(end, futures_db, equity_db)
     res = [r for r in rows if r["is_results"]]
@@ -295,7 +306,7 @@ def certify(end: date, db: Path = DB, futures_db: Path = FUTURES_DB,
         })
         per_year[-1]["e_pass"] = per_year[-1]["revision_share"] <= MAX_REVISION_SHARE
     out = {
-        "end": end, "n_rows": len(rows), "n_results": len(res),
+        "end": end, "digest": digest, "n_rows": len(rows), "n_results": len(res),
         "a_missing_months": miss, "a_pass": not miss,
         "c_known_before": known_before_meeting_share(rows),
         "d_mapped": mapped / len(every) if every else 0.0, "d_n_names": len(every),
@@ -319,6 +330,8 @@ def render(c: dict) -> str:
         f"**P1 {'CERTIFIED' if c['certified'] else 'NOT CERTIFIED — freeze blocked'}**"
         f" · void years under (b)/(e): {c['void_years'] or 'none'}",
         "",
+        f"- **Calendar digest** (SHA-256 over parsed rows with meeting date ≤ {c['end']}): "
+        f"`{c['digest']}`",
         f"- Rows: {c['n_rows']:,} (results rows {c['n_results']:,})",
         f"- (a) months with no rows, 2016-01 → {c['end']:%Y-%m}: "
         f"{[m.strftime('%Y-%m') for m in c['a_missing_months']] or 'none'} → **{ok(c['a_pass'])}**",
@@ -351,8 +364,10 @@ def render(c: dict) -> str:
         "without a trace'. The last two columns are descriptive evidence on that question: "
         f"distinct results meeting dates of one company ≤ {RESCHEDULE_DAYS} days apart, and how "
         "many of those had the later-dated meeting filed later. Close-dated pairs exist every "
-        "year, and in most the later date was filed later — a reschedule recorded as a new row, "
-        "not an overwrite. That supports, but does not prove, an append-only archive.",
+        "year, and in most the later date was filed later, which is what a reschedule appended "
+        "as a new row looks like. Some pairs are probably not reschedules at all (multiple or "
+        "corrective filings, or two issuers sharing a prefix), so the share is weak evidence: "
+        "it is consistent with an append-only archive and proves nothing.",
     ]
     return "\n".join(lines) + "\n"
 

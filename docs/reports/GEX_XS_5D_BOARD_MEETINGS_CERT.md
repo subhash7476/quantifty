@@ -5,6 +5,7 @@ Spec: `docs/reports/GEX_XS_5D_PRE_REGISTRATION.md` §7, §11 · end date 2026-10
 
 **P1 CERTIFIED** · void years under (b)/(e): none
 
+- **Calendar digest** (SHA-256 over parsed rows with meeting date ≤ 2026-10-05): `067fa6880c737571a3216a6898f00178f57bc7e9cc9c7a30ba355e43bdb299f9`
 - Rows: 133,747 (results rows 116,198)
 - (a) months with no rows, 2016-01 → 2026-10: none → **PASS**
 - (c) results rows known on or before the meeting date: 0.9987 (≥ 0.99) → **PASS**
@@ -30,4 +31,4 @@ Spec: `docs/reports/GEX_XS_5D_PRE_REGISTRATION.md` §7, §11 · end date 2026-10
 
 Duplicate rows rise from 2023 (a structured row plus an XBRL intimation row per meeting); the exclusion rule needs only one row known by the formation close.
 
-**What (e) cannot see.** The revision fields are null on every row, so (e) passes vacuously: it cannot tell 'no reschedules' from 'reschedules overwrote the meeting date without a trace'. The last two columns are descriptive evidence on that question: distinct results meeting dates of one company ≤ 21 days apart, and how many of those had the later-dated meeting filed later. Close-dated pairs exist every year, and in most the later date was filed later — a reschedule recorded as a new row, not an overwrite. That supports, but does not prove, an append-only archive.
+**What (e) cannot see.** The revision fields are null on every row, so (e) passes vacuously: it cannot tell 'no reschedules' from 'reschedules overwrote the meeting date without a trace'. The last two columns are descriptive evidence on that question: distinct results meeting dates of one company ≤ 21 days apart, and how many of those had the later-dated meeting filed later. Close-dated pairs exist every year, and in most the later date was filed later, which is what a reschedule appended as a new row looks like. Some pairs are probably not reschedules at all (multiple or corrective filings, or two issuers sharing a prefix), so the share is weak evidence: it is consistent with an append-only archive and proves nothing.

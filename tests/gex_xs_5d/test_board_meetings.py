@@ -140,3 +140,22 @@ def test_reschedule_pairs_counts_close_dated_meetings_and_later_filing():
             bm.parse_row(_row(bm_date="27-May-2019", bm_timestamp="15-May-2019 17:00:00", sysTime=None)),
             bm.parse_row(_row(bm_date="13-Aug-2019", bm_timestamp="01-Aug-2019 17:00:00", sysTime=None))]
     assert bm.reschedule_pairs(rows) == {"pairs": 2, "later_filed": 1}
+
+
+def test_calendar_digest_is_order_independent_and_sensitive_to_content(tmp_path):
+    a, b = _row(bm_date="31-Jan-2016"), _row(bm_symbol="XYZ", bm_date="30-Apr-2016")
+    db1 = tmp_path / "1.duckdb"; db2 = tmp_path / "2.duckdb"; db3 = tmp_path / "3.duckdb"
+    for db, rows in ((db1, [a, b]), (db2, [b, a]), (db3, [a, _row(bm_symbol="XYZ", bm_date="01-May-2016")])):
+        con = duckdb.connect(str(db)); bm.ensure_schema(con)
+        bm.insert_parsed(con, date(2016, 1, 1), [bm.parse_row(r) for r in rows]); con.close()
+    d = [bm.calendar_digest(duckdb.connect(str(db), read_only=True), date(2016, 12, 31)) for db in (db1, db2, db3)]
+    assert d[0] == d[1] and d[0] != d[2]
+
+
+def test_calendar_digest_ignores_rows_after_end(tmp_path):
+    db1 = tmp_path / "1.duckdb"; db2 = tmp_path / "2.duckdb"
+    for db, rows in ((db1, [_row()]), (db2, [_row(), _row(bm_date="15-Jan-2017")])):
+        con = duckdb.connect(str(db)); bm.ensure_schema(con)
+        bm.insert_parsed(con, date(2016, 1, 1), [bm.parse_row(r) for r in rows]); con.close()
+    d = [bm.calendar_digest(duckdb.connect(str(db), read_only=True), date(2016, 12, 31)) for db in (db1, db2)]
+    assert d[0] == d[1]

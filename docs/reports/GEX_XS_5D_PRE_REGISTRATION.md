@@ -231,6 +231,15 @@ Per stage:
     operator decides what to do, and any change is logged before the freeze. Calendar data is
     not outcome data, so the change stays pre-read, but it is disclosed.
   - These consequences were pinned 2026-10-06, before any archive month was ingested.
+  - **Result 2026-10-06 (E_s 2026-10-05): CERTIFIED, no void years**
+    (`GEX_XS_5D_BOARD_MEETINGS_CERT.md`). 133,747 rows (116,198 results); (a) no empty
+    month; (b) 0.984–0.995 every year; (c) 0.9987; (d) 0.9946 of 369 names. (e) passes only
+    vacuously, because the revision fields are null on every row; the report says so.
+  - **Calendar digest:** `067fa6880c737571a3216a6898f00178f57bc7e9cc9c7a30ba355e43bdb299f9`.
+    This is SHA-256 over the parsed rows with meeting date ≤ E_s. The store lives outside git
+    and the open month is refetched on every run, so the digest is what pins the certified
+    calendar. **If E_s has moved by the freeze date, ingest and certification are re-run with
+    the new E_s first, and the freeze records that run's digest in place of this one.**
 - **P2 — order of commits:**
   1. The P1 ingest is committed and certified. This may happen before the freeze, because it
      reads calendar data only.
@@ -241,6 +250,8 @@ Per stage:
   - `--stage dev` refuses any date ≥ 2023-01-01 and refuses unless this file's SHA matches the
     value pinned in the runner;
   - `--stage sealed` refuses unless this file's SHA matches **and** the DEV report records PASS;
+  - both stages refuse unless `calendar_digest(store, E_s)` recomputed from the board-meeting
+    store equals the digest pinned in P1;
   - each stage writes its report once and refuses to overwrite it (the `run_sealed.py` pattern).
 
 ## 12. Files and tests
