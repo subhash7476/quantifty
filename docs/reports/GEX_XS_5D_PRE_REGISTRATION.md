@@ -334,4 +334,4 @@ Added by this document, none of which read an outcome or computed GEX:
 
 ## 14. Post-freeze change log
 
-*(empty)*
+- **2026-10-06 — frozen SHA recorded wrongly at freeze; corrected.** The freeze commit `bf8a418` and the CLAUDE.md row recorded `70a7c234…`, computed by cutting the file at the *first occurrence* of the §14 heading text. That occurrence sits inside the status paragraph's backticks, so the value covered only the first 389 of 21,655 bytes. Under this document's own definition (the bytes before the *line* `## 14. Post-freeze change log`) the frozen SHA-256 is **`0cd497ab40535a46be902d2b3add94903c8cabfcc85fb1cb41a2a29ef08f8a29`**. No text above §14 changed; only the recorded number was wrong. Caught while writing the runner guard, before any read. The runner matches the heading as a whole line.
