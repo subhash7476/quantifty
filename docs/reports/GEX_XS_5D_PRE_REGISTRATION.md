@@ -1,9 +1,6 @@
 # GEX-XS-5D — Pre-Registration
 
-**Status: DRAFT 2026-10-06 — D1–D11 APPROVED as recommended by the operator 2026-10-06; not
-frozen.** It freezes once precondition P1 (§11) is certified. From the freeze commit on it is immutable:
-SHA-256 over the file's LF bytes, recorded in the freeze commit message and the CLAUDE.md RFA
-table. Only §14 may be appended to, and only to log mechanical fixes.
+**Status: FROZEN 2026-10-06.** D1–D11 were approved as recommended by the operator on 2026-10-06, and P1 was certified the same day (§11, calendar digest `067fa688…`, E_s 2026-10-05). From the freeze commit on, everything above the §14 heading is immutable. **The frozen SHA-256 is taken over the file's LF bytes up to, but not including, the line `## 14. Post-freeze change log`**, so the appendices are covered and appends to §14 do not move it. It is recorded in the freeze commit message and the CLAUDE.md RFA table, and pinned in the stage runner (P3). §14, at the end of the file, may be appended to only to log mechanical fixes.
 
 | Item | Reference |
 |---|---|
@@ -247,9 +244,9 @@ Per stage:
   3. The runner and its tests are committed with that SHA pinned (P3).
   4. Every stage report's header records the runner's commit hash and this document's SHA.
 - **P3 — runner guards:**
-  - `--stage dev` refuses any date ≥ 2023-01-01 and refuses unless this file's SHA matches the
+  - `--stage dev` refuses any date ≥ 2023-01-01 and refuses unless the frozen SHA (header definition: LF bytes before the §14 heading) matches the
     value pinned in the runner;
-  - `--stage sealed` refuses unless this file's SHA matches **and** the DEV report records PASS;
+  - `--stage sealed` refuses unless the frozen SHA matches **and** the DEV report records PASS;
   - both stages refuse unless `calendar_digest(store, E_s)` recomputed from the board-meeting
     store equals the digest pinned in P1;
   - each stage writes its report once and refuses to overwrite it (the `run_sealed.py` pattern).
@@ -291,10 +288,6 @@ Tests, at minimum:
 | D9 | Missing / zero range | Missing outcome bar drops the name (reported); zero range stays |
 | D10 | Sessions and formation phase | Weekday bhavcopy dates minus the six pinned Muhurat sessions; every 5th session from each stage's first session |
 | D11 | SEALED end | Minimum of the three stores' max dates on the freeze date |
-
-## 14. Post-freeze change log
-
-*(empty)*
 
 ---
 
@@ -338,3 +331,7 @@ Added by this document, none of which read an outcome or computed GEX:
    residuals.
 5. **Regime breaks.** Physical settlement (2018–19), the SEBI reform (2024-11-20) and CAS
    (2026-08-03) are descriptive splits only.
+
+## 14. Post-freeze change log
+
+*(empty)*
