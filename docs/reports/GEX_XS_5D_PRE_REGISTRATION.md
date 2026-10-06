@@ -42,17 +42,27 @@ detail, exclusions, the stage design and the runner guards.
 
 ## 2. Windows and formations (D10, D11)
 
-- **Formation dates:** every 5th regular session from the stage's first session (phase pinned:
-  the first session is formation 1). Sessions are dates present in
-  `stock_options_bhavcopy` that are regular sessions per `core/market/trading_calendar.is_session`.
+- **Formation dates:** every 5th session from the stage's first session (phase pinned: the first
+  session is formation 1).
+- **Sessions** are weekday dates present in `stock_options_bhavcopy`, **minus the special
+  (Diwali Muhurat) sessions**: 2017-10-19, 2018-11-07, 2021-11-04, 2022-10-24, 2024-11-01,
+  2025-10-21. Those are the six weekday Muhurat dates the store holds. The weekend ones (2016,
+  2019, 2020, 2023) are not in it, and it holds no weekend date at all. A one-hour session would
+  put a near-zero-range day into a 5-day Parkinson mean.
+  - `core/market/trading_calendar.is_session` covers only 2023–2026, so it cannot define DEV
+    sessions. The pinned list is the rule for both stages.
+  - Any special session after 2025 that falls inside the SEALED span at freeze is added to the
+    list in the freeze commit, before the read.
 - **Target window:** sessions t+1..t+5. A formation is kept only if t+5 lies inside its own
   stage, so no stage reads a bar outside itself. Targets never overlap.
-- **DEV:** 1,701 sessions → **340 formations**, 2016-02-11 → 2022-12-23 (last target ends
-  2022-12-30).
+- **DEV:** 1,697 sessions → **339 formations**, 2016-02-11 → 2022-12-22 (last target ends
+  2022-12-29).
 - **SEALED:** formations from 2023-01-02. Its end date **E_s = the minimum of the max
   `trade_date` of the stock-option, equity and futures bhavcopy stores on the freeze date**,
   recorded in the freeze commit. The last formation is the last one whose t+5 ≤ E_s. At drafting
-  (E_s 2026-10-05) that is **184 formations**, matching the declaration. The count only grows.
+  (E_s 2026-10-05): 923 sessions → **184 formations**, last formation 2026-09-23 (target ends
+  09-30). The count matches the declaration, and the dates shift by the two SEALED Muhurat days
+  removed. The count only grows.
 
 ## 3. Universe and mapping
 
@@ -75,8 +85,10 @@ A name enters formation t if all of the following hold on t:
 
 ## 4. GEX construction (per name, per formation)
 
-- **Expiries:** every monthly expiry of the name with 1 ≤ calendar DTE ≤ 45; the series expiring
-  on t is excluded (Stage A §4.1).
+- **Expiries:** **every listed monthly expiry** of the name, as the declaration pins, except the
+  series expiring on t. At T = 0 gamma is undefined, so that exclusion is implementation detail,
+  not a narrowing. Stage A's 1 ≤ DTE ≤ 45 cap is **not** applied, because it would drop the far
+  month the declaration includes.
 - **Forward (D4):** F = the same-expiry stock future's `close` on t from `futures_bhavcopy`. An
   expiry with no future, or with |F / cash close − 1| > 0.03, is dropped. Stage A's
   `parity_forward` is not used for stocks.
@@ -91,6 +103,8 @@ A name enters formation t if all of the following hold on t:
   `MIN_STRIKES = 10` is a per-day index rule and is not applied.
   - The 6 / 2 / 2 threshold was chosen from a structural census (Appendix A, item 8). Expected
     names per formation: ~100 (2016), 139–154 (2017–19), 128–190 (2020–22), 180–213 (2023+).
+    The census counted expiries with DTE ≤ 45 only. Including the far month can only add kept
+    strikes, so these are lower bounds and the threshold is conservative.
 
 ## 5. Outcome (D5, D9)
 
@@ -133,12 +147,18 @@ board-meeting archive provides one: every intimation carries `bm_timestamp` (fil
 
 - **Rule:** name i is excluded from formation t if any archive row satisfies all three:
   1. it is a results meeting: case-insensitive `result` in `bm_purpose` or `bm_desc`;
-  2. its meeting date `bm_date` ∈ [t, session t+5]. Day t is included because results released
-     after the close on t land in t+1;
+  2. its meeting date `bm_date` falls on a **calendar date** from date(t) to the date of session
+     t+5, **inclusive**. Weekend and holiday meetings inside that span count, and board meetings
+     often fall on weekends. Day t is included because results released after the close on t
+     land in t+1;
   3. its known time, the **later of `bm_timestamp` and `sysTime`**, is ≤ **the derivatives close
      on t per `core/market/session_schedule`** (15:30 before CAS, 15:40 from 2026-08-03).
-- **Rescheduled meetings:** each row is taken as of its own known time. A name is excluded if
-  any row known by t's close dates a results meeting inside the window.
+- **Rescheduled meetings:** each row is taken as of its own known time, and only with the date
+  fields that row carried when it was filed. A name is excluded if any row known by t's close
+  dates a results meeting inside the window. A row whose `bm_date` was overwritten later (a
+  non-null `oriiginalMeetingDate` / `proposedMeetingDate`) is a look-ahead hazard; P1(e) measures
+  it. Withdrawn intimations may have been deleted from the archive. That can only under-exclude,
+  which adds noise, not bias toward H1.
 - **Not excluded:** a results meeting inside the window whose intimation became known after t's
   close. The name stays, as noise. A post-hoc split that excludes every window containing any
   results meeting is reported descriptively (§10), never as the test.
@@ -195,12 +215,19 @@ Per stage:
   - (a) every month from 2016-01 to E_s returns rows;
   - (b) for each calendar year, ≥ 90 % of that year's FUTSTK names have ≥ 3 results rows;
   - (c) known time ≤ meeting date on ≥ 99 % of results rows;
-  - (d) ≥ 98 % of FUTSTK names map to archive rows by ISIN or symbol.
-  - **A year that fails (b) has every formation whose window touches it declared void** in
-    whichever stage it falls. It is not re-specified after the fact. If voids then exceed 10 %
-    of a stage, the operator is told (§8) and the rules do not change.
-- **P2 — code frozen first.** The runner, its tests and the P1 ingest are committed; their
-  commit hash is recorded in the freeze commit before DEV runs.
+  - (d) ≥ 98 % of FUTSTK names map to archive rows by ISIN or symbol;
+  - (e) per year, the count and share of results rows with a non-null `oriiginalMeetingDate` or
+    `proposedMeetingDate`, and of duplicate rows per (ISIN, meeting).
+  - **A year that fails (b), or whose (e) revision share exceeds 2 %, has every formation whose
+    window touches it declared void** in whichever stage it falls. It is not re-specified after
+    the fact. If voids then exceed 10 % of a stage, the operator is told (§8) and the rules do
+    not change.
+- **P2 — order of commits:**
+  1. The P1 ingest is committed and certified. This may happen before the freeze, because it
+     reads calendar data only.
+  2. This document is frozen, and its SHA is recorded.
+  3. The runner and its tests are committed with that SHA pinned (P3).
+  4. Every stage report's header records the runner's commit hash and this document's SHA.
 - **P3 — runner guards:**
   - `--stage dev` refuses any date ≥ 2023-01-01 and refuses unless this file's SHA matches the
     value pinned in the runner;
@@ -217,9 +244,11 @@ Per stage:
 | `docs/reports/GEX_XS_5D_{BOARD_MEETINGS_CERT,DEV,SEALED}.md` | Script-generated reports, no hand-edited numbers |
 
 Tests, at minimum:
-- formation grid: every 5th session, t+5 inside the stage, phase starts at the first session;
+- formation grid: every 5th session, t+5 inside the stage, phase starts at the first session,
+  the six Muhurat dates skipped;
 - results rule: a row known at 15:29 on t excludes, one known at 15:31 does not (and the
-  15:40 CAS close from 2026-08-03); a meeting on t excludes;
+  15:40 CAS close from 2026-08-03); a meeting on t excludes; a Saturday meeting between t and
+  session t+5 excludes; a meeting on the calendar day after session t+5 does not;
 - ATM IV interpolation at K = F on a synthetic chain; the IV expiry skips one expiring inside
   the window;
 - residualization: the IC is invariant to adding a linear function of the controls to N;
@@ -240,7 +269,7 @@ Tests, at minimum:
 | D7 | Inference | Newey–West lag 4 (about a month of weekly formations); t(n − 1) |
 | D8 | Winsorization | 1st / 99th cross-sectional percentiles on y and the controls |
 | D9 | Missing / zero range | Missing outcome bar drops the name (reported); zero range stays |
-| D10 | Formation phase | Every 5th session from each stage's first session |
+| D10 | Sessions and formation phase | Weekday bhavcopy dates minus the six pinned Muhurat sessions; every 5th session from each stage's first session |
 | D11 | SEALED end | Minimum of the three stores' max dates on the freeze date |
 
 ## 14. Post-freeze change log
@@ -273,7 +302,9 @@ Added by this document, none of which read an outcome or computed GEX:
    future. It set the D3 threshold.
 9. **Board-meeting archive probe (2026-10-06):** three months (Jan-2016, Jul-2019, Jul-2024)
    fetched to confirm that the fields and timestamps exist. Calendar data only.
-10. **Formation counts:** session counts per stage from `stock_options_bhavcopy` dates.
+10. **Formation counts:** session counts per stage from `stock_options_bhavcopy` dates, plus
+    total option contracts per date, which identified the weekday Muhurat sessions (the two
+    lowest-volume dates in the store are 2018-11-07 and 2017-10-19).
 
 ## Appendix B — Stated threats (from the declaration, not re-litigated)
 
