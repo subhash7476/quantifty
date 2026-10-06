@@ -126,3 +126,16 @@ def test_formation_ic_void_below_80_names_and_negative_when_planted():
     df["y"] = -0.8 * df["N"] + 0.3 * df["ln_iv"] + rng.normal(scale=0.3, size=n)
     assert R.formation_ic(df) < -0.3
     assert R.formation_ic(df.iloc[:79]) is None
+
+
+def test_structure_only_never_touches_bars_after_t():
+    s = _sessions()
+    i = 20
+    exps = [s[i + 7], s[i + 7] + timedelta(days=28)]
+    chain, fwd = _chain(s[i], 100.0, exps)
+    sd = _sd(s, i, exps, fwd)
+    for d in s[i + 1:]:
+        del sd.hl[("ABC", d)]
+        del sd.adj[("ABC", d)]
+    rec, why = R.build_name(sd, i, "ABC", chain, structure_only=True)
+    assert why is None and set(rec) == {"i", "t", "symbol", "N", "iv"}

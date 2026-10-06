@@ -5,6 +5,10 @@ Spec: docs/reports/GEX_XS_5D_PRE_REGISTRATION.md, FROZEN 2026-10-06, frozen SHA-
 the frozen SHA and the P1 calendar digest must match, DEV refuses 2023+ dates, SEALED
 refuses unless the DEV report records PASS, and no report is ever overwritten.
 
+Crash rule: the panel is written before the report. If a run dies after the panel is built,
+it may be re-run only with no change to the runner code, or with every change logged in the
+pre-registration's §14 first; the report then states that it is a re-run.
+
 Usage (from the repo root; --data points at the data directory):
     python -m scripts.gex_xs_5d.run_stage --stage dev --data F:/Nifty/data
     python -m scripts.gex_xs_5d.run_stage --stage sealed --data F:/Nifty/data
@@ -121,6 +125,7 @@ class StageData:
         lo, hi = self.sessions[0], self.sessions[-1]
 
         fut = duckdb.connect(str(data / "market_data" / "futures_bhavcopy.duckdb"), read_only=True)
+        fut.execute("SET memory_limit='1GB'")
         f = fut.execute("""SELECT trade_date, underlying, expiry_dt, close FROM futures_bhavcopy
                            WHERE inst_type = 'FUTSTK' AND trade_date BETWEEN ? AND ?""", [lo, hi]).df()
         monthly = fut.execute("""SELECT expiry_dt FROM futures_bhavcopy WHERE inst_type = 'FUTSTK'
@@ -135,21 +140,29 @@ class StageData:
         self.monthly_expiries = sorted(r[0] for r in monthly)
 
         eq = duckdb.connect(str(data / "market_data" / "equity_bhavcopy.duckdb"), read_only=True)
-        raw = eq.execute("""SELECT trade_date, symbol, high, low, close FROM equity_bhavcopy
-                            WHERE series = 'EQ' AND trade_date BETWEEN ? AND ?""", [lo, hi]).df()
-        adj = eq.execute("""SELECT trade_date, symbol, close FROM equity_bhavcopy_adjusted
-                            WHERE series = 'EQ' AND trade_date BETWEEN ? AND ?""", [lo, hi]).df()
+        eq.execute("SET memory_limit='1GB'")      # the adjusted view spills instead of OOM (CLAUDE.md #34)
         intervals = eq.execute("SELECT symbol, valid_from, valid_to, entity FROM symbol_entity_intervals").fetchall()
         isin = eq.execute("SELECT symbol, isin FROM symbol_isin WHERE isin LIKE 'INE%'").fetchall()
-        eq.close()
-        self.hl = {(r.symbol, r.trade_date.date()): (r.high, r.low, r.close) for r in raw.itertuples(index=False)}
-        self.adj = {(r.symbol, r.trade_date.date()): r.close for r in adj.itertuples(index=False)}
         self.entity_rows = defaultdict(list)       # symbol -> [(from, to, entity)]
         self.entity_syms = defaultdict(list)       # entity -> [(from, to, symbol)]
         for s, a, b, e in intervals:
             self.entity_rows[s].append((a, b, e))
             self.entity_syms[e].append((a, b, s))
         self.prefix = {s: i[:9] for s, i in isin}
+        # Equity bars only for F&O names and the symbols their entities carry (memory, 8 GB box)
+        needed = {u for names in self.fut_names.values() for u in names}
+        needed |= {s for u in list(needed) for _a, _b, e in self.entity_rows.get(u, [])
+                   for _c, _d, s in self.entity_syms[e]}
+        eq.register("needed", pd.DataFrame({"symbol": sorted(needed)}))
+        raw = eq.execute("""SELECT trade_date, symbol, high, low, close FROM equity_bhavcopy
+                            WHERE series = 'EQ' AND trade_date BETWEEN ? AND ?
+                              AND symbol IN (SELECT symbol FROM needed)""", [lo, hi]).df()
+        adj = eq.execute("""SELECT trade_date, symbol, close FROM equity_bhavcopy_adjusted
+                            WHERE series = 'EQ' AND trade_date BETWEEN ? AND ?
+                              AND symbol IN (SELECT symbol FROM needed)""", [lo, hi]).df()
+        eq.close()
+        self.hl = {(r.symbol, r.trade_date.date()): (r.high, r.low, r.close) for r in raw.itertuples(index=False)}
+        self.adj = {(r.symbol, r.trade_date.date()): r.close for r in adj.itertuples(index=False)}
 
         bm = duckdb.connect(str(data / "research" / "gex_xs_5d" / "board_meetings.duckdb"), read_only=True)
         rows = bm.execute("""SELECT isin_prefix, symbol, bm_date, known_ts FROM board_meetings
@@ -189,8 +202,9 @@ def _parkinson_mean(sd: StageData, symbol, t, days, minimum):
     return (sum(vals) / len(vals)) if len(vals) >= minimum else None
 
 
-def build_name(sd: StageData, i: int, und: str, chain: pd.DataFrame):
-    """One name on session i. Returns (record, None) or (None, drop_reason)."""
+def build_name(sd: StageData, i: int, und: str, chain: pd.DataFrame, structure_only: bool = False):
+    """One name on session i. Returns (record, None) or (None, drop_reason).
+    structure_only stops before any bar after t is touched (pre-run smoke check)."""
     s, t = sd.sessions, sd.sessions[i]
     bar = sd.hl.get((und, t))
     if bar is None:
@@ -211,6 +225,8 @@ def build_name(sd: StageData, i: int, und: str, chain: pd.DataFrame):
     iv = P.atm_iv(by_exp[iv_exp]) if iv_exp in by_exp and len(by_exp[iv_exp].strikes) else None
     if iv is None:
         return None, "U3_atm_iv"
+    if structure_only:
+        return {"i": i, "t": t, "symbol": und, "N": n, "iv": iv}, None
     rv = _parkinson_mean(sd, und, t, s[i + 1:i + P.STEP + 1], P.STEP)
     if rv is None:
         return None, "outcome_missing_bar"
