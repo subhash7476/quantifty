@@ -59,6 +59,7 @@ class RuntimeWatchdog:
             logger.info("DATA RECOVERED — Bars flowing again.")
             self._data_stale_alerted = False
             self._data_healthy = True
+            self.execution.release_kill_switch("data feed recovered")
 
     def check_data_staleness(self) -> None:
         """Detect silent data feed failure during market hours."""
@@ -79,7 +80,7 @@ class RuntimeWatchdog:
             msg = f"DATA STALE — No new bars for {mins:.1f} minutes. Activating soft kill switch."
             logger.critical(msg)
             alerter.critical(msg)
-            self.execution.activate_kill_switch(f"Data feed stale ({mins:.1f}m)")
+            self.execution.activate_kill_switch(f"Data feed stale ({mins:.1f}m)", releasable=True)
 
     def write_heartbeat(self, bars_processed: int = 0) -> None:
         """Write heartbeat file atomically for external watchdog monitoring."""

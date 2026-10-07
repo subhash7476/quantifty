@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import runpy
 import sys
+import traceback
 from datetime import date, datetime
 from pathlib import Path
 from typing import Callable, List, Optional
@@ -44,6 +45,9 @@ def _run_target(script: Path, args: List[str]) -> int:
         runpy.run_path(str(script), run_name="__main__")
     except SystemExit as e:
         return e.code if isinstance(e.code, int) else (0 if e.code is None else 1)
+    except Exception:  # noqa: BLE001 — so the END line and the alert still fire
+        traceback.print_exc()
+        return 1
     return 0
 
 

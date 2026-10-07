@@ -59,7 +59,6 @@ from core.logging import setup_logger
 from core.instruments.instrument_parser import InstrumentParser
 from core.risk.greeks.portfolio_greeks import PortfolioGreeks
 from core.risk.greeks.greeks_model import Greeks
-from core.analytics.diagnostic_engine import DiagnosticsEngine
 from core.database.writers import TradingWriter, _to_str
 from core.execution.portfolio.trade_recorder import TradeRecorder
 from core.runtime.event_journal import RuntimeEventJournal, EventType, Severity
@@ -262,6 +261,8 @@ class ExecutionHandler:
         # until S3-S2 lands.
         self._price_cache: Dict[str, PriceSnapshot] = {}
         self._kill_switched = False
+        # A trip that only a restart may clear. Stale-data trips are releasable.
+        self._kill_hard = False
         self._consecutive_broker_errors = 0
         self._trades_today = 0
         self.logger = logging.getLogger(__name__)
@@ -489,14 +490,12 @@ class ExecutionHandler:
                             f"Closing fill {fill.fill_id} on {order.symbol} has "
                             f"no open trades row; exit update skipped")
                     else:
-                        mae_mfe = self._compute_exit_diagnostics(order.symbol, order.signal_id, fill.price, fill.timestamp)
                         self.trading_writer.update_trade_exit(
                             trade_id=entry_trade_id, 
                             exit_price=fill.price, 
                             exit_ts=fill.timestamp, 
                             pnl=realized_pnl, 
                             fees=fill.fee,
-                            mae_mfe=mae_mfe
                         )
                 else:
                     # Opening trade
@@ -509,8 +508,7 @@ class ExecutionHandler:
         """trade_id of the most recent open (unexited) ledger row for a symbol.
 
         The trades table is keyed by the entry fill id; a closing fill must
-        resolve that row (its own fill id matches nothing). Mirrors the open-row
-        lookup `_compute_exit_diagnostics` already performs."""
+        resolve that row (its own fill id matches nothing)."""
         try:
             with self.db_manager.trading_reader() as conn:
                 row = conn.execute(
@@ -521,46 +519,6 @@ class ExecutionHandler:
         except Exception as e:
             self.logger.warning(
                 f"Failed to resolve open trades row for {symbol}: {e}")
-            return None
-
-    def _compute_exit_diagnostics(self, symbol: str, signal_id: str, exit_price: float, exit_ts: datetime) -> Optional[Dict]:
-        """Loads 1m bars and computes MAE/MFE for a closed trade."""
-        try:
-            # 1. Fetch entry details from trade_context
-            with self.db_manager.trading_reader() as conn:
-                row = conn.execute("""
-                    SELECT entry_timestamp, intended_entry, sl_distance, risk_r, pnl_rs, direction
-                    FROM trades t JOIN trade_context c ON t.trade_id = c.trade_id
-                    WHERE t.symbol = ? AND t.exit_price = 0.0
-                    ORDER BY t.timestamp DESC LIMIT 1
-                """, [symbol]).fetchone()
-                
-                if not row:
-                    return None
-                
-                entry_ts_str, entry_price, sl_dist, risk_r, _, direction = row
-                entry_ts = datetime.fromisoformat(entry_ts_str)
-                
-                # 2. Compute using DiagnosticsEngine
-                engine = DiagnosticsEngine(Path("data/market_data/nse/candles/1m"))
-                mae_mfe = engine.compute_mae_mfe(
-                    symbol=symbol,
-                    direction=direction,
-                    entry_price=entry_price,
-                    sl_distance=sl_dist,
-                    entry_ts=entry_ts,
-                    exit_ts=exit_ts
-                )
-                
-                # 3. Add Exit Efficiency & Theoretical Max
-                if mae_mfe and mae_mfe.get('mfe_points', 0) > 0:
-                    # We'll need quantity to compute Rs-based theoretical max
-                    # But for now we just return the points and R
-                    pass
-                
-                return mae_mfe
-        except Exception as e:
-            self.logger.warning(f"Exit diagnostics failed: {e}")
             return None
 
     def update_market_price(self, symbol: str, price: float) -> None:
@@ -1021,12 +979,30 @@ class ExecutionHandler:
 
         return str(group_id)
 
-    def activate_kill_switch(self, reason: str):
-        if not self._kill_switched:
-            self._kill_switched = True
-            alerter.critical(f"KILL SWITCH ACTIVATED: {reason}")
-            self.logger.warning(f"Kill switch activated: {reason}")
-            self._persist_metrics()
+    def activate_kill_switch(self, reason: str, *, releasable: bool = False):
+        """Trip the kill switch. Only a stale-data trip passes releasable=True;
+        any other trip stays latched until restart, even if it lands while a
+        releasable one is active."""
+        became_hard = not releasable and not self._kill_hard
+        if not releasable:
+            self._kill_hard = True
+        if self._kill_switched and not became_hard:
+            return
+        self._kill_switched = True
+        alerter.critical(f"KILL SWITCH ACTIVATED: {reason}")
+        self.logger.warning(f"Kill switch activated: {reason}")
+        self._persist_metrics()
+
+    def release_kill_switch(self, reason: str) -> bool:
+        """Lift a releasable (stale-data) trip once the feed is back. Returns
+        False and keeps the latch when no trip is active or any hard trip is."""
+        if not self._kill_switched or self._kill_hard:
+            return False
+        self._kill_switched = False
+        alerter.warning(f"KILL SWITCH RELEASED: {reason}")
+        self.logger.warning(f"Kill switch released: {reason}")
+        self._persist_metrics()
+        return True
 
     def _is_signal_already_executed(self, signal_id: str) -> bool:
         """Check trading.db for existing execution of this signal."""

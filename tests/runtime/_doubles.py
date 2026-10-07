@@ -178,6 +178,8 @@ class FakeWatchdog:
 
     def record_bar(self) -> None:
         self.record_bar_calls += 1
+        if not self.data_healthy and self._execution is not None:
+            self._execution.release_kill_switch("bars flowing again")
         self.data_healthy = True
 
     def check_data_staleness(self) -> None:
@@ -185,7 +187,7 @@ class FakeWatchdog:
         if self._stale_after is not None and self.staleness_checks == self._stale_after:
             self.data_healthy = False
             if self._execution is not None:
-                self._execution.activate_kill_switch("data feed stale")
+                self._execution.activate_kill_switch("data feed stale", releasable=True)
 
     def write_heartbeat(self, bars_processed: int = 0) -> None:
         self.heartbeats.append(bars_processed)
@@ -256,6 +258,7 @@ class FakeExecutionHandler:
         # The real handler owns this attribute and flips it via
         # activate_kill_switch (§10.7).
         self._kill_switched = False
+        self._kill_hard = False
         # MM9.3-S2: price cache for PortfolioView enrichment.
         self._price_cache: Dict[str, 'FakePriceSnapshot'] = {}
         self.metrics = _FakeMetrics()
@@ -269,8 +272,16 @@ class FakeExecutionHandler:
     def canonicalize_restored_orders(self) -> None:
         self.canonicalize_order_calls += 1
 
-    def activate_kill_switch(self, reason: str = "") -> None:
+    def activate_kill_switch(self, reason: str = "", *, releasable: bool = False) -> None:
         self._kill_switched = True
+        if not releasable:
+            self._kill_hard = True
+
+    def release_kill_switch(self, reason: str = "") -> bool:
+        if not self._kill_switched or self._kill_hard:
+            return False
+        self._kill_switched = False
+        return True
 
     def update_market_price(self, symbol, price):
         self.price_updates.append((symbol, price))

@@ -242,6 +242,9 @@ class LoopDriver:
         # KILL_SWITCH_ACTIVATED journaling from a single source (IN-001, §10.7) —
         # any cause (stale data via the watchdog, drawdown, broker, daily-limit).
         self._kill_switch_was_active = False
+        # A non-releasable trip landing while a releasable (stale-data) one is
+        # latched raises no False->True edge, so it is tracked separately.
+        self._kill_hard_was_active = False
         # The process has entered STARTUP (§3.1); record it (§15.4) and count it.
         self._emit(
             EventType.STARTUP,
@@ -1042,10 +1045,18 @@ class LoopDriver:
         if self._execution is None:
             return
         active = self._execution._kill_switched
+        hard = getattr(self._execution, "_kill_hard", False)
         if active and not self._kill_switch_was_active:
             self._emit(EventType.KILL_SWITCH_ACTIVATED, "handler kill switch activated")
             self._meter(RuntimeMetric.KILL_SWITCH_EVENTS)
+        elif active and hard and not self._kill_hard_was_active:
+            self._emit(EventType.KILL_SWITCH_ACTIVATED,
+                       "non-releasable kill-switch trip during a releasable one")
+            self._meter(RuntimeMetric.KILL_SWITCH_EVENTS)
+        elif self._kill_switch_was_active and not active:
+            self._emit(EventType.KILL_SWITCH_RELEASED, "handler kill switch released")
         self._kill_switch_was_active = active
+        self._kill_hard_was_active = hard
 
     def _at_max_bars(self) -> bool:
         """True once the configured max_bars guard is reached (§13)."""

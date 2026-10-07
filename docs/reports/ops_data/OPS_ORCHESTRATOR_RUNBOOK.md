@@ -4,8 +4,10 @@
     python scripts/ops/orchestrator.py
 
 Brings up (in order) Flask → [browser: Upstox login] → market_ingestor →
-chain_poller → PAPER session, ensures the EOD worker, then supervises. Ctrl+C
-stops everything it started (the session stops cleanly and finalizes its evidence
+chain_poller → PAPER session, ensures the EOD worker, then supervises until
+15:50 on the day it started, when it stops everything cleanly on its own (before
+2026-10-07 only Ctrl+C ended it, and a missed Ctrl+C made the next 09:10 scheduled
+start a refused second instance). Ctrl+C stops it sooner and stops everything it started (the session stops cleanly and finalizes its evidence
 package); an already-running EOD worker is left alone.
 
 ## Check health without starting anything

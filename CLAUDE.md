@@ -76,9 +76,10 @@ CLI Scripts → DuckDB → Core Logic → Facade → Flask UI
 
 One-command foreground supervisor for the NiftyShield PAPER window:
 `python scripts/ops/orchestrator.py` (instrument-master refresh → Flask → TS-combo paper book → Upstox login →
-ingestor → poller → session → EOD → wall poller; Ctrl+C stops cleanly). The `ts_combo` child
+ingestor → poller → session → EOD → wall poller; stops itself cleanly at 15:50 on the day it started, Ctrl+C sooner). The `ts_combo` child
 (`scripts/ts_basis_daily_combo_forward.py`) is EOD-driven and ungated: it trades each new TS Basis Daily
-formation once the facts refresh has settled, into `data/paper/ts_daily_combo/combo_paper.duckdb`, shown on
+formation once the facts refresh has settled — which, since the orchestrator's 15:50 day-end stop takes it down with
+the rest of the stack, is at the next 09:10 start (Monday after a Friday), not overnight — into `data/paper/ts_daily_combo/combo_paper.duckdb`, shown on
 the `/ts-basis-daily/` Combo Paper Book panel (`TS_BASIS_DAILY_COMBO_SPEC.md` amendment A3). Read-only health: `python scripts/ops/preflight.py`
 (BLOCK: token/STOP/marks/VIX; WARN: SPAN/master/feeds/EOD-worker). Full contract:
 `docs/superpowers/specs/2026-08-09-ops-orchestrator-preflight-design.md`;
@@ -391,11 +392,13 @@ generous than anyone believes? It reads no market data, so it is free.
 | `governance/rfa/declarations/cb_n50.py` | **CB-N50 declaration — frozen, PROCEED** (SHA-256 `e0437067…`) |
 | `governance/rfa/declarations/a_index_intraday.py` | **A-INDEX-INTRADAY declaration — frozen, PROCEED** (SHA-256 `221c6ca9…`; band S_ann [0.70, 1.45] @ cadence 237) |
 | `governance/rfa/declarations/stock_straddle_m10.py` | **STOCK-STRADDLE-M10 declaration — frozen, PROCEED** (SHA-256 `a2015e0f…`; band S_ann [0.65, 1.51] @ cadence 12, 36 forward cycles; pre-reg `docs/reports/strategies/STOCK_STRADDLE_M10_PRE_REGISTRATION.md` **FROZEN 2026-09-28**, SHA-256 `03672fd0…`; cycle 1 = 2026-10-27 expiry, entry 10-12 close) |
+| `governance/rfa/declarations/gex_xs_5d.py` | **GEX-XS-5D declaration — frozen 2026-10-06, PROCEED** (SHA-256 `b9e33df2…`; rank_ic one-sided, δ [0.010, 0.060], sd [0.10, 0.18], 184 non-overlapping 5-session formations 2023-01-02 → 2026-09-21; stock-level GEX vs residualized 5-day RV/IV — a state-variable test, not a trade; no pre-reg yet) |
 | `docs/reports/FLOW_RFA.md` | FLOW gate report — max power 0.6053 |
 | `docs/reports/RS_MOM_RFA.md` | RS-MOM gate report — max power 0.337, need 763 weeks |
 | `docs/reports/CB_N50_RFA.md` | CB-N50 gate report — max power 1.00, n_required=147 |
 | `docs/reports/A-INDEX-INTRADAY_RFA.md` | A-INDEX-INTRADAY gate report — max power 0.8720, n_required 699/1270/2992 |
 | `docs/reports/STOCK-STRADDLE-M10_RFA.md` | STOCK-STRADDLE-M10 gate report — max power 0.8211, n_required 34/65/177 |
+| `docs/reports/GEX-XS-5D_RFA.md` | GEX-XS-5D gate report — max power 1.00, n_required 19/101/2005 (pessimistic needs 2005 ≫ 184) |
 | `docs/reports/RFA_V2_REMEDIATION_PROMPT.md` | V2 remediation plan (Tasks 1–5) |
 | `docs/superpowers/specs/2026-07-20-rfa-power-feasibility-gate-design.md` | Design |
 
@@ -681,6 +684,8 @@ Real-time options structural analysis (PCR, Net GEX, OI buildup, Max Pain, IV sm
 - **A calendar built from stored dates cannot count toward a date that hasn't happened.** `build_basis_panel` counted the T-3 roll against trade dates already in the futures store, so while the expiry was still in the future the count was NULL and the roll never fired. Every live T-3..T-1 formation used the expiring contract, while any rebuild run after expiry looked correct. Count past the last stored date from `core/market/nse_holidays.py`, and test the live edge by truncating the store, not by rebuilding it.
 - **DuckDB `GREATEST`/`LEAST` skip NULLs** — `GREATEST(-3, LEAST(3, NULL))` is `3`, not NULL. Clamp inside a `CASE WHEN x IS NULL`.
 - **A test that stubs a pipeline's `_run` does not stub steps the old code calls inline.** The RED run of a refresh test against unmodified `refresh_all_strategies.py` deleted and republished the live TS Basis Daily facts store (2026-09-11). Point every store path at `tmp_path` before the first RED run.
+- **A supervisor that never exits turns a scheduled start into a refused second instance.** `orchestrator.py` ran `while True` until Ctrl+C, and the `\Nifty\Orchestrator` task is `MultipleInstances=IgnoreNew` (`LastTaskResult 0x800710E0`). On 2026-10-06 nobody pressed Ctrl+C, so the 10-07 09:10 start was refused: no token gate, an expired token, and the day-old stack ran on with a latched kill switch. It now stops itself at 15:50 (`day_over`). Not `StopExisting` — that TerminateProcess-es the wrapper, the children survive, and the next start adopts them stale.
+- **A latched kill switch outlives the fault that tripped it.** A 6-minute Upstox outage (2026-10-06 11:49–11:55) tripped the stale-data watchdog and the latch stayed until restart, so the 13:01 entry was rejected. Only the stale-data trip is `releasable` now (`release_kill_switch` on the first bar back, journaled `KILL_SWITCH_RELEASED`); every other trip stays latched, including one that lands while a stale trip is active. That change is inside the E008 execution hash — see the 2026-10-07 reset in `docs/STRATEGY_PROMOTION_LEDGER.md`.
 - **Gating a multi-feed pipeline on one feed makes every other feed optional.** `eod_decision.decide()` fired the EOD chain when *futures* published and never checked equity, so a totally failed equity ingest still yielded `success`. **Fixed 2026-09-24 (#13):** the chain now requires futures **and** equity fresh for today, and a stale equity feed retries and ends `exhausted` instead of a silent `success`. The fix had been written on 2026-08-07 but sat on an unmerged research branch for seven weeks (`docs/reports/platform/BRANCH_AUDIT_2026-09-24.md`) — a fix is not in production until it is on `main`. The stale feed was named in every Telegram message (`old equity: 2026-07-29`) and no code consumed that field — **a freshness value that is printed but never asserted is documentation, not a control.** The only detector that worked was the operator recognising yesterday's names in an options book.
 - **A derived value computed only for new rows is never computed at all when it needs a later row.** `build_carry.py --incremental` filled `fwd_ret_1m` only for the formations it had just added — which never have a successor yet — so from 07-24 no weekly and from 06-30 no monthly formation got a forward return, and `ts_basis` (which keeps only rows with one) added 0 signals every night **while exiting 0** for two months. The same runs left each night's mid-week day in the "weekly" grid (31 phantom formations). Both builds' forward-return step also materialized `equity_bhavcopy_adjusted` under a memory cap above what this 8 GB machine can back, so the 2026-09-29 22:00 run died with `OutOfMemoryException`. **Fixed 2026-09-30 (#34):** pointers re-derived and pending returns filled every run, off-grid weekly formations pruned, 1 GB cap so DuckDB spills. A nightly store's `MAX(date)` not advancing is the only signal — check it, not the exit code.
 
