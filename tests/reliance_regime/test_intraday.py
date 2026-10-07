@@ -10,6 +10,13 @@ from scripts.reliance_regime.timing_study import _trades, run
 from scripts.reliance_regime.signals import sma_trend
 
 
+@pytest.fixture(autouse=True)
+def _isolated_timing_study_out(tmp_path, monkeypatch):
+    # run() writes timing_study.json into the repo's data/reliance_regime.
+    import scripts.reliance_regime.timing_study as ts
+    monkeypatch.setattr(ts, "OUT", tmp_path)
+
+
 @pytest.fixture(scope="module")
 def panel():
     from scripts.reliance_regime.data import build_panel
