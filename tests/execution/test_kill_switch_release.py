@@ -91,3 +91,37 @@ def test_watchdog_does_not_release_without_a_stale_trip(monkeypatch):
     wd.record_bar()
 
     assert execution.calls == []
+
+
+def test_entry_is_blocked_while_stale_and_accepted_after_release(tmp_path, monkeypatch):
+    from core.events import SignalType
+    from test_kill_switch_exit_bypass import _signal
+    monkeypatch.chdir(tmp_path)
+    handler = _build_handler(tmp_path, monkeypatch)
+    handler.activate_kill_switch("Data feed stale (5.0m)", releasable=True)
+
+    blocked = handler.process_signal(_signal("NSE_EQ|FRESH", SignalType.BUY, "STALE"),
+                                     current_price=100.0)
+    assert blocked is None
+
+    handler.release_kill_switch("bars flowing again")
+    accepted = handler.process_signal(_signal("NSE_EQ|FRESH", SignalType.BUY, "OK"),
+                                      current_price=100.0)
+    assert accepted is not None
+
+
+def test_stop_file_present_at_release_time_re_trips_and_blocks(tmp_path, monkeypatch):
+    from core.events import SignalType
+    from test_kill_switch_exit_bypass import _signal
+    monkeypatch.chdir(tmp_path)
+    handler = _build_handler(tmp_path, monkeypatch)
+    handler.activate_kill_switch("Data feed stale (5.0m)", releasable=True)
+    (tmp_path / "STOP").write_text("")
+    assert handler.release_kill_switch("bars flowing again") is True
+
+    blocked = handler.process_signal(_signal("NSE_EQ|FRESH", SignalType.BUY, "STOP"),
+                                     current_price=100.0)
+
+    assert blocked is None
+    assert handler._kill_switched
+    assert handler.release_kill_switch("bars flowing again") is False

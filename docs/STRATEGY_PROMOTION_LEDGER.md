@@ -163,7 +163,7 @@ standing reference for the ledger format and auditability.
       diagnostics failed: no such column: intended_entry` and stored `mae_mfe=None`.
       Tests: `tests/execution/test_kill_switch_release.py`,
       `tests/execution/test_exit_has_no_dead_diagnostics.py`,
-      `tests/runtime/test_driver_watchdog.py`. New hash `0f35476d…4110b` (was `d66838c9…5ed0e6`);
+      `tests/runtime/test_driver_watchdog.py`. `core/execution/watchdog.py` joins `EXECUTION_GLOBS` in the same re-pin — its `releasable=True` trip and release call decide whether a stale trip ever clears. New hash `42960b91…d6b9` (was `d66838c9…5ed0e6`);
       `WINDOW_START` moves 2026-09-28 → **2026-10-08**. The six sessions banked under
       `d66838c9` (09-28, 09-29, 09-30, 10-01, 10-05, 10-06) stay on disk but are excluded as
       `before-window-start`/`off-identity`. Strategy identity unchanged (`config_hash c5b722ff…536c`).

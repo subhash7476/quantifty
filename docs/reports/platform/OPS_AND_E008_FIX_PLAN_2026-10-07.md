@@ -32,7 +32,7 @@ do not count toward ≥20 even today.
 - **F1 (done, outside hash)** — orchestrator stops itself at 15:50 on its start date (date rollover also). 4 tests + runbook line. 120 ops tests green.
 - **F2 (done, hash)** — stale-data kill-switch trip is releasable (`activate_kill_switch(releasable=True)` / `release_kill_switch`); every other trip stays latched. Journals `KILL_SWITCH_RELEASED`.
 - **F3 (done, hash)** — dead `_compute_exit_diagnostics` MAE/MFE path removed.
-- **F4 (done, hash re-pin)** — `FROZEN_EXECUTION_HASH 0f35476d…`, `WINDOW_START 2026-10-08`, ledger E008 note. Recompute if any hash-scope file changes again.
+- **F4 (done, hash re-pin)** — `FROZEN_EXECUTION_HASH 42960b91…` (watchdog.py added to EXECUTION_GLOBS), `WINDOW_START 2026-10-08`, ledger E008 note. Recompute if any hash-scope file changes again.
 - **F5 (dropped)** — `alerter.critical` already pushes a Telegram when the kill switch latches, and `release_kill_switch` pushes a WARNING on release; a clean day-end exit is exit 0 and needs no alert.
 - **F6 (added in review, outside hash)** — a non-releasable trip landing while a stale trip is latched raises no False→True driver edge; the driver now journals it as its own `KILL_SWITCH_ACTIVATED` so gate-4 evidence is not masked.
 

@@ -356,7 +356,10 @@ def supervise_until_day_end(sup, started_on: date, *, now: Callable[[], datetime
                             sleep: Callable[[float], None] = time.sleep,
                             poll_s: float = 5.0) -> None:
     while not day_over(started_on, now()):
-        sup.tick()
+        try:
+            sup.tick()
+        except Exception:  # noqa: BLE001 — one failed respawn must not orphan the stack
+            _logger.exception("supervise tick failed — continuing")
         sleep(poll_s)
     _logger.info("trading day over — stopping the stack")
     sup.shutdown()
@@ -459,7 +462,7 @@ class Supervisor:
         # holds adopted children; those carry a _RemoteProc built from their
         # pidfile, or None when they are natively locked and own no pidfile.
         for name in sorted(self._started, key=lambda n: 0 if n == "session" else 1):
-            proc = self._started[name]
+            proc = self._started.pop(name)
             if proc is None:
                 continue                  # nothing to signal (adopted, no pidfile)
             self._stopper(CHILDREN[name], proc)

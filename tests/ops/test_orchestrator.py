@@ -843,3 +843,72 @@ def test_supervise_shuts_down_immediately_when_already_past_day_end():
                                  now=lambda: datetime(2026, 10, 7, 9, 10),
                                  sleep=lambda s: None)
     assert (sup.ticks, sup.shutdowns) == (0, 1)
+
+
+class _FlakySup(_FakeSup):
+    def tick(self):
+        super().tick()
+        if self.ticks == 1:
+            raise OSError("respawn failed")
+
+
+def test_supervise_survives_a_failed_tick_and_still_shuts_down():
+    sup = _FlakySup()
+    clock = iter([datetime(2026, 10, 6, 15, 48), datetime(2026, 10, 6, 15, 49),
+                  datetime(2026, 10, 6, 15, 50)])
+    orch.supervise_until_day_end(sup, date(2026, 10, 6),
+                                 now=lambda: next(clock), sleep=lambda s: None)
+    assert (sup.ticks, sup.shutdowns) == (2, 1)
+
+
+def test_shutdown_stops_each_child_once_even_if_called_twice():
+    stopped = []
+    sup = orch.Supervisor(started={"flask": object(), "session": object()},
+                          stopper=lambda spec, proc: stopped.append(spec.name))
+    sup.shutdown()
+    sup.shutdown()
+    assert sorted(stopped) == ["flask", "session"]
+
+
+def test_cmd_start_supervises_to_day_end_and_releases_the_lock(monkeypatch):
+    calls = {"released": 0}
+    monkeypatch.setattr(orch.pidfile, "acquire_lock", lambda p: True)
+    monkeypatch.setattr(orch.pidfile, "release_lock",
+                        lambda *a, **k: calls.__setitem__("released", calls["released"] + 1))
+    monkeypatch.setattr(orch, "_disable_quickedit", lambda: True)
+
+    class _Deps:
+        now = staticmethod(lambda: datetime(2026, 10, 6, 9, 15))
+        supervise = adopt = None
+
+    monkeypatch.setattr(orch, "_live_deps", lambda started: _Deps())
+    monkeypatch.setattr(orch, "start_sequence", lambda deps, **k: "started")
+    seen = {}
+    monkeypatch.setattr(orch, "supervise_until_day_end",
+                        lambda sup, started_on: seen.update(started_on=started_on))
+
+    assert orch._cmd_start(dry_run=False) == 0
+    assert seen["started_on"] == date(2026, 10, 6)
+    assert calls["released"] == 1
+
+
+def test_cmd_start_releases_the_lock_when_supervision_raises(monkeypatch):
+    released = []
+    monkeypatch.setattr(orch.pidfile, "acquire_lock", lambda p: True)
+    monkeypatch.setattr(orch.pidfile, "release_lock", lambda *a, **k: released.append(1))
+    monkeypatch.setattr(orch, "_disable_quickedit", lambda: True)
+
+    class _Deps:
+        now = staticmethod(lambda: datetime(2026, 10, 6, 9, 15))
+        supervise = adopt = None
+
+    monkeypatch.setattr(orch, "_live_deps", lambda started: _Deps())
+    monkeypatch.setattr(orch, "start_sequence", lambda deps, **k: "started")
+
+    def _boom(sup, started_on):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(orch, "supervise_until_day_end", _boom)
+    with pytest.raises(RuntimeError):
+        orch._cmd_start(dry_run=False)
+    assert released == [1]
