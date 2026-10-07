@@ -389,3 +389,26 @@ returns of the events themselves, the read touched adjusted volume for the first
 **What this did NOT spend.** The 2023-01-02 → present equity EOD window: the dev snapshot ends 2022-12-30, no full snapshot was built, and the one-shot
 HOLDOUT guard (`breakout_volume_HOLDOUT_READ.json`) was never written. Q-6 (CSMP momentum, 2023-01 → 2026-06) and the 2026-09-19 operator ruling that
 2023-01-02 → 2026-09-11 is signal-spent for other reasons are unaffected by this entry.
+
+## 12. Register — GEX-XS-5D (stock-level dealer GEX → forward 5-session RV/IV) (appended 2026-10-07, **after** the read)
+
+**Authority:** operator request 2026-10-07 ("run the development read"). **Recorded after the read, not before** (contrary to §8): the
+frozen pre-registration carried its own prior-exposure disclosure (`docs/reports/GEX_XS_5D_PRE_REGISTRATION.md` Appendix A), but this
+register was not updated first. RFA declaration `governance/rfa/declarations/gex_xs_5d.py` (SHA-256 `b9e33df2…`, PR #38); pre-registration
+FROZEN 2026-10-06, frozen SHA-256 `0cd497ab…`; runner `scripts/gex_xs_5d/run_stage.py` at `29e5291` (PR #39).
+
+| # | Surface | Window | Level | Hypothesis family | Consumer | Evidence |
+|---|---|---|---|---|---|---|
+| Q-8 | Stock options bhavcopy (closes + OI, all listed monthly expiries), FUTSTK closes, equity EOD (high/low, adjusted closes), NSE board-meeting calendar (PIT exclusion only) — F&O stock universe | DEV 2016-02-11 → 2022-12-30 (1,697 sessions, 339 formations, every 5th session) | **signal** (gated; confirmatory DEV, one-sided NW test) | GEX-XS-5D — stock-level normalized net dealer GEX vs residualized ln(RV_{t+1..t+5} / IV_t) | `scripts/gex_xs_5d/run_stage.py --stage dev` at `29e5291` | `docs/reports/GEX_XS_5D_DEV.md`; panel `data/research/gex_xs_5d/panel_dev.duckdb` (outside git) |
+
+**Outcome of the read:** **FAIL** — mean IC +0.0102 (wrong sign), NW t +1.43, one-sided p 0.92; 315 of 339 formations valid. Per the
+pre-registration §1 the construct ends.
+
+**What this spends.** The 2016-02-11 → 2022-12-30 single-stock option surface (OI-derived GEX) joined to forward realized volatility, for
+the dealer-gamma → forward-vol family. It can never again serve as a confirmatory window for that family (GR-1.3). The ~11 descriptive
+rows in the report (sign of N, physical-settlement split, expiry-window split, phases, per-year) were read alongside and are equally spent;
+none of them is a candidate hypothesis.
+
+**What this did NOT spend.** SEALED 2023-01-02 → 2026-10-05 (184 formations): never read. The runner refuses `--stage sealed` without a DEV
+PASS and refuses any 2023+ session in DEV. The earlier GEX work (Stage A index EOD test, Stage B fly) is index-level and is unaffected by
+this entry.
