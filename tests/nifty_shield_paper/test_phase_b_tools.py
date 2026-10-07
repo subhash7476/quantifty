@@ -791,3 +791,58 @@ def test_session_bars_exclude_prior_session_rows_in_rolling_buffer(tmp_path):
                                  live_buffer=str(buf))
     assert [r[1] for r in rows] == [datetime(2026, 6, 5, 9, 15),
                                     datetime(2026, 6, 5, 9, 16)]
+
+
+def test_live_stale_trip_releases_on_the_real_composition_root(tmp_path, monkeypatch):
+    """2026-10-06: a feed outage latched the kill switch for the day. Drive the
+    REAL RuntimeWatchdog against the handler the LIVE composition root builds:
+    a >5 min gap trips it, the next bar releases it, both are journaled."""
+    from datetime import timedelta
+    from core.database.utils.market_hours import MarketHours
+    monkeypatch.setattr(runner_mod, "_load_span_snapshot",
+                        lambda journal=None, **kw: None)
+    monkeypatch.setattr(MarketHours, "is_market_open", staticmethod(lambda: True))
+    work = tmp_path / "live"
+    work.mkdir()
+    DatabaseManager.reset_instance()
+    dm = DatabaseManager(data_root=work)
+    with dm.trading_writer() as conn:
+        conn.execute(TRADING_TRADES_SCHEMA)
+    journal = RuntimeEventJournal(str(work / "journal.jsonl"))
+    box = []
+
+    class _OutageProvider(_SessionBarProvider):
+        calls = 0
+
+        def get_next_bar(self, symbol):
+            self.calls += 1
+            if self.calls == 2:                  # outage: no bar, 6 minutes pass
+                wd = box[0]._watchdog
+                wd._last_bar_timestamp = datetime.now() - timedelta(minutes=6)
+                return None
+            return super().get_next_bar(symbol)
+
+        def is_data_available(self, symbol):
+            return True
+
+    bars = [OHLCVBar(symbol=NF_SYMBOL, timestamp=datetime(2026, 6, 5, 9, 15 + i),
+                     open=1.0, high=2.0, low=1.0, close=2.0, volume=1000.0)
+            for i in range(2)]
+    driver = runner_mod.build_nifty_shield_paper_driver(
+        mode=Mode.LIVE, db_manager=dm, journal=journal,
+        telemetry=InMemoryTelemetrySink(), marks_source=StaticMarksSource({}),
+        facts_db_path=str(work / "facts.duckdb"),
+        chain_db_path=str(work / "chain.duckdb"),
+        metrics_path=str(work / "metrics.json"),
+        heartbeat_path=str(work / "heartbeat.json"),
+        execution_store_path=str(work / "execution.db"),
+        initial_capital=1_000_000.0, max_bars=2,
+        provider=_OutageProvider(bars))
+    box.append(driver)
+    driver.run()
+
+    events = [json.loads(l)["event_type"]
+              for l in (work / "journal.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert events.count("KILL_SWITCH_ACTIVATED") == 1
+    assert events.count("KILL_SWITCH_RELEASED") == 1
+    assert driver._execution._kill_switched is False

@@ -116,7 +116,8 @@ def test_all_event_types_present():
     expected = {
         "STARTUP", "RECOVERY_STARTED", "RECOVERY_COMPLETED",
         "RECONCILIATION_PASS", "RECONCILIATION_FAIL", "RUNNING",
-        "PAUSED", "RESUMED", "KILL_SWITCH_ACTIVATED", "WATCHDOG_STALE_DATA",
+        "PAUSED", "RESUMED", "KILL_SWITCH_ACTIVATED", "KILL_SWITCH_RELEASED",
+        "WATCHDOG_STALE_DATA",
         "BROKER_ERROR", "TELEMETRY_FAILURE", "STOPPING", "STOPPED",
         # MM.4 master-readiness gate (MASTER_MATERIALIZATION_POLICY.md §5).
         "INSTRUMENT_MASTER_UNAVAILABLE", "INSTRUMENT_MASTER_STALE",
@@ -135,7 +136,7 @@ def test_all_event_types_present():
         "EXIT_EVAL_SKIPPED",
     }
     assert {e.value for e in EventType} == expected
-    assert len(EventType) == 27
+    assert len(EventType) == 28
 
 
 def test_default_severity_defined_for_every_event_type():
@@ -149,6 +150,7 @@ def test_default_severity_defined_for_every_event_type():
     (EventType.RECONCILIATION_FAIL, "CRITICAL"),
     (EventType.PAUSED, "WARNING"),
     (EventType.KILL_SWITCH_ACTIVATED, "CRITICAL"),
+    (EventType.KILL_SWITCH_RELEASED, "WARNING"),
     (EventType.WATCHDOG_STALE_DATA, "CRITICAL"),
     (EventType.BROKER_ERROR, "WARNING"),
     (EventType.TELEMETRY_FAILURE, "WARNING"),

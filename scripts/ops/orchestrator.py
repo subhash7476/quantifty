@@ -16,7 +16,7 @@ import sys
 import time
 import webbrowser
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, time as dtime
 from pathlib import Path
 from typing import Callable, List, Optional
 
@@ -337,6 +337,29 @@ ORCH_LOCK = OPS_DIR / "orchestrator.pid"
 TOKEN_TIMEOUT_S = 3 * 3600
 BROWSER_FALLBACK_S = 10 * 60
 SESSION_FINALIZE_BUDGET_S = 90.0
+# The session's own 15:35 time exit plus its finalize budget, with margin.
+SESSION_DAY_END = dtime(15, 50)
+
+
+def day_over(started_on: date, now: datetime) -> bool:
+    """True once the trading day this orchestrator started on has ended.
+
+    The supervisor used to run until Ctrl+C. When nobody pressed it (2026-10-06),
+    the next 09:10 scheduled start was refused as a second instance and the
+    day-old stack ran on an expired token with a latched kill switch (2026-10-07).
+    A date rollover also counts, so a stack that outlives its day still stops.
+    """
+    return now >= datetime.combine(started_on, SESSION_DAY_END)
+
+
+def supervise_until_day_end(sup, started_on: date, *, now: Callable[[], datetime] = datetime.now,
+                            sleep: Callable[[float], None] = time.sleep,
+                            poll_s: float = 5.0) -> None:
+    while not day_over(started_on, now()):
+        sup.tick()
+        sleep(poll_s)
+    _logger.info("trading day over — stopping the stack")
+    sup.shutdown()
 
 
 def stop_child(spec: ChildSpec, proc, *, killer=os.kill, term_wait_s: float = SESSION_FINALIZE_BUDGET_S) -> None:
@@ -642,10 +665,10 @@ def _cmd_start(dry_run: bool) -> int:
         if outcome != "started":
             sup.shutdown()
             return 1
-        _logger.info("supervising — Ctrl+C to stop")
-        while True:
-            sup.tick()
-            time.sleep(5.0)
+        _logger.info("supervising until %s — Ctrl+C to stop sooner",
+                     SESSION_DAY_END.strftime("%H:%M"))
+        supervise_until_day_end(sup, deps.now().date())
+        return 0
     except KeyboardInterrupt:
         print("\nshutting down...")
         sup.shutdown()

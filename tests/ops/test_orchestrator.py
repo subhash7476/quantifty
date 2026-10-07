@@ -795,3 +795,51 @@ def test_browser_opens_at_once_when_phone_approval_unavailable():
     deps, browser = _browser_deps(phone_ok=False, polls=2)
     assert orch.start_sequence(deps, poll_s=2.0) == "started"
     assert browser == [1]
+
+
+# --- end-of-day stop -------------------------------------------------------
+# Until 2026-10-07 the supervise loop only ended on Ctrl+C. On 10-06 nobody
+# pressed it, the 10-07 09:10 scheduled start was refused (MultipleInstances=
+# IgnoreNew), and the day-old stack ran with an expired token and a latched
+# kill switch.
+
+from datetime import date
+
+
+def test_day_over_flips_at_the_cutoff_on_the_start_date():
+    d = date(2026, 10, 6)
+    assert not orch.day_over(d, datetime(2026, 10, 6, 15, 49, 59))
+    assert orch.day_over(d, datetime(2026, 10, 6, 15, 50))
+
+
+def test_day_over_after_a_date_rollover():
+    assert orch.day_over(date(2026, 10, 6), datetime(2026, 10, 7, 9, 10))
+
+
+class _FakeSup:
+    def __init__(self):
+        self.ticks = 0
+        self.shutdowns = 0
+
+    def tick(self):
+        self.ticks += 1
+
+    def shutdown(self):
+        self.shutdowns += 1
+
+
+def test_supervise_ticks_until_day_end_then_shuts_down_once():
+    sup = _FakeSup()
+    clock = iter([datetime(2026, 10, 6, 15, 48), datetime(2026, 10, 6, 15, 49),
+                  datetime(2026, 10, 6, 15, 50)])
+    orch.supervise_until_day_end(sup, date(2026, 10, 6),
+                                 now=lambda: next(clock), sleep=lambda s: None)
+    assert (sup.ticks, sup.shutdowns) == (2, 1)
+
+
+def test_supervise_shuts_down_immediately_when_already_past_day_end():
+    sup = _FakeSup()
+    orch.supervise_until_day_end(sup, date(2026, 10, 6),
+                                 now=lambda: datetime(2026, 10, 7, 9, 10),
+                                 sleep=lambda s: None)
+    assert (sup.ticks, sup.shutdowns) == (0, 1)

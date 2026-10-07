@@ -18,8 +18,8 @@ from datetime import date
 from pathlib import Path
 from typing import Iterable, Optional
 
-WINDOW_START = date(2026, 9, 28)
-FROZEN_EXECUTION_HASH = "d66838c91120beda090426bbc8ecb05d3ce581e1108cbdad6a137361be5ed0e6"
+WINDOW_START = date(2026, 10, 8)
+FROZEN_EXECUTION_HASH = "0f35476dceedaab69b69a46191aed47b56c1d02c34883e036403b80897a4110b"
 
 EXECUTION_GLOBS = (
     "strategies/nifty_shield_v1/*.py",
