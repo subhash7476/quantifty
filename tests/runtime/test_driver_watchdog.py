@@ -196,3 +196,49 @@ def test_driver_routes_through_process_signal():
         for n in ast.walk(tree)
     )
     assert calls_process_signal
+
+
+def test_kill_switch_release_is_journaled_once_on_recovery(tmp_path):
+    # Stale trip on check #2 (the no-bar tick), then a bar arrives: the watchdog
+    # releases the handler's switch and the driver journals the True->False edge.
+    journal = RuntimeEventJournal(path=str(tmp_path / "runtime_events.jsonl"))
+    handler = FakeExecutionHandler()
+    wd = FakeWatchdog(stale_after=2, execution=handler)
+    d = LoopDriver(_live_cfg(max_bars=2), clock=FakeClock(),
+                   provider=FakeMarketDataProvider(
+                       {"A": [make_bar("A"), None, make_bar("A")]}, live=True),
+                   journal=journal, watchdog=wd, execution=handler)
+    d.run()
+    events = [json.loads(l)["event_type"]
+              for l in (tmp_path / "runtime_events.jsonl").read_text().splitlines()]
+    assert events.count("KILL_SWITCH_ACTIVATED") == 1
+    assert events.count("KILL_SWITCH_RELEASED") == 1
+    assert events.index("KILL_SWITCH_ACTIVATED") < events.index("KILL_SWITCH_RELEASED")
+
+
+def test_hard_trip_during_a_stale_trip_is_journaled_and_survives_recovery(tmp_path):
+    # Bar, stale trip (check #2), a hard trip lands mid-outage, then the feed
+    # returns. The driver edge is already high, so the hard trip needs its own
+    # KILL_SWITCH_ACTIVATED, and the recovery must not release it.
+    journal = RuntimeEventJournal(path=str(tmp_path / "runtime_events.jsonl"))
+    handler = FakeExecutionHandler()
+    wd = FakeWatchdog(stale_after=2, execution=handler)
+
+    class _Provider(FakeMarketDataProvider):
+        def get_next_bar(self, symbol):
+            if self._pending_hard_trip():
+                handler.activate_kill_switch("NiftyShield day loss")
+            return super().get_next_bar(symbol)
+
+        def _pending_hard_trip(self):
+            return wd.staleness_checks == 2 and not handler._kill_hard
+
+    d = LoopDriver(_live_cfg(max_bars=2), clock=FakeClock(),
+                   provider=_Provider({"A": [make_bar("A"), None, make_bar("A")]}, live=True),
+                   journal=journal, watchdog=wd, execution=handler)
+    d.run()
+    events = [json.loads(l)["event_type"]
+              for l in (tmp_path / "runtime_events.jsonl").read_text().splitlines()]
+    assert events.count("KILL_SWITCH_ACTIVATED") == 2
+    assert "KILL_SWITCH_RELEASED" not in events
+    assert handler._kill_switched

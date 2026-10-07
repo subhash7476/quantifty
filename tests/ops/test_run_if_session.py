@@ -60,3 +60,15 @@ def test_straddle_capture_target_points_at_the_capture_script(tmp_path):
     assert ris.TARGETS["straddle_capture"].is_file()
     rc, calls, _, _ = _run("straddle_capture", date(2026, 10, 12), tmp_path)
     assert (rc, calls) == (0, [("straddle_cycle_capture.py", [])])
+
+
+def test_run_target_turns_an_unexpected_exception_into_exit_1(monkeypatch, tmp_path):
+    # An uncaught exception skipped the END line and the Telegram alert, leaving
+    # only a bare LastTaskResult in Task Scheduler.
+    import scripts.ops.run_if_session as rs
+
+    def _boom(path, run_name=None):
+        raise RuntimeError("respawn failed")
+
+    monkeypatch.setattr(rs.runpy, "run_path", _boom)
+    assert rs._run_target(tmp_path / "t.py", []) == 1

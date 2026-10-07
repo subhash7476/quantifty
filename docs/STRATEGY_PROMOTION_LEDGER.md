@@ -150,6 +150,28 @@ standing reference for the ledger format and auditability.
       `e0e0236d…61a8e5`, the only difference being `handler.py`); `WINDOW_START` unchanged at
       2026-09-28, still the first untraded session. Strategy identity unchanged
       (`config_hash c5b722ff…536c`).
+    - **Window RESET 2026-10-07 (declared before the new window's first session, 2026-10-08)**
+      — a note, not a grant. Three execution changes (two in `core/execution/handler.py`, one in `core/execution/options/nifty_shield_handler.py`):
+      (1) a stale-data kill-switch trip is now **releasable** — `activate_kill_switch(...,
+      releasable=True)` from the watchdog, `release_kill_switch()` on the first bar after the
+      feed recovers; every other trip (drawdown, day loss, broker, STOP file, daily limit)
+      stays latched until restart, including one that lands while a stale trip is active.
+      Trigger: 2026-10-06 11:54, an Upstox API outage (11:49–11:55) latched the switch for the
+      rest of the day and the 13:01 entry was rejected by every gate. The driver journals the
+      release as `KILL_SWITCH_RELEASED` (WARNING). (2) The dead MAE/MFE exit-diagnostics path
+      is removed — it selected columns `trade_context` never had, so every exit logged `Exit
+      diagnostics failed: no such column: intended_entry` and stored `mae_mfe=None`. (3) In LIVE,
+      `_enter_structure` skips and journals (`ENTRY_SKIPPED`, CRITICAL, `reason=option marks stale`)
+      when the chain-cache snapshot is older than `MARKS_MAX_AGE_S` (60 s) — the same limit that
+      already holds exits — because the watchdog releases a stale-data trip on the first bar back
+      while the chain poller may still be catching up. REPLAY passes no limit.
+      Tests: `tests/execution/test_kill_switch_release.py`,
+      `tests/execution/test_exit_has_no_dead_diagnostics.py`,
+      `tests/execution/test_nifty_shield_paper_execution.py` (entry marks freshness),
+      `tests/runtime/test_driver_watchdog.py`. `core/execution/watchdog.py` joins `EXECUTION_GLOBS` in the same re-pin — its `releasable=True` trip and release call decide whether a stale trip ever clears. New hash `b33f5c3f…78fa` (was `d66838c9…5ed0e6`);
+      `WINDOW_START` moves 2026-09-28 → **2026-10-08**. The six sessions banked under
+      `d66838c9` (09-28, 09-29, 09-30, 10-01, 10-05, 10-06) stay on disk but are excluded as
+      `before-window-start`/`off-identity`. Strategy identity unchanged (`config_hash c5b722ff…536c`).
 - E009 — (first external strategy Stage 3 LIVE CANDIDATE grant)
 - E010 — (first external strategy Stage 4 LIVE APPROVED grant)
 - E011+ — (suspension, incident, audit, cap-raise entries)

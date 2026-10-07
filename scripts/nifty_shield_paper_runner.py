@@ -215,6 +215,7 @@ def build_nifty_shield_paper_driver(
             # no broker session and must stay deterministic, so it sizes on the
             # local engine (the figure is labelled per entry in ENTRY_MARGIN).
             use_broker_margin=(mode is Mode.LIVE),
+            max_marks_age_s=MARKS_MAX_AGE_S if mode is Mode.LIVE else None,
             **kwargs,
         )
 
