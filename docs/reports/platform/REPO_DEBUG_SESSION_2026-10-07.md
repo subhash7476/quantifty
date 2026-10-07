@@ -52,3 +52,32 @@ bytes (re-certification question); (b) normalise in the loader and regenerate bo
 - Live `F:\Nifty` main is still behind `origin/main` (PR #40 merged 14:59 IST); pull and re-verify the E008 hash before 09:10 on 10-08.
 - Not yet examined: the failing-test classification above rests on error messages for the data-dependent groups; a data-complete
   run would confirm they pass there.
+
+## 5. Addendum — full regression in the live checkout (data-complete), 2026-10-07 19:40–20:14
+
+`F:\Nifty` at `f2c2d00` (main after PR #40 + #38 merged; E008 hash `b33f5c3f…` verified), orchestrator stopped, no panel-cache fix
+(PR #41 unmerged, so `reliance_regime` still ran its slow path). **5 failed, 3,392 passed, 17 skipped, 33:57.**
+
+The 5 failures are exactly the documented standing reds, i.e. none attributable to this session's changes:
+
+- `tests/g1/test_g1_closure_guard.py` ×2 (`test_no_unwhitelisted_legacy_option_future_construction_in_core`, `test_instrument_key_absent_from_execution`)
+- `tests/analog_path/test_data_layer.py::test_defect_days_invalid`, `tests/analog_path/test_reproducibility.py::test_mini_eligibility_build_excludes_multiday_file`
+- `tests/ptms/test_gann_run_screen.py::test_guard_refuses_on_the_current_repository`
+
+All other 67 worktree failures (§2) pass here, confirming they were environmental (no data stores) and the `msi` CRLF failures do not occur in this
+checkout (its fixture files are LF on disk). Gate 8 allows the standing G1 red; the other three are standing on main (per memory) but are not G1 —
+the operator should confirm they are accepted for the gate.
+
+### Isolation finding: the suite writes to live data paths
+
+A stat manifest of `data/` + `config/` (27,221 files) before vs after showed 0 new, 0 deleted, **4 changed** (all untracked, none restorable from git):
+
+| File | Change | Writer | Assessment |
+|---|---|---|---|
+| `data/signal_engine/trade_intelligence/trade_intelligence.duckdb` | 2.475 → 2.541 GB; `executed_trades` 8,704 rows | `tests/trade_intelligence/test_builder.py` (`TI_DB` = live path) | derived store, rebuilt by the test; content equality with pre-run not verifiable (no baseline) |
+| `data/isd/zero_row_repair_manifest.jsonl` | 207 → 208 B; now names `…\pytest-of-devou\pytest-1120\…` baseline | `scripts/isd/repair_zero_rows.py` via `tests/isd/test_gates.py` | already a test artifact before the run (same shape); real repair evidence, if any, is overwritten |
+| `data/execution.db` | mtime only (81,920 B; orders 3 / fills 3 / positions 370) | tests building a handler on the default `ExecutionStore` path | not the NiftyShield store (`data/nifty_shield/execution.db`) |
+| `data/reliance_regime/timing_study.json` | rewritten, same size | `scripts/reliance_regime/timing_study.py` via its test | deterministic output |
+
+Recommended follow-up (own PR): point those tests' store/output paths at `tmp_path` (the CLAUDE.md "point every store path at `tmp_path`" rule), then
+re-run this manifest diff to prove zero writes.
