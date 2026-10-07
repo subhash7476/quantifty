@@ -97,6 +97,7 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         marks_source: Optional[OptionMarksSource] = None,
         strategy_config: Optional[Dict[str, Any]] = None,
         use_broker_margin: bool = False,
+        max_marks_age_s: Optional[float] = None,
         **kwargs,
     ):
         # ADR-025: NseMarginEngine is futures-only (one v400 risk array per
@@ -111,6 +112,9 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         self._marks_source = marks_source or StaticMarksSource({})
         self._strategy_cfg = dict(strategy_config or {})
         self._use_broker_margin = bool(use_broker_margin)
+        # LIVE only: an entry must not price off a snapshot older than this.
+        # REPLAY passes None — its snapshots are historical by construction.
+        self._max_marks_age_s = max_marks_age_s
         self._pending: Dict[str, List[SignalEvent]] = {}
         self._closed_groups: Dict[str, str] = {}
         self._brackets: Dict[str, Optional[Bracket]] = {}
@@ -501,6 +505,22 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
     def _enter_structure(self, group_id: str, structure: str,
                          signals: List[SignalEvent]) -> Optional[Any]:
         leg_symbols = [s.symbol for s in signals]
+        if self._max_marks_age_s is not None:
+            age = self._marks_source.snapshot_age_s()
+            if age is not None and age > self._max_marks_age_s:
+                # The watchdog releases a stale-data kill switch on the first bar
+                # back, while the chain poller may still be catching up.
+                self._record(
+                    EventType.ENTRY_SKIPPED,
+                    f"structure entry skipped: option marks stale by {age:.0f}s "
+                    f"(limit {self._max_marks_age_s:.0f}s)",
+                    severity=Severity.CRITICAL,
+                    group_id=group_id, structure=structure,
+                    reason="option marks stale",
+                    snapshot_age_s=round(age, 1),
+                    max_marks_age_s=self._max_marks_age_s,
+                )
+                return None
         try:
             marks = self.marks(leg_symbols)
         except MarksSourceUnavailable as exc:

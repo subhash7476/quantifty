@@ -88,7 +88,8 @@ def _entry_marks():
 
 
 def _build_handler(tmp_path, monkeypatch, *, marks=None, journal=None,
-                   initial_capital=1_000_000.0, clock_start: datetime = FIXED_DT):
+                   initial_capital=1_000_000.0, clock_start: datetime = FIXED_DT,
+                   max_marks_age_s=None):
     monkeypatch.setattr(
         handler_mod, "ExecutionStore",
         lambda *a, **k: ExecutionStore(str(tmp_path / "execution.db")),
@@ -117,6 +118,7 @@ def _build_handler(tmp_path, monkeypatch, *, marks=None, journal=None,
         journal=journal,
         marks_source=marks,
         strategy_config=dict(DEFAULT_CONFIG),
+        max_marks_age_s=max_marks_age_s,
     )
 
 
@@ -999,3 +1001,44 @@ def test_broker_margin_entry_skips_when_the_wrapper_hides_the_keys(tmp_path,
     assert skips[0]["severity"] == "CRITICAL"
     assert skips[0]["metadata"]["reason"] == "Upstox basket margin unavailable"
     assert not [e for e in events if e["event_type"] == "ENTRY_MARGIN"]
+
+
+class _AgedMarks(StaticMarksSource):
+    def __init__(self, marks, age_s):
+        super().__init__(marks)
+        self._age_s = age_s
+
+    def snapshot_age_s(self, now=None):
+        return self._age_s
+
+
+def _enter_with_marks_age(tmp_path, monkeypatch, age_s, limit):
+    journal = RuntimeEventJournal(str(tmp_path / "journal.jsonl"))
+    handler = _build_handler(tmp_path, monkeypatch, journal=journal,
+                             marks=_AgedMarks(_entry_marks(), age_s),
+                             max_marks_age_s=limit)
+    results = [handler.process_signal(s, 24000.0) for s in _iron_fly_signals()]
+    events = [json.loads(l) for l in
+              open(str(tmp_path / "journal.jsonl"), encoding="utf-8")]
+    return results, events
+
+
+def test_entry_skips_on_stale_marks_and_journals_critical(tmp_path, monkeypatch):
+    # After a feed outage the kill switch can release on the first bar while the
+    # chain poller is still catching up; an entry must not price off that snapshot.
+    results, events = _enter_with_marks_age(tmp_path, monkeypatch, age_s=300.0, limit=60.0)
+    assert results == [None, None, None, None]
+    skipped = [e for e in events if e["event_type"] == EventType.ENTRY_SKIPPED.value]
+    assert skipped and skipped[0]["severity"] == "CRITICAL"
+    assert skipped[0]["metadata"]["reason"] == "option marks stale"
+    assert skipped[0]["metadata"]["snapshot_age_s"] == 300.0
+
+
+def test_entry_proceeds_on_fresh_marks(tmp_path, monkeypatch):
+    results, _ = _enter_with_marks_age(tmp_path, monkeypatch, age_s=5.0, limit=60.0)
+    assert results[3] is not None
+
+
+def test_entry_ignores_marks_age_without_a_limit(tmp_path, monkeypatch):
+    results, _ = _enter_with_marks_age(tmp_path, monkeypatch, age_s=9999.0, limit=None)
+    assert results[3] is not None

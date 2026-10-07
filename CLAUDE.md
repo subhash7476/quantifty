@@ -78,7 +78,8 @@ One-command foreground supervisor for the NiftyShield PAPER window:
 `python scripts/ops/orchestrator.py` (instrument-master refresh → Flask → TS-combo paper book → Upstox login →
 ingestor → poller → session → EOD → wall poller; stops itself cleanly at 15:50 on the day it started, Ctrl+C sooner). The `ts_combo` child
 (`scripts/ts_basis_daily_combo_forward.py`) is EOD-driven and ungated: it trades each new TS Basis Daily
-formation once the facts refresh has settled, into `data/paper/ts_daily_combo/combo_paper.duckdb`, shown on
+formation once the facts refresh has settled — which, since the orchestrator's 15:50 day-end stop takes it down with
+the rest of the stack, is at the next 09:10 start (Monday after a Friday), not overnight — into `data/paper/ts_daily_combo/combo_paper.duckdb`, shown on
 the `/ts-basis-daily/` Combo Paper Book panel (`TS_BASIS_DAILY_COMBO_SPEC.md` amendment A3). Read-only health: `python scripts/ops/preflight.py`
 (BLOCK: token/STOP/marks/VIX; WARN: SPAN/master/feeds/EOD-worker). Full contract:
 `docs/superpowers/specs/2026-08-09-ops-orchestrator-preflight-design.md`;
