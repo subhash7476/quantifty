@@ -21,3 +21,27 @@ os.environ["NIFTY_LOG_DIR"] = str(_TEST_LOGS)
 
 os.environ.pop("TELEGRAM_TOKEN", None)
 os.environ.pop("TELEGRAM_CHAT_ID", None)
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _redirect_live_stores(tmp_path_factory):
+    """Point the stores that default to a path under the repo's data/ at a tmp dir.
+
+    ExecutionConfig.trade_recorder_enabled defaults True and TradeRecorder() defaults
+    to the live trade_intelligence.duckdb, so every handler a test built recorded its
+    fills there (99% of the 8,704 rows were test fixtures); ExecutionStore() likewise
+    defaults to data/execution.db. Redirected, not disabled, so handler tests still
+    exercise the recorder. Tests that pass an explicit path are unaffected.
+    """
+    from core.execution.persistence.execution_store import ExecutionStore
+    from core.execution.portfolio import trade_recorder
+
+    root = tmp_path_factory.mktemp("live-store-redirect")
+    mp = pytest.MonkeyPatch()
+    mp.setattr(trade_recorder, "DEFAULT_DB_PATH", root / "trade_intelligence.duckdb")
+    mp.setattr(ExecutionStore.__init__, "__defaults__", (str(root / "execution.db"),))
+    yield
+    mp.undo()

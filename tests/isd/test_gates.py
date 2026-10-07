@@ -106,9 +106,10 @@ def test_repair_zero_rows_baseline_and_delete(tmp_path):
     rows.append(("NSE_EQ|INE000", "2026-01-05 19:01:00", 0.0, 0.0, 0.0, 0.0, 0))
     p = make_day_db(tmp_path / "2026-01-05.duckdb", rows)
 
-    orig_dir, orig_baseline = rzr.NATIVE_1M_DIR, rzr.BASELINE_DIR
+    orig_dir, orig_baseline, orig_manifest = rzr.NATIVE_1M_DIR, rzr.BASELINE_DIR, rzr.MANIFEST
     rzr.NATIVE_1M_DIR = tmp_path
     rzr.BASELINE_DIR = tmp_path / "baseline"
+    rzr.MANIFEST = tmp_path / "zero_row_repair_manifest.jsonl"
     try:
         dry = rzr.run(apply=False)
         assert dry["rows_flagged"] == 1 and dry["rows_deleted"] == 0
@@ -118,7 +119,7 @@ def test_repair_zero_rows_baseline_and_delete(tmp_path):
         again = rzr.run(apply=False)
         assert again["rows_flagged"] == 0
     finally:
-        rzr.NATIVE_1M_DIR, rzr.BASELINE_DIR = orig_dir, orig_baseline
+        rzr.NATIVE_1M_DIR, rzr.BASELINE_DIR, rzr.MANIFEST = orig_dir, orig_baseline, orig_manifest
 
 
 def test_currency_check_real_criterion():
