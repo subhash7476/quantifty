@@ -104,7 +104,9 @@ It asks for your Upstox API key/secret and a dashboard username/password, then w
 - the `data/` tree and its empty stores;
 - today's instrument master (`data/instruments/nse_fo_instruments.duckdb`).
 
-It is safe to re-run: existing files are left alone.
+It is safe to re-run: existing files are left alone. Forgot the dashboard
+password? `python scripts/bootstrap.py init --user admin --password <new>`
+resets it and leaves `.env` and `config/credentials.json` alone.
 
 ### 4. Log in to Upstox once
 
@@ -125,7 +127,9 @@ it opens the login page for you.)
 python scripts/bootstrap.py seed
 ```
 
-This takes a few minutes and uses only Upstox, never NSE bhavcopy:
+The first run takes about a minute and uses only Upstox, never NSE bhavcopy
+(about 880 daily files, one per session). It ends with
+`verified: N VIX sessions` and exits non-zero if the history came up short:
 - ~3.5 years of Nifty / Bank Nifty / India VIX **daily** candles, which feed NiftyShield's VIX-percentile gate;
 - the last ~10 days of index **1m** candles, which feed Options-Wall's realized vol;
 - today's SPAN file.
@@ -157,7 +161,7 @@ Start it before 09:15 IST. It:
 |---|---|
 | Health (token, STOP file, marks, VIX, SPAN, master) | `python scripts/ops/preflight.py`. It reads `NIFTY_PROFILE`; the trading profile skips the `eod_feeds` and `eod_worker` checks, which track the bhavcopy research feeds |
 | What would start | `python scripts/ops/orchestrator.py start --dry-run` |
-| Dashboard | `http://127.0.0.1:5000/`: **/nifty-shield/**, **/options/**, **/options/wall/**, **/ops/** |
+| Dashboard | `http://127.0.0.1:5000/`: **/nifty-shield/**, **/options/**, **/options/wall/**, **/ops/**. Until the first session runs, NiftyShield and Options-Wall show empty-state panels. **/ts-basis-daily/** is a research page: in the trading profile its signal panels stay at "Loading…" and its API returns 404 "Facts DB not found", because nothing builds those facts without NSE bhavcopy |
 | Stop everything now | Ctrl+C in the orchestrator window, or `python scripts/ops/orchestrator.py stop` |
 | Block the next start | create an empty file named `STOP` in the repo root |
 
