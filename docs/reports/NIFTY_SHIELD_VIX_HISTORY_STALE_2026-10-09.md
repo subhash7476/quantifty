@@ -80,10 +80,13 @@ store and was last written 2026-09-10. Do not read it as the live record.
 | 10-06 | BullTrend | 13.89 | 58.07 | 57.80 | −0.27 | bull_put_spread |
 | **10-07** | **Choppy** | 13.86 | 57.54 | 57.28 | −0.26 | iron_fly → iron_fly |
 | 10-08 ² | BearTrend | 15.09 | 73.81 | 73.81 | 0.00 | bear_call_spread |
+| 10-09 ³ | BullTrend | 14.61 | 69.05 | 68.78 | −0.27 | bull_put_spread |
 
 ¹ The `vix_pctile` column was added after this session's fact was written.
 ² 10-08 is the first E008 window session (`WINDOW_START`). It was a trend day, so the
 percentile did not enter its structure choice.
+³ Added after the 13:00 publish on 2026-10-09, the second window session. A trend day, so
+the structure was unaffected. The ledger note was declared with this row.
 
 **No threshold crossings.** This holds even if every session is treated as Choppy: no stored vs
 fresh pair falls on opposite sides of 36.8 or 59.0.

@@ -172,6 +172,31 @@ standing reference for the ledger format and auditability.
       `WINDOW_START` moves 2026-09-28 → **2026-10-08**. The six sessions banked under
       `d66838c9` (09-28, 09-29, 09-30, 10-01, 10-05, 10-06) stay on disk but are excluded as
       `before-window-start`/`off-identity`. Strategy identity unchanged (`config_hash c5b722ff…536c`).
+    - **VIX-history refresh restored — declared 2026-10-09 (before the session of 2026-10-12)**
+      — a note, not a grant, and not a re-pin.
+      - **The defect.** The Choppy structure gate (straddle / iron fly / strangle at 36.8 / 59.0)
+        ranks the 13:00 India VIX against the trailing `vix_pctile_lookback_sessions = 756`
+        sessions (frozen config) in `data/nifty_shield/vix_history.duckdb`. That cache had no
+        refresher: its documented caller was the EOD chain, which never listed it and has been
+        disabled since 2026-09-11. It froze at 2026-09-07, so every live `vix_pctile` from
+        09-08 on was ranked against a window ending 09-07.
+      - **The fix.** `scripts/daytype/vix_percentile.py` runs as `download_all_data.py` step 3b
+        (PR #44), on the 22:00 `DownloadAll` and the morning catch-up. It restores the declared
+        trailing window; it is a return to declared behaviour, not a parameter change. The first
+        session ranked on the refreshed cache is **2026-10-12**.
+      - **Measured effect.** Across all 22 live sessions 09-08 → 10-09: max |Δ `vix_pctile`|
+        0.53 pp, **zero** structure changes.
+      - **Window sessions on the stale window.** Both were trend days, so the percentile never
+        entered their structure choice, and both stay in the window:
+        - 10-08 BearTrend: 73.81 stale vs 73.81 fresh.
+        - 10-09 BullTrend: 69.05 stale vs 68.78 fresh.
+      - **Replay.** A replay re-ranks against the cache present at replay time, because session
+        packages record no VIX history. Replays of 10-08/10-09 will therefore show these small
+        `vix_pctile` deltas, with unchanged signals. Replay parity is reported, not gating.
+      - **Identity.** No `EXECUTION_GLOBS` file is touched. Hash `b33f5c3f…78fa` and
+        `WINDOW_START 2026-10-08` are unchanged; strategy identity is unchanged
+        (`config_hash c5b722ff…536c`).
+      - Report: `docs/reports/NIFTY_SHIELD_VIX_HISTORY_STALE_2026-10-09.md`.
 - E009 — (first external strategy Stage 3 LIVE CANDIDATE grant)
 - E010 — (first external strategy Stage 4 LIVE APPROVED grant)
 - E011+ — (suspension, incident, audit, cap-raise entries)
