@@ -24,8 +24,8 @@ OK and a ledger note first (§6).
 1. **Nothing ever called `refresh()`.**
    - The `vix_percentile.py` docstring says the EOD chain runs it.
    - `core/scheduler/eod_chain.py` `CHAIN_STEPS` never included it.
-   - The 09-07 rows were written by hand on 2026-09-08 (file mtime 23:38), when the percentile
-     gates were re-anchored.
+   - The cache file was last written 2026-09-08 23:38 (mtime), the day the percentile gates were
+     re-anchored. No scheduled caller of `refresh()` exists anywhere in the repo.
 2. **The EOD chain itself is off.**
    - `data/_eod_automation.sqlite` has `enabled = 0` since 2026-09-11T18:40.
    - The last chain run was 2026-09-16.
@@ -137,6 +137,41 @@ roughly 1,100 1d files that carry no VIX row, from 2012 to mid-2014. That is acc
 and in the morning catch-up. Recording the probed-empty dates would remove the cost, but it is
 not needed for correctness.
 
+**Timing and lock contention**
+- The morning catch-up is dispatched in the background and never gates the session
+  (`orchestrator.py` step 6). It has finished by about 09:20–09:47 on recent days, well before
+  13:00, so a refresh failure cannot block trading.
+- `refresh()` holds the cache open read-write for its whole ~25 s scan. After a mid-day restart,
+  the catch-up can overlap 13:00: on 2026-10-07 the orchestrator restarted at 13:00:15 and the
+  catch-up was dispatched at 13:01. In that case the publisher's read-only open can raise.
+- The driver retries the publish hook on every bar through the 30-minute entry window
+  (`CHECKPOINT_DEADLINE`). So an overlap delays the fact by a bar or so; it does not lose the
+  session.
+- Shrinking the write lock to the insert alone (read `have` read-only, scan, then write) would
+  remove the overlap entirely. That is optional and not in this branch.
+
+**After the fix, the cache is point-in-time correct.** `percentile()` filters
+`session_date < asof`, so once the cache is complete every session sees exactly the trailing
+756 sessions before it. Only sessions recorded during the stale period are affected.
+
+**Replay of stale-window sessions will not reproduce `vix_pctile`.**
+- A session package (`marks`, `signals`, `bars`, `facts`, `meta`) records no VIX history.
+- `replay.py` re-publishes the 13:00 fact through `publish_live`, which ranks against the
+  default *production* cache, and the strategy then trades off that recomputed value.
+- After the top-up, replaying any session recorded on the stale window (10-08, 10-09, … up to
+  the merge) recomputes `vix_pctile` on the fresh window.
+  - 10-08 recomputes identically (Δ 0.00, and it was a trend day).
+  - A Choppy session within ~2.9 pp of a gate could replay to a different structure and report
+    signal-stream FAIL.
+- Replay parity is **reported, not gating**:
+  - `assemble_report.load_window_evidence` counts a session on recorded + telemetry-clean +
+    ≥1 closed structure + window start + identity.
+  - The replay rows only feed the report's evidence line.
+  - `_read_fact_row` does not select `vix_pctile`, so the fact-identity diff will not flag it.
+- Replay was never hermetic in VIX history: it uses whatever cache exists at replay time.
+  Recording the session's `vix_pctile` (or its window) in the package would close that, as a
+  separate change.
+
 **Execution hash is unaffected.** `scripts/nifty_shield_paper/identity.py` `EXECUTION_GLOBS` covers:
 - `strategies/nifty_shield_v1/*.py`
 - `core/execution/options/nifty_shield_*.py`
@@ -176,6 +211,10 @@ the first session that uses the refreshed cache; not edited on main by this bran
 >   `docs/reports/NIFTY_SHIELD_VIX_HISTORY_STALE_2026-10-09.md`.
 
 **Open choice for the operator.** Should window sessions already banked on the stale window
-stay in the window? This note keeps them in, on the measured evidence that the effect was zero
-structure changes. Check any session from 10-09 until the merge the same way before declaring:
-was it Choppy, and was it within 2.9 pp of a gate?
+stay in the window?
+- This note keeps them in, on the measured evidence of zero structure changes. Replay parity
+  does not gate inclusion (§5), so no rule forces them out.
+- Before declaring, check every session from 10-09 to the merge the same way: was it Choppy,
+  and was it within 2.9 pp of a gate?
+- If one was, its replay may show a signal-stream FAIL after the top-up. Name it in the note.
+- Merging before the next Choppy session close to a gate keeps the affected set to 10-08/10-09.
