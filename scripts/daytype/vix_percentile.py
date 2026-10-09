@@ -13,8 +13,10 @@ sessions it does not already hold.
 **`percentile()` never refreshes.** Reading a fact must not scan the candle
 store or write to a shared file as a side effect: it would put minutes of file
 IO inside the intraday driver hook, and it made a unit-test run mutate a
-production data path. `refresh()` is an explicit maintenance step for the EOD
-chain (`python -m scripts.daytype.vix_percentile`). A cache that is absent or
+production data path. `refresh()` is an explicit maintenance step, run by the
+nightly download (`scripts/download_all_data.py`, step 3b, right after the 1d
+index ingest — so the 22:00 run and the --download-only morning catch-up both
+top it up). A cache that is absent or
 too short yields None, which the strategy treats as "gate unavailable" and
 resolves to its calmest branch — the same graceful-absence contract
 `vix_at_checkpoint` already uses.
@@ -100,7 +102,7 @@ def percentile(vix_value: float, asof: date, lookback_sessions: int = 756,
 
 
 def main() -> int:
-    """Maintenance entry point: top the cache up. Run from the EOD chain."""
+    """Maintenance entry point: top the cache up. Run by download_all_data.py."""
     added = refresh()
     print(f"vix_history cache: {added} session(s) added -> {CACHE}")
     return 0
