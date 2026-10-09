@@ -947,6 +947,13 @@ def test_trading_profile_catchup_is_the_seed_refresh_not_bhavcopy(tmp_path, monk
     assert spawned[0][-2:] == [str(orch.ROOT / "scripts" / "bootstrap.py"), "seed"]
 
 
+@pytest.fixture(autouse=True)
+def _no_repo_dotenv(monkeypatch):
+    # _resolve_profile loads the repo's .env; on the ops machine that would put the
+    # live TELEGRAM_TOKEN back into os.environ for the rest of the test session.
+    monkeypatch.setattr(orch, "load_dotenv", lambda *a, **k: False)
+
+
 def test_resolve_profile_cli_beats_env(monkeypatch):
     monkeypatch.setenv("NIFTY_PROFILE", "trading")
     assert orch._resolve_profile("full") == "full"
@@ -955,7 +962,6 @@ def test_resolve_profile_cli_beats_env(monkeypatch):
 
 def test_resolve_profile_defaults_to_full(monkeypatch):
     monkeypatch.delenv("NIFTY_PROFILE", raising=False)
-    monkeypatch.setattr(orch, "load_dotenv", lambda *a, **k: False)
     assert orch._resolve_profile(None) == "full"
 
 
