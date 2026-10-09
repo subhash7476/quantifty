@@ -912,3 +912,60 @@ def test_cmd_start_releases_the_lock_when_supervision_raises(monkeypatch):
     with pytest.raises(RuntimeError):
         orch._cmd_start(dry_run=False)
     assert released == [1]
+
+
+# --------------------------------------------------------------------------- #
+# Profiles — "trading" runs only what the paper/live trading path needs
+# --------------------------------------------------------------------------- #
+def test_full_profile_leaves_deps_untouched():
+    deps, _ = _deps()
+    catchup = deps.dispatch_catchup
+    orch._apply_profile(deps, "full")
+    assert deps.dispatch_catchup is catchup
+    assert all(deps.enabled(name) for name in orch.CHILDREN)
+
+
+def test_trading_profile_never_starts_the_research_children():
+    deps, calls = _deps(child_alive=lambda spec: False)
+    orch._apply_profile(deps, "trading")
+    assert orch.start_sequence(deps) == "started"
+    assert "ts_combo" not in calls["spawned"]
+    assert "eod" not in calls["spawned"]
+    assert {"flask", "ingestor", "poller", "session", "wall_poller"} <= set(calls["spawned"])
+
+
+def test_trading_profile_catchup_is_the_seed_refresh_not_bhavcopy(tmp_path, monkeypatch):
+    spawned = []
+    monkeypatch.setattr(orch.subprocess, "Popen",
+                        lambda argv, **kw: spawned.append(argv) or _FakePopen(argv))
+    monkeypatch.setattr(orch, "CATCHUP_STAMP", tmp_path / "s.json")
+    monkeypatch.setattr(orch, "CATCHUP_LOG_DIR", tmp_path)
+    deps, _ = _deps()
+    orch._apply_profile(deps, "trading")
+    deps.dispatch_catchup()
+    assert len(spawned) == 1
+    assert spawned[0][-2:] == [str(orch.ROOT / "scripts" / "bootstrap.py"), "seed"]
+
+
+@pytest.fixture(autouse=True)
+def _no_repo_dotenv(monkeypatch):
+    # _resolve_profile loads the repo's .env; on the ops machine that would put the
+    # live TELEGRAM_TOKEN back into os.environ for the rest of the test session.
+    monkeypatch.setattr(orch, "load_dotenv", lambda *a, **k: False)
+
+
+def test_resolve_profile_cli_beats_env(monkeypatch):
+    monkeypatch.setenv("NIFTY_PROFILE", "trading")
+    assert orch._resolve_profile("full") == "full"
+    assert orch._resolve_profile(None) == "trading"
+
+
+def test_resolve_profile_defaults_to_full(monkeypatch):
+    monkeypatch.delenv("NIFTY_PROFILE", raising=False)
+    assert orch._resolve_profile(None) == "full"
+
+
+def test_resolve_profile_rejects_unknown(monkeypatch):
+    monkeypatch.setenv("NIFTY_PROFILE", "yolo")
+    with pytest.raises(SystemExit):
+        orch._resolve_profile(None)

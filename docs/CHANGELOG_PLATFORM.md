@@ -6,6 +6,20 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-10-09 — Fresh-clone onboarding: trading profile, bootstrap, macOS scheduling, README
+
+A clone with an Upstox account can now reach a paper trading day without NSE bhavcopy history. The orchestrator gained `--profile trading` (or `NIFTY_PROFILE=trading` in `.env`): it never starts `ts_combo` or the EOD build worker, and its morning catch-up runs `scripts/bootstrap.py seed` instead of `download_all_data.py --download-only`. The default `full` profile is byte-identical to before. `scripts/bootstrap.py init` writes `.env`, `config/credentials.json`, the dashboard user (prompted; no default password), the `data/` tree and the instrument master. `seed` pulls ~3.5 years of Nifty/Bank Nifty/India VIX daily candles, ~10 days of index 1m and the SPAN file from Upstox, then tops up `vix_history`.
+
+Other changes:
+- `.env.example` is now tracked. `.gitignore`'s `.env.*` had silently excluded it, so clones never got a template.
+- `core/database/locks.py` uses `fcntl.flock` on POSIX. It imported `msvcrt` unconditionally, so `core.database` could not import on macOS or Linux.
+- `register_scheduled_tasks.ps1` takes `-NiftyProfile` / `-Python` and resolves the root from its own location; the defaults are unchanged.
+- New `register_scheduled_tasks_macos.sh` (launchd, `caffeinate`, `run_if_session.py`).
+- `requirements.txt` is re-pinned to the production interpreter's versions (pandas 2.3.3, duckdb 1.4.3, pyarrow 22.0.0; the file had pinned untested 3.0.2 / 1.5.2 / 23.0.1), plus python-dotenv and tzdata. `requirements-research.txt` and `requirements-dev.txt` are split out. Python ≥ 3.11.
+- New guides: `docs/guides/{NIFTY_SHIELD,OPTIONS_WALL,DAYTYPE_ENGINE,LIVE_TRADING}.md`. The live guide records that group legs are sequential MARKET orders with no atomicity, and the Upstox static-IP rule effective 2026-04-01.
+
+No E008-hashed file was touched. *Ref:* `scripts/ops/orchestrator.py` (`_resolve_profile`, `_apply_profile`), `scripts/bootstrap.py`, `tests/ops/test_orchestrator.py`, `tests/ops/test_bootstrap.py`, `tests/database/test_writer_lock.py`
+
 ## 2026-09-30 — M3a × M5b range breakout + abnormal volume (BKV-1): VAL 0 of 8, C5 construct-scoped, HOLDOUT unread
 
 First empirical test of closing-range breakouts with and without abnormal volume (M3a was B on one RELIANCE long/flat study; M5b was C as a conjunct in MRLC), on branch `research/breakout-volume` in worktree `F:\Nifty_bkv` (the live checkout stayed on `main`). Protocol `BKV-1` v1.0 was frozen at `84fcd99` (sha256 over the protocol, nine modules and the snapshot) before any forward return existed. PIT top-200 turnover universe, daily adjusted bars, N ∈ {20, 63}, onset-only events, abnormal volume = V ≥ 2× the prior-20-session median, entry at the t+1 open, H ∈ {5, 20}, direction-signed market-excess return, paired B−C contrast per formation date, calendar-aware Newey–West (lag H), Holm-8. TRAIN 2012–17 descriptive; VAL 2018–22: **0 of 8 cells confirmed** (smallest one-sided p 0.159; every up-side cell wrong-signed in both windows; MDE 67–253 bp). The pre-declared stop rule meant the 2023+ HOLDOUT was never read and remains unspent. Every headline number was re-derived by an independent pure-SQL path (17,067 VAL and 19,761 TRAIN events, zero exceptions), a raw as-traded rebuild, hand and `statsmodels` Newey–West, accounting identities and fee arithmetic. Two logged amendments (A1 verifier population at entity level after a symbol-level "clean name" check failed on renamed tickers; A2 JSON output). Category **C5, construct-scoped**; M3a and M5b stay open. Post-primary variants are disclosure only (two AV ≥ 3.0 down-side cells at unadjusted p 0.03–0.04, not promoted). *(docs/reports/research/BREAKOUT_VOLUME_RESEARCH_REPORT.md; `scripts/breakout_vol/`, 30 tests)*
