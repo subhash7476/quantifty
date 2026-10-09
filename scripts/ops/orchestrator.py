@@ -22,6 +22,8 @@ from typing import Callable, List, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from dotenv import load_dotenv
+
 from core.database.utils.market_hours import MarketHours
 from scripts.ops import pidfile
 
@@ -196,10 +198,14 @@ class Deps:
     # else only after BROWSER_FALLBACK_S without a token: a login completed after
     # the phone approval issues a second token and revokes the approved one.
     open_browser: Callable[[], None] = lambda: None
+    # Profile gate (see PROFILES): a child this returns False for is never started.
+    enabled: Callable[[str], bool] = lambda name: True
 
 
 def _ensure(deps: Deps, name: str) -> None:
     """Adopt a living child; else spawn it. Either way it becomes supervised."""
+    if not deps.enabled(name):
+        return
     spec = CHILDREN[name]
     if not deps.child_alive(spec):
         deps.spawn(spec)
@@ -501,7 +507,8 @@ def _record_catchup(*, stamp_path: Path = CATCHUP_STAMP,
         encoding="utf-8")
 
 
-def _dispatch_catchup(*, stamp_path: Path = CATCHUP_STAMP, log_dir: Path = CATCHUP_LOG_DIR) -> None:
+def _dispatch_catchup(*, stamp_path: Path = CATCHUP_STAMP, log_dir: Path = CATCHUP_LOG_DIR,
+                      argv: Optional[List[str]] = None) -> None:
     """Fire download_all_data as a detached background one-shot; never blocks.
 
     At most once per calendar day (`_catchup_due`). Output goes to a dated log —
@@ -511,7 +518,7 @@ def _dispatch_catchup(*, stamp_path: Path = CATCHUP_STAMP, log_dir: Path = CATCH
     if not _catchup_due(stamp_path=stamp_path):
         _logger.info("catch-up download already dispatched today — skipping")
         return
-    argv = [PY, str(ROOT / "scripts" / "download_all_data.py"), "--download-only"]
+    argv = argv or [PY, str(ROOT / "scripts" / "download_all_data.py"), "--download-only"]
     flags = _CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
     kw = {"cwd": str(ROOT), "stderr": subprocess.STDOUT,
           "env": {**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUNBUFFERED": "1"}}
@@ -643,11 +650,39 @@ def _live_deps(started: dict) -> Deps:
     )
 
 
-def _cmd_start(dry_run: bool) -> int:
+# "full" is the operator's research stack. "trading" is what a fresh clone needs:
+# no bhavcopy store, so the TS-combo book and the EOD build worker are not started,
+# and the morning catch-up is the Upstox seed refresh instead of the bhavcopy walk.
+PROFILES = ("full", "trading")
+TRADING_SKIP = frozenset({"ts_combo", "eod"})
+
+
+def _resolve_profile(cli: Optional[str]) -> str:
+    """CLI flag, else NIFTY_PROFILE from the environment or .env, else "full"."""
+    load_dotenv(ROOT / ".env")
+    profile = cli or os.environ.get("NIFTY_PROFILE") or "full"
+    if profile not in PROFILES:
+        raise SystemExit(f"unknown profile {profile!r} — expected one of {PROFILES}")
+    return profile
+
+
+def _apply_profile(deps: Deps, profile: str) -> None:
+    if profile != "trading":
+        return
+    deps.enabled = lambda name: name not in TRADING_SKIP
+    deps.dispatch_catchup = lambda: _dispatch_catchup(
+        stamp_path=CATCHUP_STAMP, log_dir=CATCHUP_LOG_DIR,
+        argv=[PY, str(ROOT / "scripts" / "bootstrap.py"), "seed"])
+
+
+def _cmd_start(dry_run: bool, profile: str = "full") -> int:
     if dry_run:
-        print("DRY-RUN start plan (dependency order):")
+        print(f"DRY-RUN start plan (dependency order, profile={profile}):")
         for name in ["flask", "ts_combo", "ingestor", "poller", "session", "eod", "wall_poller"]:
             spec = CHILDREN[name]
+            if profile == "trading" and name in TRADING_SKIP:
+                print(f"  {name:9} -> skipped (trading profile)")
+                continue
             print(f"  {name:9} -> {' '.join(spec.argv)}"
                   + (" [new group]" if spec.new_group else ""))
         return 0
@@ -660,6 +695,8 @@ def _cmd_start(dry_run: bool) -> int:
     started: dict = {}
     sup = Supervisor(started=started)
     deps = _live_deps(started)
+    _apply_profile(deps, profile)
+    _logger.info("profile: %s", profile)
     deps.supervise = sup.tick
     deps.adopt = sup.adopt
     try:
@@ -735,11 +772,13 @@ def main(argv=None) -> int:
     parser.add_argument("command", nargs="?", default="start",
                         choices=["start", "status", "stop"])
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--profile", choices=PROFILES, default=None,
+                        help="full (default) or trading; overrides NIFTY_PROFILE")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO,
                         format="%(asctime)s %(name)s %(levelname)s %(message)s")
     if args.command == "start":
-        return _cmd_start(args.dry_run)
+        return _cmd_start(args.dry_run, _resolve_profile(args.profile))
     if args.command == "status":
         return _cmd_status()
     return _cmd_stop()

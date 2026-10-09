@@ -82,7 +82,7 @@ formation once the facts refresh has settled — which, since the orchestrator's
 the rest of the stack, is at the next 09:10 start (Monday after a Friday), not overnight — into `data/paper/ts_daily_combo/combo_paper.duckdb`, shown on
 the `/ts-basis-daily/` Combo Paper Book panel (`TS_BASIS_DAILY_COMBO_SPEC.md` amendment A3). Read-only health: `python scripts/ops/preflight.py`
 (BLOCK: token/STOP/marks/VIX; WARN: SPAN/master/feeds/EOD-worker). Full contract:
-`docs/superpowers/specs/2026-08-09-ops-orchestrator-preflight-design.md`;
+`docs/superpowers/specs/2026-08-09-ops-orchestrator-preflight-design.md`; fresh clones run `--profile trading` (`NIFTY_PROFILE=trading`: no `ts_combo`/EOD worker, morning catch-up = `scripts/bootstrap.py seed`; the default `full` is this machine's stack) — setup in `README.md`, macOS launchd in `scripts/ops/register_scheduled_tasks_macos.sh`;
 runbook: `docs/reports/OPS_ORCHESTRATOR_RUNBOOK.md`.
 
 **Scheduled starts (Windows Task Scheduler, folder `\Nifty\`):** `Orchestrator` 09:10 and
