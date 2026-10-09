@@ -53,7 +53,9 @@ to find out whether it works. Options-Wall is a pilot.
 - an Upstox account with F&O enabled;
 - Python 3.11+ (3.13 tested). numpy 2.4, scipy 1.17 and scikit-learn 1.8 do not
   support 3.10;
-- about 1 GB of disk. The trading stack does **not** need NSE bhavcopy history;
+- about 1 GB of disk to start. The trading stack does **not** need NSE bhavcopy
+  history. The Options-Wall stores then grow by about 50–60 MB per session
+  (see [Maintenance](#maintenance));
 - a machine whose clock is on IST (Asia/Kolkata), or adjust the scheduled times.
 
 ### 1. Create an Upstox developer app
@@ -153,7 +155,7 @@ Start it before 09:15 IST. It:
 
 | Check | Command / URL |
 |---|---|
-| Health (token, STOP file, marks, VIX, SPAN, master) | `python scripts/ops/preflight.py` |
+| Health (token, STOP file, marks, VIX, SPAN, master) | `python scripts/ops/preflight.py`. In the trading profile the `eod_feeds` and `eod_worker` warnings are expected: they track the bhavcopy research feeds |
 | What would start | `python scripts/ops/orchestrator.py start --dry-run` |
 | Dashboard | `http://127.0.0.1:5000/`: **/nifty-shield/**, **/options/**, **/options/wall/**, **/ops/** |
 | Stop everything now | Ctrl+C in the orchestrator window, or `python scripts/ops/orchestrator.py stop` |
@@ -174,7 +176,7 @@ The scheduler only has to start the orchestrator each weekday morning.
 
 **Windows (Task Scheduler)**, from the repo root in PowerShell:
 
-```bash
+```powershell
 powershell -ExecutionPolicy Bypass -File scripts/ops/register_scheduled_tasks.ps1 -NiftyProfile trading -Python "$PWD\.venv\Scripts\python.exe"
 ```
 
@@ -259,6 +261,17 @@ It covers:
   of truth.
 - **The DayType label is a full-session prior, not an afternoon forecast.**
   See the [DayType guide](docs/guides/DAYTYPE_ENGINE.md).
+- **`seed` verifies its result.** It exits non-zero if India VIX history is below
+  189 sessions or any index has fewer than 5 sessions of 1m bars. Treat a failure as
+  "the strategies will not behave as documented".
+
+### Maintenance
+
+| What | Why | How |
+|---|---|---|
+| Options-Wall raw snapshots | `data/options/wall_chain_snapshots/{date}.duckdb` + `wall_scan_results.duckdb` grow ~50–60 MB per session | archive or delete old per-day snapshot files; compact with `python scripts/ops/compact_duckdb_stores.py` (report) / `--apply` while the stack is **stopped** |
+| VIX history | NiftyShield's percentile window | refreshed by `bootstrap.py seed` (every morning under the trading profile) |
+| Instrument master | lot sizes, expiries | refreshed by the orchestrator each morning (it appends one snapshot per day) |
 
 ---
 
@@ -341,6 +354,8 @@ whichever way they come out, and most constructs **failed**. Some examples:
 - monthly cross-sectional effects were too small to demonstrate in the years of data that exist (SFB-1, RFA);
 - several index constructs died on statistical power.
 
-One futures construct (Carry) passed its sealed read but needs NSE bhavcopy history
-and has no live deployment. The details are in `CLAUDE.md` and `docs/reports/`.
+One construct (Carry, residual basis on stock futures) passed its sealed read. A
+later audit found it is a **spot** effect, though: futures convergence eats the
+spread, so as a futures trade it does not survive. It needs NSE bhavcopy history and
+has no live deployment. The details are in `CLAUDE.md` and `docs/reports/`.
 This history is why the reference strategies here are labelled paper-only.

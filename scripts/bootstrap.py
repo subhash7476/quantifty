@@ -49,6 +49,8 @@ DAILY_SYMBOLS = ["NSE_INDEX|Nifty 50", "NSE_INDEX|Nifty Bank", "NSE_INDEX|India 
 MINUTE_SYMBOLS = DAILY_SYMBOLS + ["BSE_INDEX|SENSEX"]
 DAILY_SEED_DAYS = 1300   # ~3.5 calendar years -> > 756 sessions for the VIX percentile
 MINUTE_SEED_DAYS = 10    # >= 5 sessions for the Options-Wall realized vol
+MIN_VIX_SESSIONS = 189   # vix_percentile.percentile() returns None below 756 // 4
+MIN_RV_SESSIONS = 5      # options_wall realized vol lookback (session_realized_vol_pct)
 
 DATA_DIRS = [
     "data/config", "data/ops", "data/instruments", "data/options", "data/span",
@@ -213,7 +215,36 @@ def cmd_seed(args) -> int:
         span_ok = subprocess.run([PY, str(ROOT / "scripts" / "fetch_span_params.py")],
                                  cwd=str(ROOT)).returncode == 0
         print(f"  SPAN: {'ok' if span_ok else 'unavailable (warning only)'}")
-    return 0 if ok else 1
+    # The fetcher logs write errors and still exits 0, so check what landed.
+    return 0 if _verify_seed() and ok else 1
+
+
+def _verify_seed() -> bool:
+    """The runners' minimums: without them nothing errors, the strategies just
+    behave differently (NiftyShield always a straddle, Options-Wall never enters)."""
+    import duckdb
+    from core.analytics.realized_vol import _load_sessions
+    from scripts.daytype import vix_percentile
+
+    con = duckdb.connect(str(vix_percentile.CACHE), read_only=True)
+    try:
+        vix_rows = con.execute("SELECT COUNT(*) FROM vix_history").fetchone()[0]
+    finally:
+        con.close()
+    problems = []
+    if vix_rows < MIN_VIX_SESSIONS:
+        problems.append(f"vix_history has {vix_rows} sessions, NiftyShield's VIX gate "
+                        f"needs >= {MIN_VIX_SESSIONS} (756 ideal)")
+    for symbol in MINUTE_SYMBOLS:
+        n = len(_load_sessions(symbol, MIN_RV_SESSIONS))
+        if n < MIN_RV_SESSIONS:
+            problems.append(f"{symbol}: {n} sessions of 1m bars, Options-Wall realized "
+                            f"vol needs {MIN_RV_SESSIONS}")
+    for line in problems:
+        print(f"  SEED INCOMPLETE - {line}")
+    if not problems:
+        print(f"  verified: {vix_rows} VIX sessions, >= {MIN_RV_SESSIONS} 1m sessions per index")
+    return not problems
 
 
 def main(argv=None) -> int:

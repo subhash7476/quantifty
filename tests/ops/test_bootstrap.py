@@ -37,3 +37,40 @@ def test_env_is_never_overwritten(tmp_path, monkeypatch):
     monkeypatch.setattr(bootstrap, "ENV_FILE", target)
     bootstrap._write_env()
     assert target.read_text() == "SECRET_KEY=mine\n"
+
+
+def _vix_store(path, n):
+    import duckdb
+    from datetime import timedelta
+    con = duckdb.connect(str(path))
+    con.execute("CREATE TABLE vix_history (session_date DATE PRIMARY KEY, vix_close DOUBLE NOT NULL)")
+    for i in range(n):
+        con.execute("INSERT INTO vix_history VALUES (?, ?)", [date(2023, 1, 1) + timedelta(days=i), 13.0])
+    con.close()
+
+
+def test_seed_verification_fails_on_short_vix_history(tmp_path, monkeypatch):
+    from core.analytics import realized_vol
+    from scripts.daytype import vix_percentile
+    _vix_store(tmp_path / "vix.duckdb", 100)
+    monkeypatch.setattr(vix_percentile, "CACHE", tmp_path / "vix.duckdb")
+    monkeypatch.setattr(realized_vol, "_load_sessions", lambda s, n: [[1.0, 2.0]] * n)
+    assert bootstrap._verify_seed() is False
+
+
+def test_seed_verification_fails_without_five_minute_sessions(tmp_path, monkeypatch):
+    from core.analytics import realized_vol
+    from scripts.daytype import vix_percentile
+    _vix_store(tmp_path / "vix.duckdb", 800)
+    monkeypatch.setattr(vix_percentile, "CACHE", tmp_path / "vix.duckdb")
+    monkeypatch.setattr(realized_vol, "_load_sessions", lambda s, n: [[1.0, 2.0]] * 3)
+    assert bootstrap._verify_seed() is False
+
+
+def test_seed_verification_passes_at_the_minimums(tmp_path, monkeypatch):
+    from core.analytics import realized_vol
+    from scripts.daytype import vix_percentile
+    _vix_store(tmp_path / "vix.duckdb", bootstrap.MIN_VIX_SESSIONS)
+    monkeypatch.setattr(vix_percentile, "CACHE", tmp_path / "vix.duckdb")
+    monkeypatch.setattr(realized_vol, "_load_sessions", lambda s, n: [[1.0, 2.0]] * n)
+    assert bootstrap._verify_seed() is True
