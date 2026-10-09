@@ -155,7 +155,7 @@ Start it before 09:15 IST. It:
 
 | Check | Command / URL |
 |---|---|
-| Health (token, STOP file, marks, VIX, SPAN, master) | `python scripts/ops/preflight.py`. In the trading profile the `eod_feeds` and `eod_worker` warnings are expected: they track the bhavcopy research feeds |
+| Health (token, STOP file, marks, VIX, SPAN, master) | `python scripts/ops/preflight.py`. It reads `NIFTY_PROFILE`; the trading profile skips the `eod_feeds` and `eod_worker` checks, which track the bhavcopy research feeds |
 | What would start | `python scripts/ops/orchestrator.py start --dry-run` |
 | Dashboard | `http://127.0.0.1:5000/`: **/nifty-shield/**, **/options/**, **/options/wall/**, **/ops/** |
 | Stop everything now | Ctrl+C in the orchestrator window, or `python scripts/ops/orchestrator.py stop` |
