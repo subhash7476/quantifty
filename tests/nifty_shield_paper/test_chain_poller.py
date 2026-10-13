@@ -203,6 +203,34 @@ def test_two_expiry_cycle_prices_far_weekly_legs(tmp_path):
     assert hb["expiries"] == [near, far]
 
 
+class _ListedExpiries:
+    """Stand-in for OptionsProvider.get_weekly_expiry: the first listed expiry
+    on or after `as_of_date` (default: today)."""
+
+    def __init__(self, listed, today):
+        self._listed, self._today = listed, today
+
+    def get_weekly_expiry(self, underlying, as_of_date=None):
+        floor = (as_of_date or self._today).isoformat()
+        return next(e for e in self._listed if e >= floor)
+
+
+def test_far_expiry_is_the_next_listed_one_not_a_week_out():
+    """2026-10-12/13: the second expiry was looked up at near+7d = 10-20, a
+    holiday, so it returned 10-27 and the shifted 10-19 weekly (the one the
+    strategy strikes) was never cached. The second expiry is the next LISTED
+    one after near."""
+    from scripts.nifty_shield_paper.chain_poller import nearest_two_expiries
+
+    listed = ["2026-10-13", "2026-10-19", "2026-10-27", "2026-11-03"]
+    prov = _ListedExpiries(listed, today=date(2026, 10, 12))
+    assert nearest_two_expiries(prov, UNDERLYING) == ("2026-10-13", "2026-10-19")
+    # An ordinary week is unchanged: near and the following Tuesday.
+    ordinary = ["2026-08-25", "2026-09-01", "2026-09-08"]
+    prov = _ListedExpiries(ordinary, today=date(2026, 8, 24))
+    assert nearest_two_expiries(prov, UNDERLYING) == ("2026-08-25", "2026-09-01")
+
+
 def test_run_consumes_two_expiry_fetch_tuple(tmp_path, monkeypatch):
     """2026-08-25 13:00 checkpoint failure: commit 9420742 changed the fetch
     seam to return (rows, expiries-LIST) but run() still unpacked a singular

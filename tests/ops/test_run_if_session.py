@@ -72,3 +72,59 @@ def test_run_target_turns_an_unexpected_exception_into_exit_1(monkeypatch, tmp_p
 
     monkeypatch.setattr(rs.runpy, "run_path", _boom)
     assert rs._run_target(tmp_path / "t.py", []) == 1
+
+
+# --- per-run output log (the 2026-10-08 orchestrator exit-1 left no trace) ---
+
+def _noisy_runner(script, args):
+    import sys
+    print("start sequence: ok")
+    print("preflight failed: token", file=sys.stderr)
+    return 1
+
+
+def test_target_output_lands_in_a_per_target_per_day_log(tmp_path, capsys):
+    alerts = []
+    rc = ris.main(["orchestrator"], today=date(2026, 10, 14), runner=_noisy_runner,
+                  alert=alerts.append, log_path=tmp_path / "scheduled_runs.log")
+    run_log = tmp_path / "logs" / "orchestrator_2026-10-14.log"
+    text = run_log.read_text(encoding="utf-8")
+    assert rc == 1
+    assert "start sequence: ok" in text and "preflight failed: token" in text
+    # still visible to anyone watching the console (the token-approval prompt)
+    out = capsys.readouterr()
+    assert "start sequence: ok" in out.out and "preflight failed: token" in out.err
+    # the scheduler log and the alert point at it
+    sched = (tmp_path / "scheduled_runs.log").read_text(encoding="utf-8")
+    assert str(run_log) in sched
+    assert str(run_log) in alerts[0]
+
+
+def test_an_uncaught_target_exception_traceback_is_in_the_run_log(monkeypatch, tmp_path):
+    import scripts.ops.run_if_session as rs
+
+    def _boom(path, run_name=None):
+        raise RuntimeError("respawn failed")
+
+    monkeypatch.setattr(rs.runpy, "run_path", _boom)
+    rc = rs.main(["download"], today=date(2026, 10, 14), runner=rs._run_target,
+                 alert=lambda m: None, log_path=tmp_path / "scheduled_runs.log")
+    text = (tmp_path / "logs" / "download_2026-10-14.log").read_text(encoding="utf-8")
+    assert rc == 1
+    assert "RuntimeError: respawn failed" in text
+
+
+def test_streams_are_restored_and_a_missing_console_still_logs(monkeypatch, tmp_path):
+    import sys
+    monkeypatch.setattr(sys, "stdout", None)     # pythonw / no console attached
+    before = (sys.stdout, sys.stderr)
+    ris.main(["download"], today=date(2026, 10, 14), runner=_noisy_runner,
+             alert=lambda m: None, log_path=tmp_path / "scheduled_runs.log")
+    assert (sys.stdout, sys.stderr) == before
+    text = (tmp_path / "logs" / "download_2026-10-14.log").read_text(encoding="utf-8")
+    assert "start sequence: ok" in text
+
+
+def test_a_skipped_day_writes_no_run_log(tmp_path):
+    _run("orchestrator", date(2026, 10, 2), tmp_path)
+    assert not (tmp_path / "logs").exists()

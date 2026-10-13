@@ -26,7 +26,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, FrozenSet, List, Optional
+
+from strategies.nifty_shield_v1.exchange_holidays import EXCHANGE_HOLIDAYS
 
 # Expiry weekday per index (selector: Nifty = Tuesday). Python weekday: Mon=0.
 INDEX_EXPIRY_WEEKDAY = {"NSE_INDEX|Nifty 50": 1}
@@ -98,13 +100,29 @@ def select_structure(regime: str, vix_pctile: Optional[float],
     return "short_straddle"
 
 
+def _last_session_on_or_before(d: date, holidays: FrozenSet[date]) -> date:
+    while d.weekday() >= 5 or d in holidays:
+        d -= timedelta(days=1)
+    return d
+
+
 def nearest_expiry(from_date: date, min_days: int,
-                   underlying: str = "NSE_INDEX|Nifty 50") -> date:
-    """Nearest weekly expiry >= min_days away (selector `_nearest_expiry`)."""
+                   underlying: str = "NSE_INDEX|Nifty 50",
+                   holidays: FrozenSet[date] = EXCHANGE_HOLIDAYS) -> date:
+    """Nearest weekly expiry >= min_days away (selector `_nearest_expiry`).
+
+    The weekly expires on the index's weekday, or on the last session before it
+    when that day is an exchange holiday (2026-10-20 Dussehra -> Mon 10-19). The
+    `min_days` test is on the moved date, so a holiday never lets a 1 DTE
+    expiry through.
+    """
     weekday = INDEX_EXPIRY_WEEKDAY.get(underlying, 1)
-    target = from_date + timedelta(days=min_days)
-    days_ahead = (weekday - target.weekday()) % 7
-    return target + timedelta(days=days_ahead)
+    nominal = from_date + timedelta(days=(weekday - from_date.weekday()) % 7)
+    while True:
+        expiry = _last_session_on_or_before(nominal, holidays)
+        if (expiry - from_date).days >= min_days:
+            return expiry
+        nominal += timedelta(days=7)
 
 
 def atm_strike(price: float, step: int) -> int:
