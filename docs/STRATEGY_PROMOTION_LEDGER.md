@@ -197,6 +197,35 @@ standing reference for the ledger format and auditability.
         `WINDOW_START 2026-10-08` are unchanged; strategy identity is unchanged
         (`config_hash c5b722ff…536c`).
       - Report: `docs/reports/NIFTY_SHIELD_VIX_HISTORY_STALE_2026-10-09.md`.
+    - **Window RESET 2026-10-13 (declared before the new window's first session, 2026-10-14)**
+      — a note, not a grant. One execution change, `strategies/nifty_shield_v1/structures.py`
+      `nearest_expiry()`.
+      - **The defect.** The weekly expiry was a pure Tuesday calculation. 2026-10-20 (Dussehra)
+        is an NSE holiday, so the Nifty weekly expired Mon 2026-10-19 and the instrument master
+        lists no `20 OCT 26` contract. On 2026-10-12 and 2026-10-13 the 13:00 entry (bear call
+        spread, bull put spread) struck `NIFTY20OCT26…` legs, found no marks and was journaled
+        `ENTRY_SKIPPED` (`missing option marks (E7-4, no synthetic fallback)`). It would have
+        repeated on 10-14, 10-15, 10-16 and in the weeks of 2026-11-10 and 2026-11-24 (also
+        Tuesday holidays).
+      - **The fix.** The expiry is the weekday date, or the last session before it when that is a
+        holiday; `min_days` is tested on the moved date and rolls a week if the move leaves it
+        short. With no holidays it is the old rule on every date of 2026 (tested). The strategy
+        package may import only `core.events` / `core.runtime.signal_source`, so it carries
+        `exchange_holidays.py`, a copy of `core.market.nse_holidays.NSE_HOLIDAYS` guarded by an
+        equality test — **adding a year to the calendar means editing both and re-pinning**.
+      - **Not in the hash, same change set.** `chain_poller.py` looked up its second expiry at
+        near + 7 days, which jumps past a shifted weekly (10-12: cached 10-13 + 10-27, not
+        10-19); it now takes the next listed expiry after near. Without it the fix would still
+        skip on the Mon/Tue before each shifted week (11-02/03, 11-16/17).
+      - **Config unchanged.** `DEFAULT_CONFIG` is untouched: `config_hash c5b722ff…536c`.
+      - New hash `101bae72…4791` (was `b33f5c3f…78fa`); `WINDOW_START` moves 2026-10-08 →
+        **2026-10-14**. The 10-08 and 10-09 sessions (two SPREADs, +₹645 / +₹808) stay on disk
+        but are excluded as `before-window-start`/`off-identity`; 10-12 and 10-13 traded nothing.
+        Valid only if the change is on `main` in `F:\Nifty` before the 09:10 start — the recorder
+        stamps the hash at session start; if it merges later, move `WINDOW_START` to the next day.
+      - Tests: `tests/strategies/test_nifty_shield_v1_expiry.py`,
+        `tests/nifty_shield_paper/test_chain_poller.py`. Run check:
+        `docs/reports/platform/ORCHESTRATOR_RUN_2026-10-13.md`.
 - E009 — (first external strategy Stage 3 LIVE CANDIDATE grant)
 - E010 — (first external strategy Stage 4 LIVE APPROVED grant)
 - E011+ — (suspension, incident, audit, cap-raise entries)

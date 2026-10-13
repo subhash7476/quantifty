@@ -428,6 +428,18 @@ class ChainPoller:
               "the marks feed may be down", self._consecutive_failures)
 
 
+def nearest_two_expiries(provider, index: str) -> Tuple[str, str]:
+    """The two nearest LISTED weekly expiries.
+
+    The second is the next listed expiry after the near one, not near + 7 days:
+    a holiday pulls a weekly back to the prior session (2026-10-20 -> 10-19), and
+    a lookup at near + 7d jumps straight past it.
+    """
+    near = provider.get_weekly_expiry(index)
+    nxt = provider.get_weekly_expiry(index, date.fromisoformat(near) + timedelta(days=1))
+    return near, nxt
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="NiftyShield option-chain poller (E7-4 marks populator)")
@@ -472,9 +484,7 @@ def main() -> int:
         provider = OptionsProvider(read_only=True)   # fetch-only; we own persistence
 
         def _fetch() -> Tuple[List[object], List[str]]:
-            near = provider.get_weekly_expiry(args.index)
-            nxt = provider.get_weekly_expiry(
-                args.index, date.fromisoformat(near) + timedelta(days=7))
+            near, nxt = nearest_two_expiries(provider, args.index)
             rows: List[object] = []
             expiries: List[str] = []
             for expiry in (near, nxt):
