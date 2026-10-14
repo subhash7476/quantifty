@@ -574,6 +574,33 @@ def test_spawn_grace_prevents_a_respawn_storm():
     assert spawned == ["session"]                 # still inside the grace window
 
 
+def test_first_tick_does_not_respawn_children_the_start_sequence_just_spawned():
+    """2026-10-14: eod and wall_poller (natively locked, lock written seconds
+    after start) were spawned by the start sequence and respawned by the very
+    first tick as "not alive". The duplicate refused the lock and exited, the
+    handle kept pointing at it, and the original outlived the 15:50 shutdown
+    with the console window attached."""
+    started, spawned = {}, []
+
+    def live_spawn(spec, **kw):
+        spawned.append(spec.name)
+        proc = _FakePopen(spec.argv)
+        started[spec.name] = proc
+        return proc
+
+    deps, _ = _deps(spawn=live_spawn, child_alive=lambda spec: False)  # locks not written yet
+    sup = orch.Supervisor(started=started, spawn=live_spawn,
+                          child_alive=lambda spec: False,
+                          stopper=lambda spec, proc: None)
+    orch._wire_supervisor(deps, sup)
+
+    assert orch.start_sequence(deps) == "started"
+    sup.tick()
+
+    assert sorted(spawned) == sorted(set(spawned))          # nobody spawned twice
+    assert {"eod", "wall_poller"} <= set(spawned)
+
+
 def test_shutdown_skips_an_adopted_child_with_no_handle():
     """An adopted, natively-locked child has no pidfile and so no handle;
     shutdown must skip it rather than raise on None."""
@@ -880,6 +907,7 @@ def test_cmd_start_supervises_to_day_end_and_releases_the_lock(monkeypatch):
     class _Deps:
         now = staticmethod(lambda: datetime(2026, 10, 6, 9, 15))
         supervise = adopt = None
+        spawn = staticmethod(lambda spec: None)
 
     monkeypatch.setattr(orch, "_live_deps", lambda started: _Deps())
     monkeypatch.setattr(orch, "start_sequence", lambda deps, **k: "started")
@@ -901,6 +929,7 @@ def test_cmd_start_releases_the_lock_when_supervision_raises(monkeypatch):
     class _Deps:
         now = staticmethod(lambda: datetime(2026, 10, 6, 9, 15))
         supervise = adopt = None
+        spawn = staticmethod(lambda spec: None)
 
     monkeypatch.setattr(orch, "_live_deps", lambda started: _Deps())
     monkeypatch.setattr(orch, "start_sequence", lambda deps, **k: "started")
