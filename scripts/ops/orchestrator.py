@@ -441,6 +441,17 @@ class Supervisor:
         pid = pidfile.read_pid(spec.pid_path) if spec.pid_path else None
         self._started[spec.name] = _RemoteProc(pid) if pid else None
 
+    def note_spawn(self, name: str) -> None:
+        """Start the grace window for a child spawned outside `tick`.
+
+        Natively locked children (eod, wall_poller) write their lock seconds
+        after launch. Only `tick` stamped a spawn time, so the first tick after
+        the start sequence read them as dead and spawned a second copy: the
+        copy refused the lock and exited, the handle kept pointing at it, and
+        the original ran on past the 15:50 shutdown (2026-10-14).
+        """
+        self._spawned_at[name] = time.monotonic()
+
     def tick(self) -> None:
         for name in list(self._started):
             spec = CHILDREN[name]
@@ -675,6 +686,19 @@ def _apply_profile(deps: Deps, profile: str) -> None:
         argv=[PY, str(ROOT / "scripts" / "bootstrap.py"), "seed"])
 
 
+def _wire_supervisor(deps: Deps, sup: Supervisor) -> None:
+    spawn_child = deps.spawn
+
+    def _spawn(spec):
+        proc = spawn_child(spec)
+        sup.note_spawn(spec.name)
+        return proc
+
+    deps.spawn = _spawn
+    deps.supervise = sup.tick
+    deps.adopt = sup.adopt
+
+
 def _cmd_start(dry_run: bool, profile: str = "full") -> int:
     if dry_run:
         print(f"DRY-RUN start plan (dependency order, profile={profile}):")
@@ -697,8 +721,7 @@ def _cmd_start(dry_run: bool, profile: str = "full") -> int:
     deps = _live_deps(started)
     _apply_profile(deps, profile)
     _logger.info("profile: %s", profile)
-    deps.supervise = sup.tick
-    deps.adopt = sup.adopt
+    _wire_supervisor(deps, sup)
     try:
         outcome = start_sequence(deps, token_timeout_s=TOKEN_TIMEOUT_S)
         print(f"start sequence: {outcome}")

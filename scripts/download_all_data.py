@@ -21,6 +21,7 @@ Pipeline:
   1. Equity bhavcopy     → data/market_data/equity_bhavcopy.duckdb
   2. Futures bhavcopy    → data/market_data/futures_bhavcopy.duckdb
   3. Index history (1d)  → data/market_data/nse/candles/1d/{date}.duckdb
+  3b. India VIX history  → data/nifty_shield/vix_history.duckdb (NiftyShield vix_pctile)
   4. Corporate actions   → equity_bhavcopy.duckdb (adds adjusted view)
   5. Stock options       → data/market_data/stock_options_bhavcopy.duckdb
   6. 1m candles (Nifty200 + F&O stocks + Nifty/BankNifty/IndiaVIX/Sensex) → data/market_data/nse/candles/1m/{date}.duckdb (via fetch_upstox_historical.py)
@@ -320,6 +321,16 @@ def download_data(full: bool, lookback: int):
     idx_args = ["--since", (idx_max - timedelta(days=lookback)).isoformat()] if idx_max else None
     if not _run(SCRIPTS / "ingest_index_history.py", args=idx_args,
                 label="index-history", timeout=1200):
+        all_ok = False
+
+    # 3b. NiftyShield's India VIX history cache, topped up from the 1d store just
+    # written. The live 13:00 fact ranks the 13:00 VIX against the trailing 756
+    # sessions in this cache, and nothing else refreshes it (it froze at
+    # 2026-09-07 while the EOD chain that was meant to run it was disabled).
+    # Here, not in build_derived(), so the --download-only morning catch-up
+    # also refreshes it before 13:00. Incremental: only missing dates are added.
+    if not _run(SCRIPTS / "daytype" / "vix_percentile.py",
+                label="vix-history", timeout=600):
         all_ok = False
 
     # 4. Corporate actions (eq bhavcopy → adjusted view; view is whole-panel, always full)

@@ -88,7 +88,7 @@ runbook: `docs/reports/OPS_ORCHESTRATOR_RUNBOOK.md`.
 **Scheduled starts (Windows Task Scheduler, folder `\Nifty\`):** `Orchestrator` 09:10 and
 `DownloadAll` 22:00 daily (downloads + builds; the orchestrator's morning catch-up is
 `--download-only`, because the builds ran out of memory beside the live stack on 2026-09-29), both via `scripts/ops/run_if_session.py`, which skips non-sessions
-per `trading_calendar.is_session()`, logs to `data/ops/scheduled_runs.log`, and Telegram-alerts
+per `trading_calendar.is_session()`, logs to `data/ops/scheduled_runs.log` (target stdout/stderr → `data/ops/logs/<target>_<date>.log`), and Telegram-alerts
 on a non-zero exit. **Both jobs stop with exit 2 from 2027-01-01** until the 2027 holidays are added to
 `nse_holidays.py` / `trading_calendar.py`. Re-register with `scripts/ops/register_scheduled_tasks.ps1`
 (interactive logon; no time limit on the orchestrator). The tasks run whatever branch `F:\Nifty`

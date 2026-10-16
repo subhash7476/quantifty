@@ -30,6 +30,13 @@ through `scripts/ops/run_if_session.py`, which skips non-sessions. Re-register w
 orchestrator's once-a-day morning catch-up runs `download_all_data.py --download-only`
 (the builds ran out of memory beside the live stack on 2026-09-29).
 
+**Logs.** `data/ops/scheduled_runs.log` holds one START/END/SKIP line per run (the START
+line names the run log). The target's own stdout/stderr — `print`, `logging`, a traceback —
+is teed into `data/ops/logs/<target>_<YYYY-MM-DD>.log`, appended across same-day restarts,
+and the non-zero-exit Telegram alert names both files. It covers the orchestrator process
+only: children it spawns (flask, ingestor, poller, session, …) write to their own logs.
+Files are not pruned.
+
 When the token is stale the orchestrator uses Upstox's **Access Token Request** flow
 (`scripts/ops/token_approval.py`): it starts a one-route listener on 127.0.0.1:5055,
 opens the ngrok tunnel, proves the public URL reaches the listener, and only then asks

@@ -173,10 +173,13 @@ class PhoneApproval:
 
         class Handler(BaseHTTPRequestHandler):
             def _reply(self, code: int, body: bytes = b"") -> None:
-                self.send_response(code)
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
+                try:
+                    self.send_response(code)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                except ConnectionError:   # sender hung up after posting; token already saved
+                    pass
 
             def do_GET(self):  # tunnel self-check
                 self._reply(200, b"ok") if self.path == route else self._reply(404)
