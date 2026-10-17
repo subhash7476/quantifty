@@ -1,3 +1,10 @@
+> **HISTORICAL — not a description of the current repository.** This is the June 2026 note written when
+> infrastructure was copied from `D:\bot\root` into `F:\Nifty` (the SALVAGE migration). Its "Excluded Files"
+> list (strategies, scanners, indicators, `core/execution/handler.py`, ...) is the state at that moment only;
+> the tree has changed substantially since — `core/execution/handler.py` and `strategies/` now exist, for
+> example. Moved from the repo root to `docs/archive/` on 2026-10-17. For the current layout see `README.md`,
+> `DEVELOPER_GUIDE.md` and `docs/SESSION_BOOTSTRAP.md`.
+
 # Nifty Migration Report
 
 ## Scope
