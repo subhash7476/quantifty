@@ -59,7 +59,7 @@ The platform assumes no specific entry methodology for either book.
 
 1. **LoopDriver — COMPLETE.** The deterministic runtime is feature-complete (A–H + the Phase G closers: §8.4 `BROKER_ERROR` isolation and the IN-001 kill-switch single source). Remaining execution work is reconciliation depth and ops hardening (`PROJECT_STATE.md` catch-up 2026-09-05), not new driver phases.
 2. **Strategy/residue cleanup — COMPLETE per MM11** (removal ledger under `docs/reports/platform/`).
-3. **Research venue note:** `core/strategies/` now hosts in-repo sources (`carry_strategy.py`, `knowledge_signal_source.py` behind `GuardedSignalSource`); carry paper/production and NiftyShield PAPER are the live consumers. Constitution §5/ADR-002 tension is governed by ADR-016/020/021 — do not add new sources without the promotion ledger.
+3. **Research venue note:** `core/strategies/` now hosts in-repo sources (`carry_strategy.py`, `knowledge_signal_source.py` behind `GuardedSignalSource`); NiftyShield PAPER is the live consumer; the Carry paper/replay path is built infrastructure only (Carry is not tradable as built — see the 2026-10-17 status banner in CLAUDE.md). Constitution §5/ADR-002 tension is governed by ADR-016/020/021 — do not add new sources without the promotion ledger.
 
 ## Forbidden Directions (from `docs/PLATFORM_CONSTITUTION.md` §4–§5)
 
