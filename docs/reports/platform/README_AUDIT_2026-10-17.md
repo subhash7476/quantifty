@@ -6,8 +6,8 @@
 1. Merged `origin/main` (16 commits since 2026-10-09) into `docs/onboarding-readme`. One conflict in `scripts/ops/orchestrator.py`: main's `_wire_supervisor` and the PR's `_apply_profile` were both kept.
 2. Checked the E008 execution hash on the merged tree: `101bae72…4791`, identical to `main` and to `FROZEN_EXECUTION_HASH`. No hashed file is touched by the PR.
 3. Checked the `requirements.txt` pins against the production interpreter (Python 3.13.5): pandas 2.3.3, duckdb 1.4.3, pyarrow 22.0.0, requests 2.32.5, pytz 2025.2, numpy 2.4.4, scipy 1.17.0, scikit-learn 1.8.0, lightgbm 4.7.0. All match.
-4. One checker per README section (nine in all) read the code behind each claim, about 314 claims in total. A skeptic then tried to refute each finding. Usage limits cut the skeptic pass short: 20 verdicts came back (16 upheld, 4 judged pedantic) and the rest did not run. The highest-impact findings were re-checked by hand against the code.
-5. A second, fresh three-checker pass over the rewritten README found six more (L3, L4, O2's Options-Wall gap, N1 and two live-guide gaps); all were confirmed in code and fixed.
+4. One checker per README section (nine in all) read the code behind each claim, about 314 claims in total. A skeptic then tried to refute each finding. Usage limits cut the skeptic pass short across two runs: 26 verdicts came back on 21 of the 58 findings. 16 findings were upheld in every verdict, 2 were refuted as pedantic, and 3 got split verdicts between runs (the SQLite and platform wording in the Stack line, and the "reference strategies" term); the rest got no verdict. Every finding acted on was re-checked by hand against the code.
+5. A second, fresh three-checker pass over the rewritten README found more: L3, L4, Options-Wall ignoring `STOP` (O2), N1, and three live-guide gaps. All were confirmed in code and fixed; F-UPX-3 was confirmed by execution (`hasattr(UpstoxAdapter, "subscribe_fills")` is `False`).
 6. `tests/ops`, `tests/database/test_writer_lock.py` and `tests/strategies/test_nifty_shield_v1_expiry.py` on the merged branch: 164 passed.
 
 ## Findings that change what a reader would do
