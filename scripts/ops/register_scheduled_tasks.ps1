@@ -9,10 +9,18 @@
 # Interactive logon is required: the orchestrator needs a console (Ctrl+C) and a
 # browser for the Upstox login. No time limit on the orchestrator — a Task
 # Scheduler kill would orphan its children and DuckDB writers.
+#
+# A fresh clone (trading profile) registers only the orchestrator; its morning
+# catch-up is the Upstox seed refresh, so DownloadAll/StraddleCapture are not needed:
+#   powershell -ExecutionPolicy Bypass -File scripts\ops\register_scheduled_tasks.ps1 `
+#       -NiftyProfile trading -Python "$PWD\.venv\Scripts\python.exe"
+param(
+    [ValidateSet('full', 'trading')] [string] $NiftyProfile = 'full',
+    [string] $Python = 'C:\Program Files\Python313\python.exe'
+)
 
 $ErrorActionPreference = 'Stop'
-$Root   = 'F:\Nifty'
-$Python = 'C:\Program Files\Python313\python.exe'
+$Root   = (Resolve-Path "$PSScriptRoot\..\..").Path
 $Gate   = "$Root\scripts\ops\run_if_session.py"
 $Folder = '\Nifty\'
 $User   = "$env:USERDOMAIN\$env:USERNAME"
@@ -32,5 +40,7 @@ function Register-NiftyTask($Name, $At, $Target, $TimeLimit) {
 }
 
 Register-NiftyTask 'Orchestrator' '09:10' 'orchestrator' ([TimeSpan]::Zero)
-Register-NiftyTask 'DownloadAll'  '22:00' 'download'     (New-TimeSpan -Hours 4)
-Register-NiftyTask 'StraddleCapture' '15:15' 'straddle_capture' (New-TimeSpan -Minutes 45)
+if ($NiftyProfile -eq 'full') {
+    Register-NiftyTask 'DownloadAll'  '22:00' 'download'     (New-TimeSpan -Hours 4)
+    Register-NiftyTask 'StraddleCapture' '15:15' 'straddle_capture' (New-TimeSpan -Minutes 45)
+}
