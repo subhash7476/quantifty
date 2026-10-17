@@ -1,11 +1,13 @@
 import time
 import logging
 import requests
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 from core.brokers.base import BrokerAdapter
 from core.brokers.broker_position import BrokerPosition
 from core.brokers.mapping.upstox import UpstoxMapping  # 4C.7
-from core.events import OrderEvent, OrderStatus
+from core.events import OrderStatus
+from core.execution.order_lifecycle import FillEvent
+from core.execution.order_models import NormalizedOrder, OrderSide, OrderType
 from core.execution.position_tracker import Position
 from core.execution.position_models import PositionSide
 from core.instruments.instrument_base import InstrumentType  # 4C.7 fail-fast
@@ -24,6 +26,38 @@ class BrokerContractError(Exception):
     """Broker response violated expected schema: missing field, malformed payload, non-success status, or unknown status value."""
 
 
+# An explicit map, never a default: F-UPX-2 sent every order SELL because the
+# side was compared to the string "BUY" and anything else fell through.
+_TRANSACTION_TYPE = {OrderSide.BUY: "BUY", OrderSide.SELL: "SELL"}
+
+# Upstox order statuses (API docs, order-status appendix).
+_ORDER_STATUS = {
+    # Terminal
+    "complete":                               OrderStatus.FILLED,
+    "rejected":                               OrderStatus.REJECTED,
+    "cancelled":                              OrderStatus.CANCELLED,
+    "cancelled after market order":           OrderStatus.CANCELLED,
+    # Active / live on exchange
+    "open":                                   OrderStatus.OPEN,
+    "trigger pending":                        OrderStatus.OPEN,
+    "modify pending":                         OrderStatus.OPEN,
+    "modify validation pending":              OrderStatus.OPEN,
+    "modified":                               OrderStatus.OPEN,
+    "cancel pending":                         OrderStatus.OPEN,
+    "not cancelled":                          OrderStatus.OPEN,
+    "not modified":                           OrderStatus.OPEN,
+    # Submission / validation in flight
+    "put order req received":                 OrderStatus.SUBMITTED,
+    "open pending":                           OrderStatus.SUBMITTED,
+    "validation pending":                     OrderStatus.SUBMITTED,
+    # AMO states
+    "after market order req received":        OrderStatus.SUBMITTED,
+    "modify after market order req received": OrderStatus.SUBMITTED,
+}
+
+_TERMINAL = {OrderStatus.FILLED, OrderStatus.REJECTED, OrderStatus.CANCELLED}
+
+
 class UpstoxAdapter(BrokerAdapter):
 
     BASE_URL = "https://api.upstox.com/v2"
@@ -37,6 +71,10 @@ class UpstoxAdapter(BrokerAdapter):
         self._last_req_time = 0.0
         self._req_interval = 0.11  # slightly above 0.1 → 9 req/sec
         self._mapping: Optional[UpstoxMapping] = None  # 4C.7: lazy-init on first place_order
+        self._fill_callback = None
+        # broker order_id -> (order, filled quantity, average price) already
+        # reported as fills; an order leaves once Upstox reports it terminal.
+        self._pending: Dict[str, Tuple[NormalizedOrder, int, float]] = {}
 
     def _rate_limit(self):
         now = time.time()
@@ -93,7 +131,7 @@ class UpstoxAdapter(BrokerAdapter):
 
         raise BrokerUnavailableError(f"Request exhausted without response on {endpoint}")
 
-    def place_order(self, order: OrderEvent) -> str:
+    def place_order(self, order: NormalizedOrder) -> str:
         # 4C.7: route using canonical identity when available; fail fast for derivatives
         # that lack it (master absent/stale is a misconfiguration, not a fallback case).
         if self._mapping is None:
@@ -119,15 +157,24 @@ class UpstoxAdapter(BrokerAdapter):
             instrument_token = order.symbol
             product_code = "I"
 
+        if order.side not in _TRANSACTION_TYPE:
+            raise BrokerContractError(
+                f"Order for {order.symbol} has unmappable side {order.side!r}; refusing to route")
+        # NormalizedOrder carries no price, so MARKET is the only routable type.
+        if order.order_type is not OrderType.MARKET:
+            raise BrokerContractError(
+                f"Order for {order.symbol} has order_type {order.order_type!r}; "
+                "only MARKET is routable (NormalizedOrder has no price)")
+
         payload = {
             "quantity": int(order.quantity),
             "product": product_code,
             "validity": "DAY",
-            "price": order.price if order.order_type.value == "LIMIT" else 0,
-            "tag": order.signal_id_reference,
+            "price": 0,
+            "tag": order.signal_id,
             "instrument_token": instrument_token,
-            "order_type": "MARKET" if order.order_type.value == "MARKET" else "LIMIT",
-            "transaction_type": "BUY" if order.side == "BUY" else "SELL",
+            "order_type": "MARKET",
+            "transaction_type": _TRANSACTION_TYPE[order.side],
             "disclosed_quantity": 0,
             "trigger_price": 0,
             "is_amo": False,
@@ -138,6 +185,7 @@ class UpstoxAdapter(BrokerAdapter):
             if response and response.get("status") == "success":
                 order_id = response["data"]["order_id"]
                 self.logger.info(f"Order placed successfully. ID: {order_id}")
+                self._pending[order_id] = (order, 0, 0.0)
                 return order_id
             else:
                 error_msg = response.get("errors", "Unknown error") if response else "No response"
@@ -146,7 +194,9 @@ class UpstoxAdapter(BrokerAdapter):
             self.logger.error(f"Critical failure in place_order: {e}")
             raise
 
-    def get_order_status(self, order_id: str) -> OrderStatus:
+    def _order_details(self, order_id: str) -> Tuple[OrderStatus, int, float, Optional[str]]:
+        """(status, filled quantity, average price, status message) from
+        GET /order/details."""
         response = self._make_request("GET", "/order/details", params={"order_id": order_id})
         # BrokerAuthError / BrokerUnavailableError propagate from _make_request
 
@@ -156,35 +206,71 @@ class UpstoxAdapter(BrokerAdapter):
             )
 
         try:
-            status_str = response["data"].get("status", "")
-        except (KeyError, TypeError) as e:
+            data = response["data"]
+            status_str = data.get("status", "")
+            filled = int(data.get("filled_quantity") or 0)
+            average_price = float(data.get("average_price") or 0.0)
+            message = data.get("status_message")
+        except (KeyError, TypeError, ValueError, AttributeError) as e:
             raise BrokerContractError(f"Malformed order status payload: {e}") from e
 
-        mapping = {
-            # Terminal
-            "completed":                              OrderStatus.FILLED,
-            "rejected":                               OrderStatus.REJECTED,
-            "cancelled":                              OrderStatus.CANCELLED,
-            # Active / live on exchange
-            "open":                                   OrderStatus.OPEN,
-            "trigger pending":                        OrderStatus.OPEN,
-            "modify pending":                         OrderStatus.OPEN,
-            "cancel pending":                         OrderStatus.OPEN,
-            "not cancelled":                          OrderStatus.OPEN,
-            "not modified":                           OrderStatus.OPEN,
-            # Submission / validation in flight
-            "put order req received":                 OrderStatus.SUBMITTED,
-            "open pending":                           OrderStatus.SUBMITTED,
-            "validation pending":                     OrderStatus.SUBMITTED,
-            # AMO states
-            "after market order req received":        OrderStatus.SUBMITTED,
-            "modify after market order req received": OrderStatus.SUBMITTED,
-        }
-
-        result = mapping.get(status_str.lower())
-        if result is None:
+        status = _ORDER_STATUS.get(status_str.lower())
+        if status is None:
             raise BrokerContractError(f"Unknown Upstox order status: {status_str!r}")
-        return result
+        return status, filled, average_price, message
+
+    def get_order_status(self, order_id: str) -> OrderStatus:
+        return self._order_details(order_id)[0]
+
+    def poll_fills(self) -> None:
+        """Report what Upstox has filled since the last poll, for every order
+        this adapter placed that is not yet terminal.
+
+        Each newly filled quantity goes to the subscribed callback as a FillEvent
+        keyed on the order's correlation_id and symbol (the handler's keys, not
+        Upstox's), priced so the fills' VWAP equals Upstox's average_price. One
+        GET /order/details per pending order; no call when none is pending.
+        Synchronous: the caller drives it from the single-threaded loop.
+
+        A BrokerUnavailableError leaves that order pending for the next poll;
+        auth and contract errors propagate. The fee is 0.0 — order details carry
+        no charges.
+        """
+        for broker_id, (order, reported, reported_avg) in list(self._pending.items()):
+            try:
+                status, filled, average_price, message = self._order_details(broker_id)
+            except BrokerUnavailableError as e:
+                self.logger.warning(
+                    f"Fill poll for order {broker_id} deferred, broker unavailable: {e}")
+                continue
+
+            if filled > reported:
+                delta = filled - reported
+                price = (average_price * filled - reported_avg * reported) / delta
+                self._emit_fill(FillEvent(
+                    fill_id=f"{broker_id}-{filled}",
+                    order_id=str(order.correlation_id),
+                    symbol=order.symbol,
+                    quantity=delta,
+                    price=price,
+                    timestamp=self.clock.now(),
+                    side=order.side.value,
+                    fee=0.0,
+                ))
+                self._pending[broker_id] = (order, filled, average_price)
+
+            if status in _TERMINAL:
+                del self._pending[broker_id]
+                if status is not OrderStatus.FILLED:
+                    self.logger.error(
+                        f"Order {broker_id} ({order.side.value} {order.quantity} {order.symbol}) "
+                        f"{status.value.lower()} by broker with {filled} filled: {message}")
+
+    def _emit_fill(self, fill: FillEvent) -> None:
+        if self._fill_callback is None:
+            raise RuntimeError(
+                f"Fill {fill.fill_id} has no receiver; call subscribe_fills before placing orders")
+        self._fill_callback(fill)
 
     def get_positions(self) -> Dict[str, Position]:
         response = self._make_request("GET", "/portfolio/short-term-positions")

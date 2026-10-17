@@ -18,7 +18,7 @@ Planned #4 end-to-end payload tests (real mapping, no mock):
   P7  OPTION CI (product=None) + real mapping → payload product="D" (NRML default)
   P8  FUTURE CI (product=None) + real mapping → payload product="D" (NRML default)
 """
-from datetime import date
+from datetime import date, datetime
 from unittest.mock import MagicMock
 import pytest
 
@@ -28,9 +28,12 @@ from core.instruments.resolver import InstrumentResolver
 
 from core.brokers.upstox_adapter import UpstoxAdapter, BrokerContractError
 from core.brokers.mapping.base import BrokerRef
+from core.execution.order_models import NormalizedOrder, OrderSide, OrderType
 from core.instruments.canonical import CanonicalInstrument, AssetClass
+from core.instruments.equity import Equity
+from core.instruments.future import Future
 from core.instruments.instrument_base import InstrumentType
-from core.instruments.option import OptionType
+from core.instruments.option import Option, OptionType
 
 
 # ---------------------------------------------------------------------------
@@ -68,18 +71,20 @@ def _adapter(monkeypatch, mapping_mock):
 
 
 def _order(ci=None, instrument_type=InstrumentType.OPTION,
-           symbol="NIFTY16JUN2622500CE", side="BUY"):
-    """Minimal order-like object for adapter unit tests."""
-    o = MagicMock()
-    o.canonical_instrument = ci
-    o.instrument_type = instrument_type
-    o.symbol = symbol
-    o.quantity = 65
-    o.order_type.value = "MARKET"
-    o.price = 0
-    o.signal_id_reference = "sig-4c7-test"
-    o.side = side
-    return o
+           symbol="NIFTY16JUN2622500CE", side=OrderSide.BUY):
+    """A real NormalizedOrder — what the handler hands place_order. A MagicMock
+    here answered signal_id_reference and took side="BUY", hiding F-UPX-1/2."""
+    instrument = {
+        InstrumentType.OPTION: Option(symbol, "NIFTY", date(2026, 6, 16), 22500.0,
+                                      OptionType.CALL, lot_size=65),
+        InstrumentType.FUTURE: Future(symbol, "NIFTY", date(2026, 6, 25)),
+        InstrumentType.EQUITY: Equity(symbol),
+    }[instrument_type]
+    return NormalizedOrder(
+        instrument=instrument, side=side, quantity=65, order_type=OrderType.MARKET,
+        strategy_id="4c7", signal_id="sig-4c7-test",
+        timestamp=datetime(2026, 6, 9, 9, 30), canonical_instrument=ci,
+    )
 
 
 def _capture(adapter, monkeypatch):

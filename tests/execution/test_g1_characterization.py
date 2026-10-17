@@ -5,9 +5,12 @@ Pins the CURRENT behavior of the live, *exercisable* order path before any
 identity-site migration (#1/#2/#4). Per G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md:
 
   - No production code wires a real ExecutionHandler to any broker.
-  - UpstoxAdapter.place_order is unexercised AND incompatible with NormalizedOrder
-    (reads order.signal_id_reference -> AttributeError; enum-vs-str side -> always SELL).
-  - The only broker that accepts the handler's NormalizedOrder output is PaperBroker.
+  - UpstoxAdapter.place_order was unexercised AND incompatible with NormalizedOrder
+    (read order.signal_id_reference -> AttributeError; enum-vs-str side -> always SELL;
+    no subscribe_fills -> a handler could not even be built around it). FIXED
+    2026-10-17 (F-UPX-1/2/3): the last test below pins the payload a handler order
+    now produces through a real UpstoxAdapter.
+  - In 2026-06 the only broker that accepted the handler's output was PaperBroker.
 
 So these tests construct a REAL ExecutionHandler wired to a spy PaperBroker over an
 ISOLATED tmp ExecutionStore + DatabaseManager(data_root=tmp), and pin the four
@@ -27,7 +30,9 @@ These assert the broker-facing payload explicitly: the G1/4C.7 tripwire. If a pa
 byte changes during the #1/#2/#4 migration, one of these goes red.
 
 NOTE: changes ZERO production code. The always-SELL / signal_id_reference defects on the
-Upstox side are documented findings (F-UPX-1/2), not fixed here.
+Upstox side were documented findings (F-UPX-1/2) here; they were fixed in
+core/brokers/upstox_adapter.py, and test_handler_order_through_real_upstox_adapter
+pins the result (only requests.request is stubbed — no call can reach Upstox).
 """
 import sqlite3
 from datetime import datetime
@@ -40,10 +45,13 @@ from core.execution.handler import ExecutionHandler, ExecutionConfig
 from core.execution.persistence.execution_store import ExecutionStore
 from core.execution.order_models import OrderSide, OrderType
 from core.instruments.instrument_base import InstrumentType
+from core.brokers.mapping.upstox import UpstoxMapping
 from core.brokers.paper_broker import PaperBroker
+from core.brokers.upstox_adapter import UpstoxAdapter
 from core.clock import ReplayClock
 from core.database.manager import DatabaseManager
 from core.events import SignalEvent, SignalType
+from tests.brokers._upstox_http import install, placed
 
 FIXED_DT = datetime(2026, 6, 9, 9, 30, tzinfo=pytz.UTC)
 EQUITY_SYMBOL = "RELIANCE"
@@ -75,7 +83,7 @@ class SpyPaperBroker(PaperBroker):
         return super().place_order(order)
 
 
-def _build_handler(tmp_path, monkeypatch, store_path, load_db_state):
+def _build_handler(tmp_path, monkeypatch, store_path, load_db_state, broker=None):
     """Construct a REAL ExecutionHandler over an isolated tmp store + db_manager."""
     # Redirect the internally-constructed ExecutionStore (handler.py:145, default
     # data/execution.db) to the tmp ledger. Bound name is core.execution.handler.ExecutionStore.
@@ -83,7 +91,7 @@ def _build_handler(tmp_path, monkeypatch, store_path, load_db_state):
         handler_mod, "ExecutionStore", lambda *a, **k: ExecutionStore(str(store_path))
     )
     clock = ReplayClock(FIXED_DT)
-    broker = SpyPaperBroker(clock)
+    broker = broker or SpyPaperBroker(clock)
     handler = ExecutionHandler(
         db_manager=DatabaseManager(data_root=tmp_path),
         clock=clock,
@@ -298,3 +306,37 @@ def test_real_execution_db_untouched(tmp_path, monkeypatch):
     assert before == after
     # And the tmp ledger is the one that got the order.
     assert store_path.exists()
+
+
+# --------------------------------------------------------------------------- #
+# Upstox payload — the same handler order through a REAL UpstoxAdapter
+# --------------------------------------------------------------------------- #
+
+UPSTOX_EQUITY_KEY = "NSE_EQ|INE002A01018"
+
+
+def test_handler_order_through_real_upstox_adapter(tmp_path, monkeypatch):
+    """F-UPX-1/2/3 fixed: the handler can be built around a real UpstoxAdapter
+    (it subscribes to fills), and the order it hands over goes out as BUY, tagged
+    with its signal_id, routed by the instrument key."""
+    http = install(monkeypatch)
+    http.route("POST", "/order/place", placed("231019025562880"))
+    adapter = UpstoxAdapter("key", "secret", "token", ReplayClock(FIXED_DT))
+    adapter._req_interval = 0
+    adapter._mapping = UpstoxMapping(db_path=tmp_path / "no_master.duckdb")
+    handler, _ = _build_handler(tmp_path, monkeypatch, tmp_path / "execution.db",
+                                load_db_state=True, broker=adapter)
+
+    order = handler.process_signal(_signal(UPSTOX_EQUITY_KEY, 50), current_price=2500.0)
+
+    assert order is not None
+    [call] = http.calls_to("POST", "/order/place")
+    payload = call["json"]
+    assert payload["transaction_type"] == "BUY"
+    assert payload["tag"] == "sig-NSE_EQ|INE002A01018-50"
+    assert payload["instrument_token"] == UPSTOX_EQUITY_KEY
+    assert payload["quantity"] == 50
+    assert payload["product"] == "I"
+    assert payload["order_type"] == "MARKET"
+    # A live fill arrives by poll_fills, never at placement (that is PaperBroker only).
+    assert handler.position_tracker.net_quantity(UPSTOX_EQUITY_KEY) == 0.0
