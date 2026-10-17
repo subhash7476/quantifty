@@ -13,7 +13,7 @@ expecting this page to hold the detail.
 |---|---|
 | What the project is, how to run it | [README.md](README.md) |
 | Rules and current research status (authoritative, long) | [CLAUDE.md](CLAUDE.md) |
-| Current truth in five minutes | [docs/SESSION_BOOTSTRAP.md](docs/SESSION_BOOTSTRAP.md) |
+| Fast orientation (platform status; research status lives in `CLAUDE.md`) | [docs/SESSION_BOOTSTRAP.md](docs/SESSION_BOOTSTRAP.md) |
 | Architectural principles and invariants | [docs/PLATFORM_CONSTITUTION.md](docs/PLATFORM_CONSTITUTION.md), [docs/ARCHITECTURE_DECISIONS.md](docs/ARCHITECTURE_DECISIONS.md) |
 | The runtime loop contract | [docs/DRIVER_SPECIFICATION.md](docs/DRIVER_SPECIFICATION.md) |
 | Where each DuckDB store lives | [docs/DATA_STORE_MAP.md](docs/DATA_STORE_MAP.md) |
