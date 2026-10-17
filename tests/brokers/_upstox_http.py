@@ -11,16 +11,29 @@ import requests
 from core.brokers.upstox_adapter import UpstoxAdapter
 
 
+class HttpStatus:
+    """A non-200 reply: raise_for_status() raises HTTPError for 4xx/5xx."""
+
+    def __init__(self, status_code):
+        self.status_code = status_code
+
+
 class _Response:
     def __init__(self, payload):
-        self._payload = payload
-        self.status_code = 200
+        if isinstance(payload, HttpStatus):
+            self._payload = {}
+            self.status_code = payload.status_code
+        else:
+            self._payload = payload
+            self.status_code = 200
 
     def json(self):
         return self._payload
 
     def raise_for_status(self):
-        pass
+        if self.status_code >= 400:
+            raise requests.exceptions.HTTPError(
+                f"{self.status_code} error", response=self)
 
 
 class FakeUpstoxHttp:
@@ -40,7 +53,8 @@ class FakeUpstoxHttp:
     def __call__(self, method, url, headers=None, json=None, params=None, timeout=None):
         base = UpstoxAdapter.BASE_URL
         path = url[len(base):] if url.startswith(base) else url
-        self.calls.append({"method": method, "path": path, "json": json, "params": params})
+        self.calls.append({"method": method, "path": path, "json": json,
+                           "params": params, "timeout": timeout})
         order_id = (params or {}).get("order_id")
         queue = (self._routes.get((method, path, order_id))
                  or self._routes.get((method, path)))

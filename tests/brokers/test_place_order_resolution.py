@@ -91,7 +91,7 @@ def _capture(adapter, monkeypatch):
     """Patch _make_request to capture the payload without HTTP."""
     captured = {}
 
-    def fake_request(method, endpoint, data=None, params=None):
+    def fake_request(method, endpoint, data=None, params=None, **options):
         if data:
             captured.update(data)
         return {"status": "success", "data": {"order_id": "ORD-TEST"}}

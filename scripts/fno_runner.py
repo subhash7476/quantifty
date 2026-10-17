@@ -32,6 +32,7 @@ import logging
 import pickle
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
+from core.alerts.alerter import alerter
 from core.brokers.base import BrokerAdapter
 from core.brokers.paper_broker import PaperBroker
 from core.brokers.token_rekey import rekey_broker_positions_by_token
@@ -41,6 +42,7 @@ from core.database.providers.base import MarketDataProvider
 from core.database.providers.live_market import LiveDuckDBMarketDataProvider
 from core.execution.broker_positions_adapter import to_reconcile_positions
 from core.execution.handler import ExecutionConfig, ExecutionHandler, ExecutionMode
+from core.execution.order_lifecycle import OrderStatus
 from core.execution.portfolio_view import PortfolioView
 from core.instruments.master_readiness import ReadinessState, build_master_readiness
 from core.risk.span.span_freshness import expected_span_date
@@ -84,6 +86,30 @@ def _make_live_broker_positions(adapter: BrokerAdapter) -> Callable[[], List[Dic
             )
         return to_reconcile_positions(rekeyed)
     return _fetch
+
+
+def _alert_on_open_orders(execution, today: date) -> None:
+    """Alert on orders placed earlier today that the restored ledger shows not
+    fully filled (LIVE restart).
+
+    The broker adapter polls only the orders it placed in this process, so
+    nothing polls these: if one filled at Upstox since the restart, the ledger is
+    behind, and startup reconciliation (positions only) would not name it. Orders
+    are validity DAY, so an open order from an earlier day is dead and skipped.
+    """
+    stale = [
+        state.order for state in execution.order_tracker.order_states()
+        if state.status in (OrderStatus.CREATED, OrderStatus.PARTIALLY_FILLED)
+        and state.order.timestamp.date() == today
+    ]
+    if not stale:
+        return
+    listing = "; ".join(
+        f"{o.side.value} {o.quantity} {o.symbol} signal_id={o.signal_id}" for o in stale)
+    message = (f"LIVE restart with {len(stale)} order(s) from today not fully filled in the "
+               f"ledger; they are not being polled and may have filled at Upstox: {listing}")
+    logger.error("fno_runner: %s", message)
+    alerter.critical(message)
 
 
 def _make_span_block_checker(expected_date: date) -> Callable[[], SpanReadinessVerdict]:
@@ -256,6 +282,9 @@ def build_runner(
         execution = handler_factory(**handler_kwargs)
     else:
         execution = ExecutionHandler(**handler_kwargs)
+
+    if execution_mode is ExecutionMode.LIVE:
+        _alert_on_open_orders(execution, clock.now().date())
 
     rebalance_hook = None
     if rebalance_hook_factory is not None:

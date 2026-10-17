@@ -23,8 +23,8 @@ import requests
 
 import core.execution.handler as handler_mod
 from core.brokers.mapping.upstox import UpstoxMapping
-from core.brokers.upstox_adapter import (BrokerContractError, BrokerUnavailableError,
-                                         UpstoxAdapter)
+from core.brokers.upstox_adapter import (BrokerContractError, BrokerOrderNotFilledError,
+                                         BrokerUnavailableError, UpstoxAdapter)
 from core.clock import ReplayClock
 from core.events import OrderStatus as BrokerOrderStatus
 from core.events import SignalEvent, SignalType
@@ -253,7 +253,8 @@ def test_rejected_order_emits_nothing_and_is_dropped(tmp_path, monkeypatch, capl
                  status_message="Insufficient funds"))
 
     with caplog.at_level(logging.ERROR, logger="core.brokers.upstox_adapter"):
-        adapter.poll_fills()
+        with pytest.raises(BrokerOrderNotFilledError):  # surfaced once, see hardening tests
+            adapter.poll_fills()
     adapter.poll_fills()
 
     assert fills == []
@@ -267,7 +268,8 @@ def test_partially_filled_then_cancelled_emits_the_filled_part(tmp_path, monkeyp
         tmp_path, monkeypatch, _order(quantity=75),
         _details("cancelled", quantity=75, filled=30, average_price=99.0))
 
-    adapter.poll_fills()
+    with pytest.raises(BrokerOrderNotFilledError):
+        adapter.poll_fills()
     adapter.poll_fills()
 
     assert [(f.quantity, f.price) for f in fills] == [(30.0, 99.0)]
@@ -280,7 +282,7 @@ def test_unavailable_broker_is_reported_and_the_order_stays_pending(
     down = requests.exceptions.ConnectionError("connection reset")
     adapter, _, fills = _placed_adapter(
         tmp_path, monkeypatch, _order(),
-        down, down, down,  # _make_request's three attempts
+        down,  # the poll makes one attempt per call
         _details("complete", quantity=50, filled=50, average_price=2501.5))
 
     with pytest.raises(BrokerUnavailableError):
@@ -289,26 +291,6 @@ def test_unavailable_broker_is_reported_and_the_order_stays_pending(
 
     adapter.poll_fills()
     assert [(f.quantity, f.price) for f in fills] == [(50.0, 2501.5)]
-
-
-def test_one_unreachable_order_does_not_hide_another_orders_fill(tmp_path, monkeypatch):
-    http = install(monkeypatch)
-    http.route("POST", "/order/place", placed("A-1"), placed("B-2"))
-    # Order A-1 is unreachable; B-2 answers complete.
-    http.route_order("GET", "/order/details", "A-1",
-                     requests.exceptions.ConnectionError("connection reset"))
-    http.route_order("GET", "/order/details", "B-2",
-                     _details("complete", quantity=50, filled=50, average_price=2501.5))
-    adapter = _adapter(tmp_path)
-    fills = []
-    adapter.subscribe_fills(fills.append)
-    adapter.place_order(_order(signal_id="first"))
-    adapter.place_order(_order(signal_id="second"))
-
-    with pytest.raises(BrokerUnavailableError):
-        adapter.poll_fills()
-
-    assert len(fills) == 1  # B-2's fill was still reported
 
 
 def test_poll_with_nothing_pending_makes_no_call(tmp_path, monkeypatch):

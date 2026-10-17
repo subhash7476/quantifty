@@ -87,7 +87,8 @@ from enum import Enum
 from typing import AbstractSet, Any, Callable, Dict, List, Optional
 
 from core.alerts.alerter import alerter
-from core.brokers.upstox_adapter import BrokerAuthError
+from core.brokers.upstox_adapter import (
+    BrokerAuthError, BrokerOrderNotFilledError, BrokerUnavailableError)
 from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
 from core.database.utils.market_hours import MarketHours
@@ -209,6 +210,8 @@ class LoopDriver:
         # or in REPLAY, the loop is unchanged.
         self._fill_poll = fill_poll
         self._fill_poll_failures = 0
+        self._fill_poll_halted = False       # an auth failure ends polling
+        self._fill_poll_outage_trip = False  # the kill switch is tripped by an outage here
         # Pre-signal publish seam (DS2-2): a per-session hook invoked once per
         # session, on the first bar at/after `publish_checkpoint_time`, after
         # the clock advance and before on_bar — so a fact the hook writes is
@@ -662,6 +665,9 @@ class LoopDriver:
                         break
                     # Live: no new bar yet — wait one poll interval (§7.3).
                     self._clock.sleep(self._config.poll_interval_s)
+            # One last poll so fills that landed after the final iteration's
+            # poll are recorded before shutdown (§8.3).
+            self._drive_fill_poll()
         finally:
             if self._state in (RuntimeState.RUNNING, RuntimeState.PAUSED):
                 self.stop()
@@ -678,44 +684,80 @@ class LoopDriver:
                     self._logger.error("Telemetry publisher close failed: %s", exc)
 
     def _drive_fill_poll(self) -> None:
-        """Run the broker fill poll once, before the symbol sweep (§8.3).
+        """Run the broker fill poll once (§8.3): before each symbol sweep, and
+        once more when the loop ends.
 
         Live only, like the watchdog, and only when a poll was injected. It runs
         while PAUSED or kill-switched too: an order placed before the trip can
         still fill, and the poll is how the ledger learns of it.
 
-        A poll that raises never ends the loop and is never swallowed. Each
-        failure is logged; the first of an incident is journaled as BROKER_ERROR
-        (edge-triggered, §15.4). An auth failure trips the handler's kill switch
-        at once; any other failure counts toward the handler's own
-        `broker_error_threshold` of consecutive broker errors, and a successful
-        poll resets the count. The trip goes through the handler's public
-        `activate_kill_switch`, the path place_order failures already take.
+        A poll that raises never ends the loop and is never swallowed; every trip
+        goes through the handler's public `activate_kill_switch`, the path
+        place_order failures already take.
+        - BrokerAuthError: journaled, kill switch tripped hard at once, and
+          polling ends (a dead token cannot poll; it takes a restart).
+        - BrokerOrderNotFilledError: an order ended rejected or cancelled. A
+          discrete event, journaled every time; it does not count as a failure.
+        - anything else: logged, the first of an incident journaled as
+          BROKER_ERROR (edge-triggered, §15.4), and counted toward the handler's
+          own `broker_error_threshold` of consecutive failures. A pure outage
+          (BrokerUnavailableError) trips a RELEASABLE switch, lifted by the first
+          clean sweep; every other kind trips a hard one.
+        A clean sweep resets the count.
         """
         if (not self._config.is_live or self._fill_poll is None
-                or self._execution is None):
+                or self._execution is None or self._fill_poll_halted):
             return
         try:
             self._fill_poll()
         except BrokerAuthError as exc:
-            self._fill_poll_failures += 1
-            self._logger.error("fill poll failed, broker auth: %s", exc)
+            self._fill_poll_halted = True
+            self._logger.error("fill poll stopped, broker auth failed: %s", exc)
             self._emit(EventType.BROKER_ERROR, f"fill poll auth failure: {exc}",
                        metadata={"error": str(exc), "source": "fill_poll"})
             self._execution.activate_kill_switch(f"BrokerAuthError in fill poll: {exc}")
+        except BrokerOrderNotFilledError as exc:
+            self._logger.error("fill poll: %s", exc)
+            self._emit(EventType.BROKER_ERROR, f"fill poll: {exc}",
+                       metadata={"error": str(exc), "source": "fill_poll"})
+            self._fill_poll_recovered()
         except Exception as exc:
-            self._fill_poll_failures += 1
-            threshold = self._execution.config.broker_error_threshold
-            self._logger.error("fill poll failed (%d consecutive): %s",
-                               self._fill_poll_failures, exc)
-            if self._fill_poll_failures == 1:
-                self._emit(EventType.BROKER_ERROR, f"fill poll failed: {exc}",
-                           metadata={"error": str(exc), "source": "fill_poll"})
-            if self._fill_poll_failures == threshold:
-                self._execution.activate_kill_switch(
-                    f"fill poll failed x{self._fill_poll_failures}: {exc}")
+            self._fill_poll_failed(exc)
         else:
-            self._fill_poll_failures = 0
+            self._fill_poll_recovered()
+
+    def _fill_poll_failed(self, exc: Exception) -> None:
+        self._fill_poll_failures += 1
+        threshold = self._execution.config.broker_error_threshold
+        # After the trip the same failure repeats every iteration; the incident is
+        # already journaled and alerted, so the repeats are debug noise.
+        log = self._logger.error if self._fill_poll_failures <= threshold else self._logger.debug
+        log("fill poll failed (%d consecutive): %s", self._fill_poll_failures, exc)
+        if self._fill_poll_failures == 1:
+            self._emit(EventType.BROKER_ERROR, f"fill poll failed: {exc}",
+                       metadata={"error": str(exc), "source": "fill_poll"})
+        if self._fill_poll_failures >= threshold:
+            releasable = type(exc) is BrokerUnavailableError
+            self._execution.activate_kill_switch(
+                f"fill poll failed x{self._fill_poll_failures}: {exc}", releasable=releasable)
+            self._fill_poll_outage_trip = releasable
+
+    def _fill_poll_recovered(self) -> None:
+        """A sweep reached every order: reset the count and lift an outage trip.
+
+        The handler has one switch, so the release is withheld while the data
+        feed is stale - lifting it would lift the watchdog's trip too, and the
+        watchdog's own recovery releases it. A hard trip is never lifted
+        (`release_kill_switch` refuses).
+        """
+        self._fill_poll_failures = 0
+        if not self._fill_poll_outage_trip:
+            return
+        self._fill_poll_outage_trip = False
+        if self._watchdog is not None and not self._watchdog.data_healthy:
+            return
+        if self._execution.release_kill_switch("fill poll recovered"):
+            self._logger.warning("fill poll recovered; kill switch released")
 
     def _drive_idle_rebalance(self) -> None:
         """Invoke the rebalance hook on a no-bar tick, at the clock's own time.
