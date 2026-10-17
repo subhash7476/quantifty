@@ -9,6 +9,7 @@ lightweight, deterministic fakes injected into the driver:
 - make_bar / bar_series: OHLCVBar builders with controllable timestamps.
 """
 
+from types import SimpleNamespace
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -262,6 +263,9 @@ class FakeExecutionHandler:
         # MM9.3-S2: price cache for PortfolioView enrichment.
         self._price_cache: Dict[str, 'FakePriceSnapshot'] = {}
         self.metrics = _FakeMetrics()
+        # The handler's consecutive-broker-error threshold, which the driver
+        # reuses for consecutive fill-poll failures (ExecutionConfig default).
+        self.config = SimpleNamespace(broker_error_threshold=3)
 
     def _replay_state(self) -> None:
         self.replay_state_calls += 1
