@@ -444,6 +444,4 @@ spread, so as a futures trade it does not survive. It needs NSE bhavcopy history
 has no live deployment. The audit is
 `docs/reports/carry/CARRY_FUTURES_TRANSLATION_REVIEW.md`, and
 `docs/reports/external/RESEARCH_CLOSURE_LEDGER_2026-09-29.md` lists every construct's
-outcome. (The Carry section of `CLAUDE.md` predates the audit and still calls it
-production-ready.) This history is why NiftyShield and Options-Wall are labelled
-paper-only.
+outcome. This history is why NiftyShield and Options-Wall are labelled paper-only.

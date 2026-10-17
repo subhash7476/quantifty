@@ -40,6 +40,5 @@
 
 ## Not changed (outside this audit)
 
-- `CLAUDE.md` still calls Carry production-ready (see `docs/reports/carry/CARRY_FUTURES_TRANSLATION_REVIEW.md`).
-- `DEVELOPER_GUIDE.md` (root) describes the pre-migration `D:\BOT\root` tree and strategies that no longer exist. `NIFTY_MIGRATION_REPORT.md` is a June migration note. Both are visible on GitHub.
-- L1–L4, O2 (Options-Wall ignores `STOP`) and N1 are code defects. This audit documents them and fixes none.
+- `CLAUDE.md` called Carry production-ready, `DEVELOPER_GUIDE.md` (root) described the pre-migration `D:\BOT\root` tree, and `NIFTY_MIGRATION_REPORT.md` was a June migration note at the root. *Since fixed on `main` by PR #46 (Carry banner, guide rewrite, report moved to `docs/archive/`) and PR #48 (stale Carry and ops paths).*
+- L1–L4, O2 (Options-Wall ignores `STOP`) and N1 are code defects, documented here and fixed in none of this audit's own commits. Follow-up PRs: #45 makes Options-Wall honour `STOP` (O2); #47 fixes F-UPX-1/2/3 and adds live fill polling (L1, L3, L4). L2, N1 and the gaps #47 lists stay open. Once #45 and #47 merge, the README and `LIVE_TRADING.md` lines on those defects need updating.
