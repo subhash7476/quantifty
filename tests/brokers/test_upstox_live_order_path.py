@@ -10,6 +10,7 @@ only its HTTP layer is stubbed (_upstox_http.py). An unrouted call fails the tes
 so no test can reach Upstox.
 """
 
+import json
 import logging
 import sqlite3
 import sys
@@ -503,3 +504,27 @@ def test_partial_fills_keep_position_and_fill_ledger_true_through_the_handler(
         conn.close()
     assert fills == [(25.0, 100.0), (50.0, 101.5)]
     assert _trades(handler.db_manager) == [("sig-partial", EQUITY, "BUY", 25, 100.0)]
+
+
+def test_a_fill_poll_outage_trips_and_then_lifts_the_real_kill_switch(tmp_path, monkeypatch):
+    """The releasable-trip decision, on the real handler and adapter (not the
+    driver test double): three failed polls trip the switch, the next clean sweep
+    lifts it, and the fill that was waiting is booked."""
+    from core.runtime.event_journal import RuntimeEventJournal
+    http = install(monkeypatch)
+    http.route("POST", "/order/place", placed(BROKER_ID))
+    down = requests.exceptions.ConnectionError("down")
+    http.route("GET", "/order/details", down, down, down,
+               _details("complete", quantity=50, filled=50, average_price=2501.5))
+    journal = RuntimeEventJournal(path=str(tmp_path / "runtime_events.jsonl"))
+    _, driver = _live_run(tmp_path, monkeypatch, http, max_bars=6, n_bars=6, journal=journal)
+
+    driver.run()
+
+    handler = driver._execution
+    assert not handler._kill_switched
+    assert not handler._kill_hard
+    assert handler.position_tracker.net_quantity(EQUITY) == 50.0
+    events = [json.loads(line)["event_type"]
+              for line in (tmp_path / "runtime_events.jsonl").read_text().splitlines()]
+    assert "KILL_SWITCH_ACTIVATED" in events and "KILL_SWITCH_RELEASED" in events

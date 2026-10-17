@@ -106,8 +106,10 @@ def _alert_on_open_orders(execution, today: date) -> None:
         return
     listing = "; ".join(
         f"{o.side.value} {o.quantity} {o.symbol} signal_id={o.signal_id}" for o in stale)
-    message = (f"LIVE restart with {len(stale)} order(s) from today not fully filled in the "
-               f"ledger; they are not being polled and may have filled at Upstox: {listing}")
+    message = (f"LIVE restart with {len(stale)} order(s) from today not recorded as filled in "
+               "the ledger. Nothing is polling them: they may have filled at Upstox since, or "
+               "may be orders Upstox rejected or cancelled (the ledger never records those "
+               f"either). Check each against the Upstox order book: {listing}")
     logger.error("fno_runner: %s", message)
     alerter.critical(message)
 

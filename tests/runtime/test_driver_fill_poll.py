@@ -287,3 +287,32 @@ def test_a_not_filled_report_resets_the_outage_count(tmp_path):
     driver.run()
 
     assert not execution._kill_switched
+
+
+# --------------------------------------------------------------------------- #
+# A reject that rides on a worse error is still journaled; the shutdown poll is
+# still observed
+# --------------------------------------------------------------------------- #
+
+def test_a_reject_carried_on_another_error_is_journaled_every_time(tmp_path):
+    def raising_with_a_reject():
+        error = BrokerContractError("unusable reply")
+        error.not_filled = ["order X-9 rejected by Upstox with 0 filled: funds"]
+        raise error
+
+    driver, _, _ = _driver(tmp_path, fill_poll=raising_with_a_reject, n_bars=4)
+
+    driver.run()
+
+    rejects = [e for e in _events(tmp_path, "BROKER_ERROR") if "X-9 rejected" in e["message"]]
+    assert len(rejects) == 5  # every poll, though the incident itself is journaled once
+
+
+def test_a_trip_made_by_the_shutdown_poll_is_journaled(tmp_path):
+    poll = _script(_DOWN, _DOWN, _DOWN)  # the third failure is the final poll
+    driver, execution, _ = _driver(tmp_path, fill_poll=poll, n_bars=2)
+
+    driver.run()
+
+    assert execution._kill_switched
+    assert "KILL_SWITCH_ACTIVATED" in [e["event_type"] for e in _events(tmp_path)]

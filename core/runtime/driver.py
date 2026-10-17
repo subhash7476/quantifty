@@ -666,8 +666,10 @@ class LoopDriver:
                     # Live: no new bar yet — wait one poll interval (§7.3).
                     self._clock.sleep(self._config.poll_interval_s)
             # One last poll so fills that landed after the final iteration's
-            # poll are recorded before shutdown (§8.3).
+            # poll are recorded before shutdown (§8.3). It can trip the kill
+            # switch, which this loop's last _check_kill_switch() has already passed.
             self._drive_fill_poll()
+            self._check_kill_switch()
         finally:
             if self._state in (RuntimeState.RUNNING, RuntimeState.PAUSED):
                 self.stop()
@@ -722,6 +724,11 @@ class LoopDriver:
                        metadata={"error": str(exc), "source": "fill_poll"})
             self._fill_poll_recovered()
         except Exception as exc:
+            # A rejected/cancelled order that rode on this (more severe) error.
+            for description in getattr(exc, "not_filled", ()):
+                self._logger.error("fill poll: %s", description)
+                self._emit(EventType.BROKER_ERROR, f"fill poll: {description}",
+                           metadata={"error": description, "source": "fill_poll"})
             self._fill_poll_failed(exc)
         else:
             self._fill_poll_recovered()

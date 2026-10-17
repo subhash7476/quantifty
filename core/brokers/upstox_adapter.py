@@ -225,7 +225,13 @@ class UpstoxAdapter(BrokerAdapter):
             # accepted places a second order the ledger never sees.
             response = self._make_request("POST", "/order/place", data=payload,
                                           attempts=1, ambiguous_on_failure=True)
-            if response and response.get("status") == "success":
+            # The request got a 200. Only an explicit "error" is a definite refusal;
+            # a reply that is not an object, or says neither, leaves it unknown
+            # whether the order is live.
+            if not isinstance(response, dict) or response.get("status") not in ("success", "error"):
+                raise BrokerAmbiguousPlacementError(
+                    f"Upstox replied 200 with an unreadable placement result: {response!r:.200}")
+            if response["status"] == "success":
                 order_id = self._placed_order_id(response)
                 if order_id is None:
                     raise BrokerAmbiguousPlacementError(
@@ -233,9 +239,7 @@ class UpstoxAdapter(BrokerAdapter):
                 self.logger.info(f"Order placed successfully. ID: {order_id}")
                 self._pending[order_id] = (order, 0, 0.0)
                 return order_id
-            else:
-                error_msg = response.get("errors", "Unknown error") if response else "No response"
-                raise RuntimeError(f"Failed to place order: {error_msg}")
+            raise RuntimeError(f"Failed to place order: {response.get('errors', 'Unknown error')}")
         except BrokerAmbiguousPlacementError as e:
             self._unconfirmed[str(order.correlation_id)] = order
             alerter.critical(
@@ -260,9 +264,10 @@ class UpstoxAdapter(BrokerAdapter):
                                       attempts=attempts, timeout=timeout)
         # BrokerAuthError / BrokerUnavailableError propagate from _make_request
 
-        if not response or response.get("status") != "success":
+        if not isinstance(response, dict) or response.get("status") != "success":
             raise BrokerContractError(
-                f"Unexpected order status response: status={response.get('status') if response else None}"
+                "Unexpected order status response: status="
+                f"{response.get('status') if isinstance(response, dict) else type(response).__name__}"
             )
         data = response.get("data")
         if not isinstance(data, dict):
@@ -420,12 +425,16 @@ class UpstoxAdapter(BrokerAdapter):
             return
         message = " | ".join(parts)
         if contract:
-            raise BrokerContractError(message)
-        if self._unconfirmed:
-            raise BrokerAmbiguousPlacementError(message)
-        if unavailable:
-            raise BrokerUnavailableError(message)
-        raise BrokerOrderNotFilledError(message)
+            error = BrokerContractError(message)
+        elif self._unconfirmed:
+            error = BrokerAmbiguousPlacementError(message)
+        elif unavailable:
+            error = BrokerUnavailableError(message)
+        else:
+            error = BrokerOrderNotFilledError(message)
+        # A reject folded into a more severe error still has to reach the journal.
+        error.not_filled = list(not_filled)
+        raise error
 
     def _emit_fill(self, fill: FillEvent) -> None:
         if self._fill_callback is None:

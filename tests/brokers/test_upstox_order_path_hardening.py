@@ -154,6 +154,21 @@ def test_a_success_reply_without_an_order_id_is_ambiguous(tmp_path, monkeypatch,
     alerts.critical.assert_called_once()
 
 
+@pytest.mark.parametrize("body", [[{"order_id": "A-1"}], "garbled", None],
+                         ids=["array", "text", "null"])
+def test_a_success_reply_that_is_not_an_object_is_an_ambiguous_placement(
+        tmp_path, monkeypatch, alerts, body):
+    http = install(monkeypatch)
+    http.route("POST", "/order/place", body)
+    adapter = _adapter(tmp_path)
+
+    with pytest.raises(BrokerAmbiguousPlacementError):  # never a raw AttributeError
+        adapter.place_order(_order())
+
+    alerts.critical.assert_called_once()
+    assert len(http.calls_to("POST", "/order/place")) == 1
+
+
 # --------------------------------------------------------------------------- #
 # B - one bad order does not starve the others
 # --------------------------------------------------------------------------- #
@@ -181,6 +196,8 @@ def test_an_order_with_an_unknown_status_does_not_hide_the_next_orders_fill(
     lambda: _with_status(_details("A-1", "open", filled=0, average_price=0.0), None),
     lambda: {"status": "error", "errors": [{"message": "boom"}]},
     lambda: {"status": "success", "data": None},
+    lambda: [{"order_id": "A-1", "status": "open"}],   # a bare array, as retrieve-all documents
+    lambda: "not an object",
 ])
 def test_a_malformed_reply_is_a_contract_error_not_a_crash(tmp_path, monkeypatch, bad):
     adapter, http = _placed_adapter(tmp_path, monkeypatch, _order("first"), _order("second"))
@@ -192,6 +209,23 @@ def test_a_malformed_reply_is_a_contract_error_not_a_crash(tmp_path, monkeypatch
         adapter.poll_fills()
 
     assert len(adapter.fills) == 1  # B-2 still got through
+
+
+def test_a_reject_that_coexists_with_a_worse_error_is_still_carried_on_it(
+        tmp_path, monkeypatch, alerts):
+    """The raised error is the most severe kind; a reject in the same sweep rides
+    on it as .not_filled so the driver can still journal it."""
+    adapter, http = _placed_adapter(tmp_path, monkeypatch, _order("first"), _order("second"))
+    http.route_order("GET", "/order/details", "A-1",
+                    _details("A-1", "brand new status", filled=0, average_price=0.0))
+    http.route_order("GET", "/order/details", "B-2",
+                     _details("B-2", "rejected", filled=0, average_price=0.0))
+
+    with pytest.raises(BrokerContractError) as raised:
+        adapter.poll_fills()
+
+    [rejected] = raised.value.not_filled
+    assert "B-2" in rejected and "rejected" in rejected
 
 
 def test_the_filled_part_is_reported_even_when_the_status_is_unknown(tmp_path, monkeypatch):
