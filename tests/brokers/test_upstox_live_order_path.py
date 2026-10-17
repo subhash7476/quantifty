@@ -474,3 +474,50 @@ def test_a_broker_that_pushes_its_own_fills_needs_no_poll(tmp_path):
         def cancel_order(self, order_id): return True
 
     assert PushBroker().poll_fills() is None
+
+
+def test_partial_fills_keep_position_and_fill_ledger_true_through_the_handler(
+        tmp_path, monkeypatch):
+    """Position truth, which reconciliation checks, is right after a partial fill.
+
+    KNOWN HANDLER DEFECT (handler.py is frozen for the E008 window, so pinned
+    here, not fixed): _handle_broker_fill writes one `trades` row per fill that
+    does not leave the position flat, each keyed on the order's signal_id, and
+    trades.signal_id is UNIQUE. The second chunk of one order's entry therefore
+    fails its insert (swallowed by the handler's broad except, logged as
+    "Failed to process broker fill: UNIQUE constraint failed"), so `trades`
+    holds the first chunk only. Fix after the window closes.
+    """
+    http = install(monkeypatch)
+    _patch_live_creds(monkeypatch)
+    _isolate_trade_recorder(tmp_path, monkeypatch)
+    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("GET", "/order/details",
+               _details("open", quantity=75, filled=25, average_price=100.0),
+               _details("complete", quantity=75, filled=75, average_price=101.0))
+    adapter = _adapter(tmp_path)
+    d = build(tmp_path, monkeypatch, source=NoopSource(), symbols=(EQUITY,),
+              execution_mode=ExecutionMode.LIVE, broker=adapter,
+              broker_positions=lambda: [], initial_capital=1_000_000_000.0)
+    handler = d._execution
+    _bootstrap_trades(handler.db_manager)
+    order = handler.process_signal(SignalEvent(
+        strategy_id="live", symbol=EQUITY, timestamp=NOW, signal_type=SignalType.BUY,
+        confidence=1.0, metadata={"quantity": 75, "sl_distance": 5.0, "risk_r": 1.0,
+                                  "signal_id": "sig-partial"}),
+        current_price=2500.0)
+
+    adapter.poll_fills()
+    assert handler.position_tracker.net_quantity(EQUITY) == 25.0
+    assert handler.order_tracker.get_status(str(order.correlation_id)) is OrderStatus.PARTIALLY_FILLED
+
+    adapter.poll_fills()
+    assert handler.position_tracker.net_quantity(EQUITY) == 75.0
+    assert handler.order_tracker.get_status(str(order.correlation_id)) is OrderStatus.FILLED
+    conn = sqlite3.connect(str(tmp_path / "execution.db"))
+    try:
+        fills = conn.execute("SELECT quantity, price FROM fills ORDER BY timestamp, rowid").fetchall()
+    finally:
+        conn.close()
+    assert fills == [(25.0, 100.0), (50.0, 101.5)]
+    assert _trades(handler.db_manager) == [("sig-partial", EQUITY, "BUY", 25, 100.0)]
