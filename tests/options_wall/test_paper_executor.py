@@ -376,27 +376,36 @@ def test_blocked_entry_is_logged_once_per_stop_episode(tmp_path):
         stop = _stop(tmp_path)
         ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb",
                            stop_file=stop)
+        sym = "NSE_INDEX|Nifty 50"
         for minute in (0, 1, 2):
-            ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
-                    datetime(2026, 8, 14, 10, minute))
+            ex.step(sym, _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, minute))
         stop_msgs = [m for m in records if "STOP" in m]
         assert len(stop_msgs) == 1
-        assert "NSE_INDEX|Nifty 50" in stop_msgs[0]
+        assert sym in stop_msgs[0]
 
+        # A flat step with STOP gone and no fly opened (outside the entry window)
+        # must still clear the latch, so a second episode is reported again.
         stop.unlink()
-        ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
-                datetime(2026, 8, 14, 10, 3))          # opens, clears the latch
+        assert ex.step(sym, _chain(), _structural(), 1.0, datetime(2026, 8, 14, 15, 20)) is None
         stop.write_text("")
-        ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
-                datetime(2026, 8, 14, 10, 4))          # open position -> manage, no entry
-        assert len([m for m in records if "STOP" in m]) == 1
+        ex.step(sym, _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 3))
+        assert len([m for m in records if "STOP" in m]) == 2
     finally:
         logger.removeHandler(handler)
 
 
-def test_default_stop_file_is_the_repo_root_not_the_cwd(tmp_path, monkeypatch):
-    from core.options_wall.paper_executor import ROOT
+def test_default_stop_file_is_the_module_constant_at_the_repo_root(tmp_path, monkeypatch):
+    import importlib.util
+    import sys
+    from core.options_wall import paper_executor as pe
+
     monkeypatch.chdir(tmp_path)
     ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb")
-    assert ex.stop_file == ROOT / "STOP"
-    assert (ROOT / "pyproject.toml").exists() or (ROOT / "core").is_dir()
+    assert ex.stop_file == pe.STOP_FILE        # the autouse fixture's tmp path is honoured
+
+    spec = importlib.util.spec_from_file_location("_pe_fresh", pe.__file__)
+    fresh = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, "_pe_fresh", fresh)   # @dataclass resolves its module here
+    spec.loader.exec_module(fresh)
+    assert fresh.STOP_FILE == fresh.ROOT / "STOP"
+    assert (fresh.ROOT / "core" / "options_wall").is_dir()

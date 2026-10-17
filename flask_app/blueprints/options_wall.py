@@ -22,7 +22,7 @@ from datetime import datetime
 from flask import Blueprint, jsonify, render_template, request
 
 from core.database.utils.market_hours import MarketHours
-from core.options_wall import persistence
+from core.options_wall import paper_executor, persistence
 from core.options_wall.tradeability import tradeability
 from core.options_wall.engine import UNDERLYINGS
 from core.options_wall.health import WALL_HEARTBEAT_PATH
@@ -55,9 +55,11 @@ def api_farm():
     # A row is a screen pass, not an entry signal — say which, per row.
     has_open = bool(persistence.open_trades(sym))
     deriv_open = MarketHours.is_derivatives_open()
+    stop_present = paper_executor.STOP_FILE.exists()
     now = datetime.now()
     for r in rows:
-        r["tradeability"] = tradeability(r, now, has_open, deriv_open)
+        r["tradeability"] = tradeability(r, now, has_open, deriv_open,
+                                         stop_present=stop_present)
 
     return jsonify({
         "index": index,

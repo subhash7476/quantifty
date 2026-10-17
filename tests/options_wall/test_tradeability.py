@@ -64,3 +64,21 @@ def test_every_state_carries_a_human_reason():
         assert t["reason"] and len(t["reason"]) > 10
         assert t["state"] in {"tradeable", "window_closed", "position_open",
                               "market_closed", "not_actionable"}
+
+
+def test_stop_file_makes_a_farm_row_untradeable():
+    """PaperExecutor.step skips every entry while STOP exists; the badge must say so."""
+    t = tradeability(FARM, now=_OPEN, has_open_position=False, derivatives_open=True,
+                     stop_present=True)
+    assert t["state"] == "kill_switch"
+
+
+def test_stop_file_is_checked_after_the_other_gates():
+    """Mirrors step(): an open position, a closed market or window report first."""
+    kw = dict(stop_present=True)
+    assert tradeability(FARM, _OPEN, True, True, **kw)["state"] == "position_open"
+    assert tradeability(FARM, _OPEN, False, False, **kw)["state"] == "market_closed"
+    assert tradeability(FARM, datetime(2026, 9, 11, 15, 3), False, True,
+                        **kw)["state"] == "window_closed"
+    assert tradeability({"screen": "laggard"}, _OPEN, False, True,
+                        **kw)["state"] == "not_actionable"

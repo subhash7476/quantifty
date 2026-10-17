@@ -27,6 +27,7 @@ from core.options_wall.fly import (FlyLeg, IronFly, build_iron_fly, exit_fees,
 logger = setup_logger("options_wall_paper_executor")
 
 ROOT = Path(__file__).resolve().parents[2]
+STOP_FILE = ROOT / "STOP"   # platform kill switch; the /ops/ kill button writes it
 
 
 @dataclass
@@ -70,13 +71,13 @@ class PaperExecutor:
     def __init__(self, config: Optional[PaperConfig] = None,
                  scan_config: Optional[ScanConfig] = None,
                  db_path: Path = pers.WALL_RESULTS_DB,
-                 stop_file: Path = ROOT / "STOP"):
+                 stop_file: Optional[Path] = None):
         self.cfg = config or PaperConfig()
         self.scanner = ChainScanner(
             scan_config or ScanConfig(wing_pct=self.cfg.wing_pct,
                                       min_dte=self.cfg.min_dte))
         self.db_path = db_path
-        self.stop_file = stop_file
+        self.stop_file = stop_file or STOP_FILE
         self._stop_logged: set = set()
 
     def step(self, underlying, chain, structural, realized_vol, now: datetime) -> Optional[str]:

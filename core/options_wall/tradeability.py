@@ -7,7 +7,8 @@ rendered the two identically, and on 2026-09-10 that cost a live decision: trade
 TP would have fired at 15:20:50.
 
 The order of tests mirrors `PaperExecutor.step` exactly — an open position
-short-circuits before the entry window is consulted — so the badge cannot claim
+short-circuits before the entry window is consulted, and the STOP file is the last
+gate before an entry opens — so the badge cannot claim
 a row is tradeable when the executor would decline it, or vice versa.
 """
 
@@ -23,11 +24,12 @@ TRADED_SCREEN = "premium_farm"
 
 def tradeability(row: Dict, now: datetime, has_open_position: bool,
                  derivatives_open: bool,
-                 config: PaperConfig | None = None) -> Dict[str, str]:
+                 config: PaperConfig | None = None,
+                 stop_present: bool = False) -> Dict[str, str]:
     """`{"state": ..., "reason": ...}` for one scan row, evaluated at `now`.
 
     States: `tradeable`, `window_closed`, `position_open`, `market_closed`,
-    `not_actionable`.
+    `kill_switch`, `not_actionable`.
     """
     cfg = config or PaperConfig()
 
@@ -48,6 +50,10 @@ def tradeability(row: Dict, now: datetime, has_open_position: bool,
     if t > _hhmm(cfg.entry_end):
         return {"state": "window_closed",
                 "reason": f"The entry window closed at {cfg.entry_end}"}
+
+    if stop_present:
+        return {"state": "kill_switch",
+                "reason": "The STOP file is present — the executor skips every new entry"}
 
     return {"state": "tradeable",
             "reason": f"Entry window open until {cfg.entry_end}, no position on this underlying"}
