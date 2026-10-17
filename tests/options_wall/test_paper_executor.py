@@ -303,3 +303,100 @@ def test_expiry_day_exit_survives_to_the_settlement_convergence():
     assert so == time(15, 35)
     assert so > time(15, 30)      # past where the 09-10 convergence completed
     assert so < end               # still inside the derivatives segment
+
+
+# --- platform kill switch (STOP file) ---------------------------------------
+
+def _stop(tmp_path):
+    p = tmp_path / "STOP"
+    p.write_text("")
+    return p
+
+
+def test_stop_file_blocks_a_new_entry(tmp_path):
+    from core.options_wall import persistence as pers
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db, stop_file=_stop(tmp_path))
+    action = ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
+                     datetime(2026, 8, 14, 10, 0))
+    assert action is None
+    assert pers.open_trades("NSE_INDEX|Nifty 50", db_path=db) == []
+
+
+def test_entry_resumes_once_stop_file_is_removed(tmp_path):
+    stop = _stop(tmp_path)
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb",
+                       stop_file=stop)
+    now = datetime(2026, 8, 14, 10, 0)
+    assert ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, now) is None
+    stop.unlink()
+    assert ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, now) == "open"
+
+
+def test_stop_file_does_not_block_tp_sl_or_time_stop(tmp_path):
+    stop = tmp_path / "STOP"
+    cases = [(_chain_scaled(0.70), datetime(2026, 8, 14, 11, 0), "tp"),
+             (_chain_scaled(1.15), datetime(2026, 8, 14, 11, 0), "sl"),
+             (_chain(), datetime(2026, 8, 17, 15, 35), "time_stop")]
+    for i, (chain, later, expected) in enumerate(cases):
+        db = tmp_path / f"r{i}.duckdb"
+        ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db, stop_file=stop)
+        open_at = datetime(2026, 8, 17, 10, 0) if expected == "time_stop" \
+            else datetime(2026, 8, 14, 10, 0)
+        assert ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, open_at) == "open"
+        stop.write_text("")
+        assert ex.step("NSE_INDEX|Nifty 50", chain, _structural(), 1.0, later) == expected
+        stop.unlink()
+
+
+def test_stop_file_does_not_block_manual_close(tmp_path):
+    from core.options_wall import persistence
+    stop = tmp_path / "STOP"
+    db = tmp_path / "r.duckdb"
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=db, stop_file=stop)
+    ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0, datetime(2026, 8, 14, 10, 0))
+    tid = persistence.open_trades("NSE_INDEX|Nifty 50", db_path=db)[0]["trade_id"]
+    stop.write_text("")
+    assert ex.manual_close("NSE_INDEX|Nifty 50", tid, _chain(),
+                           datetime(2026, 8, 14, 11, 0)) == "manual"
+
+
+def test_blocked_entry_is_logged_once_per_stop_episode(tmp_path):
+    import logging
+    from core.options_wall.paper_executor import logger
+    records = []
+
+    class _Grab(logging.Handler):
+        def emit(self, record):
+            records.append(record.getMessage())
+
+    handler = _Grab(level=logging.WARNING)
+    logger.addHandler(handler)
+    try:
+        stop = _stop(tmp_path)
+        ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb",
+                           stop_file=stop)
+        for minute in (0, 1, 2):
+            ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
+                    datetime(2026, 8, 14, 10, minute))
+        stop_msgs = [m for m in records if "STOP" in m]
+        assert len(stop_msgs) == 1
+        assert "NSE_INDEX|Nifty 50" in stop_msgs[0]
+
+        stop.unlink()
+        ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
+                datetime(2026, 8, 14, 10, 3))          # opens, clears the latch
+        stop.write_text("")
+        ex.step("NSE_INDEX|Nifty 50", _chain(), _structural(), 1.0,
+                datetime(2026, 8, 14, 10, 4))          # open position -> manage, no entry
+        assert len([m for m in records if "STOP" in m]) == 1
+    finally:
+        logger.removeHandler(handler)
+
+
+def test_default_stop_file_is_the_repo_root_not_the_cwd(tmp_path, monkeypatch):
+    from core.options_wall.paper_executor import ROOT
+    monkeypatch.chdir(tmp_path)
+    ex = PaperExecutor(PaperConfig(wing_pct=0.03), db_path=tmp_path / "r.duckdb")
+    assert ex.stop_file == ROOT / "STOP"
+    assert (ROOT / "pyproject.toml").exists() or (ROOT / "core").is_dir()
