@@ -418,7 +418,7 @@ The watchdog uses wall-clock time and **must run only in live mode** (§6.5). In
 ### 9.6 Kill-switch behavior
 
 - The watchdog's only **action** is `execution.activate_kill_switch(reason)` (`handler.py:679`) — a soft kill: `_kill_switched = True`, critical alert, metrics persisted. Subsequent `process_signal` calls return `None`.
-- The driver does **not** auto-clear the kill switch. Re-enabling trading after a stale-feed trip is an **operator decision** (a deactivation path on the handler / ops surface), never automatic — re-arming on a still-suspect feed is exactly the hazard ADR-004 guards against.
+- The driver auto-clears only a kill-switch trip it made itself: a live fill-poll *outage* trip. It releases that trip through `release_kill_switch` on the first poll sweep that reaches every order, and never while the data feed is stale (§8.3). A stale-feed trip has also been releasable since 2026-10-07: the watchdog calls `release_kill_switch` on the first bar after the feed recovers (`watchdog.py` `record_bar`). Every other trip is hard and stays latched until restart, because `release_kill_switch` refuses while any hard trip is active.
 - A kill-switched loop **keeps running and keeps emitting heartbeat/telemetry** so the operator sees a live-but-halted process (§3.2).
 
 ---
@@ -519,7 +519,7 @@ For each: **detection**, **response**, **operator visibility**. The governing ru
 
 ### 12.3 Stale data (the headline live hazard — ADR-004)
 - **Detection:** `watchdog.check_data_staleness()` — `now - last_bar > 5 min` during market hours (`watchdog.py:75`).
-- **Response:** `_data_healthy = False` → `alerter.critical` → `activate_kill_switch("Data feed stale (…m)")`. Trading halts; the loop keeps running. **No auto-recovery of trading** — `record_bar` will flip `data_healthy` back to true and log "DATA RECOVERED", but the kill switch stays set until an operator clears it (§9.6).
+- **Response:** `_data_healthy = False` → `alerter.critical` → `activate_kill_switch("Data feed stale (…m)")`. Trading halts; the loop keeps running. **Trading recovers automatically.** `record_bar` flips `data_healthy` back to true, logs "DATA RECOVERED" and calls `release_kill_switch("data feed recovered")`. That lifts the stale-data trip unless a hard (non-releasable) trip is also active (§9.6), and the driver journals `KILL_SWITCH_RELEASED`.
 - **Visibility:** critical alert, `heartbeat.json` shows `data_healthy:false` + `kill_switched:true`, health telemetry shows degraded.
 
 ### 12.4 Telemetry failure

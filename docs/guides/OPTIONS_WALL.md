@@ -57,6 +57,15 @@ An entry needs a farm row, which requires all of these:
 nearest **spot × (1 ± 1.5 %)**. Quantity is **1 lot**, with the lot size read from the
 contract.
 
+**Kill switch.** A `STOP` file in the repo root blocks every new entry; the **/ops/**
+kill button writes one. The first entry it skips logs one warning per index per STOP
+episode. The warning goes to `logs/options_wall_paper_executor.log` and the poller's
+console, not to `logs/options_wall_poller.log`. It fires only when a fly would otherwise
+have opened, so a quiet log does not mean STOP was missed. TP, SL,
+the time stop and manual close keep running. Entries resume as soon as the file is
+deleted, whereas NiftyShield stays stopped until it restarts. While the file exists,
+the farm list's badge shows **Kill switch** instead of **Tradeable**.
+
 ## Exits
 
 | Trigger | Rule |
@@ -83,7 +92,7 @@ Negative **blocks new entries but never exits**. Net gamma's sign changes every
 ## Where to look
 
 - Wall board and farm list: `http://127.0.0.1:5000/options/wall/`
-- Option-chain dashboard (PCR, net GEX, OI build-up, max pain, IV smile): `http://127.0.0.1:5000/options/`
+- Option-chain dashboard (PCR, net GEX, OI build-up): `http://127.0.0.1:5000/options/`
 - Expectancy by exit reason, GEX regime and IV−RV band:
   `python scripts/options_wall/evidence_report.py --index ALL` → `docs/reports/OPTIONS_WALL_EVIDENCE.md`
 - Runbook: `docs/reports/strategies/OPTIONS_WALL_PILOT_RUNBOOK.md`

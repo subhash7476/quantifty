@@ -12,6 +12,8 @@
 
 ## Findings that change what a reader would do
 
+*Status after the follow-up PRs merged (2026-10-17): L1, L3 and O2 are fixed on `main`. L4 is fixed for fill recording only: live fills now come from `UpstoxAdapter.poll_fills`. Its other two points still stand. Every order is MARKET, and `process_group_signal` has no production caller, so legs pass the gates one at a time (`LIVE_TRADING.md` gaps 1–2). L2 and N1 are still open. See "Not changed" below.*
+
 | # | Finding | Evidence |
 |---|---|---|
 | L1 | **The live order path is not finished.** The README said real routing was "a single switch" in `build_runner`. In fact `UpstoxAdapter.place_order` reads `order.signal_id_reference`, which `NormalizedOrder` lacks, so it raises before any HTTP call. It also compares the side enum to `"BUY"`, so every order would go out as SELL. | `core/brokers/upstox_adapter.py:125-130`; recorded as F-UPX-1/2 in `tests/execution/test_g1_characterization.py:8-10, 29-30` |
@@ -41,4 +43,8 @@
 ## Not changed (outside this audit)
 
 - `CLAUDE.md` called Carry production-ready, `DEVELOPER_GUIDE.md` (root) described the pre-migration `D:\BOT\root` tree, and `NIFTY_MIGRATION_REPORT.md` was a June migration note at the root. *Since fixed on `main` by PR #46 (Carry banner, guide rewrite, report moved to `docs/archive/`) and PR #48 (stale Carry and ops paths).*
-- L1–L4, O2 (Options-Wall ignores `STOP`) and N1 are code defects, documented here and fixed in none of this audit's own commits. Follow-up PRs: #45 makes Options-Wall honour `STOP` (O2); #47 fixes F-UPX-1/2/3 and adds live fill polling (L1, L3, L4). L2, N1 and the gaps #47 lists stay open. Once #45 and #47 merge, the README and `LIVE_TRADING.md` lines on those defects need updating.
+- L1–L4, O2 (Options-Wall ignores `STOP`) and N1 are code defects, and none of this audit's own commits fixes them. Two follow-up PRs were reviewed adversarially (`PR45_PR47_CODE_REVIEW_2026-10-17.md`), fixed the review's findings, and merged to `main` on 2026-10-17:
+  - **#45** (`da4f78d`) fixes O2. The Options-Wall executor refuses new entries while `STOP` exists, and its farm-row badge shows **Kill switch**.
+  - **#47** (`7391089`) fixes L1 and L3 (F-UPX-1/2/3) and the fill-recording half of L4 (live fill polling). L4's MARKET-only and non-atomic multi-leg points are unchanged (`LIVE_TRADING.md` gaps 1–2).
+  - **Still open:** L2 and N1, both in E008-hashed files, and the gaps #47 lists (partial fills in `trades`, rejects left open in the handler, `fee=0.0`, no order-book re-seeding, `fno_runner` not creating `trades`).
+  - **Docs updated after both merges:** the README, `LIVE_TRADING.md` and `OPTIONS_WALL.md`.
