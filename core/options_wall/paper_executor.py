@@ -3,7 +3,8 @@
 Reads a chain snapshot each cycle, runs the premium-farm screen, and manages at
 most one open iron fly per underlying: open on a qualifying farm signal inside the
 entry window; close on take-profit, stop-loss, or the time stop (session before
-expiry). A GEX regime flip to Negative blocks new entries — it is not an exit. P&L
+expiry). A GEX regime flip to Negative blocks new entries — it is not an exit. So does the
+platform `STOP` file (repo root); exits are never gated by it. P&L
 is computed directly (fly.py + fees.py); no group/broker primitives are reused
 (spec 2026-08-14 pilot §12.4 deviation, by design).
 """
@@ -17,10 +18,16 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 from core.analytics.chain_scanner import ChainScanner, ScanConfig
+from core.logging import setup_logger
 from core.market.session_schedule import session_window
 from core.options_wall import persistence as pers
 from core.options_wall.fly import (FlyLeg, IronFly, build_iron_fly, exit_fees,
                                    mark_to_close, unrealized_pnl)
+
+logger = setup_logger("options_wall_paper_executor")
+
+ROOT = Path(__file__).resolve().parents[2]
+STOP_FILE = ROOT / "STOP"   # platform kill switch; the /ops/ kill button writes it
 
 
 @dataclass
@@ -63,12 +70,15 @@ def _mids(chain) -> Dict[Tuple[float, str], float]:
 class PaperExecutor:
     def __init__(self, config: Optional[PaperConfig] = None,
                  scan_config: Optional[ScanConfig] = None,
-                 db_path: Path = pers.WALL_RESULTS_DB):
+                 db_path: Path = pers.WALL_RESULTS_DB,
+                 stop_file: Optional[Path] = None):
         self.cfg = config or PaperConfig()
         self.scanner = ChainScanner(
             scan_config or ScanConfig(wing_pct=self.cfg.wing_pct,
                                       min_dte=self.cfg.min_dte))
         self.db_path = db_path
+        self.stop_file = stop_file or STOP_FILE
+        self._stop_logged: set = set()
 
     def step(self, underlying, chain, structural, realized_vol, now: datetime) -> Optional[str]:
         mids = _mids(chain)
@@ -76,6 +86,9 @@ class PaperExecutor:
         if open_rows:
             return self._manage(open_rows[0], mids, now)
 
+        stopped = self.stop_file.exists()
+        if not stopped:
+            self._stop_logged.discard(underlying)
         if not (_hhmm(self.cfg.entry_start) <= now.time() <= _hhmm(self.cfg.entry_end)):
             return None
         farm = [r for r in self.scanner.scan_chain(chain, structural, realized_vol,
@@ -88,6 +101,12 @@ class PaperExecutor:
         fly = build_iron_fly(chain, structural.underlying_ltp, self.cfg.wing_pct,
                              qty, now.date())
         if fly is None:
+            return None
+        if stopped:
+            # Platform kill switch: entries only. Exits in _manage / manual_close keep running.
+            if underlying not in self._stop_logged:
+                self._stop_logged.add(underlying)
+                logger.warning("%s: STOP file present — skipping paper entry", underlying)
             return None
         pers.open_paper_trade(underlying, structural.expiry, fly, now, db_path=self.db_path)
         return "open"
