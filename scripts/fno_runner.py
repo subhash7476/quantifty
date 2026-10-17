@@ -316,6 +316,9 @@ def build_runner(
         span_readiness=span_readiness,
         watchdog=watchdog,
         rebalance_hook=rebalance_hook,
+        # A live broker is polled for fills once per loop iteration (§8.3); the
+        # PAPER rung's PaperBroker fills inline, so it has nothing to poll.
+        fill_poll=order_broker.poll_fills if execution_mode is ExecutionMode.LIVE else None,
         publish_hook=publish_hook,
         publish_checkpoint_time=publish_checkpoint_time,
         publish_checkpoint_deadline=publish_checkpoint_deadline,

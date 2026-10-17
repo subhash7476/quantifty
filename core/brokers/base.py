@@ -38,3 +38,9 @@ class BrokerAdapter(ABC):
         """Registers the fill callback. ExecutionHandler.__init__ calls this on
         whatever broker it is given (F-UPX-3: without it a live run can't be built)."""
         self._fill_callback = callback
+
+    def poll_fills(self) -> None:
+        """Reports fills that have happened since the last call, through the
+        subscribed callback. LoopDriver calls it once per loop iteration in LIVE
+        mode. A broker that pushes its own fills has nothing to poll."""
+        return None

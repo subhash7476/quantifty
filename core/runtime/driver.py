@@ -87,6 +87,7 @@ from enum import Enum
 from typing import AbstractSet, Any, Callable, Dict, List, Optional
 
 from core.alerts.alerter import alerter
+from core.brokers.upstox_adapter import BrokerAuthError
 from core.clock import Clock
 from core.database.providers.base import MarketDataProvider
 from core.database.utils.market_hours import MarketHours
@@ -160,7 +161,8 @@ class LoopDriver:
                  rebalance_hook: Optional[Callable[..., bool]] = None,
                  publish_hook: Optional[Callable[[datetime], Optional[dict]]] = None,
                  publish_checkpoint_time: Optional[_time] = None,
-                 publish_checkpoint_deadline: Optional[_time] = None):
+                 publish_checkpoint_deadline: Optional[_time] = None,
+                 fill_poll: Optional[Callable[[], None]] = None):
         self._config = config
         self._clock = clock
         self._provider = provider
@@ -202,6 +204,11 @@ class LoopDriver:
         # live-only (unlike the watchdog, §9.5).
         self._publisher = publisher
         self._rebalance_hook = rebalance_hook
+        # Live fill poll (§8.3): a zero-arg callable run once per loop iteration,
+        # for a broker that does not push fills. Opt-in and live-only — absent,
+        # or in REPLAY, the loop is unchanged.
+        self._fill_poll = fill_poll
+        self._fill_poll_failures = 0
         # Pre-signal publish seam (DS2-2): a per-session hook invoked once per
         # session, on the first bar at/after `publish_checkpoint_time`, after
         # the clock advance and before on_bar — so a fact the hook writes is
@@ -636,6 +643,7 @@ class LoopDriver:
             while self._state in (RuntimeState.RUNNING, RuntimeState.PAUSED):
                 if self._at_max_bars():
                     break
+                self._drive_fill_poll()
                 advanced = self._tick()
                 # §4.1 step 6: publish telemetry (throttled, best-effort) after
                 # the symbol sweep, before the watchdog (step 7).
@@ -668,6 +676,46 @@ class LoopDriver:
                     self._publisher.close()
                 except Exception as exc:  # publishing must never break shutdown
                     self._logger.error("Telemetry publisher close failed: %s", exc)
+
+    def _drive_fill_poll(self) -> None:
+        """Run the broker fill poll once, before the symbol sweep (§8.3).
+
+        Live only, like the watchdog, and only when a poll was injected. It runs
+        while PAUSED or kill-switched too: an order placed before the trip can
+        still fill, and the poll is how the ledger learns of it.
+
+        A poll that raises never ends the loop and is never swallowed. Each
+        failure is logged; the first of an incident is journaled as BROKER_ERROR
+        (edge-triggered, §15.4). An auth failure trips the handler's kill switch
+        at once; any other failure counts toward the handler's own
+        `broker_error_threshold` of consecutive broker errors, and a successful
+        poll resets the count. The trip goes through the handler's public
+        `activate_kill_switch`, the path place_order failures already take.
+        """
+        if (not self._config.is_live or self._fill_poll is None
+                or self._execution is None):
+            return
+        try:
+            self._fill_poll()
+        except BrokerAuthError as exc:
+            self._fill_poll_failures += 1
+            self._logger.error("fill poll failed, broker auth: %s", exc)
+            self._emit(EventType.BROKER_ERROR, f"fill poll auth failure: {exc}",
+                       metadata={"error": str(exc), "source": "fill_poll"})
+            self._execution.activate_kill_switch(f"BrokerAuthError in fill poll: {exc}")
+        except Exception as exc:
+            self._fill_poll_failures += 1
+            threshold = self._execution.config.broker_error_threshold
+            self._logger.error("fill poll failed (%d consecutive): %s",
+                               self._fill_poll_failures, exc)
+            if self._fill_poll_failures == 1:
+                self._emit(EventType.BROKER_ERROR, f"fill poll failed: {exc}",
+                           metadata={"error": str(exc), "source": "fill_poll"})
+            if self._fill_poll_failures == threshold:
+                self._execution.activate_kill_switch(
+                    f"fill poll failed x{self._fill_poll_failures}: {exc}")
+        else:
+            self._fill_poll_failures = 0
 
     def _drive_idle_rebalance(self) -> None:
         """Invoke the rebalance hook on a no-bar tick, at the clock's own time.

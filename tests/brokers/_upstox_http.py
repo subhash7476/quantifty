@@ -33,11 +33,17 @@ class FakeUpstoxHttp:
         repeats. A response is a payload dict, or an exception to raise."""
         self._routes[(method, path)] = list(responses)
 
+    def route_order(self, method, path, order_id, *responses):
+        """Like route, but only for calls whose order_id param matches."""
+        self._routes[(method, path, order_id)] = list(responses)
+
     def __call__(self, method, url, headers=None, json=None, params=None, timeout=None):
         base = UpstoxAdapter.BASE_URL
         path = url[len(base):] if url.startswith(base) else url
         self.calls.append({"method": method, "path": path, "json": json, "params": params})
-        queue = self._routes.get((method, path))
+        order_id = (params or {}).get("order_id")
+        queue = (self._routes.get((method, path, order_id))
+                 or self._routes.get((method, path)))
         if not queue:
             raise AssertionError(f"unrouted Upstox call: {method} {url}")
         response = queue.pop(0) if len(queue) > 1 else queue[0]

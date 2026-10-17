@@ -232,16 +232,19 @@ class UpstoxAdapter(BrokerAdapter):
         GET /order/details per pending order; no call when none is pending.
         Synchronous: the caller drives it from the single-threaded loop.
 
-        A BrokerUnavailableError leaves that order pending for the next poll;
-        auth and contract errors propagate. The fee is 0.0 — order details carry
-        no charges.
+        An order whose details can't be fetched stays pending for the next poll;
+        the other orders are still polled, and BrokerUnavailableError is raised
+        at the end so the caller can count the outage. Auth and contract errors
+        propagate at once. The fee is 0.0 — order details carry no charges.
         """
+        deferred = []
         for broker_id, (order, reported, reported_avg) in list(self._pending.items()):
             try:
                 status, filled, average_price, message = self._order_details(broker_id)
             except BrokerUnavailableError as e:
                 self.logger.warning(
                     f"Fill poll for order {broker_id} deferred, broker unavailable: {e}")
+                deferred.append(broker_id)
                 continue
 
             if filled > reported:
@@ -265,6 +268,10 @@ class UpstoxAdapter(BrokerAdapter):
                     self.logger.error(
                         f"Order {broker_id} ({order.side.value} {order.quantity} {order.symbol}) "
                         f"{status.value.lower()} by broker with {filled} filled: {message}")
+
+        if deferred:
+            raise BrokerUnavailableError(
+                f"Fill poll could not reach Upstox for order(s) {deferred}; will retry")
 
     def _emit_fill(self, fill: FillEvent) -> None:
         if self._fill_callback is None:

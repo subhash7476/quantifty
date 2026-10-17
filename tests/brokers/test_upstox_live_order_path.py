@@ -23,7 +23,8 @@ import requests
 
 import core.execution.handler as handler_mod
 from core.brokers.mapping.upstox import UpstoxMapping
-from core.brokers.upstox_adapter import BrokerContractError, UpstoxAdapter
+from core.brokers.upstox_adapter import (BrokerContractError, BrokerUnavailableError,
+                                         UpstoxAdapter)
 from core.clock import ReplayClock
 from core.events import OrderStatus as BrokerOrderStatus
 from core.events import SignalEvent, SignalType
@@ -31,6 +32,7 @@ from core.execution.handler import ExecutionMode
 from core.execution.order_lifecycle import FillEvent, OrderStatus
 from core.execution.order_models import NormalizedOrder, OrderSide, OrderType
 from core.execution.portfolio.trade_recorder import TradeRecorder
+from core.runtime.signal_source import SignalSource
 
 import scripts.fno_runner as fno_runner
 from tests.brokers._upstox_http import install, order_details, placed
@@ -81,6 +83,21 @@ def _patch_live_creds(monkeypatch):
     creds.has_upstox_token = True
     creds.is_token_expired = False
     monkeypatch.setattr(fno_runner, "_live_credentials", creds)
+
+
+def _bootstrap_trades(db_manager):
+    """fno_runner doesn't create the trades table (the NiftyShield session does,
+    scripts/nifty_shield_paper/session.py); a fresh tmp db needs it."""
+    from core.database.schema import TRADING_TRADES_SCHEMA, TRADING_TRADE_CONTEXT_SCHEMA
+    with db_manager.trading_writer() as conn:
+        conn.execute(TRADING_TRADES_SCHEMA)
+        conn.execute(TRADING_TRADE_CONTEXT_SCHEMA)
+
+
+def _trades(db_manager):
+    with db_manager.trading_reader() as conn:
+        return conn.execute(
+            "SELECT signal_id, symbol, side, quantity, entry_price FROM trades").fetchall()
 
 
 def _isolate_trade_recorder(tmp_path, monkeypatch):
@@ -257,18 +274,41 @@ def test_partially_filled_then_cancelled_emits_the_filled_part(tmp_path, monkeyp
     assert len(http.calls_to("GET", "/order/details")) == 1
 
 
-def test_unavailable_broker_keeps_the_order_pending(tmp_path, monkeypatch):
+def test_unavailable_broker_is_reported_and_the_order_stays_pending(
+        tmp_path, monkeypatch):
+    """The poll raises so the driver can count the failure; the order is not lost."""
     down = requests.exceptions.ConnectionError("connection reset")
     adapter, _, fills = _placed_adapter(
         tmp_path, monkeypatch, _order(),
         down, down, down,  # _make_request's three attempts
         _details("complete", quantity=50, filled=50, average_price=2501.5))
 
-    adapter.poll_fills()
+    with pytest.raises(BrokerUnavailableError):
+        adapter.poll_fills()
     assert fills == []
 
     adapter.poll_fills()
     assert [(f.quantity, f.price) for f in fills] == [(50.0, 2501.5)]
+
+
+def test_one_unreachable_order_does_not_hide_another_orders_fill(tmp_path, monkeypatch):
+    http = install(monkeypatch)
+    http.route("POST", "/order/place", placed("A-1"), placed("B-2"))
+    # Order A-1 is unreachable; B-2 answers complete.
+    http.route_order("GET", "/order/details", "A-1",
+                     requests.exceptions.ConnectionError("connection reset"))
+    http.route_order("GET", "/order/details", "B-2",
+                     _details("complete", quantity=50, filled=50, average_price=2501.5))
+    adapter = _adapter(tmp_path)
+    fills = []
+    adapter.subscribe_fills(fills.append)
+    adapter.place_order(_order(signal_id="first"))
+    adapter.place_order(_order(signal_id="second"))
+
+    with pytest.raises(BrokerUnavailableError):
+        adapter.poll_fills()
+
+    assert len(fills) == 1  # B-2's fill was still reported
 
 
 def test_poll_with_nothing_pending_makes_no_call(tmp_path, monkeypatch):
@@ -309,6 +349,7 @@ def test_live_fill_reaches_position_order_tracker_and_ledger(tmp_path, monkeypat
               execution_mode=ExecutionMode.LIVE, broker=adapter,
               broker_positions=lambda: [], initial_capital=1_000_000_000.0)
     handler = d._execution
+    _bootstrap_trades(handler.db_manager)
     signal = SignalEvent(
         strategy_id="live", symbol=EQUITY, timestamp=NOW,
         signal_type=SignalType.BUY, confidence=1.0,
@@ -334,3 +375,102 @@ def test_live_fill_reaches_position_order_tracker_and_ledger(tmp_path, monkeypat
     finally:
         conn.close()
     assert rows == [(str(order.correlation_id), 50.0, 2501.5, "BUY")]
+    assert _trades(handler.db_manager) == [("sig-live-e2e", EQUITY, "BUY", 50, 2501.5)]
+
+
+# --------------------------------------------------------------------------- #
+# The loop drives the poll — a LIVE run built by build_runner records the fill
+# --------------------------------------------------------------------------- #
+
+class BuyOnceSource(SignalSource):
+    """One BUY on the first bar, nothing after."""
+
+    def __init__(self):
+        self.calls = 0
+
+    def on_bar(self, bar):
+        self.calls += 1
+        if self.calls > 1:
+            return []
+        return [SignalEvent(
+            strategy_id="live", symbol=EQUITY, timestamp=bar.timestamp,
+            signal_type=SignalType.BUY, confidence=1.0,
+            metadata={"quantity": 50, "sl_distance": 5.0, "risk_r": 1.0,
+                      "signal_id": "sig-live-run"})]
+
+
+def _live_run(tmp_path, monkeypatch, http, **build_kwargs):
+    _patch_live_creds(monkeypatch)
+    _isolate_trade_recorder(tmp_path, monkeypatch)
+    adapter = _adapter(tmp_path)
+    driver = build(
+        tmp_path, monkeypatch, source=BuyOnceSource(), symbols=(EQUITY,),
+        execution_mode=ExecutionMode.LIVE, broker=adapter,
+        broker_positions=lambda: [], initial_capital=1_000_000_000.0,
+        **build_kwargs)
+    _bootstrap_trades(driver._execution.db_manager)
+    return adapter, driver
+
+
+def test_live_run_records_the_fill_of_an_order_it_placed(tmp_path, monkeypatch):
+    http = install(monkeypatch)
+    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("GET", "/order/details",
+               _details("complete", quantity=50, filled=50, average_price=2501.5))
+    _, driver = _live_run(tmp_path, monkeypatch, http, max_bars=3, n_bars=3)
+
+    driver.run()
+
+    handler = driver._execution
+    assert len(http.calls_to("POST", "/order/place")) == 1
+    assert handler.position_tracker.net_quantity(EQUITY) == 50.0
+    [state] = handler.order_tracker.order_states()
+    assert state.status is OrderStatus.FILLED
+    assert state.average_price == 2501.5
+    conn = sqlite3.connect(str(tmp_path / "execution.db"))
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM fills").fetchone() == (1,)
+    finally:
+        conn.close()
+    assert _trades(handler.db_manager) == [("sig-live-run", EQUITY, "BUY", 50, 2501.5)]
+    # Once terminal the order is no longer polled.
+    assert len(http.calls_to("GET", "/order/details")) == 1
+
+
+def test_live_run_trips_the_kill_switch_when_fill_polls_keep_failing(
+        tmp_path, monkeypatch):
+    http = install(monkeypatch)
+    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("GET", "/order/details", requests.exceptions.ConnectionError("down"))
+    _, driver = _live_run(tmp_path, monkeypatch, http, max_bars=6, n_bars=6)
+
+    driver.run()
+
+    handler = driver._execution
+    assert handler._kill_switched
+    assert handler.position_tracker.net_quantity(EQUITY) == 0.0  # the fill never arrived
+
+
+def test_build_runner_hands_the_driver_the_live_adapters_poll(tmp_path, monkeypatch):
+    install(monkeypatch)
+    adapter, driver = _live_run(tmp_path, monkeypatch, None)
+
+    assert driver._fill_poll == adapter.poll_fills
+
+
+def test_build_runner_gives_a_paper_driver_no_fill_poll(tmp_path, monkeypatch):
+    driver = build(tmp_path, monkeypatch, source=NoopSource(), symbols=(EQUITY,))
+
+    assert driver._fill_poll is None
+
+
+def test_a_broker_that_pushes_its_own_fills_needs_no_poll(tmp_path):
+    from core.brokers.base import BrokerAdapter
+
+    class PushBroker(BrokerAdapter):
+        def place_order(self, order): return "1"
+        def get_order_status(self, order_id): return BrokerOrderStatus.OPEN
+        def get_positions(self): return {}
+        def cancel_order(self, order_id): return True
+
+    assert PushBroker().poll_fills() is None

@@ -167,6 +167,7 @@ The driver is **NOT a strategy engine, NOT a signal generator, NOT a backtesting
 ```
 
 **Ordering is fixed and load-bearing** (ADR-003 "single ordering"):
+0. **Fill poll** — *live only, and only when a `fill_poll` callable was injected* (§8.3): once per loop iteration, before the symbol sweep, so fills the broker has reported are in the ledger before this iteration's signals are routed. Absent, or in replay, this step does not exist.
 1. **Market Data** — pull the next bar (`get_next_bar`). No bar → §7.3 / §7.4 handling.
 2. **Clock** — advance from `bar.timestamp` *before* any signal is evaluated, so `handler.clock.now()` is bar-time in replay (§6).
 3. **Signal Source** — synchronous pull `on_bar(bar) → List[SignalEvent]` (§5).
@@ -332,7 +333,15 @@ Owned entirely by the handler (`process_signal` → `order_factory` → `broker.
 
 **The driver does not handle fills.** `ExecutionHandler` subscribes to broker fills at construction via `self.broker.subscribe_fills(self._handle_broker_fill)` (`handler.py:132`); `_handle_broker_fill` (`handler.py:267`) ingests each `FillEvent` into `order_tracker` / `position_tracker` / `pnl_tracker`, updates realized equity via `_update_equity_metrics` (MM9.2-S4), and persists the trade.
 
-> **Concurrency note (must be acknowledged, not glossed):** in **live** mode fills arrive on the **broker's WebSocket thread**, i.e. *off* the driver thread. This is the one place the single-thread model meets reality. The trackers are mutated by that callback; the driver only *reads* them (for telemetry) on its own thread. In **replay/paper** the broker delivers fills synchronously within `process_signal`, preserving strict determinism. The spec's position: the driver remains single-threaded for the *decision* path; fill ingestion is the handler's pre-existing async seam and is out of the driver's scope. Implementers must not add a second mutation path to the ledger from the driver.
+> **Concurrency note (must be acknowledged, not glossed):** in **live** mode a broker that *pushes* fills delivers them on the **broker's WebSocket thread**, i.e. *off* the driver thread. (`UpstoxAdapter` does not push: it is polled on the driver thread — see "Live fill poll" below — so no off-thread mutation occurs for it.) This is the one place the single-thread model meets reality. The trackers are mutated by that callback; the driver only *reads* them (for telemetry) on its own thread. In **replay/paper** the broker delivers fills synchronously within `process_signal`, preserving strict determinism. The spec's position: the driver remains single-threaded for the *decision* path; fill ingestion is the handler's pre-existing async seam and is out of the driver's scope. Implementers must not add a second mutation path to the ledger from the driver.
+
+**Live fill poll (`fill_poll`).** A broker with no push channel needs something to ask it what has filled. `LoopDriver(fill_poll=...)` takes an optional zero-argument callable; `scripts/fno_runner.py:build_runner` passes `broker.poll_fills` when `execution_mode is ExecutionMode.LIVE` and `None` otherwise (the PAPER rung's `PaperBroker` fills inline). The contract:
+
+- **Opt-in and live-only.** The driver calls it only when `fill_poll` is set *and* `config.is_live` *and* a handler is injected, so PAPER, REPLAY and every driver built without it run exactly as before.
+- **Cadence.** Once per loop iteration, before the symbol sweep (§4.1 step 0) — also on a no-bar tick, and also while PAUSED or kill-switched: an order placed before a trip can still fill, and the poll is how the ledger learns of it.
+- **The driver only calls it.** The callable reports fills by invoking the callback the handler subscribed (`subscribe_fills`), so ingestion is still `_handle_broker_fill` — the driver adds no mutation path (ADR-001). `UpstoxAdapter.poll_fills()` keeps the orders it placed, reads `GET /order/details`, and emits one `FillEvent` per newly filled quantity, keyed on the order's `correlation_id` and symbol, with `fee=0.0` (order details carry no charges). It raises `BrokerUnavailableError` after polling every order if any could not be reached.
+- **A raising poll never ends the loop and is never swallowed.** Each failure is logged at error; the first of an incident is journaled as `BROKER_ERROR` (edge-triggered, §15.4). `BrokerAuthError` trips the handler's kill switch at once. Any other failure counts toward the handler's own `ExecutionConfig.broker_error_threshold` (default 3) of *consecutive* failures, a successful poll resets the count, and reaching the threshold calls `handler.activate_kill_switch(...)` — the same public path `process_signal` takes for consecutive `BrokerUnavailableError`s. The trip is non-releasable (it latches until restart).
+- **Not covered.** The set of orders being polled lives in the adapter's memory: an order placed before a restart is not polled afterwards, and the startup reconciliation (§11.3) is what catches the resulting ledger/broker divergence. Fills of orders still pending when the loop stops are likewise reported only by the next run's reconciliation.
 
 ### 8.4 Error handling
 
@@ -490,6 +499,7 @@ For each: **detection**, **response**, **operator visibility**. The governing ru
 - **Detection:** broker call raises / handshake fails (startup §11.4 step 4) or `place_order` raises during routing.
 - **Response:** at startup → refuse to start (§11.4). At runtime → the failing `process_signal` is caught (§8.4); the loop survives. Repeated broker failures are a hard operational condition — the driver does **not** retry-spam; it logs, alerts, and (if the handler trips its own kill switch) goes to kill-switched-but-running.
 - **Visibility:** `alerter.critical`, telemetry log line, `heartbeat.json` continues (process is alive), health publish reflects degraded broker.
+- **Fill poll (live).** The same rule applies to the `fill_poll` seam (§8.3): a failing poll is caught, logged and journaled, the loop survives, and consecutive failures at the handler's `broker_error_threshold` — or one `BrokerAuthError` — trip the kill switch. Trading halts; polling continues so fills of earlier orders are still recorded.
 
 ### 12.2 Market data unavailable
 - **Detection:** **replay** → `is_data_available` false for all symbols (clean exhaustion). **Live** → persistent `None` from `get_next_bar` (frozen feed).
@@ -514,6 +524,7 @@ For each: **detection**, **response**, **operator visibility**. The governing ru
 | Failure | Detection | Response | Loop survives? | Trading halts? |
 |---|---|---|---|---|
 | Broker unavailable | call raises / handshake | startup: refuse; runtime: catch + alert | yes (runtime) | maybe (handler kill) |
+| Fill poll fails (live) | `fill_poll` raises | log + journal; auth → kill switch, else kill switch at `broker_error_threshold` consecutive | yes | after the threshold / on auth |
 | Market data gone | `is_data_available`/`None` | replay: stop; live: → staleness | yes | no (until stale) |
 | Stale data | watchdog 5-min | kill switch + alert | **yes** | **yes** |
 | Telemetry failure | swallowed | none (non-fatal) | yes | no |
@@ -635,7 +646,7 @@ The driver must emit at least the following. Severity and typical source are nor
 | `RESUMED` | INFO | LoopDriver | `PAUSED → RUNNING`. | — |
 | `KILL_SWITCH_ACTIVATED` | CRITICAL | ExecutionHandler | Driver detects `_kill_switched` flipped true (edge-triggered, once). | `reason` |
 | `WATCHDOG_STALE_DATA` | CRITICAL | RuntimeWatchdog | `check_data_staleness()` trips during market hours (§9.3). | `minutes_stale` |
-| `BROKER_ERROR` | WARNING\|CRITICAL | LoopDriver | A `process_signal`/broker call raised (§8.4) or handshake failed (§11.4). | `error`, `signal_id` |
+| `BROKER_ERROR` | WARNING\|CRITICAL | LoopDriver | A `process_signal`/broker call raised (§8.4), handshake failed (§11.4), or the first `fill_poll` failure of an incident (§8.3). | `error`, `signal_id` (or `source: "fill_poll"`) |
 | `TELEMETRY_FAILURE` | WARNING | LoopDriver | A telemetry failure the driver can *observe* (e.g. publisher construction failed). See §15.6. | `detail` |
 | `STOPPING` | INFO | LoopDriver | `→ STOPPING` (stop requested / replay exhausted / `max_bars`). | `trigger` |
 | `STOPPED` | INFO | LoopDriver | Loop exited cleanly; terminal (§3.1). | `bars_processed`, `uptime_s` |
