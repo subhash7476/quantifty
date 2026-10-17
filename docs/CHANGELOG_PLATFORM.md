@@ -6,6 +6,10 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-10-17 — README and guides re-verified against main
+
+`docs/onboarding-readme` was merged with `main` (16 commits since 10-09). One conflict in `orchestrator.py` was resolved by keeping both `_wire_supervisor` and `_apply_profile`; E008 hash unchanged at `101bae72…`. Every README claim was checked against the merged code and corrected. The largest fix: the live order path is wired but unfinished (`UpstoxAdapter.place_order` cannot read `NormalizedOrder`, F-UPX-1/2), so the README and `LIVE_TRADING.md` no longer call live routing "a single switch". Other fixes: what `orchestrator.py stop` and the `STOP` file actually do; three-file holiday maintenance plus E008 re-pin; the session-scoped DayType facts path; per-day Options-Wall snapshot files; NiftyShield's holiday-aware expiry and the 10-14 window restart in `NIFTY_SHIELD.md`. *Ref:* `docs/reports/platform/README_AUDIT_2026-10-17.md`
+
 ## 2026-10-09 — Fresh-clone onboarding: trading profile, bootstrap, macOS scheduling, README
 
 A clone with an Upstox account can now reach a paper trading day without NSE bhavcopy history. The orchestrator gained `--profile trading` (or `NIFTY_PROFILE=trading` in `.env`): it never starts `ts_combo` or the EOD build worker, and its morning catch-up runs `scripts/bootstrap.py seed` instead of `download_all_data.py --download-only`. The default `full` profile is byte-identical to before. `scripts/bootstrap.py init` writes `.env`, `config/credentials.json`, the dashboard user (prompted; no default password), the `data/` tree and the instrument master. `seed` pulls ~3.5 years of Nifty/Bank Nifty/India VIX daily candles, ~10 days of index 1m and the SPAN file from Upstox, then tops up `vix_history`.

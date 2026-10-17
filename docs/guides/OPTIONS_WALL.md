@@ -18,7 +18,7 @@ the only writer of both stores:
 
 | Store | Contents |
 |---|---|
-| `data/options/wall_chain_snapshots.duckdb` | raw chain snapshots, append-only (nearest expiry per index) |
+| `data/options/wall_chain_snapshots/{date}.duckdb` | raw chain snapshots, append-only, one file per session (nearest expiry per index) |
 | `data/options/wall_scan_results.duckdb` | `scan_results` (farm list), `session_regime`, `oi_baseline` (09:15), `trades` |
 
 From each snapshot it computes the board metrics (`core/analytics/wall_metrics.py`):

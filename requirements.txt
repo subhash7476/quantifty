@@ -27,9 +27,10 @@ protobuf==7.34.1          # Upstox MarketDataFeedV3 protobuf decoding
 pyzmq==27.1.0
 python-dotenv==1.2.2
 
-# DayType regime models — the live 13:00 fact unpickles scikit-learn / LightGBM
-# objects (core/state/daytype_engine.py). A pickle is coupled to the library
-# version that wrote it, so these pins are part of the model contract.
+# DayType regime models — the live 13:00 fact unpickles scikit-learn objects
+# (core/state/daytype_engine.py). A pickle is coupled to the library version that
+# wrote it, so the scikit-learn pin is part of the model contract. LightGBM backs
+# the research models in models/daytype/, which the live engine does not load.
 scikit-learn==1.8.0
 scipy==1.17.0
 lightgbm==4.7.0

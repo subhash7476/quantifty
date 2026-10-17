@@ -1,8 +1,9 @@
 # Live trading — the switch, and what to check before using it
 
-> **Off by default, and off for both reference strategies.** Nothing in this
-> repository routes a real order unless you write the code that asks for it. No
-> strategy here is validated for real money. Read the whole page first.
+> **Off by default, off for both paper runners, and not finished.** Nothing in this
+> repository routes a real order unless you write the code that asks for it, and
+> today the Upstox order call fails even then (gap 0 below). No strategy here is
+> validated for real money. Read the whole page first.
 
 ## Two independent settings
 
@@ -11,13 +12,15 @@
 | `Mode` (`core/runtime/config.py`) | `LIVE` / `REPLAY` | the clock and data: wall-clock live bars vs. replayed history |
 | `ExecutionMode` (`core/execution/handler.py`) | `PAPER` / `LIVE` | the orders: `PaperBroker` synthetic fills vs. `UpstoxAdapter` real orders |
 
-Both paper runners run **`Mode.LIVE` + `ExecutionMode.PAPER`**: live Upstox data,
-synthetic fills, no capital.
+NiftyShield runs **`Mode.LIVE` + `ExecutionMode.PAPER`**: live Upstox data, synthetic
+fills, no capital. Options-Wall reads live chains and simulates its trades in its own
+paper executor, outside the execution layer, so it has no order mode at all.
 
 ## The switch
 
-Real routing exists in exactly one place, the F&O composition root
-`scripts/fno_runner.py::build_runner`. You pass it `ExecutionMode.LIVE` and a broker:
+The live switch exists in exactly one place, the F&O composition root
+`scripts/fno_runner.py::build_runner`. You pass it `ExecutionMode.LIVE` and a broker
+(but read gap 0 first: the order call behind it does not work yet):
 
 ```python
 from core.brokers.upstox_adapter import UpstoxAdapter
@@ -48,10 +51,15 @@ driver.run()
   reconciliation);
 - today's SPAN snapshot is missing (LIVE F&O blocks; PAPER only warns).
 
-When LIVE starts, it reconciles against the broker's actual positions
-(`get_positions`) instead of the vacuous paper reconcile.
+The SPAN and instrument-master checks run only when `symbols` contains NSE F&O keys.
+A universe of index keys only (the way NiftyShield subscribes, trading options
+through its handler) skips both.
 
-**The reference strategies cannot be flipped:**
+When LIVE starts, it reconciles the restored ledger against the broker's actual
+positions (`get_positions`) instead of the vacuous paper reconcile, and refuses to
+start on a mismatch. It does not re-check during the session.
+
+**The paper runners cannot be flipped:**
 - `scripts/nifty_shield_paper_runner.py` passes `ExecutionMode.PAPER` literally, and
   that file is inside NiftyShield's frozen execution hash.
 - Options-Wall's executor has no broker path at all.
@@ -61,6 +69,14 @@ To trade live you write your own entry script around `build_runner`, with your o
 
 ## Known gaps in the live order path — read these
 
+0. **The Upstox order call does not work yet.** `UpstoxAdapter.place_order` expects
+   an `OrderEvent`, but `ExecutionHandler` sends a `NormalizedOrder`. It reads
+   `order.signal_id_reference`, which `NormalizedOrder` does not have, so it raises
+   before any HTTP call; and it compares the side enum to the string `"BUY"`, so
+   every order would go out as SELL. The handler catches the error, logs it, and
+   returns the order as if it had been placed (group legs are logged and skipped).
+   These are findings F-UPX-1/2 in `tests/execution/test_g1_characterization.py`.
+   Fix and test them before anything else on this page matters.
 1. **Multi-leg structures are not atomic.** `ExecutionHandler.process_group_signal`
    risk-checks every leg, then sends each leg as its own **MARKET** order, one after
    another. A leg that the broker rejects is **logged and skipped**. With shorts emitted
@@ -104,4 +120,4 @@ Rules change. Check the primary sources yourself:
 - [ ] `python scripts/ops/preflight.py` is GO and the SPAN file is present
 - [ ] The kill switch is understood: the `STOP` file at the repo root blocks starts, and a stale feed trips the kill switch
 - [ ] Start with the minimum size, and watch the first session in the Upstox app
-- [ ] Holidays: `core/market/nse_holidays.py` and `trading_calendar.py` cover the year you are trading in
+- [ ] Holidays: `core/market/nse_holidays.py` and `trading_calendar.py` cover the year you are trading in (and `strategies/nifty_shield_v1/exchange_holidays.py`, if you derived from NiftyShield)

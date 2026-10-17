@@ -10,8 +10,9 @@
 # so no second evening job is needed.
 #
 # launchd fires on the Mac's LOCAL clock: set the system time zone to Asia/Kolkata,
-# or shift the hour below. A Mac that is asleep at 09:10 misses the run — schedule
-# a wake as well:  sudo pmset repeat wakeorpoweron MTWRF 09:05:00
+# or shift the hour below. A Mac that is asleep at 09:10 runs the job when it next
+# wakes (possibly after the open), and one that is off misses it — schedule a wake
+# as well:  sudo pmset repeat wakeorpoweron MTWRF 09:05:00
 #
 # Usage:
 #   scripts/ops/register_scheduled_tasks_macos.sh            # install / replace

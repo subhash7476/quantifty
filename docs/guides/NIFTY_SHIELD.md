@@ -1,7 +1,7 @@
 # NiftyShield — how it trades (paper reference strategy)
 
 > **Paper only. Not validated. Not advice.** NiftyShield is in a forward paper
-> window (E008, started 2026-10-08) that exists to find out whether it works. It has
+> window (E008, restarted 2026-10-14 after a holiday-expiry fix) that exists to find out whether it works. It has
 > no out-of-sample performance claim. Its paper runner is hard-wired to
 > `ExecutionMode.PAPER` — it cannot route a real order, and the files that decide
 > what it trades are frozen under an execution hash
@@ -51,7 +51,11 @@ the regime, and manage it to a ±1σ P&L bracket or the **15:35** hard exit.
    `spot × (VIX/100) × √(DTE/365)`. The offsets are 0.541σ for spread wings,
    0.361σ for fly wings and 0.180σ for strangle shorts, snapped to the 50-point grid
    and never narrower than one strike.
-6. **Expiry:** the nearest Nifty weekly expiry (Tuesday) at least 2 days away.
+6. **Expiry:** the nearest Nifty weekly expiry at least 2 days away. The weekly
+   expires on Tuesday, or on the last session before it when Tuesday is an exchange
+   holiday (2026-10-20 Dussehra → Monday 10-19). The 2-day test is on the moved date.
+   The holiday list is the strategy's own copy in
+   `strategies/nifty_shield_v1/exchange_holidays.py`.
 7. **Credit quality gate.** The entry is skipped if the credit actually available
    from live bid/ask marks is below **90 %** of the Black-Scholes credit for the same
    legs at their own implied vols. It catches stale or wide quotes.
