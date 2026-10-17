@@ -2,7 +2,7 @@
 
 > **Off by default, off for both paper runners, and not finished.** Nothing in this
 > repository routes a real order unless you write the code that asks for it, and
-> today the Upstox order call fails even then (gap 0 below). No strategy here is
+> today a live run with `UpstoxAdapter` cannot even be built (gap 0 below). No strategy here is
 > validated for real money. Read the whole page first.
 
 ## Two independent settings
@@ -20,7 +20,8 @@ paper executor, outside the execution layer, so it has no order mode at all.
 
 The live switch exists in exactly one place, the F&O composition root
 `scripts/fno_runner.py::build_runner`. You pass it `ExecutionMode.LIVE` and a broker
-(but read gap 0 first: the order call behind it does not work yet):
+(but read gap 0 first: with a real `UpstoxAdapter` this snippet fails inside
+`build_runner` today):
 
 ```python
 from core.brokers.upstox_adapter import UpstoxAdapter
@@ -57,7 +58,8 @@ through its handler) skips both.
 
 When LIVE starts, it reconciles the restored ledger against the broker's actual
 positions (`get_positions`) instead of the vacuous paper reconcile, and refuses to
-start on a mismatch. It does not re-check during the session.
+start on a mismatch. It does not re-check during the session. Because of gap 0,
+this reconcile has never run against a real account.
 
 **The paper runners cannot be flipped:**
 - `scripts/nifty_shield_paper_runner.py` passes `ExecutionMode.PAPER` literally, and
@@ -69,24 +71,39 @@ To trade live you write your own entry script around `build_runner`, with your o
 
 ## Known gaps in the live order path — read these
 
-0. **The Upstox order call does not work yet.** `UpstoxAdapter.place_order` expects
-   an `OrderEvent`, but `ExecutionHandler` sends a `NormalizedOrder`. It reads
-   `order.signal_id_reference`, which `NormalizedOrder` does not have, so it raises
-   before any HTTP call; and it compares the side enum to the string `"BUY"`, so
-   every order would go out as SELL. The handler catches the error, logs it, and
-   returns the order as if it had been placed (group legs are logged and skipped).
-   These are findings F-UPX-1/2 in `tests/execution/test_g1_characterization.py`.
-   Fix and test them before anything else on this page matters.
-1. **Multi-leg structures are not atomic.** `ExecutionHandler.process_group_signal`
-   risk-checks every leg, then sends each leg as its own **MARKET** order, one after
-   another. A leg that the broker rejects is **logged and skipped**. With shorts emitted
-   before wings, a rejected wing leaves a **naked short option**. Upstox's multi-order
-   API is not used.
-2. **MARKET orders only** for group legs, with no limit price. Upstox applies market
+0. **The live broker path does not work yet.** Three recorded defects, in the order
+   you would hit them:
+   - **F-UPX-3:** `ExecutionHandler.__init__` calls `broker.subscribe_fills`, which
+     `UpstoxAdapter` does not implement. The two sit on different `BrokerAdapter`
+     base classes (`core/brokers/broker_base.py` vs `core/brokers/base.py`), so
+     `build_runner` raises `AttributeError` before it returns a driver.
+   - **F-UPX-1/2:** `UpstoxAdapter.place_order` expects an `OrderEvent`, but the
+     handler sends a `NormalizedOrder`. It reads `order.signal_id_reference`, which
+     `NormalizedOrder` does not have, so it raises before any HTTP call; and it
+     compares the side enum to the string `"BUY"`, so every order would go out as
+     SELL. The handler catches that error, logs it, and returns the order as if it
+     had been placed.
+
+   See `docs/reports/platform/G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md` and
+   `tests/execution/test_g1_characterization.py`. The live-rung tests use a mock
+   broker, so they do not catch these. Fix and test them before anything else on
+   this page matters.
+1. **Multi-leg structures are not atomic.** `LoopDriver` routes every leg as its own
+   `process_signal` call, so each leg passes the handler's risk, greek, margin and
+   kill-switch gates only when its turn comes, then goes out as its own **MARKET**
+   order. A leg rejected by one of those gates or by the broker is **logged and
+   skipped** while earlier legs stand, so with shorts emitted before wings a rejected
+   wing leaves a **naked short option**. (`process_group_signal`, which pre-checks
+   all legs, has no caller on this path.) Upstox's multi-order API is not used.
+2. **MARKET orders only**, for every order: `OrderType` has no limit member and
+   `NormalizedOrder` carries no limit price. Upstox applies market
    price protection (MPP) to MARKET / SL-M orders; the adapter does not set
    `market_protection` itself.
-3. **No re-pricing or partial-fill management.** Order status comes from the broker's
-   order-details endpoint; the adapter retries transport errors with backoff, nothing more.
+3. **Live fills are never recorded.** Nothing polls the broker's order status
+   (`get_order_status` exists but has no caller), and only `PaperBroker` produces
+   fills. Under `ExecutionMode.LIVE` a placed order would never reach the position
+   tracker, P&L or ledger, and there is no re-pricing or partial-fill handling. The
+   adapter retries transport errors with backoff.
 4. **Basket-margin sizing** (`POST /v2/charges/margin`) is a pre-trade estimate. The
    broker RMS is the authority that accepts or rejects the order.
 

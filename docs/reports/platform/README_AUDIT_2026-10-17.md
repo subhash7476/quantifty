@@ -7,7 +7,8 @@
 2. Checked the E008 execution hash on the merged tree: `101bae72…4791`, identical to `main` and to `FROZEN_EXECUTION_HASH`. No hashed file is touched by the PR.
 3. Checked the `requirements.txt` pins against the production interpreter (Python 3.13.5): pandas 2.3.3, duckdb 1.4.3, pyarrow 22.0.0, requests 2.32.5, pytz 2025.2, numpy 2.4.4, scipy 1.17.0, scikit-learn 1.8.0, lightgbm 4.7.0. All match.
 4. One checker per README section (nine in all) read the code behind each claim, about 314 claims in total. A skeptic then tried to refute each finding. Usage limits cut the skeptic pass short: 20 verdicts came back (16 upheld, 4 judged pedantic) and the rest did not run. The highest-impact findings were re-checked by hand against the code.
-5. `tests/ops`, `tests/database/test_writer_lock.py` and `tests/strategies/test_nifty_shield_v1_expiry.py` on the merged branch: 164 passed.
+5. A second, fresh three-checker pass over the rewritten README found six more (L3, L4, O2's Options-Wall gap, N1 and two live-guide gaps); all were confirmed in code and fixed.
+6. `tests/ops`, `tests/database/test_writer_lock.py` and `tests/strategies/test_nifty_shield_v1_expiry.py` on the merged branch: 164 passed.
 
 ## Findings that change what a reader would do
 
@@ -15,8 +16,11 @@
 |---|---|---|
 | L1 | **The live order path is not finished.** The README said real routing was "a single switch" in `build_runner`. In fact `UpstoxAdapter.place_order` reads `order.signal_id_reference`, which `NormalizedOrder` lacks, so it raises before any HTTP call. It also compares the side enum to `"BUY"`, so every order would go out as SELL. | `core/brokers/upstox_adapter.py:125-130`; recorded as F-UPX-1/2 in `tests/execution/test_g1_characterization.py:8-10, 29-30` |
 | L2 | **A failed broker call is reported as placed.** `ExecutionHandler.process_signal` catches a generic broker exception, logs it, and returns the order. Group legs are logged and skipped. | `core/execution/handler.py:897-900, 976-978` |
+| L3 | **A live run cannot even be built.** `ExecutionHandler.__init__` calls `broker.subscribe_fills`, which `UpstoxAdapter` lacks. They extend different `BrokerAdapter` bases (F-UPX-3), so `build_runner` raises before returning a driver. The live-rung tests use a mock broker. | `core/execution/handler.py:177`; `core/brokers/base.py` vs `broker_base.py`; `G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md:58` |
+| L4 | **Live fills would never be recorded.** `get_order_status` has no caller, and only `PaperBroker` produces fills. Every order is MARKET (`OrderType` has one member). `process_group_signal` has no production caller, so legs pass the gates one at a time. | `core/execution/order_models.py:17-18`; `handler.py:844-869, 906` |
 | O1 | **`orchestrator.py stop` is not "stop everything".** It kills only flask, ingestor and session (the children with a pidfile). It leaves both pollers running, force-kills the session, and a running orchestrator respawns what it killed. | `scripts/ops/orchestrator.py` `_cmd_stop` |
-| O2 | **The `STOP` file is a kill switch, not just a start block.** A running session stops opening positions at its next signal, and every start is refused until the file is deleted. | `core/execution/handler.py:601-609`, `orchestrator.py:224-227` |
+| O2 | **The `STOP` file stops NiftyShield, not Options-Wall.** A running NiftyShield session stops opening positions at its next signal, and every orchestrator start is refused until the file is deleted. But nothing in the Options-Wall poller reads `STOP`, so it keeps opening paper flies; the /ops/ kill button only writes the same file. | `core/execution/handler.py:601-609`, `orchestrator.py:224-227`; no `STOP` in `core/options_wall/` |
+| N1 | **NiftyShield's order quantity uses the hard-coded lot size**, not the instrument master. After a lot revision it would send non-whole-lot quantities. | `core/execution/options/nifty_shield_handler.py:560, 601` |
 | C1 | **Adding 2027 holidays now touches three files and the E008 hash.** Since 2026-10-13 NiftyShield keeps its own holiday copy, which is inside the execution hash. | `strategies/nifty_shield_v1/exchange_holidays.py` docstring; `identity.py` `EXECUTION_GLOBS` |
 | C2 | **A missing Muhurat falls back to the CAS schedule (derivatives 09:15–15:40), not 09:15–15:30.** A weekend Muhurat also needs `ADDITIONAL_SESSIONS`, or the scheduled jobs skip it. | `core/market/session_schedule.py:32-37`; `core/market/trading_calendar.py:11, 34` |
 | D1 | **The DayType fact path was wrong.** The live session writes `data/nifty_shield/facts.duckdb`; `data/features/day_type/day_type_facts.duckdb` is the offline publisher's default. | `scripts/nifty_shield_paper/session.py:221`; `flask_app/blueprints/nifty_shield.py:251-255` |
@@ -38,4 +42,4 @@
 
 - `CLAUDE.md` still calls Carry production-ready (see `docs/reports/carry/CARRY_FUTURES_TRANSLATION_REVIEW.md`).
 - `DEVELOPER_GUIDE.md` (root) describes the pre-migration `D:\BOT\root` tree and strategies that no longer exist. `NIFTY_MIGRATION_REPORT.md` is a June migration note. Both are visible on GitHub.
-- L1/L2 are code defects. This audit documents them and fixes neither.
+- L1–L4, O2 (Options-Wall ignores `STOP`) and N1 are code defects. This audit documents them and fixes none.

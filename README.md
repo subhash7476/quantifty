@@ -27,7 +27,7 @@ paths exist but have not been run on a real machine yet
 | **Instrument master** | Daily snapshot of every NSE F&O / EQ / index, BSE F&O / index (Sensex) and MCX F&O contract from the Upstox CDN. Resolution is `as_of`-aware, so lot-size revisions resolve correctly | `scripts/fetch_instrument_master.py`, `core/instruments/` |
 | **Live market data** | WebSocket feed (protobuf V3) → 1m bars in DuckDB. 5-second option-chain snapshots for Nifty, Bank Nifty and Sensex | `scripts/market_ingestor.py`, `scripts/nifty_shield_paper/chain_poller.py`, `scripts/options_wall_poller.py` |
 | **Execution** | One `ExecutionHandler` for paper and live, used by NiftyShield (Options-Wall has its own paper executor). Multi-leg order groups, position and P&L tracking, broker reconciliation at startup, a restart-safe SQLite order store, and a fill recorder (`trade_intelligence.duckdb`) on every `ExecutionHandler` fill | `core/execution/` |
-| **Risk** | Drawdown, trade-count and position gates; margin-utilisation cap; greek limits that block new entries (NiftyShield also flattens on a portfolio-delta breach); stale-feed watchdog; kill switch (latched, auto-released only for a stale-feed trip); a `STOP` file that blocks new entries and every start | `core/execution/handler.py`, `risk_manager.py`, `watchdog.py`, `options/nifty_shield_exit.py` (delta flatten), `scripts/ops/orchestrator.py` (STOP refusal at start) |
+| **Risk** | Drawdown, trade-count and position gates; margin-utilisation cap; greek limits that block new entries (NiftyShield also flattens on a portfolio-delta breach); stale-feed watchdog; kill switch (latched, auto-released only for a stale-feed trip); a `STOP` file that blocks NiftyShield's new entries and every orchestrator start (the Options-Wall poller does not read it) | `core/execution/handler.py`, `risk_manager.py`, `watchdog.py`, `options/nifty_shield_exit.py` (delta flatten), `scripts/ops/orchestrator.py` (STOP refusal at start) |
 | **Margin** | `NseMarginEngine`: SPAN (NSE v4.00 XML) + ELM + spread credits, from public NSE Clearing rules. Upstox basket-margin API for option structures | `core/risk/` (`NseMarginEngine`), `core/brokers/upstox_margin.py` (basket margin) |
 | **Trade intelligence** | Options dashboard (PCR, net GEX, key levels, OI distribution, gamma by strike, option chain with OI change and IV). Options-Wall board (gamma walls, pin, HHI, dealer hedge ladder, OI since open, ranked "farm list"). Per-trade evidence reports | `flask_app/`, `core/analytics/`, `core/options_wall/` |
 | **Regime engine** | DayType: intraday Bull / Bear / Choppy classification at 10:00 / 11:00 / 13:00 from partial-session features. Trained models ship in the repo | `core/state/daytype_engine.py`, [guide](docs/guides/DAYTYPE_ENGINE.md) |
@@ -181,7 +181,7 @@ Start it before 09:15 IST. It:
 | What would start | `python scripts/ops/orchestrator.py start --dry-run` |
 | Dashboard | `http://127.0.0.1:5000/`: **/nifty-shield/**, **/options/**, **/options/wall/**, **/ops/**. Until the first session runs, NiftyShield and Options-Wall show empty-state panels. **/ts-basis-daily/** is a research page: in the trading profile its signal panels stay at "Loading…" and its API returns 404 "Facts DB not found", because nothing builds those facts without NSE bhavcopy |
 | Stop everything now | Ctrl+C in the orchestrator window. `python scripts/ops/orchestrator.py stop` is narrower: it kills only the dashboard, market feed and session (skipping the session's clean finish) and leaves both pollers running, and a running orchestrator restarts what it killed. Use it only after the orchestrator window is gone |
-| Kill switch | Create an empty file named `STOP` in the repo root, or use the kill button on **/ops/**. A running session stops opening new positions at its next signal (exits still go through) and stays stopped until it restarts. Every start is refused until you delete the file |
+| Kill switch | Create an empty file named `STOP` in the repo root, or use the kill button on **/ops/**. A running NiftyShield session stops opening new positions at its next signal (exits still go through) and stays stopped until it restarts. The Options-Wall poller does not read `STOP` and keeps opening paper flies; Ctrl+C stops it. Every orchestrator start is refused until you delete the file |
 
 `NIFTY_PROFILE=trading` (set in `.env` by step 3, or `--profile trading`) runs only
 the trading stack. The default `full` profile is the repository owner's research
@@ -278,17 +278,20 @@ executor, outside the execution layer, so it has no order mode at all.
 
 The live switch is in `scripts/fno_runner.py::build_runner`
 (`execution_mode=ExecutionMode.LIVE, broker=UpstoxAdapter(...)`), but **the live order
-path is not finished.** `UpstoxAdapter.place_order` cannot read the orders
-`ExecutionHandler` sends: it fails on a missing `signal_id_reference`, and would send
-every order as SELL. The handler logs that error and carries on as if the order went
-out. So today no real order reaches Upstox even with the switch on. Both defects are
-recorded as F-UPX-1/2 in `tests/execution/test_g1_characterization.py`.
+path is not finished.** With a real `UpstoxAdapter`, `build_runner` fails before it
+returns a driver: `ExecutionHandler` calls `broker.subscribe_fills`, which
+`UpstoxAdapter` does not implement (F-UPX-3). Behind that, `place_order` cannot read
+the handler's orders (missing `signal_id_reference`, every order sent as SELL;
+F-UPX-1/2), and nothing records a live fill. So today no real order reaches Upstox.
+The defects are recorded in `docs/reports/platform/G1_WAVE2A_BROKER_PAYLOAD_REVIEW.md`
+and listed in the live guide.
 
-With `ExecutionMode.LIVE`, `build_runner` refuses to start without a valid Upstox
-token. Only if `symbols` contains NSE F&O keys does it also refuse without today's
-SPAN file and instrument-master coverage of the `underlyings` you pass. At startup it
-reconciles the restored ledger against your Upstox positions and refuses to start on
-a mismatch; it does not re-check during the session.
+As written, `build_runner` with `ExecutionMode.LIVE` refuses to start without a valid
+Upstox token. Only if `symbols` contains NSE F&O keys does it also refuse without
+today's SPAN file and instrument-master coverage of the `underlyings` you pass. At
+startup it reconciles the restored ledger against your Upstox positions and refuses to
+start on a mismatch; it does not re-check during the session. None of this has run
+against a real account yet.
 
 NiftyShield and Options-Wall **cannot** be switched to live. Before you write a
 live entry script of your own, read **[docs/guides/LIVE_TRADING.md](docs/guides/LIVE_TRADING.md)**.
@@ -321,11 +324,13 @@ It covers:
   scheduled jobs skip it.
 - **Lot sizes and expiry weekdays change, and NiftyShield hard-codes both.** The lot
   size (65) is in `strategies/nifty_shield_v1/config.py` and again in
-  `core/execution/options/nifty_shield_gates.py`, and the risk and size gates use that
-  number; only the order quantity takes the lot size from the instrument master. The
-  expiry is computed as Tuesday, or the session before when Tuesday is a holiday
-  (`structures.py`). When NSE changes either, edit both files and re-pin the
-  execution hash.
+  `core/execution/options/nifty_shield_gates.py`. The risk declaration, the size gate,
+  the basket-margin sizing and the order quantity itself (lots × 65) all use that
+  number, so after a lot-size revision NiftyShield sends quantities that are not a
+  whole number of lots. The expiry is computed as Tuesday, or the session before when
+  Tuesday is a holiday (`INDEX_EXPIRY_WEEKDAY` in `structures.py`). When NSE changes
+  the lot size, edit both lot-size files; when it changes the expiry weekday, edit
+  `structures.py`. Either way, re-pin the execution hash.
 - **The DayType label is a full-session prior, not an afternoon forecast.**
   See the [DayType guide](docs/guides/DAYTYPE_ENGINE.md).
 - **`seed` verifies its result.** It exits non-zero if India VIX history is below
