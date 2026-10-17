@@ -83,7 +83,7 @@ the rest of the stack, is at the next 09:10 start (Monday after a Friday), not o
 the `/ts-basis-daily/` Combo Paper Book panel (`TS_BASIS_DAILY_COMBO_SPEC.md` amendment A3). Read-only health: `python scripts/ops/preflight.py`
 (BLOCK: token/STOP/marks/VIX; WARN: SPAN/master/feeds/EOD-worker). Full contract:
 `docs/superpowers/specs/2026-08-09-ops-orchestrator-preflight-design.md`; fresh clones run `--profile trading` (`NIFTY_PROFILE=trading`: no `ts_combo`/EOD worker, morning catch-up = `scripts/bootstrap.py seed`; the default `full` is this machine's stack) — setup in `README.md`, macOS launchd in `scripts/ops/register_scheduled_tasks_macos.sh`;
-runbook: `docs/reports/OPS_ORCHESTRATOR_RUNBOOK.md`.
+runbook: `docs/reports/ops_data/OPS_ORCHESTRATOR_RUNBOOK.md`.
 
 **Scheduled starts (Windows Task Scheduler, folder `\Nifty\`):** `Orchestrator` 09:10 and
 `DownloadAll` 22:00 daily (downloads + builds; the orchestrator's morning catch-up is
@@ -109,7 +109,7 @@ the fallback. Tokens expire at 03:30 after issue, not after an age limit. Setup:
   - **PRICES ARE CORPORATE-ACTION ADJUSTED, back-adjusted to the current basis — `equity_bhavcopy` is AS-TRADED.** The two stores disagree by the CA ratio on every session before an ex-date. Verified on 33 bonus/split events across Nifty-100 names: **32 of 32 testable cases adjusted** (the 33rd has no pre-ex 1m data), e.g. RELIANCE 2.00 before its 1:1, KOTAKBANK 5.00 before its 1:5, NMDC 3.00 before its 2:1. See `docs/reports/index_research/PTMS_N100_1M_COVERAGE_BACKFILL_2026-09-13.md` §4/§6
 - **Daily intermarket**: `data/market_data/nse/candles/1d/{date}.duckdb` (Nifty 50, Bank Nifty, India VIX)
   - 3,548 daily files spanning **2012-02-21 → present** after the CARRY G1-R re-ingest (`scripts/ingest_index_history.py`); `timestamp` is uniformly `TIMESTAMP`
-  - **`NSE_INDEX|Nifty 50` resolves for all 3,548 files, 2012-02-21 → 2026-07-21.** A 59-session hole (2012-11-15 → 2013-02-07) opened by an ad-hoc deletion on 2026-07-22 was refilled the same day from the operator's niftyindices CSVs via `--fill-from-vendor` (insert-only, snapshot first). **Gate B1 measures max close difference 0.0000 across all 401 overlapping dates**, so every pre-2013 row — including the 182 written by untraceable ad-hoc SQL — is tick-verified against an independent source. A further **11 sessions** (Saturday specials + Diwali Muhurat) were fetched from the archive, and the last **4** the archive 404s (2013-10-09, 2014-03-19, 2014-12-15, 2016-06-20) came from operator single-date CSVs — **3,563 files**, beta from **2013-02-19**. Every real trading session in span now has a file. **A1's sole remaining miss is 2012-11-11 — a Sunday with 14 equity rows**, a bhavcopy artifact to drop from the calendar rather than source. Index CSVs are downloadable per-index from niftyindices.com/reports/historical-data (`CARRY_G1_R4_VERIFICATION.md` §3)
+  - **`NSE_INDEX|Nifty 50` resolves for all 3,548 files, 2012-02-21 → 2026-07-21.** A 59-session hole (2012-11-15 → 2013-02-07) opened by an ad-hoc deletion on 2026-07-22 was refilled the same day from the operator's niftyindices CSVs via `--fill-from-vendor` (insert-only, snapshot first). **Gate B1 measures max close difference 0.0000 across all 401 overlapping dates**, so every pre-2013 row — including the 182 written by untraceable ad-hoc SQL — is tick-verified against an independent source. A further **11 sessions** (Saturday specials + Diwali Muhurat) were fetched from the archive, and the last **4** the archive 404s (2013-10-09, 2014-03-19, 2014-12-15, 2016-06-20) came from operator single-date CSVs — **3,563 files**, beta from **2013-02-19**. Every real trading session in span now has a file. **A1's sole remaining miss is 2012-11-11 — a Sunday with 14 equity rows**, a bhavcopy artifact to drop from the calendar rather than source. Index CSVs are downloadable per-index from niftyindices.com/reports/historical-data (`docs/reports/carry/CARRY_G1_R4_VERIFICATION.md` §3)
 - **Stock/index futures**: FUTSTK + FUTIDX bhavcopy, **2016-02-11 → 2026-07-20**, 363 stock + 13 index underlyings (`scripts/sfb/ingest_futures_bhavcopy_v2.py`). Pre-2016 history is not obtainable
 - **Stock options**: `data/market_data/stock_options_bhavcopy.duckdb` — **98,320,092 rows, 2016-02-11 → 2026-07-20, 363 underlyings, zero index names** (`scripts/sfb/ingest_stock_options_bhavcopy.py`). The ingest is **complete**; `SIGNAL_ENGINE_DESIGN.md` §2.1's open check ("verify OPTSTK, not index-only") is **verified true**, so the Skew sleeve is data-unblocked
 - **Index options**: `data/market_data/options_bhavcopy.duckdb` — 5,490,319 rows, 2016-02-11 → 2026-07-17
@@ -410,29 +410,30 @@ independently defended rather than inherited from a short in-sample read.
 
 ---
 
-## Signal Engine / CARRY — Implementation complete, production-metrics built
+## Signal Engine / CARRY — Implementation complete, production-metrics built (NOT production-ready)
 
-**Status:** Research validated, production path built and parity-verified. **Carry is the platform's
-first production-ready strategy — validated on TRAIN (burned for sign), HOLDOUT (confirmed), and
-SEALED (one-shot PASS at +20.52%).** The strategy was NEVER run over SEALED; metrics are
-snapshot-ingested per `CARRY_SEALED_READ_PROTOCOL.md` §2.
+> **⚠️ STATUS CORRECTED 2026-10-17 — "production-ready" is withdrawn.** The paragraph and table below record what was believed when the production path was built; two later audits supersede the status words. (1) `docs/reports/carry/CARRY_FUTURES_TRANSLATION_REVIEW.md` (2026-09-24) found **Carry is a spot-price effect, not a tradable futures effect**: futures convergence costs t −16.7 (TRAIN) / −10.6 (HOLDOUT) and consumes the whole spot spread, the near-month futures book is zero-to-negative gross (t −0.83 / −0.79), and **net futures t is −1.77 (TRAIN) / −1.34 (HOLDOUT)**. The v2 sign is also the *anti*-carry direction in Koijen–Moskowitz–Pedersen–Vrugt's definition, so the label "carry" is itself wrong. (2) `docs/reports/external/RESEARCH_CLOSURE_LEDGER_2026-09-29.md` (§5, and item 6 of §9 "False closure candidates") grades the SEALED pass **C6 "positive/incomplete"** and lists "Carry SEALED as production-ready" as an error: the dividend adjustment in `build_carry.py` has the wrong sign, point-in-time membership is uncertifiable, the gate ran an equal-weight quintile *spot* book rather than the pre-registered z-weighted futures book, and the futures leg is t ≈ −0.8. The SEALED result confirms *a* basis-sorted spot book, not the specified construct. **Read every "PASS" and "Production-ready" below as "passed its pre-registered spot-book gate". Nothing here authorizes LIVE capital**, and the infrastructure (rebalancer, metrics DB, replay harness) remains built and parity-verified but is not evidence of an edge. The frozen pre-registrations, the SEALED snapshot, and the declaration were left as-generated.
+
+**Status:** Research gates passed on a **spot** book; production path built and parity-verified (construction parity only — it says nothing about tradability). Carry was **not** established as a tradable strategy: gates were TRAIN (burned for sign), HOLDOUT (passed), and SEALED (one-shot PASS at +20.52% on the spot book, qualified above).
+The strategy was NEVER run over SEALED; metrics are
+snapshot-ingested per `docs/reports/carry/CARRY_SEALED_READ_PROTOCOL.md` §2.
 
 | Gate | Status | Detail |
 |---|---|---|
 | RFA | PROCEED | `governance/rfa/declarations/carry.py` (SHA `4b589e2f…`) |
 | TRAIN | Burned | v1 sign discovery (IC +0.041, wrong sign); v2 registered positive sign |
 | HOLDOUT | PASS | IC +0.046, t=2.60, p=0.016, net +6.96% |
-| SEALED | PASS | One-shot, IC +0.061, net +20.52% (`CARRY_SEALED_SNAPSHOT.json`) |
-| Parity gate | PASS | LoopDriver REPLAY reproduces research at +0.0 bp both windows |
+| SEALED | PASS (qualified: C6, spot book; see banner) | One-shot, IC +0.061, net +20.52% (`docs/reports/carry/CARRY_SEALED_SNAPSHOT.json`) |
+| Parity gate | PASS | LoopDriver REPLAY reproduces research at +0.0 bp both windows (reproduces the spot book; not a tradability test) |
 | Production metrics | Built | `CarryMetricsDB`, full replay harness, A5-gated report generator |
 | Tests | 44 passing | `tests/portfolio/test_carry_rebalancer.py` (28) + `test_carry_metrics.py` (3) + `test_carry_metrics_db.py` (13) |
 
 ### Sleeves
-Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SSF universe. Seven constructs attempted: one production-validated (Carry), one sealed-but-de-authorized (TS Basis), one sealed-failed (IVOL), four dead at TRAIN/RFA.
+Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SSF universe. Seven constructs attempted: one that passed its spot-book gates but is not tradable as futures (Carry — status corrected 2026-10-17, see banner), one sealed-but-de-authorized (TS Basis), one sealed-failed (IVOL), four dead at TRAIN/RFA.
 
 | Sleeve | Status | Gate progression | Notes |
 |---|---|---|---|
-| **Carry** (residual basis, +sign) | **Production-ready** | TRAIN→HOLDOUT→SEALED all PASS | HOLDOUT IC +0.046; SEALED IC +0.061, net +20.52% (`CARRY_SEALED_SNAPSHOT.json`); full rebalancer/metrics/paper infra built. Beta+sector neutralized, monthly, ADV-capped, banded |
+| **Carry** (residual basis, +sign) | ~~Production-ready~~ **Spot-book gates passed; futures net negative — not tradable as built** (2026-10-17) | TRAIN→HOLDOUT→SEALED all PASS (spot book; SEALED graded C6) | HOLDOUT IC +0.046; SEALED IC +0.061, net +20.52% (`docs/reports/carry/CARRY_SEALED_SNAPSHOT.json`); full rebalancer/metrics/paper infra built. Beta+sector neutralized, monthly, ADV-capped, banded |
 | **TS Basis** (basis *level*, +sign) | **SEALED de-authorized** (selection defect; signal NOT falsified) | TRAIN net +18.4%, HOLDOUT INCONCLUSIVE, SEALED read taken 2026-07-24 | HOLDOUT IC gate used Pearson not the pre-registered Spearman → recomputed p=0.0313 > α=0.025, so the sealed window was opened on a gate that didn't hold. The SEALED itself is strong (IC +0.077, t=5.89, p=3.1e-07, net +22.57%, pre-reg SHA `07265b50…`) but reached via the broken gate — a multiplicity/selection concern, not a signal-quality concern. PAPER-candidate; only forward paper months can resolve the de-authorization |
 | **IVOL** (idiosyncratic vol, −sign) | **SEALED FAIL** (regime flip) | TRAIN PASS, HOLDOUT PASS, gate-4 composite PASS (0.9854), SEALED FAIL | TRAIN IC −0.055 net +5.96%; HOLDOUT IC −0.0295 net +2.16%; SEALED sign-flipped (IC +0.018, net −13.78%). Sealed window spent for this construct. Carry↔IVOL signal ρ=−0.04 (genuinely decorrelated). Construct: 60-day realized vol, beta+sector neutralized (`IVOL_*` reports, declaration SHA `d7ebcbcc…`) |
 | **Trend** (vol-scaled TSMOM) | TRAIN FAIL | §9 gate 2 FAIL | IC +0.022, t=1.13, p=0.131 — insignificant; second-half IC decayed to −0.010 |
@@ -441,7 +442,7 @@ Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SS
 | **Flow** (OI dynamics) | RFA ABANDON | RFA gate killed | Max power 0.6053 < 0.80; the gate's first live kill |
 | **TS Basis Daily** (basis *level*, +sign, **daily**) | **RESEARCH-ONLY — no promotion path** (operator decision 2026-08-01) | TRAIN net +60.23%, HOLDOUT net +41.44% (quintile); top-5: TRAIN +85.42%, HOLDOUT +94.43% — **all in-sample or selection-contaminated; none is out-of-sample evidence** | Daily mirror of TS Basis monthly; `LOOKBACK_ROWS = 252` **row** window (NOT the monthly's 504 calendar days), MIN_OBS 12, winsorized ±3. **TRAIN (1,202 formations) and HOLDOUT (495) are both burned as SELECTION surfaces** — the `basis_reverting` filter was chosen on TRAIN and promoted on a HOLDOUT accept/reject check (`48f83bb`), TP@0.5% set on both (`4521b86`), an ML filter trained across all three (`80f5e86`), a sector cap tried and reverted (`9c97c98`→`e113f6b`). So m ≫ 1 and no α is justified. **SEALED 2023-01-01 → 2026-07-24 (876 formations) is PRESERVED UNSPENT** — `run_sealed.py` refuses to run. Never frozen, never gated; the declaration is retained as a record of error, not as a live candidate. Full detail: `TS_BASIS_REAUTHORIZATION_ASSESSMENT.md` §B. Scripts: `scripts/signal_engine/ts_basis_daily/` + `scripts/ts_basis_daily_*.py`. **2026-09-11 signal audit + fix** (`docs/reports/ts_basis/TS_BASIS_DAILY_SIGNAL_AUDIT_2026-09-11.md`): live store rebuilt (pre-fix baselines in `data/_baselines/`); eligibility is now daily-total futures ADV (~100% of names pass), quintiles rank liquid names only, clamp ties order on stored `raw_z` — research numbers from the old store are **not comparable**. Post-CAS (≥2026-08-03) spot is the **continuous-session close** (last traded 1m bar before 15:15), not the auction close, and the build **hard-fails** on an F&O name with no such bar (`scripts/cas/backfill_fo_1m.py --apply` fills gaps); cells priced off an expiring contract with no successor are dropped |
 
-**Composite status:** the only standalone-validated sleeve is **Carry**. TS Basis's SEALED is de-authorized (gate defect, not signal defect) and stands as a PAPER candidate; its resolution requires forward paper time, not more in-sample reads. **TS Basis Daily** is **research-only by operator decision (2026-08-01)** — no promotion path, never frozen, never gated; its TRAIN and HOLDOUT are selection surfaces and its 876-formation sealed window is deliberately preserved unspent. The 2023→2026 out-of-sample budget is spent (Carry PASS, TS Basis de-authorized, IVOL FAIL), and futures history cannot predate 2016 — so no unread confirmatory window remains for a new basis-family construct. A Carry+TS-Basis 50/50 blend shows diversification benefit on TRAIN+HOLDOUT (advisor's decision-support estimate: Sharpe ~2.09 vs Carry-alone ~1.72, L/S return ρ=0.46; *not a gated read* — TRAIN is burned for Carry sign-discovery, so this is a ranking estimate, not forward evidence). Basis-momentum (the basis *change*, distinct from TS Basis the basis *level*) is analytically available but has no unread window to confirm in.
+**Composite status:** the only sleeve that passed all three gates is **Carry**, on a spot book — its futures translation is net-negative (see the 2026-10-17 banner), so it is not a standalone-validated tradable sleeve. TS Basis's SEALED is de-authorized (gate defect, not signal defect) and stands as a PAPER candidate; its resolution requires forward paper time, not more in-sample reads. **TS Basis Daily** is **research-only by operator decision (2026-08-01)** — no promotion path, never frozen, never gated; its TRAIN and HOLDOUT are selection surfaces and its 876-formation sealed window is deliberately preserved unspent. The 2023→2026 out-of-sample budget is spent (Carry PASS, TS Basis de-authorized, IVOL FAIL), and futures history cannot predate 2016 — so no unread confirmatory window remains for a new basis-family construct. A Carry+TS-Basis 50/50 blend shows diversification benefit on TRAIN+HOLDOUT (advisor's decision-support estimate: Sharpe ~2.09 vs Carry-alone ~1.72, L/S return ρ=0.46; *not a gated read* — TRAIN is burned for Carry sign-discovery, so this is a ranking estimate, not forward evidence). Basis-momentum (the basis *change*, distinct from TS Basis the basis *level*) is analytically available but has no unread window to confirm in.
 
 ### Production infrastructure
 | File | Purpose |
@@ -474,22 +475,22 @@ Breadth thesis: composite power from weakly-correlated sleeves over ~180-name SS
 | File | Purpose |
 |---|---|
 | `docs/reports/SIGNAL_ENGINE_DESIGN.md` | Engine architecture, four sleeves, breadth thesis (DRAFT) |
-| `docs/reports/CARRY_PHASE0_PRE_REGISTRATION.md` | Carry pre-registration — **FROZEN** (v1, superseded sign) |
-| `docs/reports/CARRY_V2_PRE_REGISTRATION.md` | Carry v2 re-registration — **FROZEN** (positive sign) |
-| `docs/reports/CARRY_TRAIN_REPORT.md` | v1 TRAIN report |
-| `docs/reports/CARRY_NET_SPREAD_REPORT.md` | Net-spread report (v2 sign) |
-| `docs/reports/CARRY_NET_SPREAD_SNAPSHOT.json` | Frozen TRAIN+HOLDOUT numbers |
-| `docs/reports/CARRY_SEALED_REPORT.md` | One-shot SEALED read |
-| `docs/reports/CARRY_SEALED_SNAPSHOT.json` | Frozen SEALED snapshot |
-| `docs/reports/CARRY_RFA.md` | RFA gate report (PROCEED) |
-| `docs/reports/CARRY_PARITY_REPORT.md` | Construction parity (+0.0 bp) |
-| `docs/reports/CARRY_DRAWDOWN_REPORT.md` | Drawdown/regime profile |
-| `docs/reports/CARRY_CAPACITY_REPORT.md` | ADV capacity analysis |
-| `docs/reports/CARRY_INTEGRATION_SMOKE_REPORT.md` | End-to-end integration verification |
-| `docs/reports/CARRY_PRODUCTION_METRICS_REPORT.md` | Script-generated production metrics |
-| `docs/reports/CARRY_PRODUCTION_METRICS_IMPLEMENTATION_PROMPT.md` | Build spec (Phase A/B) |
-| `docs/reports/CARRY_PRODUCTION_METRICS_PLAN_REVIEW.md` | Original plan audit (NO-GO) |
-| `docs/reports/CARRY_PRODUCTION_METRICS_REPORT_REVIEW.md` | Round-2 audit (NOT complete → traced + fixed) |
+| `docs/reports/carry/CARRY_PHASE0_PRE_REGISTRATION.md` | Carry pre-registration — **FROZEN** (v1, superseded sign) |
+| `docs/reports/carry/CARRY_V2_PRE_REGISTRATION.md` | Carry v2 re-registration — **FROZEN** (positive sign) |
+| `docs/reports/carry/CARRY_TRAIN_REPORT.md` | v1 TRAIN report |
+| `docs/reports/carry/CARRY_NET_SPREAD_REPORT.md` | Net-spread report (v2 sign) |
+| `docs/reports/carry/CARRY_NET_SPREAD_SNAPSHOT.json` | Frozen TRAIN+HOLDOUT numbers |
+| `docs/reports/carry/CARRY_SEALED_REPORT.md` | One-shot SEALED read |
+| `docs/reports/carry/CARRY_SEALED_SNAPSHOT.json` | Frozen SEALED snapshot |
+| `docs/reports/carry/CARRY_RFA.md` | RFA gate report (PROCEED) |
+| `docs/reports/carry/CARRY_PARITY_REPORT.md` | Construction parity (+0.0 bp) |
+| `docs/reports/carry/CARRY_DRAWDOWN_REPORT.md` | Drawdown/regime profile |
+| `docs/reports/carry/CARRY_CAPACITY_REPORT.md` | ADV capacity analysis |
+| `docs/reports/carry/CARRY_INTEGRATION_SMOKE_REPORT.md` | End-to-end integration verification |
+| `docs/reports/carry/CARRY_PRODUCTION_METRICS_REPORT.md` | Script-generated production metrics |
+| `docs/reports/carry/CARRY_PRODUCTION_METRICS_IMPLEMENTATION_PROMPT.md` | Build spec (Phase A/B) |
+| `docs/reports/carry/CARRY_PRODUCTION_METRICS_PLAN_REVIEW.md` | Original plan audit (NO-GO) |
+| `docs/reports/carry/CARRY_PRODUCTION_METRICS_REPORT_REVIEW.md` | Round-2 audit (NOT complete → traced + fixed) |
 | `governance/rfa/declarations/carry.py` | **FROZEN** RFA declaration (SHA `4b589e2f…`) |
 | `scripts/signal_engine/carry/build_carry.py` | Frozen signal construction |
 | `scripts/signal_engine/carry/neutralize.py` | Beta + sector neutralization |
