@@ -238,32 +238,54 @@ class TradingWriter:
                     ]
                 )
 
-    def update_trade_exit(self, trade_id: str, exit_price: float, exit_ts: datetime, pnl: float, fees: float, 
-                          mae_mfe: Optional[Dict] = None) -> None:
-        """Update trade record with exit details and TLP diagnostics."""
+    def add_entry_fill(self, trade_id: str, quantity: float, price: float, fee: float) -> None:
+        """Grow an open row by a later entry fill of the same order: quantity, VWAP
+        entry price, fees. SQLite evaluates every SET term on the old values."""
         with self.db.trading_writer() as conn:
             conn.execute(
                 """
-                UPDATE trades 
-                SET exit_price = ?, pnl = ?, fees = fees + ?
+                UPDATE trades
+                SET entry_price = (entry_price * quantity + ? * ?) / (quantity + ?),
+                    quantity = quantity + ?, fees = fees + ?
                 WHERE trade_id = ?
                 """,
-                [exit_price, pnl, fees, trade_id]
+                [price, quantity, quantity, quantity, fee, trade_id],
             )
-            
-            if mae_mfe:
-                conn.execute(
-                    """
-                    UPDATE trade_context
-                    SET mae_points = ?, mfe_points = ?, mae_r = ?, mfe_r = ?, 
-                        theoretical_max_pnl = ?, exit_efficiency = ?, pnl_rs = ?,
-                        exit_timestamp = ?
-                    WHERE trade_id = ?
-                    """,
-                    [
-                        mae_mfe.get('mae_points'), mae_mfe.get('mfe_points'),
-                        mae_mfe.get('mae_r'), mae_mfe.get('mfe_r'),
-                        mae_mfe.get('theoretical_max_pnl'), mae_mfe.get('exit_efficiency'),
-                        pnl, _to_str(exit_ts), trade_id
-                    ]
-                )
+
+    def add_exit_fill(self, trade_id: str, quantity: float, price: float, pnl: float,
+                      fee: float) -> None:
+        """Record a fill that reduces an open row's position without flattening it:
+        its realized P&L and fee are added, and its quantity and notional are kept
+        in the row's metadata so the closing fill can price the exit as a VWAP."""
+        with self.db.trading_writer() as conn:
+            meta = self._exit_progress(conn, trade_id)
+            meta["exit_qty"] = meta.get("exit_qty", 0.0) + quantity
+            meta["exit_notional"] = meta.get("exit_notional", 0.0) + quantity * price
+            conn.execute(
+                "UPDATE trades SET pnl = pnl + ?, fees = fees + ?, metadata = ? WHERE trade_id = ?",
+                [pnl, fee, json.dumps(meta), trade_id],
+            )
+
+    def close_trade(self, trade_id: str, quantity: float, price: float, exit_ts: datetime,
+                    pnl: float, fee: float) -> None:
+        """Close an open row with the fill that flattens it. The exit price is the
+        VWAP of this fill and any earlier reducing fills; P&L and fees accumulate."""
+        with self.db.trading_writer() as conn:
+            meta = self._exit_progress(conn, trade_id)
+            exit_qty = meta.get("exit_qty", 0.0) + quantity
+            exit_notional = meta.get("exit_notional", 0.0) + quantity * price
+            exit_price = exit_notional / exit_qty if exit_qty else price
+            conn.execute(
+                "UPDATE trades SET exit_price = ?, pnl = pnl + ?, fees = fees + ? "
+                "WHERE trade_id = ?",
+                [exit_price, pnl, fee, trade_id],
+            )
+
+    @staticmethod
+    def _exit_progress(conn, trade_id: str) -> Dict:
+        row = conn.execute("SELECT metadata FROM trades WHERE trade_id = ?", [trade_id]).fetchone()
+        try:
+            meta = json.loads(row[0]) if row and row[0] else {}
+        except ValueError:
+            meta = {}
+        return meta if isinstance(meta, dict) else {}

@@ -370,3 +370,17 @@ def test_a_trip_made_by_the_shutdown_poll_is_journaled(tmp_path):
 
     assert execution._kill_switched
     assert "KILL_SWITCH_ACTIVATED" in [e["event_type"] for e in _events(tmp_path)]
+
+
+def test_an_order_the_broker_ended_is_closed_in_the_ledger_through_the_handler(tmp_path):
+    def rejecting():
+        error = BrokerOrderNotFilledError("not filled")
+        error.not_filled = [EndedOrder("corr-7", OrderStatus.REJECTED, "rejected: funds")]
+        raise error
+
+    driver, execution, _ = _driver(tmp_path, fill_poll=rejecting, n_bars=1)
+
+    driver.run()
+
+    assert ("corr-7", OrderStatus.REJECTED, "rejected: funds") in execution.ended_orders
+    assert not execution._kill_switched

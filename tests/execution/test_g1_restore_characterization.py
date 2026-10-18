@@ -279,9 +279,11 @@ def test_ledger_schema_persists_only_symbol_identity(tmp_path, monkeypatch):
     finally:
         conn.close()
 
+    # ended_status (2026-10-18) records a broker reject/cancel; it is not identity.
     assert cols["orders"] == {
         "correlation_id", "symbol", "side", "quantity", "order_type",
         "strategy_id", "signal_id", "timestamp", "metadata", "group_id",
+        "ended_status",
     }
     assert cols["fills"] == {
         "fill_id", "order_id", "symbol", "quantity", "price", "side",

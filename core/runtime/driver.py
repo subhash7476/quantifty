@@ -748,13 +748,17 @@ class LoopDriver:
             self._fill_poll_recovered()
 
     def _journal_not_filled(self, exc: Exception) -> None:
-        """Journal each order the broker ended unfilled, with its identity."""
+        """Journal each order the broker ended unfilled, with its identity, and have
+        the handler close it in the ledger (the ledger mutation is the handler's,
+        ADR-001), so a restart does not treat it as still working."""
         for ended in getattr(exc, "not_filled", ()):
             self._logger.error("fill poll: %s", ended.description)
             self._emit(EventType.BROKER_ERROR, f"fill poll: {ended.description}",
                        metadata={"error": ended.description, "source": "fill_poll",
                                  "correlation_id": ended.correlation_id,
                                  "status": ended.status.value})
+            self._execution.record_order_ended(ended.correlation_id, ended.status,
+                                               ended.description)
 
     def _fill_poll_failed(self, exc: Exception) -> None:
         self._fill_poll_failures += 1

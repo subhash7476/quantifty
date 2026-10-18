@@ -38,7 +38,9 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from core.alerts.alerter import alerter
 from core.events import SignalEvent, SignalType
+from core.execution.canonical_restore import canonicalize_symbol
 from core.execution.groups.order_group import OrderGroup
 from core.execution.groups.group_pnl import GroupPnLTracker
 from core.execution.handler import ExecutionHandler
@@ -557,7 +559,9 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         # premium rate when today's SPAN snapshot is missing (which understated
         # the 2026-09-07 spread by 17x). Operator decision 2026-09-08; see
         # nifty_shield_sizing for the ADR-011/013 departure this records.
-        lot_size = int(self._strategy_cfg.get("lot_size", 75))
+        lot_size = self._structure_lot_size(signals, group_id, structure)
+        if lot_size is None:
+            return None
         margin_budget = self._margin_budget()
         leg_specs = [{"symbol": s.symbol, "side": s.signal_type.value,
                       "option_type": s.metadata["option_type"]} for s in signals]
@@ -631,6 +635,43 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             self._journal_margin(group, lots, lot_size, structure_margin_rs,
                                  signals[0].metadata)
         return routed[-1] if routed else None
+
+    def _structure_lot_size(self, signals, group_id, structure) -> Optional[int]:
+        """The lot to size the structure on, checked against the instrument master.
+
+        The configured lot_size was used unchecked, so after an NSE lot revision
+        NiftyShield would have sent quantities that are not whole lots (README
+        audit N1). The certified config carries that lot in more than one place
+        (the order size, the max_position_size cap in nifty_shield_gates, the
+        risk declaration), so a revision is a config change, not something to
+        follow silently: when the master resolves every leg to one lot that
+        differs from the configured one, the entry is skipped with a critical
+        journal entry and alert, and None is returned. When the master does not
+        carry every leg (a replay of expired contracts), the configured lot is
+        used.
+        """
+        configured = int(self._strategy_cfg.get("lot_size", 75))
+        lots = set()
+        for signal in signals:
+            instrument = canonicalize_symbol(signal.symbol, signal.timestamp)
+            lot = getattr(instrument, "lot_size", None) if instrument is not None else None
+            if not lot:
+                self.logger.warning(f"lot size for {signal.symbol} not in the instrument "
+                                    f"master; using the configured {configured}")
+                return configured
+            lots.add(int(lot))
+        if lots == {configured}:
+            return configured
+        message = (f"structure entry skipped: the instrument master's lot {sorted(lots)} "
+                   f"differs from the configured {configured}. Update lot_size in "
+                   "strategies/nifty_shield_v1/config.py and nifty_shield_gates.py, then "
+                   "re-pin the execution hash")
+        self._record(EventType.ENTRY_SKIPPED, message, severity=Severity.CRITICAL,
+                     group_id=group_id, structure=structure,
+                     reason="lot size differs from the instrument master",
+                     master_lots=sorted(lots), configured_lot=configured)
+        alerter.critical(f"NIFTYSHIELD {message}")
+        return None
 
     def _structure_margin_fn(self, leg_specs, leg_symbols, marks, lot_size):
         """The margin callable the sizing clamp walks: broker basket, or engine.

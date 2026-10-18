@@ -226,6 +226,62 @@ standing reference for the ledger format and auditability.
       - Tests: `tests/strategies/test_nifty_shield_v1_expiry.py`,
         `tests/nifty_shield_paper/test_chain_poller.py`. Run check:
         `docs/reports/platform/ORCHESTRATOR_RUN_2026-10-13.md`.
+    - **Window RESET 2026-10-18 (declared before the new window's first session, 2026-10-19)**
+      — a note, not a grant. Approved by the operator on 2026-10-18, to close the open items
+      from the README audit (`docs/reports/platform/README_AUDIT_2026-10-17.md`) and the
+      PR #45/#47 review that can only be fixed in hashed files.
+      - **`core/execution/handler.py`:**
+        - **L2.** `process_signal` used to log any `place_order` exception other than an auth
+          or unavailable error and return the order as placed. `_on_placement_failure` now
+          classifies every failure. An auth error latches at once, as before. An ambiguous
+          placement (`BrokerAmbiguousPlacementError`) latches at once instead of counting
+          toward `broker_error_threshold`, so the next leg of a structure cannot go out on
+          top of it, and the order stays open in the ledger. A definite refusal or a 429 is
+          counted as before and closes the order as `REJECTED`. Anything else is treated as
+          ambiguous. Only `place_order` sits in the `try`; a failed paper fill after
+          placement is logged and the order still returned, as before.
+        - **Group legs.** `process_group_signal` used to log a failed leg and send the rest.
+          It now stops at the failed leg; if earlier legs went out, it raises a critical
+          alert and latches the switch. It has no production caller.
+        - **Rejects.** `record_order_ended` closes an order the broker rejected or cancelled.
+          The driver calls it for each order the fill poll reports ended. The status is
+          persisted (`orders.ended_status`) and re-applied by `_replay_state`, so a restart
+          no longer treats the order as working.
+        - **`trades` rows.** `_record_trade_row` keeps one row per position. A later entry
+          chunk of the same order grows the row (quantity, VWAP entry, fees). A reducing
+          fill adds its P&L and fee. The flattening fill closes the row at the VWAP of all
+          its exit fills. A flip closes the row and opens one for the remainder. Before, a
+          second entry chunk failed the unique `signal_id`, and a partial exit became a new
+          "entry" that the final exit closed in place of the real one.
+      - **`core/execution/options/nifty_shield_handler.py` (N1).** Structure size used the
+        configured `lot_size` (65) unchecked. Each entry now checks it against the
+        instrument master. When the master resolves the legs to a different lot (an NSE
+        lot revision), the entry is skipped (`ENTRY_SKIPPED`, CRITICAL, plus an alert),
+        because the certified config also carries the lot in `max_position_size`
+        (`nifty_shield_gates.py`) and the risk declaration. A revision is therefore a
+        config change and a re-pin. A replay of expired contracts, which the master does
+        not carry, uses the config. The master's NIFTY lot is 65 today, so live sizing is
+        unchanged.
+      - **Not in the hash, same change set:** `core/runtime/driver.py` (calls
+        `record_order_ended`), `core/execution/order_tracker.py`,
+        `core/execution/persistence/{execution_store,order_repository}.py` (the
+        `ended_status` column) and `core/database/writers.py` (`add_entry_fill`,
+        `add_exit_fill`, `close_trade`, replacing the unused `update_trade_exit`).
+      - **Paper behaviour.** Paper fills are single and whole, `PaperBroker` never raises,
+        and the master's lot equals the config. A replay of 10-14, 10-15 and 10-16 on this
+        change and on `main` gave identical results: signals, `trades` rows, guards and fact
+        checks. Both fail against the live recordings in the same known, non-gating way: the
+        13:00/13:01 timestamp offset and the refreshed VIX history.
+      - **Config unchanged.** `strategies/nifty_shield_v1/` is untouched:
+        `config_hash c5b722ff…536c`.
+      - New hash `856ce2a6…fd82` (was `101bae72…4791`); `WINDOW_START` moves 2026-10-14 →
+        **2026-10-19**. The 10-14, 10-15 and 10-16 sessions (three two-leg spreads) stay on
+        disk but are excluded as `before-window-start`/`off-identity`. Valid only if the
+        change is on `main` in `F:\Nifty` before the 09:10 start on 2026-10-19; if it merges
+        later, `WINDOW_START` moves to the next session, 2026-10-21 (10-20 is a holiday).
+      - Tests: `tests/execution/test_e008_live_ledger.py`,
+        `tests/runtime/test_driver_fill_poll.py`,
+        `tests/brokers/test_upstox_live_order_path.py`.
 - E009 — (first external strategy Stage 3 LIVE CANDIDATE grant)
 - E010 — (first external strategy Stage 4 LIVE APPROVED grant)
 - E011+ — (suspension, incident, audit, cap-raise entries)

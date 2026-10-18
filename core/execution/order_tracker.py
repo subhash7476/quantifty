@@ -123,6 +123,18 @@ class OrderTracker:
 
         return state
 
+    def mark_ended(self, order_id, status: OrderStatus, persist: bool = True) -> Optional[OrderState]:
+        """Close an order that will not fill further (REJECTED or CANCELLED); any
+        filled part stays recorded. None for an untracked id."""
+        state = self.get_order(order_id)
+        if state is None:
+            return None
+        state.status = status
+        state.updated_at = datetime.now()
+        if persist and self.order_repo:
+            self.order_repo.mark_ended(state.order.correlation_id, status.value)
+        return state
+
     # Legacy compatibility helpers used by older tests
     def register(self, order: NormalizedOrder) -> OrderState:
         return self.add_order(order)
