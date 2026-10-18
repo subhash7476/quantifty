@@ -310,6 +310,9 @@ console while `start` holds the first.
   last heartbeat, warm?). Also runs preflight in `--json` for the freshness picture.
 - `stop`: SIGTERM the orchestrator-owned children via their PID files; leave adopted
   daemons; clear `data/ops/*.pid`.
+  *Superseded 2026-10-18: `stop` asks a running orchestrator to shut down through
+  `data/ops/stop_request`, then stops what is left, both pollers included; see
+  `docs/reports/ops_data/OPS_ORCHESTRATOR_RUNBOOK.md`, "Stop from another console".*
 
 ---
 

@@ -58,5 +58,8 @@ report failure, so a taskkill that fails (e.g. access denied) still drops the pi
 - Don't use `orchestrator.py stop` from a second console while the orchestrator runs:
   CTRL_BREAK fails cross-console so the session is hard-killed, natively-locked children are
   skipped, the supervisor respawns within 5 s, and §2 applies.
+  *Superseded 2026-10-18: `stop` now asks the running orchestrator to shut down, so a
+  session it started finishes cleanly, then stops what is left, both pollers included;
+  see `ops_data/OPS_ORCHESTRATOR_RUNBOOK.md`, "Stop from another console".*
 - `data/_eod_worker.lock` is **always** left after a clean stop — `schedule_worker.py` never
   releases it. Harmless (lock_alive reads it as stale), not a failure.
