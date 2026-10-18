@@ -284,10 +284,12 @@ standing reference for the ledger format and auditability.
         nifty_shield.py`) and `scripts/nifty_shield_paper/recover_session.py`, which now
         handle a row that was partly exited in chunks.
       - **Paper behaviour.** Paper fills are single and whole, `PaperBroker` never raises,
-        and the master's lot equals the config. A replay of 10-14, 10-15 and 10-16 on this
-        change and on `main` gave identical results: signals, `trades` rows, guards and fact
-        checks. Both fail against the live recordings in the same known, non-gating way: the
-        13:00/13:01 timestamp offset and the refreshed VIX history.
+        and the master's lot equals the config. Replays of 10-14, 10-15 and 10-16, each from a
+        fresh copy of the data root (empty execution store) on this change (`bd8b336`) and on
+        `main` (`075d614`), gave identical results: signals, `trades` rows, guards and fact
+        checks. 10-15 and 10-16 each wrote two `trades` rows on both trees; 10-14 wrote none on
+        either. Both trees fail against the live recordings in the same known, non-gating way:
+        the 13:00/13:01 timestamp offset and the refreshed VIX history.
       - **Config unchanged.** `strategies/nifty_shield_v1/` is untouched:
         `config_hash 8374e922…ca10`. (Earlier E008 notes cite `c5b722ff…536c`, which stopped
         reproducing when the config changed on 2026-09-15,
