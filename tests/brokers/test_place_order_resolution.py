@@ -10,9 +10,9 @@ Acceptance criteria (PHASE_4C_IMPLEMENTATION_PLAN.md §2 / 4C.7):
   P1  F&O order with CI → instrument_token == instrument_key (not display symbol)
   P2  F&O order with CI → product == ref.product_code (not hardcoded "I")
   P3  Equity order (CI absent) → instrument_token == order.symbol, product == "I"
-  P4  Derivative order, CI absent → BrokerContractError (fail-fast, no payload sent)
-  P5  Futures order, CI absent → BrokerContractError (fail-fast)
-  P6  LookupError from to_broker → propagates as BrokerContractError
+  P4  Derivative order, CI absent → BrokerOrderRefusedError (fail-fast, no payload sent)
+  P5  Futures order, CI absent → BrokerOrderRefusedError (fail-fast)
+  P6  LookupError from to_broker → propagates as BrokerOrderRefusedError
 
 Planned #4 end-to-end payload tests (real mapping, no mock):
   P7  OPTION CI (product=None) + real mapping → payload product="D" (NRML default)
@@ -26,7 +26,7 @@ from scripts.fetch_instrument_master import parse_instruments, write_snapshot
 from core.brokers.mapping.upstox import UpstoxMapping
 from core.instruments.resolver import InstrumentResolver
 
-from core.brokers.upstox_adapter import UpstoxAdapter, BrokerContractError
+from core.brokers.upstox_adapter import UpstoxAdapter, BrokerOrderRefusedError
 from core.brokers.mapping.base import BrokerRef
 from core.execution.order_models import NormalizedOrder, OrderSide, OrderType
 from core.instruments.canonical import CanonicalInstrument, AssetClass
@@ -94,7 +94,7 @@ def _capture(adapter, monkeypatch):
     def fake_request(method, endpoint, data=None, params=None, **options):
         if data:
             captured.update(data)
-        return {"status": "success", "data": {"order_id": "ORD-TEST"}}
+        return {"status": "success", "data": {"order_ids": ["ORD-TEST"]}}
 
     monkeypatch.setattr(adapter, "_make_request", fake_request)
     return captured
@@ -151,7 +151,7 @@ def test_p3_equity_order_uses_display_symbol_and_intraday(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# P4 — option derivative, CI absent → BrokerContractError; no payload sent
+# P4 — option derivative, CI absent → BrokerOrderRefusedError; no payload sent
 # ---------------------------------------------------------------------------
 def test_p4_option_without_ci_raises_broker_contract_error(monkeypatch):
     mapping = MagicMock()
@@ -160,21 +160,21 @@ def test_p4_option_without_ci_raises_broker_contract_error(monkeypatch):
     monkeypatch.setattr(adapter, "_make_request",
                         lambda *a, **kw: request_calls.append(kw) or {})
 
-    with pytest.raises(BrokerContractError, match="canonical_instrument"):
+    with pytest.raises(BrokerOrderRefusedError, match="canonical_instrument"):
         adapter.place_order(_order(ci=None, instrument_type=InstrumentType.OPTION))
 
     assert request_calls == [], "broker API must not be called when fail-fast fires"
 
 
 # ---------------------------------------------------------------------------
-# P5 — futures derivative, CI absent → BrokerContractError
+# P5 — futures derivative, CI absent → BrokerOrderRefusedError
 # ---------------------------------------------------------------------------
 def test_p5_future_without_ci_raises_broker_contract_error(monkeypatch):
     mapping = MagicMock()
     adapter = _adapter(monkeypatch, mapping)
     monkeypatch.setattr(adapter, "_make_request", lambda *a, **kw: {})
 
-    with pytest.raises(BrokerContractError, match="canonical_instrument"):
+    with pytest.raises(BrokerOrderRefusedError, match="canonical_instrument"):
         adapter.place_order(_order(
             ci=None,
             instrument_type=InstrumentType.FUTURE,
@@ -183,7 +183,7 @@ def test_p5_future_without_ci_raises_broker_contract_error(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# P6 — LookupError from to_broker propagates as BrokerContractError
+# P6 — LookupError from to_broker propagates as BrokerOrderRefusedError
 # ---------------------------------------------------------------------------
 def test_p6_lookup_error_from_mapping_propagates_as_broker_contract_error(monkeypatch):
     mapping = MagicMock()
@@ -191,7 +191,7 @@ def test_p6_lookup_error_from_mapping_propagates_as_broker_contract_error(monkey
     adapter = _adapter(monkeypatch, mapping)
     monkeypatch.setattr(adapter, "_make_request", lambda *a, **kw: {})
 
-    with pytest.raises(BrokerContractError, match="mapping"):
+    with pytest.raises(BrokerOrderRefusedError, match="mapping"):
         adapter.place_order(_order(ci=_CE))
 
 

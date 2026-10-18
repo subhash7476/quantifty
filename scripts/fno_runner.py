@@ -36,6 +36,8 @@ from core.alerts.alerter import alerter
 from core.brokers.base import BrokerAdapter
 from core.brokers.paper_broker import PaperBroker
 from core.brokers.token_rekey import rekey_broker_positions_by_token
+from core.brokers.upstox_adapter import (
+    BrokerAuthError, BrokerContractError, BrokerUnavailableError)
 from core.clock import Clock, RealTimeClock
 from core.database.manager import DatabaseManager
 from core.database.providers.base import MarketDataProvider
@@ -88,28 +90,77 @@ def _make_live_broker_positions(adapter: BrokerAdapter) -> Callable[[], List[Dic
     return _fetch
 
 
-def _alert_on_open_orders(execution, today: date) -> None:
-    """Alert on orders placed earlier today that the restored ledger shows not
-    fully filled (LIVE restart).
+def _bootstrap_trading_schema(db_manager: DatabaseManager) -> None:
+    from core.database.schema import TRADING_TRADE_CONTEXT_SCHEMA, TRADING_TRADES_SCHEMA
+    with db_manager.trading_writer() as conn:
+        conn.execute(TRADING_TRADES_SCHEMA)
+        conn.execute(TRADING_TRADE_CONTEXT_SCHEMA)
 
-    The broker adapter polls only the orders it placed in this process, so
-    nothing polls these: if one filled at Upstox since the restart, the ledger is
-    behind, and startup reconciliation (positions only) would not name it. Orders
-    are validity DAY, so an open order from an earlier day is dead and skipped.
+
+def _listing(orders) -> str:
+    return "; ".join(f"{o.side.value} {o.quantity} {o.symbol} signal_id={o.signal_id}"
+                     for o in orders)
+
+
+def _resume_open_orders(execution, broker, today: date) -> None:
+    """Hand the broker the orders placed earlier today that the restored ledger
+    shows not fully filled (LIVE restart), so its fill poll covers them again.
+
+    The adapter finds each in the Upstox order book by its tag and polls it from
+    the quantity the ledger already holds. The driver's startup gate polls once
+    before it reconciles, so a fill that landed during the restart is booked
+    before positions are compared; a reject or cancel among them is reported by
+    that poll. Every order that is not resumed is named in a critical alert:
+    - not found in the order book: Upstox never received it (a refused
+      placement), or a placement that failed ambiguously is not visible yet; the
+      adapter keeps looking for it and adopts it if it appears;
+    - found more than once: its tag is not unique, so none is polled;
+    - in the book only on another side or quantity (e.g. modified at Upstox):
+      not polled;
+    - the order book could not be read: nothing polls any of them.
+    Orders are validity DAY, so an open order from an earlier day is dead and
+    skipped.
     """
-    stale = [
-        state.order for state in execution.order_tracker.order_states()
+    open_states = [
+        state for state in execution.order_tracker.order_states()
         if state.status in (OrderStatus.CREATED, OrderStatus.PARTIALLY_FILLED)
         and state.order.timestamp.date() == today
     ]
-    if not stale:
+    if not open_states:
         return
-    listing = "; ".join(
-        f"{o.side.value} {o.quantity} {o.symbol} signal_id={o.signal_id}" for o in stale)
-    message = (f"LIVE restart with {len(stale)} order(s) from today not recorded as filled in "
-               "the ledger. Nothing is polling them: they may have filled at Upstox since, or "
-               "may be orders Upstox rejected or cancelled (the ledger never records those "
-               f"either). Check each against the Upstox order book: {listing}")
+    try:
+        result = broker.resume_orders(
+            [(s.order, s.filled_quantity, s.average_price) for s in open_states])
+    except (BrokerAuthError, BrokerUnavailableError, BrokerContractError) as exc:
+        _alert_unpolled(f"{len(open_states)} order(s) from today are not recorded as filled in "
+                        f"the ledger, and the Upstox order book could not be read ({exc}). "
+                        "Nothing is polling them: they may have filled, been rejected or been "
+                        "cancelled at Upstox since.", [s.order for s in open_states])
+        return
+    if result.not_found:
+        _alert_unpolled(f"{len(result.not_found)} order(s) from today that the ledger shows "
+                        "unfilled are not in the Upstox order book: either Upstox never received "
+                        "them (a refused placement), or a placement that failed ambiguously is "
+                        "not visible yet. The fill poll keeps looking for them and polls any "
+                        "that appear.", result.not_found)
+    if result.duplicated:
+        _alert_unpolled(f"{len(result.duplicated)} order(s) from today match more than one "
+                        "Upstox order by tag, side and quantity, so none of them is polled.",
+                        result.duplicated)
+    if result.mismatched:
+        _alert_unpolled(f"{len(result.mismatched)} order(s) from today are in the Upstox order "
+                        "book with their tag but another side or quantity (modified at Upstox?), "
+                        "so none of them is polled.", result.mismatched)
+    resumed = (len(open_states) - len(result.not_found) - len(result.duplicated)
+               - len(result.mismatched))
+    if resumed:
+        logger.warning("fno_runner: LIVE restart: %d open order(s) from today found in the "
+                       "Upstox order book and polled again", resumed)
+
+
+def _alert_unpolled(problem: str, orders) -> None:
+    message = (f"LIVE restart: {problem} Check each against the Upstox order book: "
+               f"{_listing(orders)}")
     logger.error("fno_runner: %s", message)
     alerter.critical(message)
 
@@ -280,13 +331,19 @@ def build_runner(
     # its execution subclass (e.g. NiftyShieldExecutionHandler) while reusing every
     # other construction step and the semantic refusals above. Absent = the
     # standard ExecutionHandler, unchanged.
+    # The handler writes each entry to `trades` (and its context to
+    # `trade_context`) but never creates them; on a fresh data root every insert
+    # failed and was swallowed.
+    _bootstrap_trading_schema(db_manager)
     if handler_factory is not None:
         execution = handler_factory(**handler_kwargs)
     else:
         execution = ExecutionHandler(**handler_kwargs)
 
     if execution_mode is ExecutionMode.LIVE:
-        _alert_on_open_orders(execution, clock.now().date())
+        # A live fill is charged by the handler's own schedule, as a paper fill is.
+        order_broker.fee_model = execution._calculate_fees
+        _resume_open_orders(execution, order_broker, clock.now().date())
 
     rebalance_hook = None
     if rebalance_hook_factory is not None:

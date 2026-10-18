@@ -425,6 +425,21 @@ class LoopDriver:
         # the #8/#7 waves); the call site IS the contract.
         self._canonicalize_restored_ledger()
 
+        # Book what filled while the process was down before positions are
+        # compared: build_runner re-seeds the poll with today's open ledger orders,
+        # and a fill that landed during the restart would otherwise refuse every
+        # start as a ledger/broker divergence. Live only, like every fill poll. One
+        # attempt: a transient failure here leaves the fill unbooked, and the
+        # reconcile below then refuses the start (re-run once the broker answers).
+        self._drive_fill_poll()
+        if self._fill_poll_halted:
+            # A dead token at startup would start a run that can never learn of a fill.
+            self._emit(EventType.BROKER_ERROR,
+                       "startup refused: the fill poll's broker authentication failed",
+                       metadata={"source": "fill_poll"})
+            self.abort_startup()
+            return False
+
         if not self._reconcile_ledger():
             return False
 
@@ -686,8 +701,8 @@ class LoopDriver:
                     self._logger.error("Telemetry publisher close failed: %s", exc)
 
     def _drive_fill_poll(self) -> None:
-        """Run the broker fill poll once (§8.3): before each symbol sweep, and
-        once more when the loop ends.
+        """Run the broker fill poll once (§8.3): in the startup gate before
+        reconciliation, before each symbol sweep, and once more when the loop ends.
 
         Live only, like the watchdog, and only when a poll was injected. It runs
         while PAUSED or kill-switched too: an order placed before the trip can
@@ -719,19 +734,27 @@ class LoopDriver:
                        metadata={"error": str(exc), "source": "fill_poll"})
             self._execution.activate_kill_switch(f"BrokerAuthError in fill poll: {exc}")
         except BrokerOrderNotFilledError as exc:
-            self._logger.error("fill poll: %s", exc)
-            self._emit(EventType.BROKER_ERROR, f"fill poll: {exc}",
-                       metadata={"error": str(exc), "source": "fill_poll"})
+            if not getattr(exc, "not_filled", None):
+                self._logger.error("fill poll: %s", exc)
+                self._emit(EventType.BROKER_ERROR, f"fill poll: {exc}",
+                           metadata={"error": str(exc), "source": "fill_poll"})
+            self._journal_not_filled(exc)
             self._fill_poll_recovered()
         except Exception as exc:
             # A rejected/cancelled order that rode on this (more severe) error.
-            for description in getattr(exc, "not_filled", ()):
-                self._logger.error("fill poll: %s", description)
-                self._emit(EventType.BROKER_ERROR, f"fill poll: {description}",
-                           metadata={"error": description, "source": "fill_poll"})
+            self._journal_not_filled(exc)
             self._fill_poll_failed(exc)
         else:
             self._fill_poll_recovered()
+
+    def _journal_not_filled(self, exc: Exception) -> None:
+        """Journal each order the broker ended unfilled, with its identity."""
+        for ended in getattr(exc, "not_filled", ()):
+            self._logger.error("fill poll: %s", ended.description)
+            self._emit(EventType.BROKER_ERROR, f"fill poll: {ended.description}",
+                       metadata={"error": ended.description, "source": "fill_poll",
+                                 "correlation_id": ended.correlation_id,
+                                 "status": ended.status.value})
 
     def _fill_poll_failed(self, exc: Exception) -> None:
         self._fill_poll_failures += 1
