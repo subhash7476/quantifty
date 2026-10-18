@@ -60,7 +60,7 @@ def _patch_expired_token(monkeypatch):
 # (1) LIVE + missing token → ValueError before construction
 # --------------------------------------------------------------------------- #
 def test_live_refuses_when_token_missing(tmp_path, monkeypatch):
-    isolate_store(tmp_path, monkeypatch)
+    dbm = isolate_store(tmp_path, monkeypatch)
     _patch_missing_token(monkeypatch)
     provider = FakeMarketDataProvider({EQUITY: bar_series(EQUITY, 3)}, live=True)
 
@@ -73,7 +73,7 @@ def test_live_refuses_when_token_missing(tmp_path, monkeypatch):
             broker_positions=lambda: [],
             clock=ReplayClock(FIXED_DT),
             provider=provider,
-            db_manager=tmp_path,
+            db_manager=dbm,
             metrics_path=str(tmp_path / "metrics.json"),
         )
 
@@ -82,7 +82,7 @@ def test_live_refuses_when_token_missing(tmp_path, monkeypatch):
 # (2) LIVE + expired token → ValueError before construction
 # --------------------------------------------------------------------------- #
 def test_live_refuses_when_token_expired(tmp_path, monkeypatch):
-    isolate_store(tmp_path, monkeypatch)
+    dbm = isolate_store(tmp_path, monkeypatch)
     _patch_expired_token(monkeypatch)
     provider = FakeMarketDataProvider({EQUITY: bar_series(EQUITY, 3)}, live=True)
 
@@ -95,7 +95,7 @@ def test_live_refuses_when_token_expired(tmp_path, monkeypatch):
             broker_positions=lambda: [],
             clock=ReplayClock(FIXED_DT),
             provider=provider,
-            db_manager=tmp_path,
+            db_manager=dbm,
             metrics_path=str(tmp_path / "metrics.json"),
         )
 
@@ -104,7 +104,7 @@ def test_live_refuses_when_token_expired(tmp_path, monkeypatch):
 # (3) LIVE + valid token → no error
 # --------------------------------------------------------------------------- #
 def test_live_proceeds_with_valid_token(tmp_path, monkeypatch):
-    isolate_store(tmp_path, monkeypatch)
+    dbm = isolate_store(tmp_path, monkeypatch)
     _patch_valid_creds(monkeypatch)
     provider = FakeMarketDataProvider({EQUITY: bar_series(EQUITY, 3)}, live=True)
 
@@ -116,7 +116,7 @@ def test_live_proceeds_with_valid_token(tmp_path, monkeypatch):
         broker_positions=lambda: [],
         clock=ReplayClock(FIXED_DT),
         provider=provider,
-        db_manager=tmp_path,
+        db_manager=dbm,
         metrics_path=str(tmp_path / "metrics.json"),
     )
 

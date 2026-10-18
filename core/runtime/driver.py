@@ -725,10 +725,12 @@ class LoopDriver:
             self._fill_poll_recovered()
         except Exception as exc:
             # A rejected/cancelled order that rode on this (more severe) error.
-            for description in getattr(exc, "not_filled", ()):
-                self._logger.error("fill poll: %s", description)
-                self._emit(EventType.BROKER_ERROR, f"fill poll: {description}",
-                           metadata={"error": description, "source": "fill_poll"})
+            for ended in getattr(exc, "not_filled", ()):
+                self._logger.error("fill poll: %s", ended.description)
+                self._emit(EventType.BROKER_ERROR, f"fill poll: {ended.description}",
+                           metadata={"error": ended.description, "source": "fill_poll",
+                                     "correlation_id": ended.correlation_id,
+                                     "status": ended.status.value})
             self._fill_poll_failed(exc)
         else:
             self._fill_poll_recovered()

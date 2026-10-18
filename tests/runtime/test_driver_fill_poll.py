@@ -31,7 +31,8 @@ import pytz
 
 from core.brokers.upstox_adapter import (
     BrokerAmbiguousPlacementError, BrokerAuthError, BrokerContractError,
-    BrokerOrderNotFilledError, BrokerUnavailableError)
+    BrokerOrderNotFilledError, BrokerUnavailableError, EndedOrder)
+from core.events import OrderStatus
 from core.runtime.config import DriverConfig, Mode
 from core.runtime.driver import LoopDriver, RuntimeState
 from core.runtime.event_journal import RuntimeEventJournal
@@ -297,7 +298,8 @@ def test_a_not_filled_report_resets_the_outage_count(tmp_path):
 def test_a_reject_carried_on_another_error_is_journaled_every_time(tmp_path):
     def raising_with_a_reject():
         error = BrokerContractError("unusable reply")
-        error.not_filled = ["order X-9 rejected by Upstox with 0 filled: funds"]
+        error.not_filled = [EndedOrder(
+            "corr-9", OrderStatus.REJECTED, "order X-9 rejected by Upstox with 0 filled: funds")]
         raise error
 
     driver, _, _ = _driver(tmp_path, fill_poll=raising_with_a_reject, n_bars=4)

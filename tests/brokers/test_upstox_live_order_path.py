@@ -24,7 +24,7 @@ import requests
 
 import core.execution.handler as handler_mod
 from core.brokers.mapping.upstox import UpstoxMapping
-from core.brokers.upstox_adapter import (BrokerContractError, BrokerOrderNotFilledError,
+from core.brokers.upstox_adapter import (BrokerOrderNotFilledError, BrokerOrderRefusedError,
                                          BrokerUnavailableError, UpstoxAdapter)
 from core.clock import ReplayClock
 from core.events import OrderStatus as BrokerOrderStatus
@@ -69,7 +69,7 @@ def _details(status, *, quantity, filled, average_price, status_message=None):
 def _placed_adapter(tmp_path, monkeypatch, order, *details):
     """A real adapter that has placed `order`, with the fill callback recording."""
     http = install(monkeypatch)
-    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("POST", "hft/order/place", placed(BROKER_ID))
     if details:
         http.route("GET", "/order/details", *details)
     adapter = _adapter(tmp_path)
@@ -134,12 +134,12 @@ def test_build_runner_constructs_live_driver_around_real_upstox_adapter(
 def test_buy_order_payload_carries_buy_signal_id_tag_and_instrument_key(
         tmp_path, monkeypatch):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("POST", "hft/order/place", placed(BROKER_ID))
 
     broker_id = _adapter(tmp_path).place_order(_order(OrderSide.BUY))
 
     assert broker_id == BROKER_ID
-    [call] = http.calls_to("POST", "/order/place")
+    [call] = http.calls_to("POST", "hft/order/place")
     payload = call["json"]
     assert payload["transaction_type"] == "BUY"
     assert payload["tag"] == "sig-live-1"
@@ -152,11 +152,11 @@ def test_buy_order_payload_carries_buy_signal_id_tag_and_instrument_key(
 
 def test_sell_order_payload_carries_sell(tmp_path, monkeypatch):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("POST", "hft/order/place", placed(BROKER_ID))
 
     _adapter(tmp_path).place_order(_order(OrderSide.SELL))
 
-    [call] = http.calls_to("POST", "/order/place")
+    [call] = http.calls_to("POST", "hft/order/place")
     assert call["json"]["transaction_type"] == "SELL"
 
 
@@ -165,7 +165,7 @@ def test_unmappable_side_is_refused_before_any_call(tmp_path, monkeypatch):
     SELL. A side the adapter cannot map must stop the order, not pick one."""
     http = install(monkeypatch)
 
-    with pytest.raises(BrokerContractError, match="side"):
+    with pytest.raises(BrokerOrderRefusedError, match="side"):
         _adapter(tmp_path).place_order(_order(side="BUY"))
 
     assert http.calls == []
@@ -306,7 +306,7 @@ def test_poll_with_nothing_pending_makes_no_call(tmp_path, monkeypatch):
 
 def test_fill_with_no_subscriber_raises_rather_than_vanishing(tmp_path, monkeypatch):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("POST", "hft/order/place", placed(BROKER_ID))
     http.route("GET", "/order/details",
                _details("complete", quantity=50, filled=50, average_price=2501.5))
     adapter = _adapter(tmp_path)
@@ -324,7 +324,7 @@ def test_live_fill_reaches_position_order_tracker_and_ledger(tmp_path, monkeypat
     http = install(monkeypatch)
     _patch_live_creds(monkeypatch)
     _isolate_trade_recorder(tmp_path, monkeypatch)
-    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("POST", "hft/order/place", placed(BROKER_ID))
     http.route("GET", "/order/details",
                _details("complete", quantity=50, filled=50, average_price=2501.5))
     adapter = _adapter(tmp_path)
@@ -342,7 +342,7 @@ def test_live_fill_reaches_position_order_tracker_and_ledger(tmp_path, monkeypat
     order = handler.process_signal(signal, current_price=2500.0)
 
     assert order is not None
-    [call] = http.calls_to("POST", "/order/place")
+    [call] = http.calls_to("POST", "hft/order/place")
     assert call["json"]["transaction_type"] == "BUY"
     assert call["json"]["tag"] == "sig-live-e2e"
     assert call["json"]["instrument_token"] == EQUITY
@@ -397,7 +397,7 @@ def _live_run(tmp_path, monkeypatch, http, **build_kwargs):
 
 def test_live_run_records_the_fill_of_an_order_it_placed(tmp_path, monkeypatch):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("POST", "hft/order/place", placed(BROKER_ID))
     http.route("GET", "/order/details",
                _details("complete", quantity=50, filled=50, average_price=2501.5))
     _, driver = _live_run(tmp_path, monkeypatch, http, max_bars=3, n_bars=3)
@@ -405,7 +405,7 @@ def test_live_run_records_the_fill_of_an_order_it_placed(tmp_path, monkeypatch):
     driver.run()
 
     handler = driver._execution
-    assert len(http.calls_to("POST", "/order/place")) == 1
+    assert len(http.calls_to("POST", "hft/order/place")) == 1
     assert handler.position_tracker.net_quantity(EQUITY) == 50.0
     [state] = handler.order_tracker.order_states()
     assert state.status is OrderStatus.FILLED
@@ -423,7 +423,7 @@ def test_live_run_records_the_fill_of_an_order_it_placed(tmp_path, monkeypatch):
 def test_live_run_trips_the_kill_switch_when_fill_polls_keep_failing(
         tmp_path, monkeypatch):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("POST", "hft/order/place", placed(BROKER_ID))
     http.route("GET", "/order/details", requests.exceptions.ConnectionError("down"))
     _, driver = _live_run(tmp_path, monkeypatch, http, max_bars=6, n_bars=6)
 
@@ -474,7 +474,7 @@ def test_partial_fills_keep_position_and_fill_ledger_true_through_the_handler(
     http = install(monkeypatch)
     _patch_live_creds(monkeypatch)
     _isolate_trade_recorder(tmp_path, monkeypatch)
-    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("POST", "hft/order/place", placed(BROKER_ID))
     http.route("GET", "/order/details",
                _details("open", quantity=75, filled=25, average_price=100.0),
                _details("complete", quantity=75, filled=75, average_price=101.0))
@@ -512,7 +512,7 @@ def test_a_fill_poll_outage_trips_and_then_lifts_the_real_kill_switch(tmp_path, 
     lifts it, and the fill that was waiting is booked."""
     from core.runtime.event_journal import RuntimeEventJournal
     http = install(monkeypatch)
-    http.route("POST", "/order/place", placed(BROKER_ID))
+    http.route("POST", "hft/order/place", placed(BROKER_ID))
     down = requests.exceptions.ConnectionError("down")
     http.route("GET", "/order/details", down, down, down,
                _details("complete", quantity=50, filled=50, average_price=2501.5))

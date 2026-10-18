@@ -1,7 +1,10 @@
+import dataclasses
+import hashlib
+import re
 import time
 import logging
 import requests
-from typing import Dict, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 from core.alerts.alerter import alerter
 from core.brokers.base import BrokerAdapter
 from core.brokers.broker_position import BrokerPosition
@@ -33,9 +36,25 @@ class BrokerAmbiguousPlacementError(BrokerUnavailableError):
     is never resent; an operator reconciles against the broker's order book."""
 
 
+class BrokerOrderRefusedError(BrokerUnavailableError):
+    """The order was definitely not placed: refused before it was sent (no mapping,
+    an unroutable side or order type), or refused by Upstox (a 4xx, or a reply with
+    status "error"). A BrokerUnavailableError subclass so the handler's broker-error
+    branch counts it and returns no order."""
+
+
 class BrokerOrderNotFilledError(Exception):
     """Upstox ended an order this adapter placed as rejected or cancelled. Any
-    quantity it did fill has already been reported as fills."""
+    quantity it did fill has already been reported as fills. `not_filled` lists
+    each order as an EndedOrder."""
+
+
+@dataclasses.dataclass(frozen=True)
+class EndedOrder:
+    """An order Upstox ended without filling it in full."""
+    correlation_id: str
+    status: OrderStatus
+    description: str
 
 
 # An explicit map, never a default: F-UPX-2 sent every order SELL because the
@@ -74,10 +93,27 @@ _TERMINAL = {OrderStatus.FILLED, OrderStatus.REJECTED, OrderStatus.CANCELLED}
 _POLL_ATTEMPTS = 1
 _POLL_TIMEOUT_S = 3
 
+# Upstox rejects a tag over 40 characters (UDAPI1119). A signal_id that is short
+# and plain is sent as is; anything else is sent as a hash prefix, so the tag is
+# always derivable from the ledger's signal_id when looking the order up later.
+_TAG_MAX = 40
+_PLAIN_TAG = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
+
+
+def order_tag(signal_id: str) -> str:
+    """The Upstox order tag for a signal_id: deterministic, at most 40 characters."""
+    signal_id = str(signal_id)
+    if _PLAIN_TAG.match(signal_id):
+        return signal_id
+    return hashlib.sha256(signal_id.encode("utf-8")).hexdigest()[:_TAG_MAX]
+
 
 class UpstoxAdapter(BrokerAdapter):
 
     BASE_URL = "https://api.upstox.com/v2"
+    # Order placement and cancellation are served from the HFT host. V2 place-order
+    # is marked deprecated there; V3 returns a list of order ids.
+    HFT_URL = "https://api-hft.upstox.com/v3"
 
     def __init__(self, api_key: str, api_secret: str, access_token: str, clock: Clock):
         self.api_key = api_key
@@ -89,11 +125,16 @@ class UpstoxAdapter(BrokerAdapter):
         self._req_interval = 0.11  # slightly above 0.1 → 9 req/sec
         self._mapping: Optional[UpstoxMapping] = None  # 4C.7: lazy-init on first place_order
         self._fill_callback = None
-        # broker order_id -> (order, filled quantity, average price) already
+        # Estimated charges for a fill: fee_model(order, price) prices the order's
+        # quantity. build_runner sets it to the handler's own fee schedule, so a live
+        # fill is charged like a paper one. None charges 0.0.
+        self.fee_model: Optional[Callable[[NormalizedOrder, float], float]] = None
+        # broker order_id -> (order, filled quantity, average price, fee) already
         # reported as fills; an order leaves once Upstox reports it terminal.
-        self._pending: Dict[str, Tuple[NormalizedOrder, int, float]] = {}
+        self._pending: Dict[str, Tuple[NormalizedOrder, int, float, float]] = {}
         # Placements that failed ambiguously (the order may be live): keyed on the
-        # order's correlation_id, never cleared in-process. poll_fills keeps failing
+        # order's correlation_id. Each poll looks them up in the order book by tag;
+        # one found there is polled like any other order. poll_fills keeps failing
         # while any is held, so the driver halts trading until an operator reconciles.
         self._unconfirmed: Dict[str, NormalizedOrder] = {}
 
@@ -113,16 +154,17 @@ class UpstoxAdapter(BrokerAdapter):
 
     def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None,
                       params: Optional[Dict] = None, *, attempts: int = 3,
-                      timeout: float = 10, ambiguous_on_failure: bool = False):
+                      timeout: float = 10, placement: bool = False,
+                      base_url: Optional[str] = None):
         """One HTTP call, retried up to `attempts` times with backoff.
 
-        `ambiguous_on_failure` is for a request that must never be resent (order
-        placement): when its last attempt fails in a way that leaves it unknown
-        whether Upstox acted on it, BrokerAmbiguousPlacementError is raised in
-        place of BrokerUnavailableError.
+        `placement` is for a request that must never be resent (order placement).
+        When its last attempt fails, a failure that leaves it unknown whether Upstox
+        acted on it raises BrokerAmbiguousPlacementError, and a 4xx raises
+        BrokerOrderRefusedError, in place of BrokerUnavailableError.
         """
         self._rate_limit()
-        url = f"{self.BASE_URL}{endpoint}"
+        url = f"{base_url or self.BASE_URL}{endpoint}"
 
         backoff = 1.0
 
@@ -155,9 +197,13 @@ class UpstoxAdapter(BrokerAdapter):
             except requests.exceptions.RequestException as e:
                 self.logger.error(f"Upstox API error on {endpoint}: {e}")
                 if attempt == attempts - 1:
-                    if ambiguous_on_failure and self._may_have_reached_broker(e):
+                    if placement and self._may_have_reached_broker(e):
                         raise BrokerAmbiguousPlacementError(
                             f"{endpoint} failed after the request may have reached Upstox: {e}") from e
+                    if placement:
+                        raise BrokerOrderRefusedError(
+                            f"Upstox refused the order on {endpoint}: {e} "
+                            f"{self._error_body(e)}".rstrip()) from e
                     raise BrokerUnavailableError(f"Broker unreachable on {endpoint}: {e}") from e
                 time.sleep(backoff * (2 ** attempt))
 
@@ -171,6 +217,17 @@ class UpstoxAdapter(BrokerAdapter):
             return error.response.status_code >= 500
         return True
 
+    @staticmethod
+    def _error_body(error: requests.exceptions.RequestException) -> str:
+        """Upstox's `errors` from a failed reply, when it has a readable one."""
+        response = getattr(error, "response", None)
+        try:
+            body = response.json() if response is not None else None
+        except ValueError:
+            return ""
+        errors = body.get("errors") if isinstance(body, dict) else None
+        return f"errors={errors!r:.300}" if errors else ""
+
     def place_order(self, order: NormalizedOrder) -> str:
         # 4C.7: route using canonical identity when available; fail fast for derivatives
         # that lack it (master absent/stale is a misconfiguration, not a fallback case).
@@ -181,7 +238,7 @@ class UpstoxAdapter(BrokerAdapter):
             try:
                 ref = self._mapping.to_broker(ci)
             except LookupError as e:
-                raise BrokerContractError(
+                raise BrokerOrderRefusedError(
                     f"No Upstox mapping for {ci.canonical_id} — "
                     f"master projection may be stale: {e}"
                 ) from e
@@ -190,7 +247,7 @@ class UpstoxAdapter(BrokerAdapter):
         else:
             itype = getattr(order, "instrument_type", None)
             if itype in {InstrumentType.OPTION, InstrumentType.FUTURE}:
-                raise BrokerContractError(
+                raise BrokerOrderRefusedError(
                     f"Derivative order for {order.symbol} has no canonical_instrument — "
                     "master absent or stale; refusing to route with display symbol."
                 )
@@ -198,11 +255,11 @@ class UpstoxAdapter(BrokerAdapter):
             product_code = "I"
 
         if order.side not in _TRANSACTION_TYPE:
-            raise BrokerContractError(
+            raise BrokerOrderRefusedError(
                 f"Order for {order.symbol} has unmappable side {order.side!r}; refusing to route")
         # NormalizedOrder carries no price, so MARKET is the only routable type.
         if order.order_type is not OrderType.MARKET:
-            raise BrokerContractError(
+            raise BrokerOrderRefusedError(
                 f"Order for {order.symbol} has order_type {order.order_type!r}; "
                 "only MARKET is routable (NormalizedOrder has no price)")
 
@@ -211,35 +268,40 @@ class UpstoxAdapter(BrokerAdapter):
             "product": product_code,
             "validity": "DAY",
             "price": 0,
-            "tag": order.signal_id,
+            "tag": order_tag(order.signal_id),
             "instrument_token": instrument_token,
             "order_type": "MARKET",
             "transaction_type": _TRANSACTION_TYPE[order.side],
             "disclosed_quantity": 0,
             "trigger_price": 0,
             "is_amo": False,
+            # One order per placement: a sliced order returns several ids, which
+            # the one-order-per-signal ledger cannot hold.
+            "slice": False,
         }
 
         try:
             # One attempt: resending a POST whose first copy Upstox may have
             # accepted places a second order the ledger never sees.
-            response = self._make_request("POST", "/order/place", data=payload,
-                                          attempts=1, ambiguous_on_failure=True)
+            response = self._make_request("POST", "/order/place", data=payload, attempts=1,
+                                          placement=True, base_url=self.HFT_URL)
             # The request got a 200. Only an explicit "error" is a definite refusal;
             # a reply that is not an object, or says neither, leaves it unknown
             # whether the order is live.
             if not isinstance(response, dict) or response.get("status") not in ("success", "error"):
                 raise BrokerAmbiguousPlacementError(
                     f"Upstox replied 200 with an unreadable placement result: {response!r:.200}")
-            if response["status"] == "success":
-                order_id = self._placed_order_id(response)
-                if order_id is None:
-                    raise BrokerAmbiguousPlacementError(
-                        "Upstox reported success but returned no order_id")
-                self.logger.info(f"Order placed successfully. ID: {order_id}")
-                self._pending[order_id] = (order, 0, 0.0)
-                return order_id
-            raise RuntimeError(f"Failed to place order: {response.get('errors', 'Unknown error')}")
+            if response["status"] == "error":
+                raise BrokerOrderRefusedError(
+                    f"Upstox refused the order: {response.get('errors', 'no errors given')!r:.300}")
+            order_ids = self._placed_order_ids(response)
+            if len(order_ids) != 1:
+                raise BrokerAmbiguousPlacementError(
+                    f"Upstox reported success with order ids {order_ids!r}; expected exactly one")
+            order_id = order_ids[0]
+            self.logger.info(f"Order placed successfully. ID: {order_id}")
+            self._pending[order_id] = (order, 0, 0.0, 0.0)
+            return order_id
         except BrokerAmbiguousPlacementError as e:
             self._unconfirmed[str(order.correlation_id)] = order
             alerter.critical(
@@ -253,10 +315,16 @@ class UpstoxAdapter(BrokerAdapter):
             raise
 
     @staticmethod
-    def _placed_order_id(response: Dict) -> Optional[str]:
+    def _placed_order_ids(response: Dict) -> List[str]:
+        """The ids in V3's `data.order_ids`, as text. Empty when the list is missing
+        or holds anything but non-empty ids, so the caller treats it as ambiguous."""
         data = response.get("data")
-        order_id = data.get("order_id") if isinstance(data, dict) else None
-        return order_id or None
+        ids = data.get("order_ids") if isinstance(data, dict) else None
+        if not isinstance(ids, list):
+            return []
+        valid = [str(i) for i in ids
+                 if isinstance(i, (str, int)) and not isinstance(i, bool) and str(i)]
+        return valid if len(valid) == len(ids) else []
 
     def _fetch_order(self, order_id: str, *, attempts: int, timeout: float) -> Dict:
         """The `data` object of GET /order/details."""
@@ -325,6 +393,10 @@ class UpstoxAdapter(BrokerAdapter):
         backoff (the next poll is the retry); no call when none is pending.
         Synchronous: the caller drives it from the single-threaded loop.
 
+        A placement that failed ambiguously is first looked up in the order book
+        (GET /order/retrieve-all) by its tag. One found there is polled from then
+        on; one not found stays unconfirmed.
+
         A problem with one order never stops the others from being polled, and
         is raised once, after the sweep, as the most severe kind found:
         BrokerContractError (a reply that can't be trusted: the order stays
@@ -333,9 +405,17 @@ class UpstoxAdapter(BrokerAdapter):
         stops at the first unreachable order, bounding the stall to one call,
         and moves it to the back), BrokerOrderNotFilledError (an order ended
         rejected or cancelled; reported once). BrokerAuthError aborts at once.
-        The fee is 0.0 - order details carry no charges.
+        Order details carry no charges, so each fill's fee is the fee_model's
+        estimate for the quantity filled so far, less what earlier fills carried.
         """
         unavailable, contract, not_filled = [], [], []
+        if self._unconfirmed:
+            try:
+                contract.extend(self._resolve_unconfirmed())
+            except BrokerUnavailableError as e:
+                unavailable.append(f"order book: {e}")
+            except BrokerContractError as e:
+                contract.append(f"order book: {e}")
         order_ids = list(self._pending)
         for position, broker_id in enumerate(order_ids):
             try:
@@ -357,11 +437,11 @@ class UpstoxAdapter(BrokerAdapter):
                 not_filled.append(ended)
         self._raise_poll_problems(unavailable, contract, not_filled)
 
-    def _poll_order(self, broker_id: str) -> Optional[str]:
-        """Poll one pending order; returns a description if it ended rejected or
+    def _poll_order(self, broker_id: str) -> Optional[EndedOrder]:
+        """Poll one pending order; returns an EndedOrder if it ended rejected or
         cancelled. Reports the filled delta before looking at the status, so a
         fill is never held back by a status the adapter can't read."""
-        order, reported, reported_avg = self._pending[broker_id]
+        order, reported, reported_avg, reported_fee = self._pending[broker_id]
         data = self._fetch_order(broker_id, attempts=_POLL_ATTEMPTS, timeout=_POLL_TIMEOUT_S)
 
         filled = self._filled_quantity(data)
@@ -377,6 +457,7 @@ class UpstoxAdapter(BrokerAdapter):
                 raise BrokerContractError(
                     f"average_price {average_price} with {filled} filled implies a "
                     f"non-positive price {price} for the new {delta}")
+            fee_so_far = self._fee(order, filled, average_price)
             self._emit_fill(FillEvent(
                 fill_id=f"{broker_id}-{filled}",
                 order_id=str(order.correlation_id),
@@ -385,9 +466,9 @@ class UpstoxAdapter(BrokerAdapter):
                 price=price,
                 timestamp=self.clock.now(),
                 side=order.side.value,
-                fee=0.0,
+                fee=fee_so_far - reported_fee,
             ))
-            self._pending[broker_id] = (order, filled, average_price)
+            self._pending[broker_id] = (order, filled, average_price, fee_so_far)
             reported = filled
 
         status = self._resolve_status(data)
@@ -407,7 +488,80 @@ class UpstoxAdapter(BrokerAdapter):
             f"{reported} filled: {data.get('status_message')}")
         self.logger.error(description)
         alerter.critical(f"ORDER NOT FILLED: {description}")
-        return description
+        return EndedOrder(str(order.correlation_id), status, description)
+
+    def _fee(self, order: NormalizedOrder, filled: int, average_price: float) -> float:
+        """The fee_model's estimate for `filled` of the order at its average price."""
+        if self.fee_model is None or filled <= 0:
+            return 0.0
+        return float(self.fee_model(dataclasses.replace(order, quantity=filled), average_price))
+
+    def _fetch_order_book(self, *, attempts: int, timeout: float) -> List[Dict]:
+        """The day's orders from GET /order/retrieve-all. The docs show both a bare
+        list and a {"status": "success", "data": [...]} envelope; either is accepted."""
+        response = self._make_request("GET", "/order/retrieve-all",
+                                      attempts=attempts, timeout=timeout)
+        if isinstance(response, dict) and response.get("status") == "success":
+            response = response.get("data")
+        if not isinstance(response, list) or not all(isinstance(o, dict) for o in response):
+            raise BrokerContractError(
+                f"Unexpected order book response: {response!r:.200}")
+        return response
+
+    @staticmethod
+    def _book_matches(book: List[Dict], signal_id: str) -> List[str]:
+        """Order ids in the book whose tag is this signal_id's tag."""
+        tag = order_tag(signal_id)
+        return [str(o.get("order_id")) for o in book
+                if o.get("tag") == tag and o.get("order_id")]
+
+    def _resolve_unconfirmed(self) -> List[str]:
+        """Look each unconfirmed placement up in the order book. One found there
+        moves to the poll; returns a problem for each tag found more than once."""
+        book = self._fetch_order_book(attempts=_POLL_ATTEMPTS, timeout=_POLL_TIMEOUT_S)
+        problems = []
+        for key, order in list(self._unconfirmed.items()):
+            matches = self._book_matches(book, order.signal_id)
+            if not matches:
+                continue
+            if len(matches) > 1:
+                problems.append(
+                    f"{len(matches)} Upstox orders carry the tag of signal_id={order.signal_id}: "
+                    f"{matches}")
+                continue
+            del self._unconfirmed[key]
+            self._pending[matches[0]] = (order, 0, 0.0, 0.0)
+            message = (f"UNCONFIRMED PLACEMENT FOUND AT UPSTOX: {order.side.value} {order.quantity} "
+                       f"{order.symbol} signal_id={order.signal_id} is order {matches[0]}; "
+                       "its fills are polled from now on.")
+            self.logger.error(message)
+            alerter.critical(message)
+        return problems
+
+    def resume_orders(self, orders) -> List[NormalizedOrder]:
+        """Re-seed the poll after a restart.
+
+        `orders` holds (order, filled quantity, average price) for each order the
+        ledger shows placed today and not fully filled. Each is looked up in the
+        order book by tag; one found there is polled from the quantity the ledger
+        already holds, so a fill it booked before the restart is not booked again.
+        Returns the orders not found exactly once. One order book call; errors
+        propagate.
+        """
+        orders = list(orders)
+        if not orders:
+            return []
+        book = self._fetch_order_book(attempts=3, timeout=10)
+        unmatched = []
+        for order, filled, average_price in orders:
+            matches = self._book_matches(book, order.signal_id)
+            if len(matches) != 1:
+                unmatched.append(order)
+                continue
+            filled = int(filled)
+            self._pending[matches[0]] = (order, filled, float(average_price),
+                                         self._fee(order, filled, float(average_price)))
+        return unmatched
 
     def _raise_poll_problems(self, unavailable, contract, not_filled) -> None:
         parts = []
@@ -420,7 +574,7 @@ class UpstoxAdapter(BrokerAdapter):
         if unavailable:
             parts.append("unreachable: " + "; ".join(unavailable))
         if not_filled:
-            parts.append("not filled: " + "; ".join(not_filled))
+            parts.append("not filled: " + "; ".join(e.description for e in not_filled))
         if not parts:
             return
         message = " | ".join(parts)
@@ -479,6 +633,7 @@ class UpstoxAdapter(BrokerAdapter):
         return positions
 
     def cancel_order(self, order_id: str) -> bool:
-        response = self._make_request("DELETE", "/order/cancel", params={"order_id": order_id})
+        response = self._make_request("DELETE", "/order/cancel", params={"order_id": order_id},
+                                      base_url=self.HFT_URL)
         # BrokerAuthError / BrokerUnavailableError propagate from _make_request
         return bool(response and response.get("status") == "success")
