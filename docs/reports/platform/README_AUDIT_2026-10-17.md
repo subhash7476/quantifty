@@ -30,7 +30,7 @@
 
 ## Other corrections
 
-- Options-Wall bypasses `ExecutionHandler`, `LoopDriver` and the trade-intelligence recorder. Its time stop counts calendar days, so a weekend before expiry carries the fly into expiry day. Its pin test is "within 0.5 %", not "on the pin".
+- Options-Wall bypasses `ExecutionHandler`, `LoopDriver` and the trade-intelligence recorder. Its time stop counted calendar days, so a weekend before expiry carried the fly into expiry day (*fixed 2026-10-18: it fires on the last session before expiry*). Its pin test is "within 0.5 %", not "on the pin".
 - NiftyShield sizes 2 lots (Choppy) or 1 (trend). Margin over 25 % of paper cash only cuts that back or skips the entry. Its weekly expiry moves to the session before a holiday Tuesday.
 - The options dashboard shows no max pain and no IV smile. The basket-margin call is in `core/brokers/upstox_margin.py`, not `core/risk/`. Most risk gates are in `handler.py`, not `risk_manager.py`.
 - `bootstrap.py seed` fetches SPAN from NSE Clearing's archive, not Upstox. `init` skips the instrument master on non-trading days. The redirect URL is also an `init` prompt.

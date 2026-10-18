@@ -58,6 +58,9 @@ A trade is opened when **all** hold on a scan cycle, within the entry window:
 4. **Liquidity/spread**: every leg to be traded has a live bid/ask and each leg's
    `(ask − bid)/mid ≤ max_spread_pct` (0.05).
 5. **DTE ≥ 1** (never open on expiry day).
+   *As built (noted 2026-10-18):* the floor has been **DTE ≥ 0** since 2026-09-08
+   (`3a3cdcc`). `ScanConfig.min_dte = 0` was set on purpose, by operator direction, so
+   expiry-day flies open; a fly opened on expiry day closes at that day's squareoff.
 6. **Entry window** 09:30–15:00 IST (skip the opening auction and the last ~20 min).
 7. **Concurrency**: at most **one** open fly per index. Re-enter only after the prior
    one closes.
@@ -89,6 +92,13 @@ Close the whole fly on the **first** of:
 3. **Regime flip**: index GEX turns `Negative` → close immediately (D5 guard applies
    to holding, not just entry).
 4. **Time stop**: square off at **15:15 IST on the session before expiry day**.
+   *As built (noted 2026-10-18):* the squareoff is **15:35**, moved on 2026-09-10 to
+   15:30 (`a6536d5`) and then 15:35 (`0ccbf97`); see
+   `docs/reports/strategies/OPTIONS_WALL_CAS_AUCTION_WINDOW_ANALYSIS_2026-09-10.md`.
+   `PaperExecutor._squareoff_time` caps it 2 minutes before the derivatives close, so it
+   resolves to 15:35 after CAS (close 15:40) and 15:28 before it (close 15:30). Since
+   2026-10-18 "the session before expiry day" is the last regular session before expiry
+   on the trading calendar (see §13).
 
 **TP/SL are evaluated on the marked (unrealized) position value** — current mid to
 close the fly vs the net entry credit — **before exit fees**; the round-trip fees are
@@ -209,15 +219,20 @@ The imperfection/laggard screens are unchanged.
 | Max leg spread | ≤ 5% of mid |
 | Wing width | ±1.5% of spot, snapped to nearest strike |
 | Fly center | ATM (nearest strike to spot) |
-| DTE to open | ≥ 1 |
+| DTE to open | ≥ 1 (*as built: ≥ 0 since 2026-09-08; see §3 item 5*) |
 | Entry window | 09:30–15:00 IST |
 | Concurrency | ≤ 1 open fly per index |
 | Take profit | +50% of net credit |
 | Stop loss | −2× net credit |
 | Regime-flip exit | on flip to Negative GEX |
-| Time stop | 15:15 IST, session before expiry day |
+| Time stop | 15:15 IST, session before expiry day (*as built: 15:35 since 2026-09-10, on the last regular session before expiry since 2026-10-18; see §5 item 4*) |
 | Sizing | 1 lot = 1 × live per-contract `lot_size` (pinned; ≈3% fee drag est.) |
 | Fee model | `core/execution/options/fees.py` |
+
+*As built (note 2026-10-18):* the take-profit, stop-loss and regime-flip rows above, and
+§7's "DTE ≥ 1", are the design values. The running pilot takes profit at 25 % of the net
+credit, stops at 50 % of max loss, never exits on a regime flip, and opens at DTE ≥ 0.
+`docs/guides/OPTIONS_WALL.md` has the current rules.
 
 ---
 
@@ -270,6 +285,16 @@ holds — the executor touches only the wall store + the shared fee model.
   and exercise STT**, but at worse (expiry-day) marks than intended. A
   trading-calendar-aware "last open session before expiry" rule was judged
   over-engineering for the pilot; the DTE = 0 close is the accepted fallback.
+  *Superseded 2026-10-18:* a weekend did the same, so a Monday expiry (2026-10-19,
+  after Dussehra moved it) was never closed on the Friday. The exit now fires on the
+  last regular session before expiry from `core.market.trading_calendar`
+  (`paper_executor.time_stop_day`). Saturday, Sunday and `SPECIAL_SESSIONS` dates
+  (Muhurat, special Saturdays) are skipped by choice: a weekend session is never seen,
+  an evening one falls outside the stack's hours, and an afternoon weekday one is a thin
+  one-hour window, so the stop takes the previous regular close. The expiry-day close
+  remains the safety net. An expiry past the calendar's coverage falls back to the
+  last weekday before it, without checking holidays, and logs a warning. The
+  squareoff is 15:35, not 15:15 (see §5 item 4).
 - **Quote keying dependency.** Entry requires a live bid/ask per leg. This relies on
   `UpstoxMarketData.fetch_quotes_batch` keying its response by the full instrument
   key; verify against a live response before day 1 (runbook pre-flight). If keying
