@@ -1,8 +1,9 @@
 """
 Stand-in for the HTTP layer under UpstoxAdapter (`requests.request`).
 
-Routes are registered per (method, path under BASE_URL). Any other call — an
-unregistered path, or a URL on another host — fails the test with an
+Routes are registered per (method, path under BASE_URL). A path on the HFT
+host (order placement and cancellation) is registered as "hft/<path>". Any other
+call — an unregistered path, or a URL on another host — fails the test with an
 AssertionError, so a test that installs this can never reach Upstox.
 """
 
@@ -51,8 +52,11 @@ class FakeUpstoxHttp:
         self._routes[(method, path, order_id)] = list(responses)
 
     def __call__(self, method, url, headers=None, json=None, params=None, timeout=None):
-        base = UpstoxAdapter.BASE_URL
-        path = url[len(base):] if url.startswith(base) else url
+        path = url
+        for base, prefix in ((UpstoxAdapter.HFT_URL, "hft"), (UpstoxAdapter.BASE_URL, "")):
+            if url.startswith(base):
+                path = prefix + url[len(base):]
+                break
         self.calls.append({"method": method, "path": path, "json": json,
                            "params": params, "timeout": timeout})
         order_id = (params or {}).get("order_id")
@@ -78,7 +82,9 @@ def install(monkeypatch):
 
 
 def placed(order_id):
-    return {"status": "success", "data": {"order_id": order_id}}
+    """The documented V3 POST /order/place success reply."""
+    return {"status": "success", "data": {"order_ids": [order_id]},
+            "metadata": {"latency": 30}}
 
 
 def order_details(order_id, status, *, quantity, filled, average_price,

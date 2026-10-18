@@ -18,6 +18,49 @@ package); an already-running EOD worker is left alone.
 ## Stop from another console
     python scripts/ops/orchestrator.py stop
 
+If an orchestrator is running, `stop` writes `data/ops/stop_request` and waits up to
+120 s for it to exit. The orchestrator notices the request within one supervise tick
+(5 s). During its start sequence it notices at its next wait: every 2 s in the token
+wait and the warm-up, every 30 s while parked before the open. It then shuts down the
+way it does at 15:50: it stops every child it started, the session first, then the
+rest, the EOD worker and the TS combo book included. A stop during the token wait also
+sends the "Upstox token not received" Telegram alert, because the wait ended without
+a token.
+
+Only a session this orchestrator started itself finishes cleanly, because the clean
+stop is a CTRL_BREAK that only reaches a process in the same console. A session it
+adopted from an earlier run is killed without finalizing, and so is a session `stop`
+reaches itself (no orchestrator running, or after the kill below).
+
+If the orchestrator is still running after 120 s (hung, or busy in a step that never
+waits), `stop` kills it, but only while `data/ops/orchestrator.pid` still names the
+pid it asked. A scheduled run killed this way leaves a START line with no END line in
+`data/ops/scheduled_runs.log`, sends no Telegram alert, and the scheduled task
+records exit 1. A new orchestrator that started during the wait is left alone, with
+its children, and `stop` exits 1; run `stop` again to stop it. If the killed
+orchestrator is still alive a few seconds later, `stop` prints a warning, stops
+nothing else, leaves the request in place and exits 1; end it by hand, then run
+`stop` again.
+
+Then `stop` stops what is left: children the orchestrator adopted rather than
+started, or every child when no orchestrator was running or it was killed. That
+covers the dashboard, market feed, session and both pollers. A session reached here
+gets the group signal first. If the signal cannot be sent, the session is killed at
+once; if it is sent but the session does not exit, `stop` waits up to 90 s before
+killing it, so a whole `stop` can take about 3.5 minutes. The market feed is found
+through the pid in `logs/market_ingestor_status.json` while that pid is alive and its
+heartbeat fresh and its process predates the last status write, otherwise through
+its pidfile. The pollers are ended with TerminateProcess, so their SIGTERM handlers
+do not run; whoever stops a natively locked child (`stop`, the 15:50 stop, Ctrl+C)
+removes its lock file once its process has exited. It leaves the EOD worker and the
+TS combo book running, since either may be mid-write, and names them ("left running:
+..."). Any child it tried to stop that is still alive afterwards is named on a "still
+running after stop: ..." line, and `stop` exits 1.
+
+Before 2026-10-18, `stop` killed only the dashboard, feed and session (the session
+without its clean finish), left the pollers running, and a running orchestrator
+respawned what it had killed.
+
 ## Preflight tiers
 - BLOCK: Upstox token, STOP file, marks warm (rows>0 + ≥1 ltp>0 + fresh heartbeat),
   live VIX flowing. Pre-open, marks/VIX degrade to "poller/ingestor alive".

@@ -4,6 +4,7 @@ Broker Adapter Interface
 Abstracts the broker-specific API (REST/WS) behind a standard interface.
 """
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import Callable, Dict, Optional, List
 from core.events import OrderEvent, OrderStatus
 from core.execution.order_lifecycle import FillEvent
@@ -44,3 +45,19 @@ class BrokerAdapter(ABC):
         subscribed callback. LoopDriver calls it once per loop iteration in LIVE
         mode. A broker that pushes its own fills has nothing to poll."""
         return None
+
+    def resume_orders(self, orders) -> "ResumeResult":
+        """Takes back, after a restart, the (order, filled quantity, average price)
+        the ledger shows still open, so poll_fills covers them again. A broker that
+        pushes its own fills has nothing to resume."""
+        return ResumeResult()
+
+
+@dataclass(frozen=True)
+class ResumeResult:
+    """What resume_orders could not take back: orders not found at the broker,
+    orders whose tag the broker holds more than once, and orders whose tag it
+    holds only on another side or quantity."""
+    not_found: List = field(default_factory=list)
+    duplicated: List = field(default_factory=list)
+    mismatched: List = field(default_factory=list)

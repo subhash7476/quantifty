@@ -181,7 +181,7 @@ Start it before 09:15 IST. It:
 | Health (token, STOP file, marks, VIX, SPAN, master) | `python scripts/ops/preflight.py`. It reads `NIFTY_PROFILE`; the trading profile skips the `eod_feeds` and `eod_worker` checks, which track the bhavcopy research feeds |
 | What would start | `python scripts/ops/orchestrator.py start --dry-run` |
 | Dashboard | `http://127.0.0.1:5000/`: **/nifty-shield/**, **/options/**, **/options/wall/**, **/ops/**. Until the first session runs, NiftyShield and Options-Wall show empty-state panels. **/ts-basis-daily/** is a research page: in the trading profile its signal panels stay at "Loading…" and its API returns 404 "Facts DB not found", because nothing builds those facts without NSE bhavcopy |
-| Stop everything now | Ctrl+C in the orchestrator window. `python scripts/ops/orchestrator.py stop` is narrower: it kills only the dashboard, market feed and session (skipping the session's clean finish) and leaves both pollers running, and a running orchestrator restarts what it killed. Use it only after the orchestrator window is gone |
+| Stop everything now | Ctrl+C in the orchestrator window, or `python scripts/ops/orchestrator.py stop` from any console. `stop` asks a running orchestrator to shut down and waits up to two minutes. The orchestrator stops every child it started, the EOD worker and the TS combo book included, as it does at 15:50. `stop` then stops what is left: children the orchestrator adopted from an earlier run, or everything when no orchestrator was running or it had to be killed after the wait. That includes both pollers but not the EOD worker or the TS combo book, which may be mid-write; `stop` names them. Only a session the running orchestrator started itself finishes cleanly. An adopted session, or one stopped with no orchestrator running or after the kill, is killed without finalizing |
 | Kill switch | Create an empty file named `STOP` in the repo root, or use the kill button on **/ops/**. A running NiftyShield session stops opening new positions at its next signal (exits still go through) and stays stopped until it restarts. The Options-Wall paper executor also refuses new flies while the file exists (TP, SL, time stop and manual close still run), its farm list shows **Kill switch** wherever it would otherwise show **Tradeable**, and resumes entering as soon as the file is deleted. Every orchestrator start is refused until you delete the file |
 
 `NIFTY_PROFILE=trading` (set in `.env` by step 3, or `--profile trading`) runs only
@@ -282,18 +282,23 @@ The live switch is in `scripts/fno_runner.py::build_runner`
 (PR #47) it builds a working driver. `UpstoxAdapter` accepts the handler's orders and
 places them as MARKET orders, and `LoopDriver` polls Upstox for fills on every loop
 iteration (`UpstoxAdapter.poll_fills`). **It has never placed a real order**: no funded
-account exists, and every test stubs the HTTP layer. Known gaps remain:
+account exists, and every test stubs the HTTP layer. Orders go to Upstox's V3
+place-order endpoint on `api-hft.upstox.com`. Live fills carry the handler's fee
+estimate. After a restart, orders still open from earlier that day are found in the
+Upstox order book and polled once before the startup reconcile, so a fill that landed
+during the restart is booked. Any order that can't be found is named in a critical alert.
+Known gaps remain:
 - a partially filled order keeps only its first chunk in the `trades` table, and a
   partially filled exit is recorded there as a new entry, leaving the real entry row open;
-- live fills carry no fees;
 - an order Upstox rejects or cancels stays open in the handler;
-- some broker errors are still reported as placed orders.
+- an unexpected error from the adapter is still reported as a placed order. Refusals
+  are typed, so the handler counts them and returns no order.
 
 A placement's outcome can be unknown: a timeout, a dropped connection, a 5xx, or a reply
-with no readable result or order id. That order is never resent. Every later fill poll
-fails on it, and after three consecutive failing polls the kill switch latches until a
-restart. New entries stop, but exits still go out. Check the order against the Upstox
-order book.
+with no readable result or order id. That order is never resent. Each later fill poll
+looks it up in the Upstox order book by its tag; once it is found there, its fills are
+recorded. Until then every poll fails, and after three consecutive failing polls the
+kill switch latches until a restart. New entries stop, but exits still go out.
 The live guide lists every open item.
 
 As written, `build_runner` with `ExecutionMode.LIVE` refuses to start without a valid

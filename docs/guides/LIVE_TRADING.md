@@ -82,15 +82,18 @@ To trade live you write your own entry script around `build_runner`, with your o
    three defects that stopped it, F-UPX-1/2/3. `UpstoxAdapter` had no
    `subscribe_fills`, so `build_runner` could not be built. It read a field
    `NormalizedOrder` does not have, and it sent every order as SELL. The PR also added
-   fill polling (gap 3). Its tests drive a real `UpstoxAdapter` with only the HTTP
-   call stubbed. No Upstox order endpoint has been called. Still open (see the PR and
-   `docs/reports/platform/PR45_PR47_CODE_REVIEW_2026-10-17.md`):
-   - **Some broker errors are reported as placed (L2).** The handler counts
-     `BrokerUnavailableError` and trips the kill switch on `BrokerAuthError`. Any
-     other exception from `place_order` is logged, and the order is returned as if it
-     had been placed. Examples are an explicit refusal in a 200 reply, or an
-     unmappable side. `handler.py` is inside NiftyShield's frozen execution hash
-     until the E008 window ends.
+   fill polling (gap 3). A follow-up (2026-10-18) moved placement and cancellation
+   to V3 on `api-hft.upstox.com`, kept the order tag within Upstox's 40-character
+   limit, typed every definite refusal, and added the order-book lookups, the fee
+   estimate and the `trades` tables (gap 3). The tests drive a real `UpstoxAdapter`
+   with only the HTTP call stubbed. No Upstox order endpoint has been called. Still
+   open (see `docs/reports/platform/PR45_PR47_CODE_REVIEW_2026-10-17.md`):
+   - **An unexpected error is reported as placed (L2).** The handler counts
+     `BrokerUnavailableError` and trips the kill switch on `BrokerAuthError`. Every
+     definite refusal now raises `BrokerOrderRefusedError`, a `BrokerUnavailableError`,
+     so it is counted and no order is returned. Any other exception from
+     `place_order` is logged, and the order is returned as if it had been placed.
+     `handler.py` is inside NiftyShield's frozen execution hash.
    - **A partially filled order keeps only its first chunk in `trades`.**
      `trades.signal_id` is unique, so a later chunk's insert fails, and the handler
      swallows the error. Positions and `fills` rows stay correct. A partial exit is
@@ -99,22 +102,17 @@ To trade live you write your own entry script around `build_runner`, with your o
    - **Rejected and cancelled orders stay open in the handler's `OrderTracker`.** The
      adapter raises a critical alert and the driver journals the event, but nothing
      tells the handler.
-   - **Live fills carry `fee=0.0`.** Upstox order details carry no charges, so live
-     P&L and the drawdown gate see no costs.
-   - **`fno_runner` does not create the `trades` table** (the NiftyShield session
-     does). A LIVE run on a fresh machine writes no `trades` rows.
-   - **Pending orders live only in adapter memory.** Nothing re-seeds them from the
-     Upstox order book after a restart, and nothing looks up an ambiguous placement
-     (gap 3) by its tag.
-   - **Not checked against Upstox:**
-     - the adapter uses `api.upstox.com/v2`, while Upstox's docs show the order
-       endpoints on `api-hft.upstox.com` and mark V2 place/cancel deprecated in
-       favour of V3;
-     - the maximum `tag` length is undocumented. The tag is the handler's
-       `signal_id`: the source's `metadata["signal_id"]` if it sets one, otherwise a
-       64-character SHA-256 hex digest;
-     - response shapes follow Upstox's published examples, not a captured live
-       response.
+   - **Checked against Upstox's docs only (2026-10-18), never a live response:**
+     - placement is `POST /v3/order/place` and cancellation `DELETE /v3/order/cancel`,
+       both on `api-hft.upstox.com`. V2 place-order is marked deprecated there. Order
+       details, the order book and positions stay on `api.upstox.com/v2`;
+     - the tag: Upstox rejects one over 40 characters (error `UDAPI1119`). It is the
+       handler's `signal_id` when that is at most 40 letters, digits, `_` or `-`,
+       otherwise the first 40 hex digits of the signal_id's SHA-256. The handler's
+       fallback signal_id is a 64-character digest, so it always takes the hash form;
+     - the order book's response is documented both as a bare list and inside a
+       `{"status": "success", "data": [...]}` envelope; both are accepted;
+     - every other response shape follows Upstox's published examples.
 1. **Multi-leg structures are not atomic.** `LoopDriver` routes every leg as its own
    `process_signal` call, so each leg passes the handler's risk, greek, margin and
    kill-switch gates only when its turn comes, then goes out as its own **MARKET**
@@ -142,20 +140,49 @@ To trade live you write your own entry script around `build_runner`, with your o
      books the newly filled part. Either way the order stays pending, and the poll
      raises `BrokerContractError`, which counts as a failed poll. There is no
      re-pricing.
-   - **Placement.** `POST /order/place` is sent **once**, with a 10 s timeout.
+   - **Placement.** `POST /v3/order/place` on `api-hft.upstox.com` is sent **once**,
+     unsliced, with a 10 s timeout.
      - **Unknown outcome.** It is unknown whether Upstox took the order after a
        timeout, a dropped connection, a 5xx, or a 200 reply that is unreadable or
-       reports success without an `order_id`. The adapter raises
+       reports success without exactly one order id. The adapter raises
        `BrokerAmbiguousPlacementError`, sends a critical alert and holds the order as
-       unconfirmed. The handler returns no order. Every later poll fails on it, so the
-       kill switch latches within three iterations and stays latched until a restart.
-       Check the order against the Upstox order book.
-     - **After a restart.** The unconfirmed order's fill is never polled. If it
-       filled, the ledger is missing that fill, and the LIVE startup reconcile refuses
-       every restart until the ledger and the Upstox positions agree.
-     - **Definite refusal.** A 4xx or a 429 raises `BrokerUnavailableError` and is not
-       retried. It counts toward the handler's three consecutive failed placements,
-       which latch the switch until restart. A 401/403 latches it at once.
+       unconfirmed. The handler returns no order.
+     - **Looking it up.** Each later poll looks the order up in the order book
+       (`GET /order/retrieve-all`) by its tag, side and quantity. Once it is found there, a critical alert
+       names its order id and its fills are polled like any other order's. While it
+       is not found, the poll fails, so the kill switch latches within three
+       iterations and stays latched until a restart.
+     - **Definite refusal.** A 4xx, a 200 reply with status `error`, or any failure
+       while the order is prepared, before anything is sent (no instrument mapping, an
+       unmappable side, a non-MARKET type, an instrument master that can't be read),
+       raises `BrokerOrderRefusedError`. A 429 raises `BrokerUnavailableError`.
+       Neither is retried. Both count toward the handler's three consecutive failed
+       placements, which latch the switch until restart. A 401/403 latches it at once.
+   - **Fees.** Order details carry no charges. Each fill carries the handler's own fee
+     schedule (`_calculate_fees`, set by `build_runner`) for the quantity filled so
+     far, less what earlier fills of the order carried, so a partly filled order pays
+     the flat brokerage once. It is an estimate; Upstox's actual charges are not read.
+     If the fee schedule raises, the fill is still booked, with no fee, and the next
+     fill of the order carries the difference.
+   - **Restart.** The ledger records an order before it is sent. At a LIVE start,
+     `build_runner` hands the adapter every order from today that the ledger shows
+     not fully filled. Each is looked up in the order book by its tag, side and
+     quantity, and polled from the quantity the ledger already holds, so nothing is
+     booked twice. The driver's startup gate polls once before it reconciles, so a
+     fill that landed while the process was down is booked before positions are
+     compared; a reject or cancel among them is reported by that poll. A critical
+     alert names every order that is not resumed:
+     - not in the order book: Upstox never received it (a refused placement), or a
+       placement that failed ambiguously is not visible yet. The poll looks for it
+       again every 30 s and adopts it if it appears;
+     - in the order book more than once, or only on another side or quantity (an
+       order modified at Upstox): none of them is polled;
+     - the order book could not be read: nothing polls any of them, and the startup
+       reconcile refuses if one of them filled.
+
+     The startup poll is a single attempt: if the broker does not answer, a fill
+     that landed during the restart stays unbooked and the reconcile refuses the
+     start; run it again. A broker auth failure in that poll refuses the start.
    - **Kill switch from the poll.** Three consecutive outage polls trip a releasable
      kill switch, lifted by the first clean poll unless the data feed is stale. An
      auth failure trips it at once and ends polling. Any other repeated failure
@@ -201,7 +228,7 @@ Rules change. Check the primary sources yourself:
     - three failed polls in a row latch it, unless the last was a pure outage. An outage trips a releasable switch instead, lifted by the first clean poll, or by the feed's recovery if the feed was stale at that poll.
 
     Every latch holds until restart.
-- [ ] Every open item in gap 0 is fixed, or you accept it. You have checked Upstox's current order host, API version and `tag` length.
+- [ ] Every open item in gap 0 is fixed, or you accept it. You have checked the order host, API version, `tag` rule and response shapes against a live response.
 - [ ] You know how to reconcile your positions against the Upstox order book after an ambiguous placement or a restart
 - [ ] Start with the minimum size, and watch the first session in the Upstox app
 - [ ] Holidays: `core/market/nse_holidays.py` and `trading_calendar.py` cover the year you are trading in (and `strategies/nifty_shield_v1/exchange_holidays.py`, if you derived from NiftyShield)
