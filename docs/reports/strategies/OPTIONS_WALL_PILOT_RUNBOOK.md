@@ -83,6 +83,15 @@ IV−RV ≥ 2.0; entry 09:30–15:00 IST; DTE ≥ 1; ≤ 1 open fly per index; T
 SL −2× / regime-flip / time-stop 15:15 the session before expiry; 1 lot; fees via
 `core/execution/options/fees.py`.
 
+> **As built (noted 2026-10-18).** The time stop and the DTE floor above no longer
+> match the code (nor do TP, SL and the regime-flip exit; for those see
+> `docs/guides/OPTIONS_WALL.md`). The time stop squares off at **15:35**, capped 2 minutes before the derivatives
+> close, so it is 15:28 on a pre-CAS date (changed 2026-09-10, `a6536d5` / `0ccbf97`).
+> Since 2026-10-18 it fires on the last regular session before expiry on the trading
+> calendar, so the Friday for a Monday expiry. The DTE floor is **≥ 0** since
+> 2026-09-08 (`3a3cdcc`, `ScanConfig.min_dte = 0`), so expiry-day flies open and close
+> at that day's squareoff. See the dated notes in spec §3 item 5 and §5 item 4.
+
 **Changing any of these during the pilot invalidates the month** (spec §1). If a
 change is genuinely needed, stop the pilot and restart the clock.
 

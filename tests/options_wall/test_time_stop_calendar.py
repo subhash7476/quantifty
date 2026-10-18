@@ -1,7 +1,8 @@
 """The time stop fires on the last session before expiry (pilot spec §5.4), not on
 the calendar day before it. Counting calendar days carried a fly into expiry day
 whenever that day was a weekend or a holiday."""
-from datetime import date, datetime
+import logging
+from datetime import date, datetime, time
 
 import pytest
 
@@ -9,6 +10,9 @@ from core.analytics.options_analytics import (
     GEXResult, OIAnalysisResult, OptionsStructuralData, PCRResult,
 )
 from core.data.options_provider import OptionChainRow
+from core.market import session_schedule, trading_calendar
+from core.market.trading_calendar import OutsideCoverage, previous_session
+from core.options_wall import paper_executor
 from core.options_wall.paper_executor import PaperConfig, PaperExecutor, time_stop_day
 
 _PREMIA = {
@@ -59,8 +63,74 @@ def test_the_stop_day_is_the_last_session_before_expiry(expiry, stop_day):
     assert time_stop_day(expiry) == stop_day
 
 
-def test_an_expiry_past_the_calendar_falls_back_to_the_day_before():
-    assert time_stop_day(date(2027, 1, 12)) == date(2027, 1, 11)
+def _with_sessions(monkeypatch, additional=(), special=None):
+    monkeypatch.setattr(trading_calendar, "ADDITIONAL_SESSIONS",
+                        trading_calendar.ADDITIONAL_SESSIONS | set(additional))
+    monkeypatch.setattr(session_schedule, "SPECIAL_SESSIONS",
+                        {**session_schedule.SPECIAL_SESSIONS, **(special or {})})
+
+
+def test_a_sunday_muhurat_before_a_monday_expiry_leaves_the_stop_on_the_friday(monkeypatch):
+    # Diwali 2026: a Sun 11-08 Muhurat ahead of the weekly that the Tue 11-10 holiday
+    # moves to Mon 11-09. The poller never runs on a Sunday.
+    muhurat = date(2026, 11, 8)
+    _with_sessions(monkeypatch, additional={muhurat},
+                   special={muhurat: session_schedule._special((time(18, 0), time(19, 0)))})
+    assert previous_session(date(2026, 11, 9)) == muhurat
+    assert time_stop_day(date(2026, 11, 9)) == date(2026, 11, 6)
+
+
+def test_a_saturday_session_before_a_monday_expiry_leaves_the_stop_on_the_friday(monkeypatch):
+    # a full Saturday session (e.g. a Budget day) is in ADDITIONAL_SESSIONS only
+    _with_sessions(monkeypatch, additional={date(2026, 10, 17)})
+    assert previous_session(date(2026, 10, 19)) == date(2026, 10, 17)
+    assert time_stop_day(date(2026, 10, 19)) == date(2026, 10, 16)
+
+
+def test_a_weekday_special_session_before_expiry_moves_the_stop_back_a_session(monkeypatch):
+    # an afternoon weekday Muhurat, like 2025-10-21: a session early is the safe side
+    muhurat = date(2026, 11, 16)
+    _with_sessions(monkeypatch,
+                   special={muhurat: session_schedule._special((time(13, 45), time(14, 45)))})
+    assert previous_session(date(2026, 11, 17)) == muhurat
+    assert time_stop_day(date(2026, 11, 17)) == date(2026, 11, 13)
+
+
+def test_an_expiry_past_the_calendar_falls_back_to_the_last_weekday_and_warns_once(monkeypatch):
+    monkeypatch.setattr(trading_calendar, "COVERAGE_LAST", date(2026, 10, 31))
+    monkeypatch.setattr(paper_executor, "_uncovered_warned", set())
+    with pytest.raises(OutsideCoverage):
+        previous_session(date(2026, 11, 2))
+    records = []
+
+    class _Grab(logging.Handler):
+        def emit(self, record):
+            records.append(record.getMessage())
+
+    handler = _Grab(level=logging.WARNING)
+    paper_executor.logger.addHandler(handler)
+    try:
+        assert time_stop_day(date(2026, 11, 2)) == date(2026, 10, 30)   # Mon expiry, Fri stop
+        assert time_stop_day(date(2026, 11, 2)) == date(2026, 10, 30)
+    finally:
+        paper_executor.logger.removeHandler(handler)
+    assert len(records) == 1
+    assert "2026-11-02" in records[0]
+
+
+def test_a_tuesday_expiry_is_squared_off_on_the_monday_not_the_friday(tmp_path):
+    ex = _opened(tmp_path, "2026-11-17", datetime(2026, 11, 12, 10, 0))
+    assert _step(ex, "2026-11-17", datetime(2026, 11, 13, 15, 35)) is None   # Fri: not yet
+    assert _step(ex, "2026-11-17", datetime(2026, 11, 16, 15, 35)) == "time_stop"
+
+
+def test_a_holiday_before_a_post_cas_expiry_stops_the_monday_at_1535(tmp_path):
+    # Wed 11-11 expiry, Tue 11-10 holiday. Post-CAS the squareoff is 15:35 itself;
+    # the pre-CAS 04-15 case below resolves to 15:28.
+    ex = _opened(tmp_path, "2026-11-11", datetime(2026, 11, 6, 10, 0))
+    assert _step(ex, "2026-11-11", datetime(2026, 11, 6, 15, 35)) is None
+    assert _step(ex, "2026-11-11", datetime(2026, 11, 9, 15, 34)) is None
+    assert _step(ex, "2026-11-11", datetime(2026, 11, 9, 15, 35)) == "time_stop"
 
 
 def test_a_monday_expiry_is_squared_off_on_the_friday(tmp_path):

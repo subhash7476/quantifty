@@ -10,10 +10,11 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 The pilot's time stop is meant to fire at 15:35 on the session before expiry (spec §5.4), but the code tested `DTE <= 1` in calendar days. Whenever the calendar day before expiry was a weekend or holiday, the fly was carried into expiry day and closed there instead. A Monday expiry after a Friday was the common case, e.g. the 2026-10-19 Nifty weekly that Dussehra moved off Tuesday. The spec had accepted this for holidays as a known limitation; it never considered weekends.
 
-`paper_executor.time_stop_day(expiry)` now returns `trading_calendar.previous_session(expiry)`, and the stop fires on or after that day at the squareoff time. Unchanged:
+`paper_executor.time_stop_day(expiry)` now returns `trading_calendar.previous_session(expiry)`, stepping back further past any Saturday, Sunday or `session_schedule.SPECIAL_SESSIONS` date. Skipping special sessions is a choice. A weekend session is never seen (the poller does not run on weekends), an evening one falls outside the stack's hours, and an afternoon weekday one is a thin one-hour window; in every case the stop takes the previous regular close, one session early, which is the safe side. The stop fires on or after that day at the squareoff time. For an expiry past the calendar's coverage, the stop falls back to the last weekday before expiry (holidays unchecked) and logs one warning per expiry, so the poller never fails on a missing year. Unchanged:
 - a normal week, where the Monday session before a Tuesday expiry is still the stop day;
-- the expiry-day close as a safety net;
-- for an expiry past the calendar's coverage, the stop falls back to the calendar day before expiry, so the poller never fails on a missing year.
+- the expiry-day close as a safety net.
+
+A fly opened on the stop day is now a same-day round trip. A Friday 10:43 open for a Monday expiry closes Friday 15:35 and pays the full round-trip fees, about ₹212–230. A Monday open for a Tuesday expiry already did this in a normal week.
 
 The one fly open when this merged (#73, expiry 10-19) closes on Monday 15:35 under both rules. No E008-hashed file was touched. *Ref:* `core/options_wall/paper_executor.py`, `tests/options_wall/test_time_stop_calendar.py`
 

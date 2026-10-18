@@ -40,7 +40,7 @@ paths exist but have not been run on a real machine yet
 | | **NiftyShield** | **Options-Wall** |
 |---|---|---|
 | Underlying | Nifty 50 weekly options (Tuesday expiry, or the session before when Tuesday is a holiday) | Nifty, Bank Nifty, Sensex |
-| When | once a session, entry 13:00–13:30, flat by 15:35 | any time 09:30–15:00 on the nearest expiry; can **hold overnight**, and is closed at 15:35 on the last session before expiry (the Friday, for a Monday expiry) |
+| When | once a session, entry 13:00–13:30, flat by 15:35 | any time 09:30–15:00 on the nearest expiry; can **hold overnight**, and is closed at 15:35 on the last regular session before expiry (the Friday for a Monday expiry; a session earlier when that day is a holiday or a special session such as Muhurat) |
 | Signal | DayType regime at 13:00 + India VIX percentile | positive dealer gamma, spot within 0.5 % of the pin (the strike with the most call + put gamma), ATM IV ≥ realized + 2 vol pts |
 | Structure | bull put / bear call spread, iron fly, **or a short straddle / strangle (undefined risk)** | ATM iron fly, wings ±1.5 % |
 | Exits | ±1σ P&L bracket, delta flatten, 15:35 | TP 25 % of credit, SL 50 % of max loss, time stop |

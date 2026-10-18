@@ -72,11 +72,14 @@ the farm list's badge shows **Kill switch** instead of **Tradeable**.
 |---|---|
 | Take-profit | unrealized P&L ≥ **25 % of net credit** |
 | Stop-loss | unrealized P&L ≤ −**50 % of max loss** (max loss = wing width × qty − credit) |
-| Time stop | on the **last session before expiry**, counted on the trading calendar (the Friday for a Monday expiry, a session earlier when the day before expiry is a holiday), at 15:35, capped 2 min before the derivatives close. A fly still open on expiry day, for example because the poller was down on the stop day, closes at the same time that day. For an expiry past the calendar's coverage, the stop falls back to the calendar day before expiry |
+| Time stop | on the **last regular session before expiry**, counted on the trading calendar, at 15:35, capped 2 min before the derivatives close. That is the Friday for a Monday expiry, and a session earlier when that day is a holiday or a special session (a Muhurat or a special Saturday). A weekend session is never seen (the poller does not run on weekends), an evening one falls outside the stack's hours, and an afternoon weekday one is a thin one-hour window; in every case the stop takes the previous regular close, one session early, which is the safe side. A fly still open on expiry day, for example because the poller was down on the stop day, closes at the same time that day. For an expiry past the calendar's coverage, the stop falls back to the last weekday before expiry, without checking holidays, and logs a warning |
 | Manual | close button on the dashboard (`data/options/close_requests/`) |
 
 **Positions are carried overnight.** There is no daily flatten. A fly opened on
-Wednesday for a Tuesday expiry can be held until Monday 15:35. A GEX flip to
+Wednesday for a Tuesday expiry can be held until Monday 15:35. A fly opened on
+the stop day itself closes at 15:35 that day, so it pays a full round trip
+(~₹212–230) for a few hours of decay: a Monday open for a Tuesday expiry, or a
+Friday open for a Monday expiry. A GEX flip to
 Negative **blocks new entries but never exits**. Net gamma's sign changes every
 28–93 s, so exiting on it would just pay a round trip (~₹212) to chase noise.
 
