@@ -22,8 +22,9 @@ import requests
 from core.brokers.mapping.upstox import UpstoxMapping
 from core.brokers.upstox_adapter import (
     BrokerAmbiguousPlacementError, BrokerContractError, BrokerOrderNotFilledError,
-    BrokerUnavailableError, UpstoxAdapter)
+    BrokerOrderRefusedError, BrokerUnavailableError, UpstoxAdapter)
 from core.clock import ReplayClock
+from core.events import OrderStatus
 from core.execution.order_models import NormalizedOrder, OrderSide, OrderType
 from tests.brokers._upstox_http import HttpStatus, install, order_details, placed
 
@@ -72,7 +73,7 @@ def _with_status(payload, status):
 
 def _placed_adapter(tmp_path, monkeypatch, *orders, order_ids=("A-1", "B-2")):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", *(placed(i) for i in order_ids[:len(orders)]))
+    http.route("POST", "hft/order/place", *(placed(i) for i in order_ids[:len(orders)]))
     adapter = _adapter(tmp_path)
     for order in orders:
         adapter.place_order(order)
@@ -92,19 +93,19 @@ def _placed_adapter(tmp_path, monkeypatch, *orders, order_ids=("A-1", "B-2")):
 def test_a_placement_that_may_have_reached_upstox_is_never_resent(
         tmp_path, monkeypatch, alerts, failure):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", failure, placed("SECOND-ORDER"))
+    http.route("POST", "hft/order/place", failure, placed("SECOND-ORDER"))
     adapter = _adapter(tmp_path)
 
     with pytest.raises(BrokerAmbiguousPlacementError):
         adapter.place_order(_order())
 
-    assert len(http.calls_to("POST", "/order/place")) == 1  # the resend is the duplicate order
+    assert len(http.calls_to("POST", "hft/order/place")) == 1  # the resend is the duplicate order
     assert issubclass(BrokerAmbiguousPlacementError, BrokerUnavailableError)  # the handler counts it
 
 
 def test_an_ambiguous_placement_is_alerted_and_not_forgotten(tmp_path, monkeypatch, alerts):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", requests.exceptions.ReadTimeout("read timed out"))
+    http.route("POST", "hft/order/place", requests.exceptions.ReadTimeout("read timed out"))
     adapter = _adapter(tmp_path)
     with pytest.raises(BrokerAmbiguousPlacementError):
         adapter.place_order(_order(signal_id="sig-ambiguous"))
@@ -112,40 +113,43 @@ def test_an_ambiguous_placement_is_alerted_and_not_forgotten(tmp_path, monkeypat
     alerts.critical.assert_called_once()
     assert "sig-ambiguous" in alerts.critical.call_args.args[0]
     # The order may be live, so the poll fails until an operator reconciles;
-    # that is how the driver's kill switch learns of it. It makes no HTTP call.
+    # that is how the driver's kill switch learns of it. It looks the order up
+    # in the order book; while it is not there, nothing is polled for it.
+    http.route("GET", "/order/retrieve-all", {"status": "success", "data": []})
     with pytest.raises(BrokerAmbiguousPlacementError, match="sig-ambiguous"):
         adapter.poll_fills()
+    assert len(http.calls_to("GET", "/order/retrieve-all")) == 1
     assert http.calls_to("GET", "/order/details") == []
 
 
 def test_a_definite_rejection_is_not_ambiguous(tmp_path, monkeypatch):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", HttpStatus(400), placed("SECOND-ORDER"))
+    http.route("POST", "hft/order/place", HttpStatus(400), placed("SECOND-ORDER"))
     adapter = _adapter(tmp_path)
 
-    with pytest.raises(BrokerUnavailableError) as raised:
+    with pytest.raises(BrokerOrderRefusedError) as raised:
         adapter.place_order(_order())
 
     assert not isinstance(raised.value, BrokerAmbiguousPlacementError)
-    assert len(http.calls_to("POST", "/order/place")) == 1
+    assert len(http.calls_to("POST", "hft/order/place")) == 1
     adapter.poll_fills()  # nothing unconfirmed, nothing pending
 
 
 def test_a_rate_limited_placement_is_not_ambiguous(tmp_path, monkeypatch):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", HttpStatus(429), placed("SECOND-ORDER"))
+    http.route("POST", "hft/order/place", HttpStatus(429), placed("SECOND-ORDER"))
     adapter = _adapter(tmp_path)
 
     with pytest.raises(BrokerUnavailableError) as raised:
         adapter.place_order(_order())
 
-    assert not isinstance(raised.value, BrokerAmbiguousPlacementError)
-    assert len(http.calls_to("POST", "/order/place")) == 1
+    assert not isinstance(raised.value, (BrokerAmbiguousPlacementError, BrokerOrderRefusedError))
+    assert len(http.calls_to("POST", "hft/order/place")) == 1
 
 
 def test_a_success_reply_without_an_order_id_is_ambiguous(tmp_path, monkeypatch, alerts):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", {"status": "success", "data": {}})
+    http.route("POST", "hft/order/place", {"status": "success", "data": {}})
     adapter = _adapter(tmp_path)
 
     with pytest.raises(BrokerAmbiguousPlacementError):
@@ -159,14 +163,14 @@ def test_a_success_reply_without_an_order_id_is_ambiguous(tmp_path, monkeypatch,
 def test_a_success_reply_that_is_not_an_object_is_an_ambiguous_placement(
         tmp_path, monkeypatch, alerts, body):
     http = install(monkeypatch)
-    http.route("POST", "/order/place", body)
+    http.route("POST", "hft/order/place", body)
     adapter = _adapter(tmp_path)
 
     with pytest.raises(BrokerAmbiguousPlacementError):  # never a raw AttributeError
         adapter.place_order(_order())
 
     alerts.critical.assert_called_once()
-    assert len(http.calls_to("POST", "/order/place")) == 1
+    assert len(http.calls_to("POST", "hft/order/place")) == 1
 
 
 # --------------------------------------------------------------------------- #
@@ -225,7 +229,8 @@ def test_a_reject_that_coexists_with_a_worse_error_is_still_carried_on_it(
         adapter.poll_fills()
 
     [rejected] = raised.value.not_filled
-    assert "B-2" in rejected and "rejected" in rejected
+    assert "B-2" in rejected.description and "rejected" in rejected.description
+    assert rejected.status is OrderStatus.REJECTED
 
 
 def test_the_filled_part_is_reported_even_when_the_status_is_unknown(tmp_path, monkeypatch):

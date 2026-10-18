@@ -282,18 +282,23 @@ The live switch is in `scripts/fno_runner.py::build_runner`
 (PR #47) it builds a working driver. `UpstoxAdapter` accepts the handler's orders and
 places them as MARKET orders, and `LoopDriver` polls Upstox for fills on every loop
 iteration (`UpstoxAdapter.poll_fills`). **It has never placed a real order**: no funded
-account exists, and every test stubs the HTTP layer. Known gaps remain:
+account exists, and every test stubs the HTTP layer. Orders go to Upstox's V3
+place-order endpoint on `api-hft.upstox.com`. Live fills carry the handler's fee
+estimate. After a restart, orders still open from earlier that day are found in the
+Upstox order book and polled once before the startup reconcile, so a fill that landed
+during the restart is booked. Any order that can't be found is named in a critical alert.
+Known gaps remain:
 - a partially filled order keeps only its first chunk in the `trades` table, and a
   partially filled exit is recorded there as a new entry, leaving the real entry row open;
-- live fills carry no fees;
 - an order Upstox rejects or cancels stays open in the handler;
-- some broker errors are still reported as placed orders.
+- an unexpected error from the adapter is still reported as a placed order. Refusals
+  are typed, so the handler counts them and returns no order.
 
 A placement's outcome can be unknown: a timeout, a dropped connection, a 5xx, or a reply
-with no readable result or order id. That order is never resent. Every later fill poll
-fails on it, and after three consecutive failing polls the kill switch latches until a
-restart. New entries stop, but exits still go out. Check the order against the Upstox
-order book.
+with no readable result or order id. That order is never resent. Each later fill poll
+looks it up in the Upstox order book by its tag; once it is found there, its fills are
+recorded. Until then every poll fails, and after three consecutive failing polls the
+kill switch latches until a restart. New entries stop, but exits still go out.
 The live guide lists every open item.
 
 As written, `build_runner` with `ExecutionMode.LIVE` refuses to start without a valid

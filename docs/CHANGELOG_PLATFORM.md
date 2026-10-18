@@ -6,6 +6,20 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-10-18 — Live order path: V3 placement, tag limit, typed refusals, order-book lookup, fees
+
+A check of the live path against Upstox's current docs found two defects the PR #47 review had not covered. Placement went to V2 `/order/place` on `api.upstox.com`, while Upstox serves placement from `api-hft.upstox.com` and marks V2 place-order deprecated. And Upstox rejects a tag over 40 characters (`UDAPI1119`), while the handler's fallback signal_id is a 64-character digest. Placement and cancellation now use V3 on the HFT host (unsliced; a success reply must carry exactly one order id). The tag is the signal_id when that is short and plain, otherwise a 40-character hash prefix of it.
+
+Also on the live path:
+- **Refusals.** Every definite refusal raises `BrokerOrderRefusedError`, a `BrokerUnavailableError`: a 4xx, a 200 reply with status `error` (before, a plain `RuntimeError` that the handler reported as placed), and any failure while the order is prepared, before anything is sent. The frozen handler therefore counts it and returns no order. That narrows L2 to exceptions raised after the request is sent that the adapter does not classify.
+- **Ambiguous placements.** Each fill poll looks an ambiguous placement up in the order book by tag, side and quantity. Once found, it is polled like any other order.
+- **Restart.** At a LIVE start, `build_runner` re-seeds the poll with today's open ledger orders found in the order book, polled from the quantity the ledger holds. The driver's startup gate polls once before it reconciles, so a fill that landed during the restart is booked instead of refusing the start; a broker auth failure in that poll refuses the start. Every order not resumed is named in a critical alert. One not found in the order book is watched (a book check every 30 s) and adopted if it appears.
+- **Fees.** Live fills carry the handler's own fee schedule. Before, every live fill had `fee=0.0`.
+- **`trades` tables.** `build_runner` creates `trades` and `trade_context`, which it had left to the NiftyShield session.
+- **Rejects.** `BrokerOrderNotFilledError.not_filled` carries `EndedOrder(correlation_id, status, description)`.
+
+No E008-hashed file was touched (hash `101bae72…`). Checked against the docs only; no Upstox order endpoint was called. *Ref:* `core/brokers/upstox_adapter.py`, `scripts/fno_runner.py`, `core/runtime/driver.py`, `tests/brokers/test_upstox_v3_order_book.py`, `tests/scripts/test_fno_runner_restart_open_orders.py`
+
 ## 2026-10-17 — README and guides re-verified against main
 
 `docs/onboarding-readme` was merged with `main` (16 commits since 10-09). One conflict in `orchestrator.py` was resolved by keeping both `_wire_supervisor` and `_apply_profile`; E008 hash unchanged at `101bae72…`. Note for the merge: `_resolve_profile` loads `.env` on the default `full` path too, so the orchestrator (and the children it spawns) now see `.env` values in their environment; production `.env` has no `NIFTY_PROFILE`, so it stays `full`. Every README claim was checked against the merged code and corrected. The largest fix: the live order path is wired but unfinished (`UpstoxAdapter.place_order` cannot read `NormalizedOrder`, F-UPX-1/2), so the README and `LIVE_TRADING.md` no longer call live routing "a single switch". Other fixes: what `orchestrator.py stop` and the `STOP` file actually do; three-file holiday maintenance plus E008 re-pin; the session-scoped DayType facts path; per-day Options-Wall snapshot files; NiftyShield's holiday-aware expiry and the 10-14 window restart in `NIFTY_SHIELD.md`.

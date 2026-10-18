@@ -47,7 +47,7 @@ from core.execution.order_models import OrderSide, OrderType
 from core.instruments.instrument_base import InstrumentType
 from core.brokers.mapping.upstox import UpstoxMapping
 from core.brokers.paper_broker import PaperBroker
-from core.brokers.upstox_adapter import UpstoxAdapter
+from core.brokers.upstox_adapter import UpstoxAdapter, order_tag
 from core.clock import ReplayClock
 from core.database.manager import DatabaseManager
 from core.events import SignalEvent, SignalType
@@ -320,7 +320,7 @@ def test_handler_order_through_real_upstox_adapter(tmp_path, monkeypatch):
     (it subscribes to fills), and the order it hands over goes out as BUY, tagged
     with its signal_id, routed by the instrument key."""
     http = install(monkeypatch)
-    http.route("POST", "/order/place", placed("231019025562880"))
+    http.route("POST", "hft/order/place", placed("231019025562880"))
     adapter = UpstoxAdapter("key", "secret", "token", ReplayClock(FIXED_DT))
     adapter._req_interval = 0
     adapter._mapping = UpstoxMapping(db_path=tmp_path / "no_master.duckdb")
@@ -330,10 +330,11 @@ def test_handler_order_through_real_upstox_adapter(tmp_path, monkeypatch):
     order = handler.process_signal(_signal(UPSTOX_EQUITY_KEY, 50), current_price=2500.0)
 
     assert order is not None
-    [call] = http.calls_to("POST", "/order/place")
+    [call] = http.calls_to("POST", "hft/order/place")
     payload = call["json"]
     assert payload["transaction_type"] == "BUY"
-    assert payload["tag"] == "sig-NSE_EQ|INE002A01018-50"
+    assert payload["tag"] == order_tag("sig-NSE_EQ|INE002A01018-50")
+    assert len(payload["tag"]) <= 40
     assert payload["instrument_token"] == UPSTOX_EQUITY_KEY
     assert payload["quantity"] == 50
     assert payload["product"] == "I"
