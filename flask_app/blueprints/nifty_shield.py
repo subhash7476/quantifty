@@ -186,19 +186,33 @@ def _leg_fills(db_path: Path) -> Dict[tuple, List[dict]]:
         return out
     try:
         con = sqlite3.connect(db_path)
+        columns = {r[1] for r in con.execute("PRAGMA table_info(trades)")}
+        extra = ", ".join(c if c in columns else f"NULL AS {c}"
+                          for c in ("exit_price", "metadata"))
         rows = con.execute(
-            "SELECT symbol, side, quantity, entry_price, pnl, fees, timestamp "
-            "FROM trades ORDER BY timestamp").fetchall()
+            "SELECT symbol, side, quantity, entry_price, pnl, fees, timestamp, "
+            f"{extra} FROM trades ORDER BY timestamp").fetchall()
         con.close()
     except sqlite3.Error:
         return out
-    for sym, side, qty, price, pnl, fees, ts in rows:
+    for sym, side, qty, price, pnl, fees, ts, exit_price, metadata in rows:
         session = str(ts)[:10]
         out.setdefault((session, sym), []).append({
             "side": side, "quantity": qty, "price": price,
             "pnl": pnl, "fees": fees, "timestamp": ts,
+            "exit_price": exit_price, "exit_qty": _exited_quantity(metadata),
         })
     return out
+
+
+def _exited_quantity(metadata) -> float:
+    """Quantity a still-open trades row has already exited (the handler keeps it
+    in the row's metadata while a position is reduced in chunks)."""
+    try:
+        meta = json.loads(metadata) if metadata else {}
+    except (TypeError, ValueError):
+        return 0.0
+    return float(meta.get("exit_qty") or 0.0) if isinstance(meta, dict) else 0.0
 
 
 def _leg_position(fills: List[dict]) -> Optional[dict]:
@@ -213,7 +227,9 @@ def _leg_position(fills: List[dict]) -> Optional[dict]:
     signed_qty = 0.0
     cost = 0.0
     for t in fills:
-        qty = float(t.get("quantity") or 0.0)
+        if float(t.get("exit_price") or 0.0):
+            continue   # a closed row: the position it opened is flat
+        qty = float(t.get("quantity") or 0.0) - float(t.get("exit_qty") or 0.0)
         price = float(t.get("price") or 0.0)
         sign = 1.0 if str(t.get("side", "")).upper() == "BUY" else -1.0
         signed_qty += qty * sign

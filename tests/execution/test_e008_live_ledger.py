@@ -309,7 +309,7 @@ def _lot_handler(monkeypatch, lots_by_symbol, journal):
     from types import SimpleNamespace
     import core.execution.options.nifty_shield_handler as nsh
 
-    def fake_canonicalize(symbol, timestamp):
+    def fake_canonicalize(symbol, timestamp, resolver=None):
         lot = lots_by_symbol.get(symbol)
         return SimpleNamespace(lot_size=lot) if lot else None
     monkeypatch.setattr(nsh, "canonicalize_symbol", fake_canonicalize)
@@ -333,8 +333,8 @@ def test_the_configured_lot_is_used_when_the_master_agrees(monkeypatch):
     assert journal.records == [] and alerts.critical_messages == []
 
 
-@pytest.mark.parametrize("lots", [{"A": 75, "B": 75}, {"A": 65, "B": 75}],
-                         ids=["lot-revised", "legs-disagree"])
+@pytest.mark.parametrize("lots", [{"A": 75, "B": 75}, {"A": 65, "B": 75}, {"A": 75}],
+                         ids=["lot-revised", "legs-disagree", "revised-leg-beside-a-missing-one"])
 def test_a_lot_the_master_disagrees_with_skips_the_entry_loudly(monkeypatch, lots):
     journal = _Journal()
     handler, alerts = _lot_handler(monkeypatch, lots, journal)
@@ -352,3 +352,121 @@ def test_contracts_the_master_does_not_carry_fall_back_to_the_configured_lot(mon
     handler, _ = _lot_handler(monkeypatch, {"A": 65}, journal)   # B: an expired contract
     assert handler._structure_lot_size(_legs("A", "B"), "g", "SPREAD") == 65
     assert journal.records == []
+
+
+# --------------------------------------------------------------------------- #
+# Review fixes (PR #52)
+# --------------------------------------------------------------------------- #
+
+def test_an_auth_failure_closes_the_unsent_order_across_a_restart(tmp_path, monkeypatch):
+    handler = _handler(tmp_path, monkeypatch, StubBroker({0: BrokerAuthError("401")}))
+
+    assert handler.process_signal(_signal("sig-1"), 100.0) is None
+    assert handler._kill_switched and handler._kill_hard
+    assert _tracked(handler).status is OrderStatus.REJECTED
+
+    restarted = _handler(tmp_path, monkeypatch, StubBroker())
+    assert _tracked(restarted).status is OrderStatus.REJECTED
+
+
+def test_a_failed_ledger_write_never_holds_back_the_broker_error_threshold(tmp_path, monkeypatch):
+    journal = _Journal()
+    broker = StubBroker({i: BrokerUnavailableError("429") for i in range(3)})
+    handler = _handler(tmp_path, monkeypatch, broker, journal=journal)
+
+    def locked(*a, **k):
+        raise RuntimeError("database is locked")
+    monkeypatch.setattr(handler.order_repo, "mark_ended", locked)
+
+    for i in range(3):
+        assert handler.process_signal(_signal(f"sig-{i}", symbol=f"S{i}"), 100.0) is None
+
+    assert handler._consecutive_broker_errors == 3
+    assert handler._kill_switched
+    assert len([r for r in journal.records if r[0] == "BROKER_ERROR"]) == 3
+    # memory and store agree: the write failed, so neither says REJECTED
+    assert {st.status for st in handler.order_tracker.order_states()} == {OrderStatus.CREATED}
+
+
+def test_a_fully_filled_order_is_not_reopened_by_a_late_cancel(tmp_path, monkeypatch):
+    handler = _handler(tmp_path, monkeypatch, StubBroker())
+    order = handler.process_signal(_signal("sig-1"), 100.0)
+    handler._handle_broker_fill(_fill(order, "f1", 75, 100.0, "BUY"))
+
+    handler.record_order_ended(str(order.correlation_id), EventOrderStatus.CANCELLED, "late")
+
+    assert _tracked(handler).status is OrderStatus.FILLED
+
+
+def test_a_late_entry_chunk_after_its_row_closed_opens_its_own_row(tmp_path, monkeypatch):
+    handler = _handler(tmp_path, monkeypatch, StubBroker())
+    entry = handler.process_signal(_signal("sig-entry"), 100.0)
+    handler._handle_broker_fill(_fill(entry, "f1", 25, 100.0, "BUY"))
+    exit_order = handler.process_signal(_signal("sig-exit", signal_type=SignalType.EXIT), 101.0)
+    handler._handle_broker_fill(_fill(exit_order, "x1", 25, 101.0, "SELL"))   # flat; row closed
+
+    handler._handle_broker_fill(_fill(entry, "f2", 50, 102.0, "BUY"))         # the late chunk
+
+    closed, opened = _trades(handler)
+    assert closed[0] == "sig-entry" and closed[4] == pytest.approx(101.0)
+    assert opened[0] == "sig-entry#f2" and opened[2] == 50 and opened[4] == 0.0
+
+
+def test_a_flipping_fills_fee_is_split_between_the_two_rows(tmp_path, monkeypatch):
+    handler = _handler(tmp_path, monkeypatch, StubBroker())
+    entry = handler.process_signal(_signal("sig-entry", quantity=50), 100.0)
+    handler._handle_broker_fill(_fill(entry, "f1", 50, 100.0, "BUY", fee=4.0))
+    exit_order = handler.process_signal(_signal("sig-exit", signal_type=SignalType.EXIT), 105.0)
+
+    handler._handle_broker_fill(_fill(exit_order, "x1", 75, 105.0, "SELL", fee=9.0))
+
+    closed, opened = _trades(handler)
+    assert closed[6] == pytest.approx(4.0 + 6.0)      # its entry fee + 50/75 of the flip's
+    assert opened[6] == pytest.approx(3.0)            # 25/75 of the flip's fee
+
+
+def test_the_placement_failure_flag_tracks_the_last_signal(tmp_path, monkeypatch):
+    broker = StubBroker({0: BrokerOrderRefusedError("400")})
+    handler = _handler(tmp_path, monkeypatch, broker)
+
+    handler.process_signal(_signal("sig-1"), 100.0)
+    assert handler._placement_failed is True
+    handler.process_signal(_signal("sig-2", symbol="TCS"), 100.0)
+    assert handler._placement_failed is False
+
+
+def _bare_shield(monkeypatch, journal):
+    import logging
+    import core.execution.options.nifty_shield_handler as nsh
+    alerts = _Alerts()
+    monkeypatch.setattr(nsh, "alerter", alerts)
+    handler = nsh.NiftyShieldExecutionHandler.__new__(nsh.NiftyShieldExecutionHandler)
+    handler._journal = journal
+    handler.logger = logging.getLogger("test")
+    tripped = []
+    handler.activate_kill_switch = lambda reason, **k: tripped.append(reason)
+    return handler, alerts, tripped
+
+
+def test_a_leg_failing_after_another_went_out_breaks_the_structure_loudly(monkeypatch):
+    journal = _Journal()
+    handler, alerts, tripped = _bare_shield(monkeypatch, journal)
+
+    handler._stop_routing_after_failed_leg("g", "SPREAD", _legs("SHORT", "WING", "OTHER"),
+                                           ["order-1", None])
+
+    [(event, message, severity, metadata)] = journal.records
+    assert (event, severity) == ("ENTRY_SKIPPED", "CRITICAL")
+    assert (metadata["sent_legs"], metadata["failed_leg"], metadata["unsent_legs"]) == (
+        ["SHORT"], "WING", ["OTHER"])
+    assert tripped and alerts.critical_messages
+
+
+def test_a_first_leg_failing_sends_nothing_and_does_not_latch(monkeypatch):
+    journal = _Journal()
+    handler, alerts, tripped = _bare_shield(monkeypatch, journal)
+
+    handler._stop_routing_after_failed_leg("g", "SPREAD", _legs("SHORT", "WING"), [None])
+
+    assert journal.records[0][3]["unsent_legs"] == ["WING"]
+    assert tripped == [] and alerts.critical_messages == []

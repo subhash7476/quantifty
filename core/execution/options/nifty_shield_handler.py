@@ -41,6 +41,7 @@ from uuid import UUID
 from core.alerts.alerter import alerter
 from core.events import SignalEvent, SignalType
 from core.execution.canonical_restore import canonicalize_symbol
+from core.instruments.resolver import InstrumentResolver
 from core.execution.groups.order_group import OrderGroup
 from core.execution.groups.group_pnl import GroupPnLTracker
 from core.execution.handler import ExecutionHandler
@@ -611,6 +612,13 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
             sized = dataclasses.replace(
                 signal, metadata={**signal.metadata, "quantity": qty})
             routed.append(super().process_signal(sized, marks[signal.symbol]))
+            if routed[-1] is None and self._placement_failed:
+                # A leg failed at the broker: send no more legs. If earlier legs
+                # went out the structure is broken, so the switch latches. (A gate
+                # rejection is not a placement failure and keeps the old path;
+                # PaperBroker never raises, so paper routing is unchanged.)
+                self._stop_routing_after_failed_leg(group_id, structure, signals, routed)
+                break
 
         if not any(routed):
             self._record(EventType.ENTRY_SKIPPED,
@@ -636,6 +644,20 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
                                  signals[0].metadata)
         return routed[-1] if routed else None
 
+    def _stop_routing_after_failed_leg(self, group_id, structure, signals, routed) -> None:
+        sent = [s.symbol for s, r in zip(signals, routed) if r is not None]
+        failed = signals[len(routed) - 1].symbol
+        unsent = [s.symbol for s in signals[len(routed):]]
+        message = (f"structure leg {failed} failed at the broker; legs not sent: {unsent}"
+                   + (f"; legs already sent: {sent}" if sent else ""))
+        self._record(EventType.ENTRY_SKIPPED, f"structure entry stopped: {message}",
+                     severity=Severity.CRITICAL, group_id=group_id, structure=structure,
+                     reason="leg failed at the broker", failed_leg=failed,
+                     sent_legs=sent, unsent_legs=unsent)
+        if sent:
+            alerter.critical(f"NIFTYSHIELD STRUCTURE BROKEN: {message}")
+            self.activate_kill_switch(f"structure {group_id} broken: {message}")
+
     def _structure_lot_size(self, signals, group_id, structure) -> Optional[int]:
         """The lot to size the structure on, checked against the instrument master.
 
@@ -644,23 +666,26 @@ class NiftyShieldExecutionHandler(ExecutionHandler):
         audit N1). The certified config carries that lot in more than one place
         (the order size, the max_position_size cap in nifty_shield_gates, the
         risk declaration), so a revision is a config change, not something to
-        follow silently: when the master resolves every leg to one lot that
-        differs from the configured one, the entry is skipped with a critical
-        journal entry and alert, and None is returned. When the master does not
-        carry every leg (a replay of expired contracts), the configured lot is
-        used.
+        follow silently: when the master resolves any leg to a lot that differs
+        from the configured one, the entry is skipped with a critical journal
+        entry and alert, and None is returned. Legs the master does not carry (a
+        replay of expired contracts) are sized on the configured lot. One
+        resolver serves the whole structure, so the master is opened once.
         """
         configured = int(self._strategy_cfg.get("lot_size", 75))
-        lots = set()
+        resolver = InstrumentResolver()
+        lots, missing = set(), []
         for signal in signals:
-            instrument = canonicalize_symbol(signal.symbol, signal.timestamp)
+            instrument = canonicalize_symbol(signal.symbol, signal.timestamp, resolver)
             lot = getattr(instrument, "lot_size", None) if instrument is not None else None
-            if not lot:
-                self.logger.warning(f"lot size for {signal.symbol} not in the instrument "
-                                    f"master; using the configured {configured}")
-                return configured
-            lots.add(int(lot))
-        if lots == {configured}:
+            if lot:
+                lots.add(int(lot))
+            else:
+                missing.append(signal.symbol)
+        if missing:
+            self.logger.warning(f"lot size for {missing} not in the instrument master; "
+                                f"those legs use the configured {configured}")
+        if lots <= {configured}:
             return configured
         message = (f"structure entry skipped: the instrument master's lot {sorted(lots)} "
                    f"differs from the configured {configured}. Update lot_size in "

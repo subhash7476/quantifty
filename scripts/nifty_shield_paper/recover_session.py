@@ -73,7 +73,7 @@ def _open_trade_rows(db_path: Path, session: str) -> List[tuple]:
     con = sqlite3.connect(str(db_path))
     try:
         return con.execute(
-            "SELECT trade_id, symbol, side, quantity, entry_price, fees, timestamp "
+            "SELECT trade_id, symbol, side, quantity, entry_price, fees, timestamp, metadata "
             "FROM trades WHERE timestamp LIKE ? AND exit_price = 0.0 "
             "ORDER BY timestamp", [f"{session}%"]).fetchall()
     finally:
@@ -170,7 +170,13 @@ def _repair_trades(data_root: Path, session: str) -> List[dict]:
     dm = DatabaseManager(data_root=data_root)
     repaired: List[dict] = []
     with dm.trading_writer() as conn:
-        for trade_id, symbol, side, qty, entry, fees, ts in open_rows:
+        for trade_id, symbol, side, qty, entry, fees, ts, metadata in open_rows:
+            if '"exit_qty"' in (metadata or ""):
+                # Partly exited in chunks: one opposite fill is not the whole exit.
+                repaired.append({
+                    "trade_id": trade_id, "symbol": symbol, "status": "skipped",
+                    "detail": "row was partly exited in chunks; repair it by hand"})
+                continue
             fill = _exit_fill(fills, symbol, side, ts)
             if fill is None:
                 repaired.append({

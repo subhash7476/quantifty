@@ -757,8 +757,16 @@ class LoopDriver:
                        metadata={"error": ended.description, "source": "fill_poll",
                                  "correlation_id": ended.correlation_id,
                                  "status": ended.status.value})
-            self._execution.record_order_ended(ended.correlation_id, ended.status,
-                                               ended.description)
+            try:
+                self._execution.record_order_ended(ended.correlation_id, ended.status,
+                                                   ended.description)
+            except Exception as exc:  # noqa: BLE001 - a failed ledger write never ends the loop
+                self._logger.error("could not close order %s in the ledger: %s",
+                                   ended.correlation_id, exc)
+                self._emit(EventType.BROKER_ERROR,
+                           f"ledger close failed for order {ended.correlation_id}: {exc}",
+                           metadata={"error": str(exc), "source": "fill_poll",
+                                     "correlation_id": ended.correlation_id})
 
     def _fill_poll_failed(self, exc: Exception) -> None:
         self._fill_poll_failures += 1

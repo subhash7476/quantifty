@@ -317,3 +317,15 @@ def test_leg_fills_are_scoped_to_the_session(monkeypatch, tmp_path):
     assert len(fills[("2026-09-07", "NIFTY15SEP2623750CE")]) == 1
     assert len(fills[("2026-09-08", "NIFTY15SEP2623750CE")]) == 1
     assert fills[("2026-09-07", "NIFTY15SEP2623750CE")][0]["price"] == 193.95
+
+
+
+def test_leg_position_counts_only_what_a_chunked_exit_has_left_open():
+    pos = ns._leg_position([{"side": "SELL", "quantity": 75, "price": 190.0, "exit_qty": 25.0,
+                             "exit_price": 0.0}])
+    assert pos["signed_qty"] == -50
+
+
+def test_leg_position_treats_a_closed_trades_row_as_flat():
+    assert ns._leg_position([{"side": "SELL", "quantity": 75, "price": 190.0,
+                              "exit_price": 120.0}]) is None
