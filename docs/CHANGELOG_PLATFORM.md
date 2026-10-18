@@ -6,6 +6,14 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-10-18 — `orchestrator.py stop` stops the orchestrator first (README audit O1)
+
+`stop` killed only the children with a pidfile: the dashboard, the market feed, and the session. It killed the session from another console, where the CTRL_BREAK group signal can't reach it, so the session never finished cleanly. It left both pollers running, and a running orchestrator respawned what it had killed on its next supervise tick.
+
+Now, when an orchestrator is running, `stop` writes `data/ops/stop_request`. The supervise loop checks for it every tick and shuts down the way the 15:50 stop does, session first. `stop` waits up to `STOP_WAIT_S` (120 s), then kills an orchestrator still in its start sequence or hung. Then it stops every child still running, including the chain poller and the Options-Wall poller, through their own locks. It never kills a recycled PID. The EOD worker and the TS combo book are left running, since either may be mid-write, and are named. `start` clears a stale request.
+
+No E008-hashed file was touched. *Ref:* `scripts/ops/orchestrator.py` (`supervise_until_day_end`, `_stop_running_orchestrator`, `_cmd_stop`), `tests/ops/test_orchestrator.py`, `docs/reports/ops_data/OPS_ORCHESTRATOR_RUNBOOK.md`
+
 ## 2026-10-17 — README and guides re-verified against main
 
 `docs/onboarding-readme` was merged with `main` (16 commits since 10-09). One conflict in `orchestrator.py` was resolved by keeping both `_wire_supervisor` and `_apply_profile`; E008 hash unchanged at `101bae72…`. Note for the merge: `_resolve_profile` loads `.env` on the default `full` path too, so the orchestrator (and the children it spawns) now see `.env` values in their environment; production `.env` has no `NIFTY_PROFILE`, so it stays `full`. Every README claim was checked against the merged code and corrected. The largest fix: the live order path is wired but unfinished (`UpstoxAdapter.place_order` cannot read `NormalizedOrder`, F-UPX-1/2), so the README and `LIVE_TRADING.md` no longer call live routing "a single switch". Other fixes: what `orchestrator.py stop` and the `STOP` file actually do; three-file holiday maintenance plus E008 re-pin; the session-scoped DayType facts path; per-day Options-Wall snapshot files; NiftyShield's holiday-aware expiry and the 10-14 window restart in `NIFTY_SHIELD.md`.

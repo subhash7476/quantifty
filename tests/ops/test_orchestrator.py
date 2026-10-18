@@ -360,13 +360,75 @@ def test_happy_path_ensures_wall_poller():
     assert "wall_poller" in calls["spawned"]
 
 
-def test_stop_skips_wall_poller(monkeypatch, tmp_path):
-    # natively-locked children are never torn down by `stop` (like poller/eod)
+@pytest.fixture
+def stop_env(monkeypatch, tmp_path):
+    """`stop` against fake locks: every child lock names a live pid, no
+    orchestrator is running, and the stop request lives in tmp_path."""
     stops = []
+    monkeypatch.setattr(orch, "STOP_REQUEST", tmp_path / "stop_request")
+    monkeypatch.setattr(orch, "ORCH_LOCK", tmp_path / "orchestrator.pid")
     monkeypatch.setattr(orch, "stop_child", lambda spec, proc, **k: stops.append(spec.name))
-    monkeypatch.setattr(orch.pidfile, "read_pid", lambda p: None)
+    monkeypatch.setattr(orch.pidfile, "read_pid", lambda p: 999)
+    monkeypatch.setattr(orch.pidfile, "lock_alive", lambda p: Path(p) != orch.ORCH_LOCK)
+    monkeypatch.setattr(orch, "child_alive", lambda spec: True)
+    return stops
+
+
+def test_stop_ends_both_pollers_and_the_pidfile_children(stop_env, capsys):
     orch._cmd_stop()
-    assert "wall_poller" not in stops
+    assert sorted(stop_env) == ["flask", "ingestor", "poller", "session", "wall_poller"]
+    assert stop_env[0] == "session"            # longest finalize first
+    assert "left running: eod, ts_combo" in capsys.readouterr().out
+
+
+def test_stop_never_kills_a_recycled_pid(stop_env, monkeypatch):
+    monkeypatch.setattr(orch.pidfile, "lock_alive", lambda p: False)
+    orch._cmd_stop()
+    assert stop_env == []
+
+
+def test_stop_asks_a_running_orchestrator_first_and_waits_for_it(stop_env, monkeypatch):
+    order = []
+    monkeypatch.setattr(orch.pidfile, "lock_alive", lambda p: True)
+    monkeypatch.setattr(orch, "_stop_running_orchestrator",
+                        lambda wait_s: order.append(("orchestrator", wait_s)))
+    monkeypatch.setattr(orch, "stop_child",
+                        lambda spec, proc, **k: order.append(spec.name))
+    orch._cmd_stop()
+    assert order[0] == ("orchestrator", orch.STOP_WAIT_S)
+    assert "poller" in order[1:]
+
+
+def test_stop_request_is_written_and_the_wait_ends_when_the_orchestrator_exits(
+        stop_env, monkeypatch):
+    alive = iter([True, True, False, False])
+    monkeypatch.setattr(orch.pidfile, "lock_alive", lambda p: next(alive))
+    killed = []
+    monkeypatch.setattr(orch._RemoteProc, "kill", lambda self: killed.append(self.pid))
+    ticks = iter(range(100))
+
+    orch._stop_running_orchestrator(60.0, sleep=lambda s: None, clock=lambda: next(ticks))
+
+    assert orch.STOP_REQUEST.exists()
+    assert killed == []
+
+
+def test_an_orchestrator_that_ignores_the_request_is_killed_after_the_wait(
+        stop_env, monkeypatch):
+    monkeypatch.setattr(orch.pidfile, "lock_alive", lambda p: True)
+    killed = []
+    monkeypatch.setattr(orch._RemoteProc, "kill", lambda self: killed.append(self.pid))
+    ticks = iter(range(0, 1000, 10))
+
+    orch._stop_running_orchestrator(60.0, sleep=lambda s: None, clock=lambda: next(ticks))
+
+    assert killed == [999]
+
+
+def test_stop_clears_its_request_when_done(stop_env):
+    orch.STOP_REQUEST.write_text("x", encoding="utf-8")
+    orch._cmd_stop()
+    assert not orch.STOP_REQUEST.exists()
 
 
 class _StoppablePopen(_FakePopen):
@@ -725,12 +787,9 @@ def test_ts_combo_not_spawned_when_stop_file_present():
     assert "ts_combo" not in calls["spawned"]
 
 
-def test_stop_skips_ts_combo(monkeypatch):
-    stops = []
-    monkeypatch.setattr(orch, "stop_child", lambda spec, proc, **k: stops.append(spec.name))
-    monkeypatch.setattr(orch.pidfile, "read_pid", lambda p: None)
+def test_stop_skips_ts_combo_and_eod(stop_env):
     orch._cmd_stop()
-    assert "ts_combo" not in stops
+    assert "ts_combo" not in stop_env and "eod" not in stop_env
 
 
 # --------------------------------------------------------------------------- #
@@ -861,6 +920,15 @@ def test_supervise_ticks_until_day_end_then_shuts_down_once():
                   datetime(2026, 10, 6, 15, 50)])
     orch.supervise_until_day_end(sup, date(2026, 10, 6),
                                  now=lambda: next(clock), sleep=lambda s: None)
+    assert (sup.ticks, sup.shutdowns) == (2, 1)
+
+
+def test_a_stop_request_ends_supervision_and_shuts_down_once():
+    sup = _FakeSup()
+    requested = iter([False, False, True])
+    orch.supervise_until_day_end(sup, date(2026, 10, 6),
+                                 now=lambda: datetime(2026, 10, 6, 11, 0),
+                                 sleep=lambda s: None, stop_requested=lambda: next(requested))
     assert (sup.ticks, sup.shutdowns) == (2, 1)
 
 
@@ -998,3 +1066,25 @@ def test_resolve_profile_rejects_unknown(monkeypatch):
     monkeypatch.setenv("NIFTY_PROFILE", "yolo")
     with pytest.raises(SystemExit):
         orch._resolve_profile(None)
+
+
+def test_cmd_start_clears_a_stale_stop_request(monkeypatch, tmp_path):
+    monkeypatch.setattr(orch, "STOP_REQUEST", tmp_path / "stop_request")
+    orch.STOP_REQUEST.write_text("left by a stop that found no orchestrator", encoding="utf-8")
+    monkeypatch.setattr(orch.pidfile, "acquire_lock", lambda p: True)
+    monkeypatch.setattr(orch.pidfile, "release_lock", lambda *a, **k: None)
+    monkeypatch.setattr(orch, "_disable_quickedit", lambda: True)
+
+    class _Deps:
+        now = staticmethod(lambda: datetime(2026, 10, 6, 9, 15))
+        supervise = adopt = None
+        spawn = staticmethod(lambda spec: None)
+
+    monkeypatch.setattr(orch, "_live_deps", lambda started: _Deps())
+    seen = {}
+    monkeypatch.setattr(orch, "start_sequence",
+                        lambda deps, **k: seen.update(request=orch.STOP_REQUEST.exists()) or "x")
+
+    orch._cmd_start(dry_run=False)
+
+    assert seen["request"] is False

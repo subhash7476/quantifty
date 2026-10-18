@@ -345,6 +345,26 @@ BROWSER_FALLBACK_S = 10 * 60
 SESSION_FINALIZE_BUDGET_S = 90.0
 # The session's own 15:35 time exit plus its finalize budget, with margin.
 SESSION_DAY_END = dtime(15, 50)
+# `stop` from a second console asks a running orchestrator to shut down through
+# this file. A cross-console CTRL_BREAK never reaches the session, so the
+# orchestrator, which shares the session's console, has to stop it.
+STOP_REQUEST = OPS_DIR / "stop_request"
+STOP_WAIT_S = SESSION_FINALIZE_BUDGET_S + 30.0
+# Natively locked children that `stop` also ends. eod and ts_combo are left
+# alone: either may be mid-way through a store write, and both were started
+# for work that outlives a manual stop.
+STOPPABLE_NATIVE = ("poller", "wall_poller")
+
+
+def _stop_requested() -> bool:
+    return STOP_REQUEST.exists()
+
+
+def _clear_stop_request() -> None:
+    try:
+        STOP_REQUEST.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def day_over(started_on: date, now: datetime) -> bool:
@@ -360,14 +380,20 @@ def day_over(started_on: date, now: datetime) -> bool:
 
 def supervise_until_day_end(sup, started_on: date, *, now: Callable[[], datetime] = datetime.now,
                             sleep: Callable[[float], None] = time.sleep,
-                            poll_s: float = 5.0) -> None:
+                            poll_s: float = 5.0,
+                            stop_requested: Callable[[], bool] = _stop_requested) -> None:
+    """Supervise until the day ends or `orchestrator.py stop` asks, then shut down."""
     while not day_over(started_on, now()):
+        if stop_requested():
+            _logger.info("stop requested — stopping the stack")
+            break
         try:
             sup.tick()
         except Exception:  # noqa: BLE001 — one failed respawn must not orphan the stack
             _logger.exception("supervise tick failed — continuing")
         sleep(poll_s)
-    _logger.info("trading day over — stopping the stack")
+    else:
+        _logger.info("trading day over — stopping the stack")
     sup.shutdown()
 
 
@@ -713,6 +739,7 @@ def _cmd_start(dry_run: bool, profile: str = "full") -> int:
     if not pidfile.acquire_lock(ORCH_LOCK):
         print(f"another orchestrator is running (see {ORCH_LOCK})")
         return 1
+    _clear_stop_request()   # left by a `stop` that found no orchestrator to read it
     if not _disable_quickedit():
         _logger.warning("could not disable console QuickEdit — a click in this "
                         "window pauses every child until Esc")
@@ -751,17 +778,52 @@ def _cmd_status() -> int:
     return 0
 
 
-def _cmd_stop() -> int:
+def _stop_running_orchestrator(wait_s: float, *, sleep: Callable[[float], None] = time.sleep,
+                               clock: Callable[[], float] = time.monotonic) -> None:
+    """Ask a running orchestrator to shut down and wait for it.
+
+    Killing its children from here used to leave it running, and its next
+    supervise tick respawned them. It shares the session's console, so its
+    shutdown gives the session the clean group signal this console cannot.
+    """
+    pid = pidfile.read_pid(ORCH_LOCK)
+    STOP_REQUEST.parent.mkdir(parents=True, exist_ok=True)
+    STOP_REQUEST.write_text(datetime.now().isoformat(), encoding="utf-8")
+    print(f"asked the running orchestrator (pid {pid}) to stop; waiting up to "
+          f"{wait_s:.0f}s while it stops its children")
+    deadline = clock() + wait_s
+    while pidfile.lock_alive(ORCH_LOCK) and clock() < deadline:
+        sleep(1.0)
+    if pidfile.lock_alive(ORCH_LOCK):
+        # Still in the start sequence (the token wait checks no request), or hung.
+        print("it did not stop in time; killing it, then stopping its children here")
+        _RemoteProc(pid).kill()
+
+
+def _cmd_stop(*, wait_s: float = STOP_WAIT_S) -> int:
+    """Stop the orchestrator, then any child still running.
+
+    eod and ts_combo are left running (see STOPPABLE_NATIVE) and are named.
+    """
+    if pidfile.lock_alive(ORCH_LOCK):
+        _stop_running_orchestrator(wait_s)
     stopped = 0
     for name in sorted(CHILDREN, key=lambda n: 0 if n == "session" else 1):
         spec = CHILDREN[name]
-        if spec.pid_path is None:          # never stop natively-locked adopted daemons
+        lock = spec.pid_path or (spec.native_lock if name in STOPPABLE_NATIVE else None)
+        if lock is None:
             continue
-        pid = pidfile.read_pid(spec.pid_path)
-        if pid and pidfile.lock_alive(spec.pid_path):   # never taskkill a recycled PID
+        pid = pidfile.read_pid(lock)
+        if pid and pidfile.lock_alive(lock):   # never taskkill a recycled PID
             stop_child(spec, _RemoteProc(pid))
             stopped += 1
-    print(f"stopped {stopped} orchestrator-owned child(ren)")
+    _clear_stop_request()
+    print(f"stopped {stopped} child(ren) still running")
+    left = [n for n in CHILDREN
+            if CHILDREN[n].pid_path is None and n not in STOPPABLE_NATIVE
+            and child_alive(CHILDREN[n])]
+    if left:
+        print(f"left running: {', '.join(left)} (may be mid-write; stop them by hand if needed)")
     return 0
 
 

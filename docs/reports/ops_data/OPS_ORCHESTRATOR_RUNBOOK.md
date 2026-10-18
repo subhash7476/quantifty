@@ -18,6 +18,17 @@ package); an already-running EOD worker is left alone.
 ## Stop from another console
     python scripts/ops/orchestrator.py stop
 
+If an orchestrator is running, `stop` writes `data/ops/stop_request`. The orchestrator
+notices it within one supervise tick (5 s) and shuts down the way it does at 15:50:
+the session first, with a clean finish, then the rest. `stop` waits up to 120 s for
+it. An orchestrator still in its start sequence (the token wait does not check the
+request) or one that hangs is killed after the wait. Then `stop` stops every child
+still running: the dashboard, market feed, session and both pollers. It leaves the
+EOD worker and the TS combo book running, since either may be mid-write, and names
+them. Before 2026-10-18, `stop` killed only the dashboard, feed and session (the
+session without its clean finish), left the pollers running, and a running
+orchestrator respawned what it had killed.
+
 ## Preflight tiers
 - BLOCK: Upstox token, STOP file, marks warm (rows>0 + ≥1 ltp>0 + fresh heartbeat),
   live VIX flowing. Pre-open, marks/VIX degrade to "poller/ingestor alive".
