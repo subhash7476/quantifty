@@ -42,6 +42,12 @@ class ExecutionStore:
                 cols = {r[1] for r in conn.execute("PRAGMA table_info(orders)")}
                 if "group_id" not in cols:
                     conn.execute("ALTER TABLE orders ADD COLUMN group_id TEXT")
+                # ended_status migration (2026-10-18): an order the broker
+                # rejected or cancelled, or one that was never placed, is closed
+                # in the ledger; fills alone cannot tell it apart from one still
+                # working, so a restart has to read it back.
+                if "ended_status" not in cols:
+                    conn.execute("ALTER TABLE orders ADD COLUMN ended_status TEXT")
 
                 # Fills table
                 conn.execute("""

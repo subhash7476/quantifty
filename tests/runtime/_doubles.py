@@ -247,6 +247,8 @@ class FakeExecutionHandler:
         # A recording spy so a test can assert WHAT was warmed, in WHICH order,
         # at WHICH price (always bar.close). Otherwise inert — touches no cache.
         self.price_updates: List = []
+        # Orders the driver reported ended by the broker (record_order_ended).
+        self.ended_orders: List = []
         self.position_tracker = PositionTracker()
         # process_signal raises for a signal whose symbol == raise_on (§8.4
         # per-signal exception isolation testing); None = never raises.
@@ -289,6 +291,10 @@ class FakeExecutionHandler:
 
     def update_market_price(self, symbol, price):
         self.price_updates.append((symbol, price))
+
+    def record_order_ended(self, order_id, status, reason) -> bool:
+        self.ended_orders.append((order_id, status, reason))
+        return True
 
     def process_signal(self, signal, current_price):
         if self._raise_on is not None and signal.symbol == self._raise_on:

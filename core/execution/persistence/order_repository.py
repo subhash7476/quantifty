@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import List
+from typing import Dict, List
 from datetime import datetime
 from uuid import UUID
 
@@ -81,4 +81,25 @@ class OrderRepository:
         except Exception as e:
             self.logger.error(f"Failed to load orders: {e}")
         return orders
+
+    def mark_ended(self, correlation_id, status: str) -> None:
+        """Record that an order ended without filling in full (REJECTED or CANCELLED)."""
+        conn = self.store.get_connection()
+        try:
+            conn.execute("UPDATE orders SET ended_status = ? WHERE correlation_id = ?",
+                         (status, str(correlation_id)))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_ended(self) -> Dict[str, str]:
+        """correlation_id -> ended status, for every order recorded as ended."""
+        conn = self.store.get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT correlation_id, ended_status FROM orders "
+                "WHERE ended_status IS NOT NULL").fetchall()
+        finally:
+            conn.close()
+        return {row[0]: row[1] for row in rows}
 

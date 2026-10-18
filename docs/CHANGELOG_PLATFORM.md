@@ -6,6 +6,23 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-10-18 — E008 window reset: no failed placement reported as placed, rejects closed, one `trades` row per position, N1
+
+The operator approved a NiftyShield execution-hash reset to close the open items that sit in hashed files.
+- **`handler.py`, placements (L2).** `place_order` failures are classified in `_on_placement_failure`:
+  - an auth error latches the kill switch, as before, and closes the never-sent order as `REJECTED`;
+  - an ambiguous placement latches it at once and keeps the order open in the ledger;
+  - a definite refusal or a 429 is counted, as before, and closes the order as `REJECTED`;
+  - anything else is treated as ambiguous. Before, it was logged and the order returned as placed.
+- **`handler.py`, other changes:**
+  - `process_group_signal` stops at a failed leg and latches the switch if earlier legs went out. NiftyShield's own leg loop does the same after a broker failure; paper routing is unchanged, since `PaperBroker` never raises.
+  - `record_order_ended` closes an order the broker rejected or cancelled. The driver calls it from the fill poll. The status persists in `orders.ended_status` and is re-applied on restore.
+  - `_record_trade_row` keeps `trades` at one row per position: entry chunks grow the row, reducing fills accumulate P&L and fees, the flattening fill closes it at the exits' VWAP, and a flip opens a new row with its share of the fee. The dashboard's leg position and `recover_session` read partly exited rows correctly.
+- **`nifty_shield_handler.py` (N1).** Each entry checks the configured lot against the instrument master. If they differ (an NSE lot revision), the entry is skipped with a critical journal entry and alert. The certified config also carries the lot in its position cap and risk declaration, so following the master silently would still send non-whole lots.
+- **Paper behaviour is unchanged.** Replays of 10-14, 10-15 and 10-16 from fresh data roots on this change and on `main` gave identical signals, `trades` rows, guards and fact checks (two `trades` rows each on 10-15 and 10-16; none on 10-14 on either tree).
+
+New hash `7a1bc61f…` (was `101bae72…`). `WINDOW_START` moves 2026-10-14 → 2026-10-19, and the three banked sessions are excluded. Strategy config untouched (`config_hash 8374e922…ca10`; earlier notes cited a stale `c5b722ff…`). *Ref:* `core/execution/handler.py`, `core/execution/options/nifty_shield_handler.py`, `scripts/nifty_shield_paper/identity.py`, `docs/STRATEGY_PROMOTION_LEDGER.md`, `tests/execution/test_e008_live_ledger.py`
+
 ## 2026-10-18 — Options-Wall time stop fires on the last session before expiry
 
 The pilot's time stop is meant to fire at 15:35 on the session before expiry (spec §5.4), but the code tested `DTE <= 1` in calendar days. Whenever the calendar day before expiry was a weekend or holiday, the fly was carried into expiry day and closed there instead. A Monday expiry after a Friday was the common case, e.g. the 2026-10-19 Nifty weekly that Dussehra moved off Tuesday. The spec had accepted this for holidays as a known limitation; it never considered weekends.

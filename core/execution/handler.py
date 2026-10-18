@@ -29,6 +29,7 @@ from core.execution.order_models import NormalizedOrder, OrderMetadata, OrderSid
 from core.execution.order_models import OrderType as ModelOrderType
 # from core.execution.order_factory import OrderFactory # Replaced by internal logic for Phase 9A
 from core.execution.order_lifecycle import FillEvent
+from core.execution.order_lifecycle import OrderStatus as LedgerOrderStatus
 from core.execution.portfolio_view import PortfolioView
 from core.execution.order_tracker import OrderTracker
 from core.execution.risk_manager import RiskManager
@@ -52,7 +53,8 @@ from core.execution.persistence.position_repository import PositionRepository
 from core.execution.risk_models import RiskStatus
 from core.clock import Clock
 from core.brokers.broker_base import BrokerAdapter
-from core.brokers.upstox_adapter import BrokerAuthError, BrokerUnavailableError
+from core.brokers.upstox_adapter import (
+    BrokerAmbiguousPlacementError, BrokerAuthError, BrokerUnavailableError)
 from core.alerts.alerter import alerter
 from core.database.manager import DatabaseManager
 from core.logging import setup_logger
@@ -264,6 +266,7 @@ class ExecutionHandler:
         # A trip that only a restart may clear. Stale-data trips are releasable.
         self._kill_hard = False
         self._consecutive_broker_errors = 0
+        self._placement_failed = False   # the last process_signal failed at the broker
         self._trades_today = 0
         self.logger = logging.getLogger(__name__)
 
@@ -330,6 +333,11 @@ class ExecutionHandler:
         for fill in fills:
             self.order_tracker.process_fill(fill, persist=False)
             self.position_tracker.update_from_fill(fill, persist=False)
+
+        # 2b. Orders the broker ended (or that were never placed) stay closed;
+        # their fills alone would replay them as still working.
+        for correlation_id, status in self.order_repo.get_ended().items():
+            self.order_tracker.mark_ended(correlation_id, LedgerOrderStatus(status), persist=False)
 
         # 3. Reconstruct Groups (Phase 9B)
         from collections import defaultdict
@@ -478,31 +486,82 @@ class ExecutionHandler:
                 if order.metadata and hasattr(order.metadata, 'strategy_metadata'):
                     context = order.metadata.strategy_metadata.get('tlp_context')
                 
-                # If this is an exit, handle MAE/MFE
-                pos = self.position_tracker.get_position(order.symbol)
-                if order.side.value in ("SELL", "BUY") and pos.side == PositionSide.FLAT:
-                    # Closing trade. The trades row was keyed by the ENTRY fill's
-                    # id (save_trade above on the opening fill) — the exit fill's
-                    # own id matches nothing, so resolve the open row first.
-                    entry_trade_id = self._open_trade_id(order.symbol)
-                    if entry_trade_id is None:
-                        self.logger.warning(
-                            f"Closing fill {fill.fill_id} on {order.symbol} has "
-                            f"no open trades row; exit update skipped")
-                    else:
-                        self.trading_writer.update_trade_exit(
-                            trade_id=entry_trade_id, 
-                            exit_price=fill.price, 
-                            exit_ts=fill.timestamp, 
-                            pnl=realized_pnl, 
-                            fees=fill.fee,
-                        )
-                else:
-                    # Opening trade
-                    self.trading_writer.save_trade(trade, context)
+                signed_qty_after = self.position_tracker.net_quantity(fill.symbol)
+                self._record_trade_row(order, fill, trade, context, signed_qty_before,
+                                       signed_qty_after, realized_pnl)
 
         except Exception as e:
             self.logger.error(f"Failed to process broker fill: {e}")
+
+    def _record_trade_row(self, order, fill, trade, context, before: float, after: float,
+                          realized_pnl: float) -> None:
+        """Keep `trades` at one row per position, whatever the fills' chunking.
+
+        A row is keyed by its first entry fill's id and carries the entry order's
+        signal_id (unique). A later entry fill of the same order grows that row
+        (quantity, VWAP entry price, fees). A fill that reduces the position adds
+        its realized P&L and fee to the open row; the fill that flattens it closes
+        the row at the VWAP of all its exit fills. A fill that flips the position
+        closes the row and opens a new one for the remainder. Before, every
+        non-flattening fill inserted a row: a second entry chunk failed the unique
+        signal_id, and a partial exit became a new "entry" that the final exit
+        then closed in place of the real one.
+        """
+        if before == 0 or ((before > 0) == (after > 0) and abs(after) > abs(before)):
+            row = self._open_trade_for_signal(order.signal_id)
+            if row is not None:
+                self.trading_writer.add_entry_fill(row, fill.quantity, fill.price, fill.fee)
+            elif self._trade_row_exists(order.signal_id):
+                # A late chunk of an order whose row another order already closed:
+                # the new position gets its own row (signal_id is unique).
+                self.trading_writer.save_trade(replace(
+                    trade, signal_id_reference=f"{order.signal_id}#{fill.fill_id}"), context)
+            else:
+                self.trading_writer.save_trade(trade, context)
+            return
+
+        flipped = after != 0 and (before > 0) != (after > 0)
+        closed_qty = min(fill.quantity, abs(before))
+        # A flipping fill's fee is split by quantity between the row it closes and
+        # the row it opens.
+        closing_fee = fill.fee * closed_qty / fill.quantity if flipped else fill.fee
+        entry_trade_id = self._open_trade_id(order.symbol)
+        if entry_trade_id is None:
+            self.logger.warning(
+                f"Exit fill {fill.fill_id} on {order.symbol} has no open trades row; "
+                f"its P&L {realized_pnl} and fee {closing_fee} are not in trades")
+        elif after == 0 or flipped:
+            self.trading_writer.close_trade(
+                entry_trade_id, quantity=closed_qty, price=fill.price,
+                exit_ts=fill.timestamp, pnl=realized_pnl, fee=closing_fee)
+        else:
+            self.trading_writer.add_exit_fill(
+                entry_trade_id, quantity=fill.quantity, price=fill.price,
+                pnl=realized_pnl, fee=fill.fee)
+        if flipped:
+            self.trading_writer.save_trade(
+                replace(trade, quantity=abs(after), fees=fill.fee - closing_fee), context)
+
+    def _trade_row_exists(self, signal_id) -> bool:
+        try:
+            with self.db_manager.trading_reader() as conn:
+                return conn.execute("SELECT 1 FROM trades WHERE signal_id = ?",
+                                    [str(signal_id)]).fetchone() is not None
+        except Exception as e:
+            self.logger.warning(f"Failed to look up trades row for signal {signal_id}: {e}")
+            return False
+
+    def _open_trade_for_signal(self, signal_id) -> Optional[str]:
+        """trade_id of the open (unexited) row an order's earlier entry fill opened."""
+        try:
+            with self.db_manager.trading_reader() as conn:
+                row = conn.execute(
+                    "SELECT trade_id FROM trades WHERE signal_id = ? AND exit_price = 0.0",
+                    [str(signal_id)]).fetchone()
+                return row[0] if row else None
+        except Exception as e:
+            self.logger.warning(f"Failed to resolve trades row for signal {signal_id}: {e}")
+            return None
 
     def _open_trade_id(self, symbol: str) -> Optional[str]:
         """trade_id of the most recent open (unexited) ledger row for a symbol.
@@ -538,6 +597,7 @@ class ExecutionHandler:
         # PHASE 0: Authority Enforcement
         enforce_execution_authority(not self._processing_signal)
         self._processing_signal = True
+        self._placement_failed = False
 
         try:
             # MM9.2-S1: record the signalling symbol's bar price before any
@@ -834,19 +894,24 @@ class ExecutionHandler:
             # PHASE 5: Order Lifecycle Registration
             self.order_tracker.add_order(order)
 
-            # PHASE 7: Broker Execution
+            # PHASE 7: Broker Execution. Only place_order sits in the try: a
+            # failure after the broker took the order is not a placement failure.
             try:
                 broker_id = self.broker.place_order(order)
-                self.logger.info(
-                    f"Order placed with broker. Broker ID: {broker_id}")
-                self._consecutive_broker_errors = 0
+            except Exception as e:
+                self._on_placement_failure(order, e, signal_id)
+                return None
+            self.logger.info(
+                f"Order placed with broker. Broker ID: {broker_id}")
+            self._consecutive_broker_errors = 0
 
-                # Simulate immediate fill for backtesting (paper broker)
-                from core.brokers.paper_broker import PaperBroker
-                if isinstance(self.broker, PaperBroker):
+            # Simulate immediate fill for backtesting (paper broker)
+            from core.brokers.paper_broker import PaperBroker
+            if isinstance(self.broker, PaperBroker):
+                try:
                     import uuid as uuid_module
                     fill_id = str(uuid_module.uuid4())
-                    
+
                     # Update position tracker so equity includes position values
                     fill_event = FillEvent(
                         fill_id=fill_id,
@@ -858,50 +923,89 @@ class ExecutionHandler:
                         side=order.side.value,
                         fee=self._calculate_fees(order, current_price),
                     )
-                    
+
                     # Instead of creating TradeEvent manually here, we route through _handle_broker_fill
                     # which is the single source of truth for fill ingestion.
                     self._handle_broker_fill(fill_event)
-                    
-                    # We need to return the resulting TradeEvent if possible, but process_signal
-                    # returns Optional[NormalizedOrder]. PaperBroker usually calls back.
-                    # For compatibility, we'll return the order.
-                    return order
-
-            except BrokerAuthError as e:
-                if self._journal:
-                    self._journal.record(
-                        EventType.BROKER_ERROR,
-                        f"Broker authentication failure: {e}",
-                        severity=Severity.CRITICAL,
-                        source_component="ExecutionHandler",
-                        metadata={"error": str(e), "signal_id": str(signal_id)},
-                    )
-                self.activate_kill_switch(f"BrokerAuthError: {e}")
-                return None
-            except BrokerUnavailableError as e:
-                self._consecutive_broker_errors += 1
-                if self._journal:
-                    self._journal.record(
-                        EventType.BROKER_ERROR,
-                        f"Broker unavailable: {e}",
-                        severity=Severity.WARNING,
-                        source_component="ExecutionHandler",
-                        metadata={"error": str(e), "signal_id": str(signal_id),
-                                  "consecutive_errors": self._consecutive_broker_errors},
-                    )
-                if self._consecutive_broker_errors >= self.config.broker_error_threshold:
-                    self.activate_kill_switch(
-                        f"BrokerUnavailableError x{self._consecutive_broker_errors}: {e}")
-                return None
-            except Exception as e:
-                self.logger.error(f"Failed to place order with broker: {e}")
+                except Exception as e:
+                    self.logger.error(f"Paper fill failed after placement: {e}")
 
             return order
 
         finally:
             self._processing_signal = False
 
+
+    def _on_placement_failure(self, order: NormalizedOrder, error: Exception, signal_id) -> None:
+        """Account for a place_order call that raised. The caller returns no order.
+
+        - BrokerAuthError: the request was refused before any order processing,
+          so the order is closed as REJECTED; the kill switch latches at once.
+        - BrokerAmbiguousPlacementError: the order may be live, so it stays open
+          in the ledger (a fill can still arrive) and the kill switch latches at
+          once: the next leg of a structure must not go out on top of it.
+        - BrokerUnavailableError, including a definite refusal: the order was not
+          placed, so it is closed as REJECTED; counted toward
+          broker_error_threshold, which latches the switch.
+        - anything else: it is unknown whether the order reached the broker, so it
+          is treated as ambiguous. It used to be logged and returned as placed.
+        The ledger close is attempted last, so a failed write can never hold back
+        the journal entry or the kill switch. `_placement_failed` tells a caller
+        routing the legs of a structure that this leg failed at the broker.
+        """
+        self._placement_failed = True
+        def journal(message, severity, **extra):
+            if self._journal:
+                self._journal.record(
+                    EventType.BROKER_ERROR, message, severity=severity,
+                    source_component="ExecutionHandler",
+                    metadata={"error": str(error), "signal_id": str(signal_id), **extra})
+
+        if isinstance(error, BrokerAuthError):
+            journal(f"Broker authentication failure: {error}", Severity.CRITICAL)
+            self.activate_kill_switch(f"BrokerAuthError: {error}")
+            self._close_unplaced(order)
+        elif isinstance(error, BrokerUnavailableError) and not isinstance(
+                error, BrokerAmbiguousPlacementError):
+            self._consecutive_broker_errors += 1
+            journal(f"Broker unavailable: {error}", Severity.WARNING,
+                    consecutive_errors=self._consecutive_broker_errors)
+            if self._consecutive_broker_errors >= self.config.broker_error_threshold:
+                self.activate_kill_switch(
+                    f"BrokerUnavailableError x{self._consecutive_broker_errors}: {error}")
+            self._close_unplaced(order)
+        else:
+            self.logger.error(f"Placement outcome unknown for {order.symbol} "
+                              f"signal_id={signal_id}: {error!r}")
+            journal(f"Placement outcome unknown: {error!r}", Severity.CRITICAL,
+                    error_type=type(error).__name__)
+            self.activate_kill_switch(f"Placement outcome unknown: {error!r}")
+
+    def _close_unplaced(self, order: NormalizedOrder) -> None:
+        """Close an order that was never placed as REJECTED. A failed write is
+        logged, not raised: the order then stays open in the ledger, which a
+        restart treats like any unresolved order."""
+        try:
+            self.order_tracker.mark_ended(order.correlation_id, LedgerOrderStatus.REJECTED)
+        except Exception as e:
+            self.logger.error(f"Could not close unplaced order {order.correlation_id} "
+                              f"({order.symbol}) in the ledger: {e!r}")
+
+    def record_order_ended(self, order_id, status, reason: str) -> bool:
+        """The broker ended an order without filling it in full (rejected or
+        cancelled). Closes it in the ledger, persisted, so a restart does not
+        treat it as working; any filled part was already booked. `status` is a
+        REJECTED or CANCELLED status from either OrderStatus enum. Returns False
+        for an order the ledger does not hold. A fully filled order is left as it
+        is (OrderTracker.mark_ended)."""
+        state = self.order_tracker.mark_ended(order_id, LedgerOrderStatus(status.value))
+        if state is None:
+            self.logger.warning(f"Broker ended order {order_id}, which the ledger does not hold: "
+                                f"{reason}")
+            return False
+        self.logger.warning(f"Order {order_id} ({state.order.symbol}) {status.value.lower()} "
+                            f"by the broker with {state.filled_quantity:g} filled: {reason}")
+        return True
 
     def process_group_signal(self, signals: List[SignalEvent], group_type: OrderGroupType) -> Optional[str]:
         """
@@ -969,13 +1073,21 @@ class ExecutionHandler:
                     f"Group leg rejected by risk: {risk_decision.reason}. Aborting group {group_id}.")
                 return None
 
-        # All passed risk, proceed to execution
-        for order in orders:
+        # All passed risk, proceed to execution. A failed leg stops the rest: legs
+        # already sent stand, so the structure is broken and the switch latches.
+        for sent, order in enumerate(orders):
             self.order_tracker.add_order(order)
             try:
                 self.broker.place_order(order)
             except Exception as e:
-                self.logger.error(f"Failed to place group leg: {e}")
+                self._on_placement_failure(order, e, order.signal_id)
+                if sent:
+                    alerter.critical(
+                        f"GROUP {group_id} BROKEN: leg {sent + 1} of {len(orders)} "
+                        f"({order.side.value} {order.quantity} {order.symbol}) failed after "
+                        f"{sent} leg(s) went out; the remaining legs were not sent. ({e})")
+                    self.activate_kill_switch(f"Group {group_id} broken after {sent} leg(s): {e}")
+                return None
 
         return str(group_id)
 

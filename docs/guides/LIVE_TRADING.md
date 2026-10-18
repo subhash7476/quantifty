@@ -85,23 +85,16 @@ To trade live you write your own entry script around `build_runner`, with your o
    fill polling (gap 3). A follow-up (2026-10-18) moved placement and cancellation
    to V3 on `api-hft.upstox.com`, kept the order tag within Upstox's 40-character
    limit, typed every definite refusal, and added the order-book lookups, the fee
-   estimate and the `trades` tables (gap 3). The tests drive a real `UpstoxAdapter`
-   with only the HTTP call stubbed. No Upstox order endpoint has been called. Still
-   open (see `docs/reports/platform/PR45_PR47_CODE_REVIEW_2026-10-17.md`):
-   - **An unexpected error is reported as placed (L2).** The handler counts
-     `BrokerUnavailableError` and trips the kill switch on `BrokerAuthError`. Every
-     definite refusal now raises `BrokerOrderRefusedError`, a `BrokerUnavailableError`,
-     so it is counted and no order is returned. Any other exception from
-     `place_order` is logged, and the order is returned as if it had been placed.
-     `handler.py` is inside NiftyShield's frozen execution hash.
-   - **A partially filled order keeps only its first chunk in `trades`.**
-     `trades.signal_id` is unique, so a later chunk's insert fails, and the handler
-     swallows the error. Positions and `fills` rows stay correct. A partial exit is
-     recorded as a new entry, and the final chunk's exit is written to that row, so the
-     real entry row is never closed.
-   - **Rejected and cancelled orders stay open in the handler's `OrderTracker`.** The
-     adapter raises a critical alert and the driver journals the event, but nothing
-     tells the handler.
+   estimate and the `trades` tables (gap 3). A NiftyShield execution-hash reset the same
+   day (`docs/STRATEGY_PROMOTION_LEDGER.md`, E008) fixed the handler's side:
+   - no failed placement is reported as placed (L2): a refusal closes the order as
+     `REJECTED`, and anything whose outcome is unknown latches the kill switch at once;
+   - an order Upstox rejects or cancels is closed in the ledger, and stays closed
+     across a restart;
+   - `trades` keeps one row per position however the fills are chunked.
+
+   The tests drive a real `UpstoxAdapter` with only the HTTP call stubbed. No Upstox
+   order endpoint has been called. Still open:
    - **Checked against Upstox's docs only (2026-10-18), never a live response:**
      - placement is `POST /v3/order/place` and cancellation `DELETE /v3/order/cancel`,
        both on `api-hft.upstox.com`. V2 place-order is marked deprecated there. Order
@@ -146,18 +139,22 @@ To trade live you write your own entry script around `build_runner`, with your o
        timeout, a dropped connection, a 5xx, or a 200 reply that is unreadable or
        reports success without exactly one order id. The adapter raises
        `BrokerAmbiguousPlacementError`, sends a critical alert and holds the order as
-       unconfirmed. The handler returns no order.
+       unconfirmed. The handler returns no order, keeps it open in the ledger (it may
+       fill) and latches the kill switch at once, so the next leg of a structure does
+       not go out on top of it.
      - **Looking it up.** Each later poll looks the order up in the order book
        (`GET /order/retrieve-all`) by its tag, side and quantity. Once it is found there, a critical alert
        names its order id and its fills are polled like any other order's. While it
-       is not found, the poll fails, so the kill switch latches within three
-       iterations and stays latched until a restart.
+       is not found, the poll keeps failing. The switch stays latched until a restart
+       either way.
      - **Definite refusal.** A 4xx, a 200 reply with status `error`, or any failure
        while the order is prepared, before anything is sent (no instrument mapping, an
        unmappable side, a non-MARKET type, an instrument master that can't be read),
        raises `BrokerOrderRefusedError`. A 429 raises `BrokerUnavailableError`.
-       Neither is retried. Both count toward the handler's three consecutive failed
-       placements, which latch the switch until restart. A 401/403 latches it at once.
+       Neither is retried. The handler closes the order as `REJECTED` in the ledger.
+       Both count toward its three consecutive failed placements, which latch the
+       switch until restart. A 401/403 latches it at once. Any other exception from
+       `place_order` is treated as an unknown outcome.
    - **Fees.** Order details carry no charges. Each fill carries the handler's own fee
      schedule (`_calculate_fees`, set by `build_runner`) for the quantity filled so
      far, less what earlier fills of the order carried, so a partly filled order pays
@@ -170,7 +167,8 @@ To trade live you write your own entry script around `build_runner`, with your o
      quantity, and polled from the quantity the ledger already holds, so nothing is
      booked twice. The driver's startup gate polls once before it reconciles, so a
      fill that landed while the process was down is booked before positions are
-     compared; a reject or cancel among them is reported by that poll. A critical
+     compared; a reject or cancel among them is reported by that poll and closed in
+     the ledger. A critical
      alert names every order that is not resumed:
      - not in the order book: Upstox never received it (a refused placement), or a
        placement that failed ambiguously is not visible yet. The poll looks for it
@@ -223,7 +221,7 @@ Rules change. Check the primary sources yourself:
   - **A stale feed** trips the kill switch only if you pass `build_runner` a `watchdog_factory`, for example `lambda ex: RuntimeWatchdog(ex)` with `RuntimeWatchdog` from `core.execution.watchdog`. It writes `logs/heartbeat.json`, which **/ops/** reads; `scripts/nifty_shield_paper_runner.py` passes its own `heartbeat_path`. The snippet above passes none, so its run has no stale-feed trip.
   - **Auth and broker failures:**
     - an auth failure, from a placement or a poll, latches it at once;
-    - an unresolved placement latches it within three loop iterations;
+    - a placement whose outcome is unknown latches it at once;
     - three failed placements in a row latch it, definite 4xx refusals and 429s included;
     - three failed polls in a row latch it, unless the last was a pure outage. An outage trips a releasable switch instead, lifted by the first clean poll, or by the feed's recovery if the feed was stale at that poll.
 

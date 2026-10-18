@@ -287,18 +287,18 @@ place-order endpoint on `api-hft.upstox.com`. Live fills carry the handler's fee
 estimate. After a restart, orders still open from earlier that day are found in the
 Upstox order book and polled once before the startup reconcile, so a fill that landed
 during the restart is booked. Any order that can't be found is named in a critical alert.
-Known gaps remain:
-- a partially filled order keeps only its first chunk in the `trades` table, and a
-  partially filled exit is recorded there as a new entry, leaving the real entry row open;
-- an order Upstox rejects or cancels stays open in the handler;
-- an unexpected error from the adapter is still reported as a placed order. Refusals
-  are typed, so the handler counts them and returns no order.
+A failed placement is never reported as placed. A refusal closes the order as
+rejected in the ledger, and so does an order Upstox later rejects or cancels; both stay
+closed across a restart. The `trades` table keeps one row per position however the fills
+are chunked. Known gaps remain:
+- every order is MARKET, and a multi-leg structure goes out one leg at a time;
+- the order path has been checked against Upstox's docs only, never a live response.
 
 A placement's outcome can be unknown: a timeout, a dropped connection, a 5xx, or a reply
-with no readable result or order id. That order is never resent. Each later fill poll
-looks it up in the Upstox order book by its tag; once it is found there, its fills are
-recorded. Until then every poll fails, and after three consecutive failing polls the
-kill switch latches until a restart. New entries stop, but exits still go out.
+with no readable result or order id. That order is never resent, and the kill switch
+latches at once, so the next leg of a structure does not go out on top of it. New
+entries stop, but exits still go out. Each later fill poll looks the order up in the
+Upstox order book by its tag; once it is found there, its fills are recorded.
 The live guide lists every open item.
 
 As written, `build_runner` with `ExecutionMode.LIVE` refuses to start without a valid
@@ -345,10 +345,12 @@ It covers:
   size (65) is in `strategies/nifty_shield_v1/config.py` and again in
   `core/execution/options/nifty_shield_gates.py`. The risk declaration, the size gate,
   the basket-margin sizing and the order quantity itself (lots × 65) all use that
-  number, so after a lot-size revision NiftyShield sends quantities that are not a
-  whole number of lots. The expiry is computed as Tuesday, or the session before when
-  Tuesday is a holiday (`INDEX_EXPIRY_WEEKDAY` in `structures.py`). When NSE changes
-  the lot size, edit both lot-size files; when it changes the expiry weekday, edit
+  number. Each entry checks it against the instrument master: after an NSE lot
+  revision NiftyShield skips its entries with a critical alert rather than send
+  quantities that are not whole lots. The expiry is computed as Tuesday, or the
+  session before when Tuesday is a holiday (`INDEX_EXPIRY_WEEKDAY` in
+  `structures.py`). When NSE changes the lot size, edit both lot-size files;
+  when it changes the expiry weekday, edit
   `structures.py`. Either way, re-pin the execution hash.
 - **The DayType label is a full-session prior, not an afternoon forecast.**
   See the [DayType guide](docs/guides/DAYTYPE_ENGINE.md).

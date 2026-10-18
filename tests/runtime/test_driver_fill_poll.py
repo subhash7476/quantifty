@@ -370,3 +370,38 @@ def test_a_trip_made_by_the_shutdown_poll_is_journaled(tmp_path):
 
     assert execution._kill_switched
     assert "KILL_SWITCH_ACTIVATED" in [e["event_type"] for e in _events(tmp_path)]
+
+
+def test_an_order_the_broker_ended_is_closed_in_the_ledger_through_the_handler(tmp_path):
+    def rejecting():
+        error = BrokerOrderNotFilledError("not filled")
+        error.not_filled = [EndedOrder("corr-7", OrderStatus.REJECTED, "rejected: funds")]
+        raise error
+
+    driver, execution, _ = _driver(tmp_path, fill_poll=rejecting, n_bars=1)
+
+    driver.run()
+
+    assert ("corr-7", OrderStatus.REJECTED, "rejected: funds") in execution.ended_orders
+    assert not execution._kill_switched
+
+
+
+def test_a_failed_ledger_close_never_ends_the_loop(tmp_path):
+    def rejecting():
+        error = BrokerOrderNotFilledError("not filled")
+        error.not_filled = [EndedOrder("corr-8", OrderStatus.REJECTED, "rejected")]
+        raise error
+
+    driver, execution, timeline = _driver(tmp_path, fill_poll=rejecting, n_bars=3)
+
+    def locked(*a, **k):
+        raise RuntimeError("database is locked")
+    execution.record_order_ended = locked
+
+    driver.run()
+
+    assert driver.state is RuntimeState.STOPPED
+    assert timeline.count("bar") == 3
+    assert any("ledger close failed for order corr-8" in e["message"]
+               for e in _events(tmp_path, "BROKER_ERROR"))

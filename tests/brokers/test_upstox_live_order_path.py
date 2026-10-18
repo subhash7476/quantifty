@@ -461,16 +461,10 @@ def test_a_broker_that_pushes_its_own_fills_needs_no_poll(tmp_path):
 
 def test_partial_fills_keep_position_and_fill_ledger_true_through_the_handler(
         tmp_path, monkeypatch):
-    """Position truth, which reconciliation checks, is right after a partial fill.
-
-    KNOWN HANDLER DEFECT (handler.py is frozen for the E008 window, so pinned
-    here, not fixed): _handle_broker_fill writes one `trades` row per fill that
-    does not leave the position flat, each keyed on the order's signal_id, and
-    trades.signal_id is UNIQUE. The second chunk of one order's entry therefore
-    fails its insert (swallowed by the handler's broad except, logged as
-    "Failed to process broker fill: UNIQUE constraint failed"), so `trades`
-    holds the first chunk only. Fix after the window closes.
-    """
+    """Position truth, which reconciliation checks, is right after a partial fill,
+    and so is the `trades` ledger: the second chunk of the entry grows the row the
+    first chunk opened (it used to fail the unique signal_id insert, leaving the
+    first chunk only)."""
     http = install(monkeypatch)
     _patch_live_creds(monkeypatch)
     _isolate_trade_recorder(tmp_path, monkeypatch)
@@ -503,7 +497,9 @@ def test_partial_fills_keep_position_and_fill_ledger_true_through_the_handler(
     finally:
         conn.close()
     assert fills == [(25.0, 100.0), (50.0, 101.5)]
-    assert _trades(handler.db_manager) == [("sig-partial", EQUITY, "BUY", 25, 100.0)]
+    [(signal_id, symbol, side, quantity, entry_price)] = _trades(handler.db_manager)
+    assert (signal_id, symbol, side, quantity) == ("sig-partial", EQUITY, "BUY", 75)
+    assert entry_price == pytest.approx(101.0)   # the VWAP Upstox reports
 
 
 def test_a_fill_poll_outage_trips_and_then_lifts_the_real_kill_switch(tmp_path, monkeypatch):
