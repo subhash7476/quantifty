@@ -100,3 +100,14 @@ def test_verdict_no_go_on_any_block_failure():
 
 def test_run_preflight_returns_all_eight_checks():
     assert len(pf.run_preflight(_ctx())) == 8
+
+
+def test_trading_profile_skips_eod_checks():
+    # The trading profile never starts the EOD worker or ingests bhavcopy, so
+    # their WARNs would fire on every fresh clone.
+    ctx = _ctx(feed_fresh={"equity": False, "futures": False,
+                           "stock_options": False, "index": False},
+               eod_worker_alive=False)
+    names = {r.name for r in pf.run_preflight(ctx, profile="trading")}
+    assert names == {"upstox_token", "stop_file", "marks_warm", "live_vix",
+                     "span", "instrument_master"}

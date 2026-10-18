@@ -1,14 +1,31 @@
-import msvcrt
 import os
 import logging
 from typing import Optional
+
+if os.name == "nt":
+    import msvcrt
+
+    def _lock(fd: int) -> None:
+        # LK_NBLCK: Non-blocking lock. Raises IOError if file is already locked.
+        msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+
+    def _unlock(fd: int) -> None:
+        msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock(fd: int) -> None:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
+    def _unlock(fd: int) -> None:
+        fcntl.flock(fd, fcntl.LOCK_UN)
 
 logger = logging.getLogger(__name__)
 
 class WriterLock:
     """
-    Enforces single-writer rule via Windows file locking.
-    Uses msvcrt.locking to provide mandatory file locking on Windows.
+    Enforces single-writer rule via an exclusive file lock: msvcrt.locking on
+    Windows, fcntl.flock on macOS/Linux.
     """
 
     def __init__(self, lock_path: str, timeout: float = 5.0):
@@ -31,8 +48,7 @@ class WriterLock:
                 if not self.lock_file:
                     self.lock_file = open(self.lock_path, 'w')
 
-                # LK_NBLCK: Non-blocking lock. Raises IOError if file is already locked.
-                msvcrt.locking(self.lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+                _lock(self.lock_file.fileno())
 
                 # Write current PID for debugging/health checks
                 self.lock_file.seek(0)
@@ -58,7 +74,7 @@ class WriterLock:
             try:
                 # Seek to start and unlock the byte
                 self.lock_file.seek(0)
-                msvcrt.locking(self.lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+                _unlock(self.lock_file.fileno())
             except Exception as e:
                 logger.error(f"Error releasing lock {self.lock_path}: {e}")
 

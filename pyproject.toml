@@ -5,14 +5,16 @@ description = "Deterministic Algorithmic Trading Platform"
 authors = [
     {name = "Opencode", email = "opencode@example.com"}
 ]
+requires-python = ">=3.11"
+# Pinned versions: requirements.txt
 dependencies = [
     "flask",
-    "flask-login",
     "duckdb",
     "pandas",
     "numpy",
     "requests",
     "pytz",
+    "tzdata",
     "python-dotenv",
     "websockets",
     "protobuf",

@@ -7,11 +7,14 @@ mean no valid session is possible; WARN checks surface but never block.
 from __future__ import annotations
 
 import json
+import os
 import sys
 from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from typing import Optional
+
+from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -152,11 +155,15 @@ def check_eod_worker(ctx: PreflightContext) -> CheckResult:
                        else "EOD worker not running (schedule_worker.py)")
 
 
-def run_preflight(ctx: PreflightContext) -> list:
-    return [
+def run_preflight(ctx: PreflightContext, profile: str = "full") -> list:
+    results = [
         check_token(ctx), check_stop_file(ctx), check_marks(ctx), check_vix(ctx),
-        check_span(ctx), check_master(ctx), check_feeds(ctx), check_eod_worker(ctx),
+        check_span(ctx), check_master(ctx),
     ]
+    # The trading profile runs neither the EOD worker nor the bhavcopy feeds.
+    if profile != "trading":
+        results += [check_feeds(ctx), check_eod_worker(ctx)]
+    return results
 
 
 def verdict(results) -> str:
@@ -328,11 +335,13 @@ def build_context(now: Optional[datetime] = None, root: Optional[Path] = None) -
 
 
 def main() -> int:
+    load_dotenv(ROOT / ".env")
+    profile = os.environ.get("NIFTY_PROFILE") or "full"
     ctx = build_context()
-    results = run_preflight(ctx)
+    results = run_preflight(ctx, profile)
     v = verdict(results)
     print(f"NiftyShield preflight @ {ctx.now:%Y-%m-%d %H:%M}  "
-          f"(market_open={ctx.market_open})\n" + "-" * 60)
+          f"(market_open={ctx.market_open}, profile={profile})\n" + "-" * 60)
     for r in results:
         mark = "OK " if r.ok else ("!! " if r.tier == "block" else " ~ ")
         print(f"  [{mark}] {r.tier.upper():5} {r.name:18} {r.detail}")
