@@ -109,7 +109,27 @@ def test_live_driver_polls_before_each_bar_and_once_more_when_the_loop_ends(tmp_
     driver.run()
 
     assert driver.state is RuntimeState.STOPPED
-    assert timeline == ["poll", "bar", "poll", "bar", "poll", "bar", "poll"]
+    # the startup gate's poll, one before each bar, one when the loop ends
+    assert timeline == ["poll", "poll", "bar", "poll", "bar", "poll", "bar", "poll"]
+
+
+def test_the_startup_gate_polls_before_it_reconciles_against_the_broker(tmp_path):
+    """A fill that landed while the process was down must reach the ledger
+    before positions are compared, or every restart refuses as a divergence."""
+    timeline = []
+    source = FakeSignalSource()
+    driver = LoopDriver(
+        DriverConfig(mode=Mode.LIVE, symbols=["A"], max_bars=1),
+        clock=FakeClock(),
+        provider=FakeMarketDataProvider({"A": bar_series("A", 1, start=_START)}, live=True),
+        source=source, execution=FakeExecutionHandler(),
+        journal=RuntimeEventJournal(path=str(tmp_path / "runtime_events.jsonl")),
+        broker_positions=lambda: timeline.append("reconcile") or [],
+        fill_poll=lambda: timeline.append("poll"))
+
+    driver.run()
+
+    assert timeline[:2] == ["poll", "reconcile"]
 
 
 def test_live_driver_polls_on_a_tick_with_no_bar(tmp_path):
@@ -119,7 +139,7 @@ def test_live_driver_polls_on_a_tick_with_no_bar(tmp_path):
 
     driver.run()
 
-    assert poll.calls == 3  # the empty tick, the bar tick, the final poll
+    assert poll.calls == 4  # the startup gate, the empty tick, the bar tick, the final poll
 
 
 def test_replay_driver_never_calls_fill_poll(tmp_path):
@@ -149,7 +169,7 @@ def test_fill_poll_keeps_running_while_the_kill_switch_is_latched(tmp_path):
 
     driver.run()
 
-    assert poll.calls == 4
+    assert poll.calls == 5  # startup gate + 3 bars + final
 
 
 # --------------------------------------------------------------------------- #
@@ -203,7 +223,7 @@ def test_a_persisting_outage_keeps_the_switch_tripped_but_releasable(tmp_path):
 
     assert execution._kill_switched
     assert not execution._kill_hard  # a later clean sweep could still lift it
-    assert poll.calls == 6
+    assert poll.calls == 7  # startup gate + 5 bars + final
 
 
 @pytest.mark.parametrize("error", [
@@ -307,11 +327,11 @@ def test_a_reject_carried_on_another_error_is_journaled_every_time(tmp_path):
     driver.run()
 
     rejects = [e for e in _events(tmp_path, "BROKER_ERROR") if "X-9 rejected" in e["message"]]
-    assert len(rejects) == 5  # every poll, though the incident itself is journaled once
+    assert len(rejects) == 6  # every poll (startup gate + 4 bars + final), though the incident is journaled once
 
 
 def test_a_trip_made_by_the_shutdown_poll_is_journaled(tmp_path):
-    poll = _script(_DOWN, _DOWN, _DOWN)  # the third failure is the final poll
+    poll = _script(None, _DOWN, _DOWN, _DOWN)  # the startup poll succeeds; the third failure is the final poll
     driver, execution, _ = _driver(tmp_path, fill_poll=poll, n_bars=2)
 
     driver.run()

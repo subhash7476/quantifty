@@ -284,8 +284,10 @@ places them as MARKET orders, and `LoopDriver` polls Upstox for fills on every l
 iteration (`UpstoxAdapter.poll_fills`). **It has never placed a real order**: no funded
 account exists, and every test stubs the HTTP layer. Orders go to Upstox's V3
 place-order endpoint on `api-hft.upstox.com`. Live fills carry the handler's fee
-estimate, and after a restart, orders still open from earlier that day are found in the
-Upstox order book and polled again. Known gaps remain:
+estimate. After a restart, orders still open from earlier that day are found in the
+Upstox order book and polled once before the startup reconcile, so a fill that landed
+during the restart is booked. Any order that can't be found is named in a critical alert.
+Known gaps remain:
 - a partially filled order keeps only its first chunk in the `trades` table, and a
   partially filled exit is recorded there as a new entry, leaving the real entry row open;
 - an order Upstox rejects or cancels stays open in the handler;

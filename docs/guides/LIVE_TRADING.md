@@ -148,26 +148,35 @@ To trade live you write your own entry script around `build_runner`, with your o
        `BrokerAmbiguousPlacementError`, sends a critical alert and holds the order as
        unconfirmed. The handler returns no order.
      - **Looking it up.** Each later poll looks the order up in the order book
-       (`GET /order/retrieve-all`) by its tag. Once it is found there, a critical alert
+       (`GET /order/retrieve-all`) by its tag, side and quantity. Once it is found there, a critical alert
        names its order id and its fills are polled like any other order's. While it
        is not found, the poll fails, so the kill switch latches within three
        iterations and stays latched until a restart.
-     - **Definite refusal.** A 4xx, a 200 reply with status `error`, or an order the
-       adapter cannot route (no instrument mapping, an unmappable side, a non-MARKET
-       type) raises `BrokerOrderRefusedError`. A 429 raises `BrokerUnavailableError`.
+     - **Definite refusal.** A 4xx, a 200 reply with status `error`, or any failure
+       while the order is prepared, before anything is sent (no instrument mapping, an
+       unmappable side, a non-MARKET type, an instrument master that can't be read),
+       raises `BrokerOrderRefusedError`. A 429 raises `BrokerUnavailableError`.
        Neither is retried. Both count toward the handler's three consecutive failed
        placements, which latch the switch until restart. A 401/403 latches it at once.
    - **Fees.** Order details carry no charges. Each fill carries the handler's own fee
      schedule (`_calculate_fees`, set by `build_runner`) for the quantity filled so
      far, less what earlier fills of the order carried, so a partly filled order pays
      the flat brokerage once. It is an estimate; Upstox's actual charges are not read.
+     If the fee schedule raises, the fill is still booked, with no fee, and the next
+     fill of the order carries the difference.
    - **Restart.** The ledger records an order before it is sent. At a LIVE start,
      `build_runner` hands the adapter every order from today that the ledger shows
-     not fully filled. Each is looked up in the order book by its tag and polled from
-     the quantity the ledger already holds, so nothing is booked twice; a reject or
-     cancel among them is reported by the first poll. An order not in the book never
-     reached Upstox and gets a warning. If the order book can't be read, nothing
-     polls those orders, and the alert is critical.
+     not fully filled. Each is looked up in the order book by its tag, side and
+     quantity, and polled from the quantity the ledger already holds, so nothing is
+     booked twice. The driver's startup gate polls once before it reconciles, so a
+     fill that landed while the process was down is booked before positions are
+     compared; a reject or cancel among them is reported by that poll. A critical
+     alert names every order that is not resumed:
+     - not in the order book: Upstox never received it (a refused placement), or a
+       placement that failed ambiguously is not visible yet;
+     - in the order book more than once: none of them is polled;
+     - the order book could not be read: nothing polls any of them, and the startup
+       reconcile refuses if one of them filled.
    - **Kill switch from the poll.** Three consecutive outage polls trip a releasable
      kill switch, lifted by the first clean poll unless the data feed is stale. An
      auth failure trips it at once and ends polling. Any other repeated failure

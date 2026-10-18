@@ -107,11 +107,16 @@ def _resume_open_orders(execution, broker, today: date) -> None:
     shows not fully filled (LIVE restart), so its fill poll covers them again.
 
     The adapter finds each in the Upstox order book by its tag and polls it from
-    the quantity the ledger already holds; a reject or cancel among them is then
-    reported by the first poll. One not in the order book never reached Upstox,
-    so it is only warned about. When the order book can't be read, nothing polls
-    these orders, so the alert is critical. Orders are validity DAY, so an open
-    order from an earlier day is dead and skipped.
+    the quantity the ledger already holds. The driver's startup gate polls once
+    before it reconciles, so a fill that landed during the restart is booked
+    before positions are compared; a reject or cancel among them is reported by
+    that poll. Every order that is not resumed is named in a critical alert:
+    - not found in the order book: Upstox never received it (a refused
+      placement), or a placement that failed ambiguously is not visible yet;
+    - found more than once: its tag is not unique, so none is polled;
+    - the order book could not be read: nothing polls any of them.
+    Orders are validity DAY, so an open order from an earlier day is dead and
+    skipped.
     """
     open_states = [
         state for state in execution.order_tracker.order_states()
@@ -121,23 +126,34 @@ def _resume_open_orders(execution, broker, today: date) -> None:
     if not open_states:
         return
     try:
-        missing = broker.resume_orders(
+        result = broker.resume_orders(
             [(s.order, s.filled_quantity, s.average_price) for s in open_states])
     except (BrokerAuthError, BrokerUnavailableError, BrokerContractError) as exc:
-        message = (f"LIVE restart with {len(open_states)} order(s) from today not recorded as "
-                   f"filled in the ledger, and the Upstox order book could not be read ({exc}). "
-                   "Nothing is polling them: they may have filled, been rejected or been "
-                   "cancelled at Upstox since. Check each against the Upstox order book: "
-                   f"{_listing(s.order for s in open_states)}")
-        logger.error("fno_runner: %s", message)
-        alerter.critical(message)
+        _alert_unpolled(f"{len(open_states)} order(s) from today are not recorded as filled in "
+                        f"the ledger, and the Upstox order book could not be read ({exc}). "
+                        "Nothing is polling them: they may have filled, been rejected or been "
+                        "cancelled at Upstox since.", [s.order for s in open_states])
         return
-    if missing:
-        message = (f"LIVE restart: {len(missing)} order(s) from today that the ledger shows "
-                   "unfilled are not in the Upstox order book, so they never reached Upstox: "
-                   f"{_listing(missing)}")
-        logger.warning("fno_runner: %s", message)
-        alerter.warning(message)
+    if result.not_found:
+        _alert_unpolled(f"{len(result.not_found)} order(s) from today that the ledger shows "
+                        "unfilled are not in the Upstox order book: either Upstox never received "
+                        "them (a refused placement), or a placement that failed ambiguously is "
+                        "not visible yet.", result.not_found)
+    if result.duplicated:
+        _alert_unpolled(f"{len(result.duplicated)} order(s) from today match more than one "
+                        "Upstox order by tag, side and quantity, so none of them is polled.",
+                        result.duplicated)
+    resumed = len(open_states) - len(result.not_found) - len(result.duplicated)
+    if resumed:
+        logger.warning("fno_runner: LIVE restart: %d open order(s) from today found in the "
+                       "Upstox order book and polled again", resumed)
+
+
+def _alert_unpolled(problem: str, orders) -> None:
+    message = (f"LIVE restart: {problem} Check each against the Upstox order book: "
+               f"{_listing(orders)}")
+    logger.error("fno_runner: %s", message)
+    alerter.critical(message)
 
 
 def _make_span_block_checker(expected_date: date) -> Callable[[], SpanReadinessVerdict]:

@@ -60,9 +60,10 @@ def _details(order_id, status, *, quantity=50, filled, average_price):
                          transaction_type="BUY")
 
 
-def _book_entry(order_id, signal_id, status="open"):
+def _book_entry(order_id, signal_id, status="open", *, quantity=50, side="BUY"):
     return {"order_id": order_id, "tag": order_tag(signal_id), "status": status,
-            "instrument_token": EQUITY, "quantity": 50, "filled_quantity": 0}
+            "instrument_token": EQUITY, "transaction_type": side, "quantity": quantity,
+            "filled_quantity": 0}
 
 
 # --------------------------------------------------------------------------- #
@@ -262,32 +263,33 @@ def test_an_unreachable_order_book_is_an_outage_and_the_placement_stays_unconfir
 def test_resume_polls_a_book_order_from_the_quantity_the_ledger_already_holds(
         tmp_path, monkeypatch):
     http = install(monkeypatch)
-    http.route("GET", "/order/retrieve-all", [_book_entry("R-1", "sig-restart")])
+    http.route("GET", "/order/retrieve-all", [_book_entry("R-1", "sig-restart", quantity=75)])
     http.route_order("GET", "/order/details", "R-1",
                      _details("R-1", "complete", quantity=75, filled=75, average_price=102.0))
     adapter = _adapter(tmp_path)
     order = _order(signal_id="sig-restart", quantity=75)
 
-    unmatched = adapter.resume_orders([(order, 25, 100.0)])
+    result = adapter.resume_orders([(order, 25, 100.0)])
     adapter.poll_fills()
 
-    assert unmatched == []
+    assert (result.not_found, result.duplicated) == ([], [])
     [fill] = adapter.fills         # only the 50 filled since the restart
     assert fill.quantity == 50
     assert fill.price == pytest.approx((102.0 * 75 - 100.0 * 25) / 50)
     assert fill.order_id == str(order.correlation_id)
 
 
-def test_resume_returns_orders_the_book_does_not_hold_once(tmp_path, monkeypatch):
+def test_resume_reports_missing_and_duplicated_orders_separately(tmp_path, monkeypatch):
     http = install(monkeypatch)
     http.route("GET", "/order/retrieve-all",
                [_book_entry("D-1", "sig-dup"), _book_entry("D-2", "sig-dup")])
     adapter = _adapter(tmp_path)
     missing, duplicated = _order(signal_id="sig-gone"), _order(signal_id="sig-dup")
 
-    unmatched = adapter.resume_orders([(missing, 0, 0.0), (duplicated, 0, 0.0)])
+    result = adapter.resume_orders([(missing, 0, 0.0), (duplicated, 0, 0.0)])
 
-    assert unmatched == [missing, duplicated]
+    assert result.not_found == [missing]
+    assert result.duplicated == [duplicated]
     adapter.poll_fills()            # neither is polled
     assert http.calls_to("GET", "/order/details") == []
 
@@ -295,7 +297,8 @@ def test_resume_returns_orders_the_book_does_not_hold_once(tmp_path, monkeypatch
 def test_resume_with_nothing_open_makes_no_call(tmp_path, monkeypatch):
     http = install(monkeypatch)
 
-    assert _adapter(tmp_path).resume_orders([]) == []
+    result = _adapter(tmp_path).resume_orders([])
+    assert (result.not_found, result.duplicated) == ([], [])
     assert http.calls == []
 
 
@@ -328,7 +331,7 @@ def test_partial_fills_carry_fees_that_add_up_to_the_whole_orders_estimate(
 
 def test_a_resumed_order_is_charged_only_for_what_fills_after_the_restart(tmp_path, monkeypatch):
     http = install(monkeypatch)
-    http.route("GET", "/order/retrieve-all", [_book_entry("R-1", "sig-r")])
+    http.route("GET", "/order/retrieve-all", [_book_entry("R-1", "sig-r", quantity=75)])
     http.route_order("GET", "/order/details", "R-1",
                      _details("R-1", "complete", quantity=75, filled=75, average_price=100.0))
     adapter = _adapter(tmp_path)
@@ -381,3 +384,92 @@ def test_cancel_goes_to_v3_on_the_hft_host(tmp_path, monkeypatch):
     assert _adapter(tmp_path).cancel_order("A-1") is True
     [call] = http.calls
     assert call["params"] == {"order_id": "A-1"}
+
+
+# --------------------------------------------------------------------------- #
+# Review fixes (PR #49): no pre-send failure is reported as placed; tags never
+# exceed 40 characters; a tag on another side or size is not the order; a
+# raising fee model never holds back a fill; any broker can be resumed
+# --------------------------------------------------------------------------- #
+
+def test_any_failure_before_sending_is_a_refusal(tmp_path, monkeypatch):
+    http = install(monkeypatch)
+    adapter = _adapter(tmp_path)
+    adapter._mapping = None
+
+    def broken_master(*a, **k):
+        raise RuntimeError("instrument master locked by another process")
+    monkeypatch.setattr("core.brokers.upstox_adapter.UpstoxMapping", broken_master)
+
+    with pytest.raises(BrokerOrderRefusedError, match="nothing was sent"):
+        adapter.place_order(_order())
+    assert http.calls == []
+
+
+def test_the_frozen_handler_counts_a_refusal_and_returns_no_order(tmp_path, monkeypatch):
+    """Through the real ExecutionHandler: a 200 reply with status "error" used to
+    be a RuntimeError that the handler returned as a placed order."""
+    from core.execution.handler import ExecutionConfig, ExecutionHandler, ExecutionMode
+    from core.events import SignalEvent, SignalType
+    from tests.execution.test_g1_characterization import _build_handler, _signal
+
+    http = install(monkeypatch)
+    http.route("POST", "hft/order/place", {"status": "error", "errors": [{"errorCode": "X"}]})
+    adapter = _adapter(tmp_path)
+    handler, _ = _build_handler(tmp_path, monkeypatch, tmp_path / "execution.db",
+                                load_db_state=True, broker=adapter)
+
+    order = handler.process_signal(_signal(EQUITY, 50), current_price=2500.0)
+
+    assert order is None
+    assert handler._consecutive_broker_errors == 1
+
+
+def test_a_tag_with_a_trailing_newline_is_hashed():
+    newline = chr(10)
+    assert order_tag("a" * 40 + newline) != "a" * 40 + newline
+    assert len(order_tag("a" * 40 + newline)) == 40
+    assert order_tag("abc" + newline) != "abc" + newline
+
+
+def test_a_book_order_with_the_tag_but_another_side_or_size_is_not_matched(
+        tmp_path, monkeypatch):
+    http = install(monkeypatch)
+    http.route("GET", "/order/retrieve-all",
+               [_book_entry("S-1", "sig-x", side="SELL"), _book_entry("Q-1", "sig-x", quantity=75)])
+    adapter = _adapter(tmp_path)
+    order = _order(signal_id="sig-x")
+
+    result = adapter.resume_orders([(order, 0, 0.0)])
+
+    assert result.not_found == [order]
+
+
+def test_a_raising_fee_model_books_the_fill_without_a_fee(tmp_path, monkeypatch):
+    http = install(monkeypatch)
+    http.route("POST", "hft/order/place", placed("A-1"))
+    http.route("GET", "/order/details", _details("A-1", "complete", filled=50, average_price=100.0))
+    adapter = _adapter(tmp_path)
+
+    def broken(order, price):
+        raise ValueError("no fee schedule for this segment")
+    adapter.fee_model = broken
+    adapter.place_order(_order())
+
+    adapter.poll_fills()
+
+    [fill] = adapter.fills
+    assert (fill.quantity, fill.fee) == (50, 0.0)
+
+
+def test_a_broker_that_pushes_its_own_fills_resumes_nothing():
+    from core.brokers.base import BrokerAdapter
+
+    class Pushing(BrokerAdapter):
+        def place_order(self, order): return "1"
+        def get_order_status(self, order_id): return OrderStatus.OPEN
+        def get_positions(self): return {}
+        def cancel_order(self, order_id): return True
+
+    result = Pushing().resume_orders([(_order(), 0, 0.0)])
+    assert (result.not_found, result.duplicated) == ([], [])
