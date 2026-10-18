@@ -8,6 +8,7 @@ transformation step.
 """
 from __future__ import annotations
 
+import functools
 from datetime import date
 from pathlib import Path
 
@@ -59,12 +60,19 @@ def load_index_context() -> pd.DataFrame:
     return piv.sort_index()
 
 
-def build_panel() -> pd.DataFrame:
+@functools.lru_cache(maxsize=1)
+def _cached_panel() -> pd.DataFrame:
     rel = load_reliance_daily()
     ctx = load_index_context()
     panel = rel.join(ctx, how="left")
     panel["ret"] = panel["close"].pct_change()
     return panel
+
+
+def build_panel() -> pd.DataFrame:
+    # load_index_context opens ~3,500 per-date files (150-230 s); load once per
+    # process and hand each caller its own copy.
+    return _cached_panel().copy()
 
 
 def panel_span(panel: pd.DataFrame) -> str:
