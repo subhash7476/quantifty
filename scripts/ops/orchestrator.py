@@ -142,7 +142,7 @@ CHILDREN = {
         native_lock=ROOT / "data" / "_eod_worker.lock"),
     # Options-Wall pilot poller — its own PID lock, independent of the NiftyShield
     # session. Supervised (crash-restart) but never gates the production start
-    # sequence; `stop` skips it like the other natively-locked children.
+    # sequence; `stop` ends it like the chain poller (see STOPPABLE_NATIVE).
     "wall_poller": ChildSpec(
         "wall_poller", [PY, str(ROOT / "scripts" / "options_wall_poller.py")],
         native_lock=ROOT / "data" / "options" / "wall_poller.pid"),
@@ -350,14 +350,38 @@ SESSION_DAY_END = dtime(15, 50)
 # orchestrator, which shares the session's console, has to stop it.
 STOP_REQUEST = OPS_DIR / "stop_request"
 STOP_WAIT_S = SESSION_FINALIZE_BUDGET_S + 30.0
-# Natively locked children that `stop` also ends. eod and ts_combo are left
-# alone: either may be mid-way through a store write, and both were started
-# for work that outlives a manual stop.
+# taskkill returns before Windows has torn the process down.
+KILL_RECHECK_S = 5.0
+# Natively locked children that the sweep in `_cmd_stop` also ends. A running
+# orchestrator's own shutdown already stops every child it started, eod and
+# ts_combo included, as at 15:50. The sweep only finds what is left: children it
+# adopted rather than started, or everything when no orchestrator was running or
+# it had to be killed. The sweep leaves eod and ts_combo running: either may be
+# mid-way through a store write.
 STOPPABLE_NATIVE = ("poller", "wall_poller")
+
+
+class _StopRequested(Exception):
+    """`stop` asked while the start sequence was still waiting."""
 
 
 def _stop_requested() -> bool:
     return STOP_REQUEST.exists()
+
+
+def _stop_aware(sleep: Callable[[float], None]) -> Callable[[float], None]:
+    """Wrap the start sequence's sleep so a stop request ends the start.
+
+    Every wait in start_sequence (token up to 3 h, park up to 6 h, warm-up)
+    sleeps through deps.sleep, and none of them read the request.
+    """
+    def _sleep(seconds: float) -> None:
+        if _stop_requested():
+            raise _StopRequested
+        sleep(seconds)
+        if _stop_requested():
+            raise _StopRequested
+    return _sleep
 
 
 def _clear_stop_request() -> None:
@@ -437,6 +461,24 @@ def stop_child(spec: ChildSpec, proc, *, killer=os.kill, term_wait_s: float = SE
             return
     if spec.pid_path is not None:
         pidfile.release_lock(spec.pid_path, getattr(proc, "pid", None))
+    elif spec.native_lock is not None:
+        _release_native_lock_when_dead(spec, getattr(proc, "pid", None))
+
+
+def _release_native_lock_when_dead(spec: ChildSpec, pid: Optional[int], *,
+                                   sleep: Callable[[float], None] = time.sleep,
+                                   clock: Callable[[], float] = time.monotonic) -> None:
+    """Remove a natively locked child's lock once its process is gone.
+
+    A terminated child never removes its own lock, and the Options-Wall poller's
+    lock check is a bare pid-alive test, so a stale lock blocks its restart once
+    Windows recycles the pid. release_lock only unlinks a lock naming `pid`.
+    """
+    if pid is None:
+        return
+    if not _wait_while(lambda: pidfile.pid_alive(pid), KILL_RECHECK_S,
+                       sleep=sleep, clock=clock, step_s=0.2):
+        pidfile.release_lock(spec.native_lock, pid)
 
 
 class Supervisor:
@@ -739,7 +781,10 @@ def _cmd_start(dry_run: bool, profile: str = "full") -> int:
     if not pidfile.acquire_lock(ORCH_LOCK):
         print(f"another orchestrator is running (see {ORCH_LOCK})")
         return 1
-    _clear_stop_request()   # left by a `stop` that found no orchestrator to read it
+    # Left by a `stop` interrupted before it cleared its request, or written
+    # between our acquire and here. Only cleared once we hold the lock, so a
+    # refused second start never deletes a live orchestrator's pending request.
+    _clear_stop_request()
     if not _disable_quickedit():
         _logger.warning("could not disable console QuickEdit — a click in this "
                         "window pauses every child until Esc")
@@ -749,6 +794,7 @@ def _cmd_start(dry_run: bool, profile: str = "full") -> int:
     _apply_profile(deps, profile)
     _logger.info("profile: %s", profile)
     _wire_supervisor(deps, sup)
+    deps.sleep = _stop_aware(deps.sleep)
     try:
         outcome = start_sequence(deps, token_timeout_s=TOKEN_TIMEOUT_S)
         print(f"start sequence: {outcome}")
@@ -758,6 +804,10 @@ def _cmd_start(dry_run: bool, profile: str = "full") -> int:
         _logger.info("supervising until %s — Ctrl+C to stop sooner",
                      SESSION_DAY_END.strftime("%H:%M"))
         supervise_until_day_end(sup, deps.now().date())
+        return 0
+    except _StopRequested:
+        print("start sequence: stop requested — shutting down")
+        sup.shutdown()
         return 0
     except KeyboardInterrupt:
         print("\nshutting down...")
@@ -778,53 +828,123 @@ def _cmd_status() -> int:
     return 0
 
 
+def _orchestrator_holds_lock(pid: Optional[int]) -> bool:
+    return pidfile.read_pid(ORCH_LOCK) == pid and pidfile.lock_alive(ORCH_LOCK)
+
+
+def _wait_while(alive: Callable[[], bool], wait_s: float, *, sleep: Callable[[float], None],
+                clock: Callable[[], float], step_s: float) -> bool:
+    """Poll until `alive()` is False or `wait_s` passes; True if still alive."""
+    deadline = clock() + wait_s
+    while alive() and clock() < deadline:
+        sleep(step_s)
+    return alive()
+
+
 def _stop_running_orchestrator(wait_s: float, *, sleep: Callable[[float], None] = time.sleep,
-                               clock: Callable[[], float] = time.monotonic) -> None:
+                               clock: Callable[[], float] = time.monotonic) -> bool:
     """Ask a running orchestrator to shut down and wait for it.
 
     Killing its children from here used to leave it running, and its next
     supervise tick respawned them. It shares the session's console, so its
-    shutdown gives the session the clean group signal this console cannot.
+    shutdown gives a session it started the clean group signal this console
+    cannot. False when it is still running, or a new orchestrator now holds the
+    lock: either way its children are not ours to stop.
     """
     pid = pidfile.read_pid(ORCH_LOCK)
     STOP_REQUEST.parent.mkdir(parents=True, exist_ok=True)
     STOP_REQUEST.write_text(datetime.now().isoformat(), encoding="utf-8")
     print(f"asked the running orchestrator (pid {pid}) to stop; waiting up to "
           f"{wait_s:.0f}s while it stops its children")
-    deadline = clock() + wait_s
-    while pidfile.lock_alive(ORCH_LOCK) and clock() < deadline:
-        sleep(1.0)
-    if pidfile.lock_alive(ORCH_LOCK):
-        # Still in the start sequence (the token wait checks no request), or hung.
-        print("it did not stop in time; killing it, then stopping its children here")
-        _RemoteProc(pid).kill()
+    held = _wait_while(lambda: _orchestrator_holds_lock(pid), wait_s,
+                       sleep=sleep, clock=clock, step_s=1.0)
+    if not held:
+        if pidfile.lock_alive(ORCH_LOCK):
+            print(f"a new orchestrator (pid {pidfile.read_pid(ORCH_LOCK)}) started while "
+                  f"this stop waited; leaving it and its children alone (run stop "
+                  f"again to stop it)")
+            return False
+        return True
+    # Hung, or blocked somewhere that never sleeps through the stop-aware wrapper.
+    print("it did not stop in time; killing it, then stopping its children here")
+    _RemoteProc(pid).kill()
+    if _wait_while(lambda: _orchestrator_holds_lock(pid), KILL_RECHECK_S,
+                   sleep=sleep, clock=clock, step_s=0.5):
+        print(f"WARNING: the orchestrator (pid {pid}) is still running after the kill. "
+              f"Nothing else was stopped and the stop request was left in place. "
+              f"End it by hand (Task Manager or Stop-Process), then run stop again.")
+        return False
+    return True
 
 
-def _cmd_stop(*, wait_s: float = STOP_WAIT_S) -> int:
+def _started_before_status(spec: ChildSpec, pid: int) -> bool:
+    """The process at `pid` existed when the child last wrote its status file.
+
+    A child that published its pid and heartbeat and then exited leaves a fresh
+    status naming a dead pid that Windows may hand to anything; a process
+    created after the last status write is not the child (pidfile.lock_alive's
+    rule, applied to the status file)."""
+    started = pidfile.process_started_at(pid)
+    if started is None:
+        return True
+    try:
+        written = spec.status_path.stat().st_mtime
+    except OSError:
+        return False
+    return started <= written + pidfile._START_TOLERANCE_S
+
+
+def _sweep_pid(spec: ChildSpec, lock: Path) -> Optional[int]:
+    """The pid to stop for `spec`, or None when nothing live holds it.
+
+    The ingestor's pidfile can name a dead duplicate while the real ingestor
+    publishes its own pid (see _published_pid), so trust that first.
+    """
+    pid = _published_pid(spec)
+    if (pid is not None and pidfile.pid_alive(pid) and _status_fresh(spec)
+            and _started_before_status(spec, pid)):
+        return pid
+    pid = pidfile.read_pid(lock)
+    return pid if pid and pidfile.lock_alive(lock) else None   # never taskkill a recycled PID
+
+
+def _cmd_stop(*, wait_s: float = STOP_WAIT_S, sleep: Callable[[float], None] = time.sleep,
+              clock: Callable[[], float] = time.monotonic) -> int:
     """Stop the orchestrator, then any child still running.
 
-    eod and ts_combo are left running (see STOPPABLE_NATIVE) and are named.
+    Returns 1, touching nothing else, when the orchestrator could not be
+    stopped. eod and ts_combo are left running (see STOPPABLE_NATIVE) and are
+    named.
     """
-    if pidfile.lock_alive(ORCH_LOCK):
-        _stop_running_orchestrator(wait_s)
-    stopped = 0
+    if pidfile.lock_alive(ORCH_LOCK) and not _stop_running_orchestrator(
+            wait_s, sleep=sleep, clock=clock):
+        return 1
+    swept = []
     for name in sorted(CHILDREN, key=lambda n: 0 if n == "session" else 1):
         spec = CHILDREN[name]
         lock = spec.pid_path or (spec.native_lock if name in STOPPABLE_NATIVE else None)
         if lock is None:
             continue
-        pid = pidfile.read_pid(lock)
-        if pid and pidfile.lock_alive(lock):   # never taskkill a recycled PID
-            stop_child(spec, _RemoteProc(pid))
-            stopped += 1
+        pid = _sweep_pid(spec, lock)
+        if pid is None:
+            continue
+        stop_child(spec, _RemoteProc(pid))
+        swept.append((spec, pid))
+    _wait_while(lambda: any(pidfile.pid_alive(pid) for _, pid in swept), KILL_RECHECK_S,
+                sleep=sleep, clock=clock, step_s=0.5)
     _clear_stop_request()
-    print(f"stopped {stopped} child(ren) still running")
+    print(f"stopped {len(swept)} child(ren) still running")
+    # By pid, not child_alive: stop_child has already dropped a pidfile child's
+    # pidfile even when its kill failed, so child_alive cannot see a survivor.
+    alive = [s.name for s, pid in swept if pidfile.pid_alive(pid)]
+    if alive:
+        print(f"still running after stop: {', '.join(alive)}")
     left = [n for n in CHILDREN
             if CHILDREN[n].pid_path is None and n not in STOPPABLE_NATIVE
             and child_alive(CHILDREN[n])]
     if left:
         print(f"left running: {', '.join(left)} (may be mid-write; stop them by hand if needed)")
-    return 0
+    return 1 if alive else 0
 
 
 class _RemoteProc:
@@ -839,6 +959,10 @@ class _RemoteProc:
         end = time.time() + (timeout or 0)
         while pidfile.pid_alive(self.pid) and time.time() < end:
             time.sleep(0.2)
+        # Raise like Popen.wait, so stop_child escalates to kill instead of
+        # dropping the pidfile of a session that is still running.
+        if timeout is not None and pidfile.pid_alive(self.pid):
+            raise subprocess.TimeoutExpired(f"pid {self.pid}", timeout)
 
     def kill(self):
         if os.name == "nt":
