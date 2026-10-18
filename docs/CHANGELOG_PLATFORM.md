@@ -6,6 +6,17 @@ Format: `## YYYY-MM-DD — <milestone>` with a short factual description and sou
 
 ---
 
+## 2026-10-18 — Options-Wall time stop fires on the last session before expiry
+
+The pilot's time stop is meant to fire at 15:35 on the session before expiry (spec §5.4), but the code tested `DTE <= 1` in calendar days. Whenever the calendar day before expiry was a weekend or holiday, the fly was carried into expiry day and closed there instead. A Monday expiry after a Friday was the common case, e.g. the 2026-10-19 Nifty weekly that Dussehra moved off Tuesday. The spec had accepted this for holidays as a known limitation; it never considered weekends.
+
+`paper_executor.time_stop_day(expiry)` now returns `trading_calendar.previous_session(expiry)`, and the stop fires on or after that day at the squareoff time. Unchanged:
+- a normal week, where the Monday session before a Tuesday expiry is still the stop day;
+- the expiry-day close as a safety net;
+- for an expiry past the calendar's coverage, the stop falls back to the calendar day before expiry, so the poller never fails on a missing year.
+
+The one fly open when this merged (#73, expiry 10-19) closes on Monday 15:35 under both rules. No E008-hashed file was touched. *Ref:* `core/options_wall/paper_executor.py`, `tests/options_wall/test_time_stop_calendar.py`
+
 ## 2026-10-17 — README and guides re-verified against main
 
 `docs/onboarding-readme` was merged with `main` (16 commits since 10-09). One conflict in `orchestrator.py` was resolved by keeping both `_wire_supervisor` and `_apply_profile`; E008 hash unchanged at `101bae72…`. Note for the merge: `_resolve_profile` loads `.env` on the default `full` path too, so the orchestrator (and the children it spawns) now see `.env` values in their environment; production `.env` has no `NIFTY_PROFILE`, so it stays `full`. Every README claim was checked against the merged code and corrected. The largest fix: the live order path is wired but unfinished (`UpstoxAdapter.place_order` cannot read `NormalizedOrder`, F-UPX-1/2), so the README and `LIVE_TRADING.md` no longer call live routing "a single switch". Other fixes: what `orchestrator.py stop` and the `STOP` file actually do; three-file holiday maintenance plus E008 re-pin; the session-scoped DayType facts path; per-day Options-Wall snapshot files; NiftyShield's holiday-aware expiry and the 10-14 window restart in `NIFTY_SHIELD.md`.

@@ -270,6 +270,11 @@ holds — the executor touches only the wall store + the shared fee model.
   and exercise STT**, but at worse (expiry-day) marks than intended. A
   trading-calendar-aware "last open session before expiry" rule was judged
   over-engineering for the pilot; the DTE = 0 close is the accepted fallback.
+  *Superseded 2026-10-18:* a weekend did the same, so a Monday expiry (2026-10-19,
+  after Dussehra moved it) was never closed on the Friday. The exit now fires on the
+  last session before expiry from `core.market.trading_calendar`
+  (`paper_executor.time_stop_day`). The expiry-day close remains the safety net, and an
+  expiry past the calendar's coverage falls back to the calendar day before it.
 - **Quote keying dependency.** Entry requires a live bid/ask per leg. This relies on
   `UpstoxMarketData.fetch_quotes_batch` keying its response by the full instrument
   key; verify against a live response before day 1 (runbook pre-flight). If keying

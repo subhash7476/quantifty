@@ -20,11 +20,26 @@ from typing import Dict, Optional, Tuple
 from core.analytics.chain_scanner import ChainScanner, ScanConfig
 from core.logging import setup_logger
 from core.market.session_schedule import session_window
+from core.market.trading_calendar import OutsideCoverage, previous_session
 from core.options_wall import persistence as pers
 from core.options_wall.fly import (FlyLeg, IronFly, build_iron_fly, exit_fees,
                                    mark_to_close, unrealized_pnl)
 
 logger = setup_logger("options_wall_paper_executor")
+
+
+def time_stop_day(expiry: date) -> date:
+    """The day the time stop fires: the last session before expiry (spec §5.4).
+
+    Counting calendar days (DTE <= 1) carried a fly into expiry day whenever the
+    day before expiry was a weekend or a holiday, e.g. a Monday expiry after a
+    Friday. For an expiry past the trading calendar's coverage it falls back to
+    the day before expiry, so the poller never stops on a missing calendar year.
+    """
+    try:
+        return previous_session(expiry)
+    except OutsideCoverage:
+        return expiry - timedelta(days=1)
 
 ROOT = Path(__file__).resolve().parents[2]
 STOP_FILE = ROOT / "STOP"   # platform kill switch; the /ops/ kill button writes it
@@ -127,8 +142,8 @@ class PaperExecutor:
             reason = "tp"
         elif pnl is not None and pnl <= -self.cfg.sl_frac * row["max_loss"]:
             reason = "sl"
-        dte = (date.fromisoformat(row["expiry"]) - now.date()).days
-        if reason is None and dte <= 1 and now.time() >= self._squareoff_time(now.date()):
+        if (reason is None and now.date() >= time_stop_day(date.fromisoformat(row["expiry"]))
+                and now.time() >= self._squareoff_time(now.date())):
             reason = "time_stop"
         if reason is None:
             return None

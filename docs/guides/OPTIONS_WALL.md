@@ -72,7 +72,7 @@ the farm list's badge shows **Kill switch** instead of **Tradeable**.
 |---|---|
 | Take-profit | unrealized P&L ≥ **25 % of net credit** |
 | Stop-loss | unrealized P&L ≤ −**50 % of max loss** (max loss = wing width × qty − credit) |
-| Time stop | on the session **before expiry or expiry day** (DTE ≤ 1), at 15:35, capped 2 min before the derivatives close |
+| Time stop | on the **last session before expiry**, counted on the trading calendar (the Friday for a Monday expiry, a session earlier when the day before expiry is a holiday), at 15:35, capped 2 min before the derivatives close. A fly still open on expiry day, for example because the poller was down on the stop day, closes at the same time that day. For an expiry past the calendar's coverage, the stop falls back to the calendar day before expiry |
 | Manual | close button on the dashboard (`data/options/close_requests/`) |
 
 **Positions are carried overnight.** There is no daily flatten. A fly opened on
