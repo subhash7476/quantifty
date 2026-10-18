@@ -19,12 +19,48 @@ from typing import Dict, Optional, Tuple
 
 from core.analytics.chain_scanner import ChainScanner, ScanConfig
 from core.logging import setup_logger
+from core.market import session_schedule
 from core.market.session_schedule import session_window
+from core.market.trading_calendar import OutsideCoverage, previous_session
 from core.options_wall import persistence as pers
 from core.options_wall.fly import (FlyLeg, IronFly, build_iron_fly, exit_fees,
                                    mark_to_close, unrealized_pnl)
 
 logger = setup_logger("options_wall_paper_executor")
+
+_uncovered_warned: set = set()   # expiries already warned about, so the 5 s poll logs once
+
+
+def time_stop_day(expiry: date) -> date:
+    """The day the time stop fires: the last session before expiry (spec §5.4).
+
+    Counting calendar days (DTE <= 1) carried a fly into expiry day whenever the
+    day before expiry was a weekend or a holiday, e.g. a Monday expiry after a
+    Friday. Weekend and special sessions (Muhurat, special Saturdays) are skipped
+    too, by choice: a weekend session is never seen (the poller does not run on
+    weekends), an evening one falls outside the stack's hours, and an afternoon
+    weekday one is a thin one-hour window. Each moves the stop to the previous
+    regular close, one session early, the safe side for an exit. For an expiry past
+    the trading calendar's coverage it falls
+    back to the last weekday before expiry, so the poller never stops on a missing
+    calendar year.
+    """
+    try:
+        day = previous_session(expiry)
+        while day.weekday() >= 5 or day in session_schedule.SPECIAL_SESSIONS:
+            day = previous_session(day)
+        return day
+    except OutsideCoverage:
+        day = expiry - timedelta(days=1)
+        while day.weekday() >= 5:
+            day -= timedelta(days=1)
+        if expiry not in _uncovered_warned:
+            _uncovered_warned.add(expiry)
+            logger.warning("expiry %s is outside the trading calendar's coverage; time stop "
+                           "uses the last weekday before it, %s (holidays not checked)",
+                           expiry, day)
+        return day
+
 
 ROOT = Path(__file__).resolve().parents[2]
 STOP_FILE = ROOT / "STOP"   # platform kill switch; the /ops/ kill button writes it
@@ -127,8 +163,8 @@ class PaperExecutor:
             reason = "tp"
         elif pnl is not None and pnl <= -self.cfg.sl_frac * row["max_loss"]:
             reason = "sl"
-        dte = (date.fromisoformat(row["expiry"]) - now.date()).days
-        if reason is None and dte <= 1 and now.time() >= self._squareoff_time(now.date()):
+        if (reason is None and now.date() >= time_stop_day(date.fromisoformat(row["expiry"]))
+                and now.time() >= self._squareoff_time(now.date())):
             reason = "time_stop"
         if reason is None:
             return None
