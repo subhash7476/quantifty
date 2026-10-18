@@ -112,8 +112,11 @@ def _resume_open_orders(execution, broker, today: date) -> None:
     before positions are compared; a reject or cancel among them is reported by
     that poll. Every order that is not resumed is named in a critical alert:
     - not found in the order book: Upstox never received it (a refused
-      placement), or a placement that failed ambiguously is not visible yet;
+      placement), or a placement that failed ambiguously is not visible yet; the
+      adapter keeps looking for it and adopts it if it appears;
     - found more than once: its tag is not unique, so none is polled;
+    - in the book only on another side or quantity (e.g. modified at Upstox):
+      not polled;
     - the order book could not be read: nothing polls any of them.
     Orders are validity DAY, so an open order from an earlier day is dead and
     skipped.
@@ -138,12 +141,18 @@ def _resume_open_orders(execution, broker, today: date) -> None:
         _alert_unpolled(f"{len(result.not_found)} order(s) from today that the ledger shows "
                         "unfilled are not in the Upstox order book: either Upstox never received "
                         "them (a refused placement), or a placement that failed ambiguously is "
-                        "not visible yet.", result.not_found)
+                        "not visible yet. The fill poll keeps looking for them and polls any "
+                        "that appear.", result.not_found)
     if result.duplicated:
         _alert_unpolled(f"{len(result.duplicated)} order(s) from today match more than one "
                         "Upstox order by tag, side and quantity, so none of them is polled.",
                         result.duplicated)
-    resumed = len(open_states) - len(result.not_found) - len(result.duplicated)
+    if result.mismatched:
+        _alert_unpolled(f"{len(result.mismatched)} order(s) from today are in the Upstox order "
+                        "book with their tag but another side or quantity (modified at Upstox?), "
+                        "so none of them is polled.", result.mismatched)
+    resumed = (len(open_states) - len(result.not_found) - len(result.duplicated)
+               - len(result.mismatched))
     if resumed:
         logger.warning("fno_runner: LIVE restart: %d open order(s) from today found in the "
                        "Upstox order book and polled again", resumed)

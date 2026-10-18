@@ -92,6 +92,9 @@ _TERMINAL = {OrderStatus.FILLED, OrderStatus.REJECTED, OrderStatus.CANCELLED}
 # backoff. The next loop iteration is the retry.
 _POLL_ATTEMPTS = 1
 _POLL_TIMEOUT_S = 3
+# Orders missing from the order book at a restart are looked for again no more
+# often than this, so watching them costs one book call per interval, not per poll.
+_WATCH_INTERVAL_S = 30
 
 # Upstox rejects a tag over 40 characters (UDAPI1119). A signal_id that is short
 # and plain is sent as is; anything else is sent as a hash prefix, so the tag is
@@ -147,6 +150,11 @@ class UpstoxAdapter(BrokerAdapter):
         # one found there is polled like any other order. poll_fills keeps failing
         # while any is held, so the driver halts trading until an operator reconciles.
         self._unconfirmed: Dict[str, NormalizedOrder] = {}
+        # Orders the ledger held open at a restart that the order book did not show:
+        # correlation_id -> (order, filled, average price). Watched without failing
+        # the poll, and adopted if they appear.
+        self._watch: Dict[str, Tuple[NormalizedOrder, int, float]] = {}
+        self._watch_checked_at: Optional[float] = None
 
     def _rate_limit(self):
         now = time.time()
@@ -435,13 +443,23 @@ class UpstoxAdapter(BrokerAdapter):
         estimate for the quantity filled so far, less what earlier fills carried.
         """
         unavailable, contract, not_filled = [], [], []
-        if self._unconfirmed:
+        check_watch = bool(self._watch) and self._watch_due()
+        if self._unconfirmed or check_watch:
             try:
-                contract.extend(self._resolve_unconfirmed())
-            except BrokerUnavailableError as e:
-                unavailable.append(f"order book: {e}")
-            except BrokerContractError as e:
-                contract.append(f"order book: {e}")
+                book = self._fetch_order_book(attempts=_POLL_ATTEMPTS, timeout=_POLL_TIMEOUT_S)
+            except (BrokerUnavailableError, BrokerContractError) as e:
+                book = None
+                if self._unconfirmed:
+                    target = unavailable if isinstance(e, BrokerUnavailableError) else contract
+                    target.append(f"order book: {e}")
+                else:
+                    self.logger.warning(f"Order book unreadable while watching for orders "
+                                        f"missing after a restart: {e}")
+            if book is not None:
+                if self._unconfirmed:
+                    contract.extend(self._resolve_unconfirmed(book))
+                if check_watch:
+                    self._resolve_watch(book)
         order_ids = list(self._pending)
         for position, broker_id in enumerate(order_ids):
             try:
@@ -541,11 +559,12 @@ class UpstoxAdapter(BrokerAdapter):
                 f"Unexpected order book response: {response!r:.200}")
         return response
 
-    def _book_matches(self, book: List[Dict], order: NormalizedOrder) -> List[str]:
-        """Order ids in the book that carry this order's tag, side and quantity. A
-        tag match on another side or quantity is not this order, and is logged."""
+    def _book_matches(self, book: List[Dict], order: NormalizedOrder) -> Tuple[List[str], List[str]]:
+        """Order ids in the book that carry this order's tag, side and quantity, and
+        ids that carry its tag on another side or quantity (logged; not this order
+        as placed, e.g. one modified at Upstox)."""
         tag = order_tag(order.signal_id)
-        matches = []
+        matches, mismatched = [], []
         for entry in book:
             if entry.get("tag") != tag or not entry.get("order_id"):
                 continue
@@ -554,19 +573,52 @@ class UpstoxAdapter(BrokerAdapter):
             if same:
                 matches.append(str(entry["order_id"]))
             else:
+                mismatched.append(str(entry["order_id"]))
                 self.logger.error(
                     f"Order book entry {entry.get('order_id')} carries the tag of "
                     f"signal_id={order.signal_id} but is {entry.get('transaction_type')} "
                     f"{entry.get('quantity')}, not {order.side.value} {order.quantity}; ignored")
-        return matches
+        return matches, mismatched
 
-    def _resolve_unconfirmed(self) -> List[str]:
+    def _watch_due(self) -> bool:
+        """At most one order-book check every _WATCH_INTERVAL_S for watched orders."""
+        now = time.monotonic()
+        if self._watch_checked_at is not None and now - self._watch_checked_at < _WATCH_INTERVAL_S:
+            return False
+        self._watch_checked_at = now
+        return True
+
+    def _resolve_watch(self, book: List[Dict]) -> None:
+        """Adopt any order missing at restart that has since appeared in the book."""
+        for key, (order, filled, average_price) in list(self._watch.items()):
+            matches, _ = self._book_matches(book, order)
+            if len(matches) != 1:
+                continue
+            del self._watch[key]
+            self._pending[matches[0]] = (order, filled, average_price,
+                                         self._safe_fee(order, filled, average_price))
+            message = (f"ORDER FOUND AT UPSTOX AFTER A RESTART: {order.side.value} {order.quantity} "
+                       f"{order.symbol} signal_id={order.signal_id} is order {matches[0]}; its "
+                       "fills are polled from now on.")
+            self.logger.error(message)
+            alerter.critical(message)
+
+    def _safe_fee(self, order: NormalizedOrder, filled: int, average_price: float) -> float:
+        """_fee, but a raising fee model gives 0.0 (logged): seeding a resumed order
+        must never fail on its fee estimate."""
+        try:
+            return self._fee(order, filled, average_price)
+        except Exception as e:
+            self.logger.error(f"Fee estimate failed for resumed {order.symbol} "
+                              f"signal_id={order.signal_id}; seeded with no fee: {e!r}")
+            return 0.0
+
+    def _resolve_unconfirmed(self, book: List[Dict]) -> List[str]:
         """Look each unconfirmed placement up in the order book. One found there
         moves to the poll; returns a problem for each tag found more than once."""
-        book = self._fetch_order_book(attempts=_POLL_ATTEMPTS, timeout=_POLL_TIMEOUT_S)
         problems = []
         for key, order in list(self._unconfirmed.items()):
-            matches = self._book_matches(book, order)
+            matches, _ = self._book_matches(book, order)
             if not matches:
                 continue
             if len(matches) > 1:
@@ -591,27 +643,32 @@ class UpstoxAdapter(BrokerAdapter):
         order book by tag, side and quantity; one found there is polled from the
         quantity and average price the ledger already holds, so a fill it booked
         before the restart is not booked again (the fee already charged is
-        re-estimated from the fee model). Returns the orders not found, and those
-        found more than once, neither of which is polled. One order book call;
-        errors propagate.
+        re-estimated from the fee model). Returns the orders not found, those found
+        more than once, and those whose tag the book holds on another side or
+        quantity; none of them is polled. An order not found is watched: the poll
+        checks the book for it every _WATCH_INTERVAL_S and adopts it if it
+        appears (a placement that failed ambiguously may not be visible yet). One
+        order book call; errors propagate.
         """
         orders = list(orders)
         if not orders:
             return ResumeResult()
         book = self._fetch_order_book(attempts=3, timeout=10)
-        not_found, duplicated = [], []
+        not_found, duplicated, mismatched = [], [], []
         for order, filled, average_price in orders:
-            matches = self._book_matches(book, order)
-            if not matches:
-                not_found.append(order)
-                continue
-            if len(matches) > 1:
+            filled, average_price = int(filled), float(average_price)
+            matches, other = self._book_matches(book, order)
+            if len(matches) == 1:
+                self._pending[matches[0]] = (order, filled, average_price,
+                                             self._safe_fee(order, filled, average_price))
+            elif matches:
                 duplicated.append(order)
-                continue
-            filled = int(filled)
-            self._pending[matches[0]] = (order, filled, float(average_price),
-                                         self._fee(order, filled, float(average_price)))
-        return ResumeResult(not_found=not_found, duplicated=duplicated)
+            elif other:
+                mismatched.append(order)
+            else:
+                not_found.append(order)
+                self._watch[str(order.correlation_id)] = (order, filled, average_price)
+        return ResumeResult(not_found=not_found, duplicated=duplicated, mismatched=mismatched)
 
     def _raise_poll_problems(self, unavailable, contract, not_filled) -> None:
         parts = []

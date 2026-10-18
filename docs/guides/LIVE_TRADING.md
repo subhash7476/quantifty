@@ -173,10 +173,16 @@ To trade live you write your own entry script around `build_runner`, with your o
      compared; a reject or cancel among them is reported by that poll. A critical
      alert names every order that is not resumed:
      - not in the order book: Upstox never received it (a refused placement), or a
-       placement that failed ambiguously is not visible yet;
-     - in the order book more than once: none of them is polled;
+       placement that failed ambiguously is not visible yet. The poll looks for it
+       again every 30 s and adopts it if it appears;
+     - in the order book more than once, or only on another side or quantity (an
+       order modified at Upstox): none of them is polled;
      - the order book could not be read: nothing polls any of them, and the startup
        reconcile refuses if one of them filled.
+
+     The startup poll is a single attempt: if the broker does not answer, a fill
+     that landed during the restart stays unbooked and the reconcile refuses the
+     start; run it again. A broker auth failure in that poll refuses the start.
    - **Kill switch from the poll.** Three consecutive outage polls trip a releasable
      kill switch, lifted by the first clean poll unless the data feed is stale. An
      auth failure trips it at once and ends polling. Any other repeated failure

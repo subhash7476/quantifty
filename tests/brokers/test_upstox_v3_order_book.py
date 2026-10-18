@@ -442,7 +442,45 @@ def test_a_book_order_with_the_tag_but_another_side_or_size_is_not_matched(
 
     result = adapter.resume_orders([(order, 0, 0.0)])
 
-    assert result.not_found == [order]
+    assert result.mismatched == [order]
+    assert result.not_found == []
+
+
+def test_an_order_missing_at_restart_is_adopted_when_it_appears(tmp_path, monkeypatch, alerts):
+    http = install(monkeypatch)
+    http.route("GET", "/order/retrieve-all", [], [], [_book_entry("L-1", "sig-late")])
+    http.route_order("GET", "/order/details", "L-1",
+                     _details("L-1", "complete", filled=50, average_price=101.0))
+    clock = iter([0.0, 10.0, 40.0, 41.0])
+    monkeypatch.setattr("core.brokers.upstox_adapter.time.monotonic", lambda: next(clock))
+    adapter = _adapter(tmp_path)
+
+    result = adapter.resume_orders([(_order(signal_id="sig-late"), 0, 0.0)])
+    assert len(result.not_found) == 1
+
+    adapter.poll_fills()   # t=0: looked up, still missing; the poll does not fail
+    adapter.poll_fills()   # t=10: inside the interval, no book call
+    assert len(http.calls_to("GET", "/order/retrieve-all")) == 2
+    adapter.poll_fills()   # t=40: found, adopted and polled in the same sweep
+
+    [fill] = adapter.fills
+    assert (fill.quantity, fill.price) == (50, 101.0)
+    assert "FOUND AT UPSTOX AFTER A RESTART" in alerts.critical.call_args.args[0]
+
+
+def test_a_raising_fee_model_does_not_stop_a_restart(tmp_path, monkeypatch):
+    http = install(monkeypatch)
+    http.route("GET", "/order/retrieve-all", [_book_entry("R-1", "sig-r", quantity=75)])
+    adapter = _adapter(tmp_path)
+
+    def broken(order, price):
+        raise ValueError("no fee schedule for this segment")
+    adapter.fee_model = broken
+
+    result = adapter.resume_orders([(_order(signal_id="sig-r", quantity=75), 25, 100.0)])
+
+    assert (result.not_found, result.duplicated, result.mismatched) == ([], [], [])
+    assert list(adapter._pending) == ["R-1"]
 
 
 def test_a_raising_fee_model_books_the_fill_without_a_fee(tmp_path, monkeypatch):

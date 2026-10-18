@@ -2,7 +2,8 @@
 LoopDriver - the live fill-poll seam (`fill_poll`, DRIVER_SPECIFICATION.md §8.3).
 
 A broker that does not push fills (UpstoxAdapter has no WebSocket order-update
-feed) is polled once per loop iteration, and once more when the loop ends. The
+feed) is polled once in the startup gate (before reconciliation), once per loop
+iteration, and once more when the loop ends. The
 seam is opt-in and live-only: a driver built without `fill_poll`, or run in
 REPLAY, takes exactly the path it took before the hook existed.
 
@@ -271,16 +272,47 @@ def test_a_hard_trip_that_lands_during_an_outage_trip_is_not_released(tmp_path):
 # --------------------------------------------------------------------------- #
 
 def test_auth_failure_trips_hard_journals_once_and_ends_polling(tmp_path):
-    poll = _always(BrokerAuthError("token expired"))
-    driver, execution, _ = _driver(tmp_path, fill_poll=poll, n_bars=5)
+    poll = _script(None, BrokerAuthError("token expired"))   # the startup poll is clean
+    driver, execution, timeline = _driver(tmp_path, fill_poll=poll, n_bars=5)
 
     driver.run()
 
     assert driver.state is RuntimeState.STOPPED
     assert execution._kill_switched
     assert execution._kill_hard
-    assert poll.calls == 1  # a dead token is not polled again
+    assert poll.calls == 2  # the gate, then the failing poll; a dead token is not polled again
     assert len(_events(tmp_path, "BROKER_ERROR")) == 1
+    assert timeline.count("bar") == 5   # the run goes on: exits can still be routed
+
+
+def test_an_auth_failure_in_the_startup_poll_refuses_the_start(tmp_path):
+    """A dead token at startup would start a run that can never learn of a fill."""
+    poll = _always(BrokerAuthError("token expired"))
+    driver, execution, timeline = _driver(tmp_path, fill_poll=poll, n_bars=5)
+
+    driver.run()
+
+    events = [e["event_type"] for e in _events(tmp_path)]
+    assert driver.state is RuntimeState.STOPPED
+    assert "RUNNING" not in events and "RECONCILIATION_PASS" not in events
+    assert timeline == []
+    assert poll.calls == 1
+
+
+def test_a_plain_reject_is_journaled_with_the_orders_identity(tmp_path):
+    def rejecting():
+        error = BrokerOrderNotFilledError("not filled")
+        error.not_filled = [EndedOrder("corr-3", OrderStatus.CANCELLED, "cancelled at Upstox")]
+        raise error
+
+    driver, _, _ = _driver(tmp_path, fill_poll=rejecting, n_bars=1)
+
+    driver.run()
+
+    [first, *_] = [e for e in _events(tmp_path, "BROKER_ERROR")
+                   if "cancelled at Upstox" in e["message"]]
+    assert first["metadata"]["correlation_id"] == "corr-3"
+    assert first["metadata"]["status"] == "CANCELLED"
 
 
 # --------------------------------------------------------------------------- #

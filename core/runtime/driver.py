@@ -428,8 +428,17 @@ class LoopDriver:
         # Book what filled while the process was down before positions are
         # compared: build_runner re-seeds the poll with today's open ledger orders,
         # and a fill that landed during the restart would otherwise refuse every
-        # start as a ledger/broker divergence. Live only, like every fill poll.
+        # start as a ledger/broker divergence. Live only, like every fill poll. One
+        # attempt: a transient failure here leaves the fill unbooked, and the
+        # reconcile below then refuses the start (re-run once the broker answers).
         self._drive_fill_poll()
+        if self._fill_poll_halted:
+            # A dead token at startup would start a run that can never learn of a fill.
+            self._emit(EventType.BROKER_ERROR,
+                       "startup refused: the fill poll's broker authentication failed",
+                       metadata={"source": "fill_poll"})
+            self.abort_startup()
+            return False
 
         if not self._reconcile_ledger():
             return False
@@ -692,8 +701,8 @@ class LoopDriver:
                     self._logger.error("Telemetry publisher close failed: %s", exc)
 
     def _drive_fill_poll(self) -> None:
-        """Run the broker fill poll once (§8.3): before each symbol sweep, and
-        once more when the loop ends.
+        """Run the broker fill poll once (§8.3): in the startup gate before
+        reconciliation, before each symbol sweep, and once more when the loop ends.
 
         Live only, like the watchdog, and only when a poll was injected. It runs
         while PAUSED or kill-switched too: an order placed before the trip can

@@ -56,6 +56,8 @@ class BrokerAdapter(ABC):
 @dataclass(frozen=True)
 class ResumeResult:
     """What resume_orders could not take back: orders not found at the broker,
-    and orders whose tag the broker holds more than once."""
+    orders whose tag the broker holds more than once, and orders whose tag it
+    holds only on another side or quantity."""
     not_found: List = field(default_factory=list)
     duplicated: List = field(default_factory=list)
+    mismatched: List = field(default_factory=list)
