@@ -1,0 +1,362 @@
+{
+  "entities": 508,
+  "regular_sessions": 3203,
+  "panel_sha256": "46de7d4d6b3c1fc2d0a4954ccc3455787c6f86af2d30054ae549764a2a3b2ef4",
+  "panel_max_date": "2022-12-30",
+  "membership_name_days": 537200,
+  "lookback_sessions_required_for_onset": 332,
+  "variants": {
+    "D2": {
+      "variant": "D2",
+      "state_valid_name_days": 1160591,
+      "member_state_valid_name_days": 526683,
+      "low_name_days": 233670,
+      "low_share_of_state_valid": 0.201337077402806,
+      "high_share_of_state_valid": 0.20257696294387945,
+      "mean_low_run_length": 6.38024246395806,
+      "stages": {
+        "TRAIN": {
+          "sessions": 1474,
+          "comp_events": 3790,
+          "norm_events": 226537,
+          "pers_events": 3713,
+          "names_in_low_state_per_date": {
+            "median": 30.0,
+            "p90": 95.0,
+            "max": 161.0
+          },
+          "dates_with_comp": 1016,
+          "dates_comp_and_norm_ge_floor": 901,
+          "dates_comp_and_pers": 666,
+          "dates_norm_below_floor_with_comp": 115,
+          "median_norm_names_per_date": 165.0,
+          "forward_availability_only": {
+            "comp_h5": {
+              "formed_with_window_in_stage": 3775,
+              "window_available": 3774,
+              "dropped": 1,
+              "dropped_share": 0.00026490066225165563
+            },
+            "norm_h5": {
+              "formed_with_window_in_stage": 225709,
+              "window_available": 225657,
+              "dropped": 52,
+              "dropped_share": 0.00023038514193053888
+            },
+            "pers_h5": {
+              "formed_with_window_in_stage": 3707,
+              "window_available": 3706,
+              "dropped": 1,
+              "dropped_share": 0.0002697599136768276
+            },
+            "comp_h20": {
+              "formed_with_window_in_stage": 3745,
+              "window_available": 3742,
+              "dropped": 3,
+              "dropped_share": 0.0008010680907877169
+            },
+            "norm_h20": {
+              "formed_with_window_in_stage": 223486,
+              "window_available": 223303,
+              "dropped": 183,
+              "dropped_share": 0.0008188432385026355
+            },
+            "pers_h20": {
+              "formed_with_window_in_stage": 3677,
+              "window_available": 3674,
+              "dropped": 3,
+              "dropped_share": 0.0008158825129181398
+            }
+          }
+        },
+        "VAL": {
+          "sessions": 1233,
+          "comp_events": 3071,
+          "norm_events": 190468,
+          "pers_events": 3164,
+          "names_in_low_state_per_date": {
+            "median": 26.0,
+            "p90": 106.0,
+            "max": 169.0
+          },
+          "dates_with_comp": 819,
+          "dates_comp_and_norm_ge_floor": 704,
+          "dates_comp_and_pers": 516,
+          "dates_norm_below_floor_with_comp": 115,
+          "median_norm_names_per_date": 169.0,
+          "forward_availability_only": {
+            "comp_h5": {
+              "formed_with_window_in_stage": 3069,
+              "window_available": 3069,
+              "dropped": 0,
+              "dropped_share": 0.0
+            },
+            "norm_h5": {
+              "formed_with_window_in_stage": 189511,
+              "window_available": 189466,
+              "dropped": 45,
+              "dropped_share": 0.00023745323490457018
+            },
+            "pers_h5": {
+              "formed_with_window_in_stage": 3107,
+              "window_available": 3105,
+              "dropped": 2,
+              "dropped_share": 0.000643707756678468
+            },
+            "comp_h20": {
+              "formed_with_window_in_stage": 3051,
+              "window_available": 3050,
+              "dropped": 1,
+              "dropped_share": 0.00032776138970829236
+            },
+            "norm_h20": {
+              "formed_with_window_in_stage": 187588,
+              "window_available": 187413,
+              "dropped": 175,
+              "dropped_share": 0.0009328954943813037
+            },
+            "pers_h20": {
+              "formed_with_window_in_stage": 3055,
+              "window_available": 3053,
+              "dropped": 2,
+              "dropped_share": 0.0006546644844517185
+            }
+          }
+        }
+      },
+      "events_by_year": {
+        "2012": {
+          "comp": 616,
+          "norm": 33484,
+          "pers": 570
+        },
+        "2013": {
+          "comp": 580,
+          "norm": 38701,
+          "pers": 565
+        },
+        "2014": {
+          "comp": 596,
+          "norm": 39522,
+          "pers": 679
+        },
+        "2015": {
+          "comp": 701,
+          "norm": 37150,
+          "pers": 597
+        },
+        "2016": {
+          "comp": 661,
+          "norm": 39226,
+          "pers": 608
+        },
+        "2017": {
+          "comp": 636,
+          "norm": 38454,
+          "pers": 694
+        },
+        "2018": {
+          "comp": 717,
+          "norm": 37535,
+          "pers": 662
+        },
+        "2019": {
+          "comp": 601,
+          "norm": 38370,
+          "pers": 657
+        },
+        "2020": {
+          "comp": 454,
+          "norm": 37439,
+          "pers": 532
+        },
+        "2021": {
+          "comp": 654,
+          "norm": 39869,
+          "pers": 609
+        },
+        "2022": {
+          "comp": 645,
+          "norm": 37255,
+          "pers": 704
+        }
+      }
+    },
+    "D1": {
+      "variant": "D1",
+      "state_valid_name_days": 1160591,
+      "member_state_valid_name_days": 526683,
+      "low_name_days": 235370,
+      "low_share_of_state_valid": 0.20280184836863288,
+      "high_share_of_state_valid": 0.20441481969100225,
+      "mean_low_run_length": 5.440948704315865,
+      "stages": {
+        "TRAIN": {
+          "sessions": 1474,
+          "comp_events": 4078,
+          "norm_events": 225295,
+          "pers_events": 3992,
+          "names_in_low_state_per_date": {
+            "median": 38.0,
+            "p90": 73.70000000000005,
+            "max": 137.0
+          },
+          "dates_with_comp": 1185,
+          "dates_comp_and_norm_ge_floor": 1138,
+          "dates_comp_and_pers": 927,
+          "dates_norm_below_floor_with_comp": 47,
+          "median_norm_names_per_date": 157.0,
+          "forward_availability_only": {
+            "comp_h5": {
+              "formed_with_window_in_stage": 4061,
+              "window_available": 4060,
+              "dropped": 1,
+              "dropped_share": 0.0002462447672986949
+            },
+            "norm_h5": {
+              "formed_with_window_in_stage": 224658,
+              "window_available": 224609,
+              "dropped": 49,
+              "dropped_share": 0.00021810930391973578
+            },
+            "pers_h5": {
+              "formed_with_window_in_stage": 3986,
+              "window_available": 3985,
+              "dropped": 1,
+              "dropped_share": 0.0002508780732563974
+            },
+            "comp_h20": {
+              "formed_with_window_in_stage": 4027,
+              "window_available": 4023,
+              "dropped": 4,
+              "dropped_share": 0.0009932952570151478
+            },
+            "norm_h20": {
+              "formed_with_window_in_stage": 222502,
+              "window_available": 222331,
+              "dropped": 171,
+              "dropped_share": 0.0007685324176861331
+            },
+            "pers_h20": {
+              "formed_with_window_in_stage": 3954,
+              "window_available": 3952,
+              "dropped": 2,
+              "dropped_share": 0.0005058168942842691
+            }
+          }
+        },
+        "VAL": {
+          "sessions": 1233,
+          "comp_events": 3350,
+          "norm_events": 190840,
+          "pers_events": 3302,
+          "names_in_low_state_per_date": {
+            "median": 34.0,
+            "p90": 81.0,
+            "max": 149.0
+          },
+          "dates_with_comp": 941,
+          "dates_comp_and_norm_ge_floor": 901,
+          "dates_comp_and_pers": 689,
+          "dates_norm_below_floor_with_comp": 40,
+          "median_norm_names_per_date": 161.0,
+          "forward_availability_only": {
+            "comp_h5": {
+              "formed_with_window_in_stage": 3346,
+              "window_available": 3345,
+              "dropped": 1,
+              "dropped_share": 0.00029886431560071725
+            },
+            "norm_h5": {
+              "formed_with_window_in_stage": 189908,
+              "window_available": 189868,
+              "dropped": 40,
+              "dropped_share": 0.00021062830423152263
+            },
+            "pers_h5": {
+              "formed_with_window_in_stage": 3256,
+              "window_available": 3255,
+              "dropped": 1,
+              "dropped_share": 0.0003071253071253071
+            },
+            "comp_h20": {
+              "formed_with_window_in_stage": 3320,
+              "window_available": 3319,
+              "dropped": 1,
+              "dropped_share": 0.00030120481927710846
+            },
+            "norm_h20": {
+              "formed_with_window_in_stage": 187911,
+              "window_available": 187752,
+              "dropped": 159,
+              "dropped_share": 0.0008461452496128486
+            },
+            "pers_h20": {
+              "formed_with_window_in_stage": 3199,
+              "window_available": 3197,
+              "dropped": 2,
+              "dropped_share": 0.0006251953735542357
+            }
+          }
+        }
+      },
+      "events_by_year": {
+        "2012": {
+          "comp": 612,
+          "norm": 33720,
+          "pers": 632
+        },
+        "2013": {
+          "comp": 712,
+          "norm": 39049,
+          "pers": 640
+        },
+        "2014": {
+          "comp": 677,
+          "norm": 38999,
+          "pers": 719
+        },
+        "2015": {
+          "comp": 680,
+          "norm": 36755,
+          "pers": 638
+        },
+        "2016": {
+          "comp": 716,
+          "norm": 39333,
+          "pers": 651
+        },
+        "2017": {
+          "comp": 681,
+          "norm": 37439,
+          "pers": 712
+        },
+        "2018": {
+          "comp": 724,
+          "norm": 39145,
+          "pers": 683
+        },
+        "2019": {
+          "comp": 667,
+          "norm": 37126,
+          "pers": 674
+        },
+        "2020": {
+          "comp": 593,
+          "norm": 38145,
+          "pers": 586
+        },
+        "2021": {
+          "comp": 654,
+          "norm": 39474,
+          "pers": 649
+        },
+        "2022": {
+          "comp": 712,
+          "norm": 36950,
+          "pers": 710
+        }
+      }
+    }
+  }
+}

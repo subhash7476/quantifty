@@ -1,0 +1,152 @@
+{
+  "stage": "VAL",
+  "vp1_sql": {
+    "D2": {
+      "ledger_rows": 193539,
+      "sql_rows": 193539,
+      "only_in_ledger": 0,
+      "only_in_sql": 0,
+      "flag_mismatch": 0,
+      "pct_max_abs_diff": 0.0,
+      "pct_tie_explained": 0,
+      "pct_unexplained": 0,
+      "status_mismatch": 0,
+      "E_max_abs_diff": 1.154319695384487e-13,
+      "n_compared_values": 1531992,
+      "null_mismatch": 0,
+      "pass": true
+    },
+    "D1": {
+      "ledger_rows": 194190,
+      "sql_rows": 194190,
+      "only_in_ledger": 0,
+      "only_in_sql": 0,
+      "flag_mismatch": 0,
+      "pct_max_abs_diff": 0.0,
+      "pct_tie_explained": 0,
+      "pct_unexplained": 0,
+      "status_mismatch": 0,
+      "E_max_abs_diff": 2.590011538572412e-13,
+      "n_compared_values": 1537136,
+      "null_mismatch": 0,
+      "pass": true
+    },
+    "sql_sessions": 3203,
+    "pass": true
+  },
+  "vp2_raw": {
+    "stage": "VAL",
+    "variant": "D2",
+    "sampled": 12,
+    "verified": 10,
+    "skipped_ca": 2,
+    "skipped_multi_symbol": 0,
+    "skipped_short": 0,
+    "pct_max_abs_diff": 0.0,
+    "flag_mismatch": 0,
+    "E_max_abs_diff": 3.6637359812630166e-15,
+    "pass": true
+  },
+  "vp3_stats": {
+    "stage": "VAL",
+    "cells": [
+      {
+        "h": 5,
+        "comparator": "normal",
+        "n_pair_dates": 701,
+        "d_mean_table": -0.1118083099421918,
+        "d_mean_manual": -0.11180830994219189,
+        "d_se_table": 0.0162599848967651,
+        "d_se_manual": 0.016259984896765185,
+        "d_se_kernel": 0.016259984896765188,
+        "p_table": 0.999999999993187,
+        "p_manual": 0.999999999993187
+      },
+      {
+        "h": 5,
+        "comparator": "persistence",
+        "n_pair_dates": 514,
+        "d_mean_table": -0.2320842838206654,
+        "d_mean_manual": -0.23208428382066543,
+        "d_se_table": 0.0237264330363892,
+        "d_se_manual": 0.023726433036389265,
+        "d_se_kernel": 0.023726433036389268,
+        "p_table": 1.0,
+        "p_manual": 1.0
+      },
+      {
+        "h": 20,
+        "comparator": "normal",
+        "n_pair_dates": 696,
+        "d_mean_table": -0.0592166437869213,
+        "d_mean_manual": -0.059216643786921354,
+        "d_se_table": 0.0145846064537269,
+        "d_se_manual": 0.014584606453726992,
+        "d_se_kernel": 0.014584606453726993,
+        "p_table": 0.999972698157942,
+        "p_manual": 0.9999726981579419
+      },
+      {
+        "h": 20,
+        "comparator": "persistence",
+        "n_pair_dates": 510,
+        "d_mean_table": -0.0865854238104842,
+        "d_mean_manual": -0.0865854238104843,
+        "d_se_table": 0.0144570890806445,
+        "d_se_manual": 0.014457089080644539,
+        "d_se_kernel": 0.014457089080644536,
+        "p_table": 0.9999999980047816,
+        "p_manual": 0.9999999980047816
+      }
+    ],
+    "max_abs_diff": {
+      "d_mean": 9.71445146547012e-17,
+      "d_se": 9.194034422677078e-17,
+      "d_t": 2.6645352591003757e-15,
+      "d_p": 1.1102230246251565e-16,
+      "kernel_se": 9.367506770274758e-17,
+      "n_pair": 0
+    },
+    "holm_manual": {
+      "20,normal": 1.0,
+      "20,persistence": 1.0,
+      "5,normal": 1.0,
+      "5,persistence": 1.0
+    },
+    "pass": true
+  },
+  "vp4_accounting": {
+    "stage": "VAL",
+    "variants": {
+      "D2": {
+        "duplicate_keys": 0,
+        "C_and_N": 0,
+        "C_and_P": 0,
+        "identity_ok": true,
+        "formed_matches_ledger": true,
+        "pct_in_unit_interval": true,
+        "pass": true
+      },
+      "D1": {
+        "duplicate_keys": 0,
+        "C_and_N": 0,
+        "C_and_P": 0,
+        "identity_ok": true,
+        "formed_matches_ledger": true,
+        "pct_in_unit_interval": true,
+        "pass": true
+      }
+    },
+    "pass": true
+  },
+  "vp5_prices": {
+    "entities_with_bonus_or_split": 829,
+    "rows_checked_clean": 3000,
+    "adj_vs_raw_max_rel_diff_no_CA_names": 0.0,
+    "ca_rows_reconstructed": 3000,
+    "ca_rows_reconstruction_agree": 3000,
+    "ca_reconstruction_rate": 1.0,
+    "pass": true
+  },
+  "stop": false
+}
