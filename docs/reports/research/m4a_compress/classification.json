@@ -1,0 +1,72 @@
+{
+  "label": "C5 (construct-scoped; NON-CONFIRMATORY characterization: no VAL-consistent cell; M4a stays open)",
+  "defects": [],
+  "val_consistent": [],
+  "val_info": {
+    "5,normal": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.1118083099421918
+    },
+    "5,persistence": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.2320842838206654
+    },
+    "20,normal": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.0592166437869213
+    },
+    "20,persistence": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.0865854238104842
+    }
+  },
+  "primary_family_size": 4,
+  "train_descriptive": {
+    "5,normal": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.0710550908412806
+    },
+    "5,persistence": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.1728694777103377
+    },
+    "20,normal": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.0413750645291484
+    },
+    "20,persistence": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.0802452390018545
+    }
+  },
+  "d1_disclosure_holm": {
+    "5,normal": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.0642465676139003
+    },
+    "5,persistence": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.1934497812963957
+    },
+    "20,normal": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.0332568985757418
+    },
+    "20,persistence": {
+      "holm_p": 1.0,
+      "fragile": true,
+      "d_mean": -0.0691886108014614
+    }
+  }
+}

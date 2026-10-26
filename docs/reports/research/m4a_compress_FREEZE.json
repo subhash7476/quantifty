@@ -1,0 +1,71 @@
+{
+  "protocol_id": "M4A-CE-1",
+  "version": "1.0",
+  "hashes": {
+    "protocol": "0c4bed16bdf971e8a8a6f56ae0b956317297360264a3db3ef7bc3311b23892a6",
+    "protocol_md": "1f44ad36075a64b7facd98639aff812b6e80e34d7fe2520262b47e3461d7c7d9",
+    "scripts/m4a_compress/common.py": "9ee7ee2806a935621470880a2db8761d6e7a8b9721231d01546f46915e5510a7",
+    "scripts/m4a_compress/panel.py": "f55e309ccb8ba00fffcf4ed5c58d3df869f945cfcfb9b7e0170367bd13b15474",
+    "scripts/m4a_compress/state.py": "48f75275516e98ee637ddce2f438d64980c83739944bffded365dc57f1068574",
+    "scripts/m4a_compress/cohorts.py": "1c3983d7758a38d4314a6b8145dfb7af36cd25cfa7e5e93985b2510617e7e546",
+    "scripts/m4a_compress/outcome.py": "aff6886ac5e2e6e699b70675c5c03296cbb419afea638e3ee5af4118c7b08355",
+    "scripts/m4a_compress/analyze.py": "47ba8d8fe999c35a85c61d7dcea6c8521fa35140ad44cf4f2b90ec548d0e1ba3",
+    "scripts/m4a_compress/classify.py": "2f66acf8eab25d38fc2af38da830f7d28e093508189493d8ae1948b98d74b051",
+    "scripts/m4a_compress/stats.py": "d34641a739d81433b2063f56024977a2467b7d0492e45b57431d5b4d67810cc1",
+    "scripts/m4a_compress/diagnostics.py": "84ad77e277adb2a68c1c052c61d26d8ccde3df7bc7e8424d51bf1143578208f1",
+    "scripts/m4a_compress/freeze.py": "1ec6c27863262963026b593d238ddc05d16e973bdfdb6d9438366c1a4b2b5902",
+    "scripts/m4a_compress/run_stage.py": "3543c734c41f468a629f3b59273d4c29201b392f13b843125d30ed9f6a9f34be",
+    "scripts/m4a_compress/verify_independent.py": "535c1813ed0bc8a1764d32ec0de4e17192f09aa83534c116029c06e1fe8366ab",
+    "scripts/breakout_vol/common.py": "a5fc6d0a29748154c3641b227685a164a8a5c3feee12357fb76b3f8882fcac28",
+    "scripts/breakout_vol/engine.py": "901da5719471f4ec654840f651dc84cf97d71ba54d68e812a12c3d2f584e1943",
+    "scripts/breakout_vol/stats.py": "19ee70e1fc18ce52f41707b07d425d080a934bb73ef8b4de29e8923c9c1478e8",
+    "scripts/breakout_vol/verify_independent.py": "ed4891b4b7f66c475a09cdda90be9fd4798a15b1712fcc4278b739aed24fe6a4",
+    "scripts/vwap_rev/stats.py": "be76cd199d6e13e9f16e409c5242d1e5354f1216897e5f1e53cd19f3edaf36ab",
+    "docs/reports/external/M4A_COMPRESSION_EXPANSION_DESIGN_INVENTORY.md": "ad1d28040809b93d4eff5fc62cd17a495a03215172298096ab6553cb608c5bd5",
+    "snapshot_dev/panel": "46de7d4d6b3c1fc2d0a4954ccc3455787c6f86af2d30054ae549764a2a3b2ef4",
+    "snapshot_dev/calendar": "73addee2e5ff60a50dc28c8afe0065e034c3262eb8935c418bfd0c5d43b90639",
+    "snapshot_dev/membership": "db87add8c97f4785a150abb3ea51bd80666d9bd20c1b74ce1da38365294f7101",
+    "diagnostics_outcome_free": "b617b7e77be84363b27be5e153f124f779d3dabc201489f1d344f6ad8a7997b8"
+  },
+  "git_head_at_freeze": "e993ce0be571a9a045401f0354561c914f8a50a9",
+  "git_dirty_paths_at_freeze": [
+    "?? scripts/m4a_compress/",
+    "?? tests/m4a_compress/"
+  ],
+  "frozen_at": "2026-09-30T18:51:20",
+  "outcomes_computed_before_freeze": true,
+  "history": [
+    {
+      "version": "1.0",
+      "hashes": {
+        "protocol": "0c4bed16bdf971e8a8a6f56ae0b956317297360264a3db3ef7bc3311b23892a6",
+        "protocol_md": "23f2fba6348365b46aceac8071ff82dcf373b702811a5216588626138d33b12d",
+        "scripts/m4a_compress/common.py": "9ee7ee2806a935621470880a2db8761d6e7a8b9721231d01546f46915e5510a7",
+        "scripts/m4a_compress/panel.py": "f55e309ccb8ba00fffcf4ed5c58d3df869f945cfcfb9b7e0170367bd13b15474",
+        "scripts/m4a_compress/state.py": "48f75275516e98ee637ddce2f438d64980c83739944bffded365dc57f1068574",
+        "scripts/m4a_compress/cohorts.py": "1c3983d7758a38d4314a6b8145dfb7af36cd25cfa7e5e93985b2510617e7e546",
+        "scripts/m4a_compress/outcome.py": "aff6886ac5e2e6e699b70675c5c03296cbb419afea638e3ee5af4118c7b08355",
+        "scripts/m4a_compress/analyze.py": "47ba8d8fe999c35a85c61d7dcea6c8521fa35140ad44cf4f2b90ec548d0e1ba3",
+        "scripts/m4a_compress/classify.py": "2f66acf8eab25d38fc2af38da830f7d28e093508189493d8ae1948b98d74b051",
+        "scripts/m4a_compress/stats.py": "d34641a739d81433b2063f56024977a2467b7d0492e45b57431d5b4d67810cc1",
+        "scripts/m4a_compress/diagnostics.py": "84ad77e277adb2a68c1c052c61d26d8ccde3df7bc7e8424d51bf1143578208f1",
+        "scripts/m4a_compress/freeze.py": "1ec6c27863262963026b593d238ddc05d16e973bdfdb6d9438366c1a4b2b5902",
+        "scripts/m4a_compress/run_stage.py": "3543c734c41f468a629f3b59273d4c29201b392f13b843125d30ed9f6a9f34be",
+        "scripts/m4a_compress/verify_independent.py": "59bf5014ba8d5cd1b7da3d7d62e35dee2c3b45c743d6268641918a49050e4ca7",
+        "scripts/breakout_vol/common.py": "a5fc6d0a29748154c3641b227685a164a8a5c3feee12357fb76b3f8882fcac28",
+        "scripts/breakout_vol/engine.py": "901da5719471f4ec654840f651dc84cf97d71ba54d68e812a12c3d2f584e1943",
+        "scripts/breakout_vol/stats.py": "19ee70e1fc18ce52f41707b07d425d080a934bb73ef8b4de29e8923c9c1478e8",
+        "scripts/breakout_vol/verify_independent.py": "ed4891b4b7f66c475a09cdda90be9fd4798a15b1712fcc4278b739aed24fe6a4",
+        "scripts/vwap_rev/stats.py": "be76cd199d6e13e9f16e409c5242d1e5354f1216897e5f1e53cd19f3edaf36ab",
+        "docs/reports/external/M4A_COMPRESSION_EXPANSION_DESIGN_INVENTORY.md": "ad1d28040809b93d4eff5fc62cd17a495a03215172298096ab6553cb608c5bd5",
+        "snapshot_dev/panel": "46de7d4d6b3c1fc2d0a4954ccc3455787c6f86af2d30054ae549764a2a3b2ef4",
+        "snapshot_dev/calendar": "73addee2e5ff60a50dc28c8afe0065e034c3262eb8935c418bfd0c5d43b90639",
+        "snapshot_dev/membership": "db87add8c97f4785a150abb3ea51bd80666d9bd20c1b74ce1da38365294f7101",
+        "diagnostics_outcome_free": "b617b7e77be84363b27be5e153f124f779d3dabc201489f1d344f6ad8a7997b8"
+      },
+      "git_head_at_freeze": "e993ce0be571a9a045401f0354561c914f8a50a9",
+      "frozen_at": "2026-09-30T18:38:55",
+      "superseded_for": "A1: VP1 percentile tolerance - tie-explained differences only; verifier code only, engine/analysis unchanged; TRAIN/VAL computed pre-amend"
+    }
+  ]
+}

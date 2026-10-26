@@ -1,0 +1,50 @@
+{
+  "protocol_id": "M4A-CE-1",
+  "version": "1.0",
+  "title": "M4a - low realized-dispersion state (ATR10/ATR60 trailing percentile) vs subsequent range expansion; daily, PIT top-200 turnover universe; GR-1.4 NON-CONFIRMATORY characterization",
+  "params": {
+    "fast": 10,
+    "slow": 60,
+    "pct_window": 252,
+    "q_low": 0.2,
+    "q_high": 0.8,
+    "quiet": 20,
+    "base_window": 252,
+    "horizons": [
+      5,
+      20
+    ],
+    "min_normal_names": 100,
+    "alpha": 0.05,
+    "n_boot": 10000,
+    "boot_seed": 20260930,
+    "n_perm": 2000,
+    "perm_seed": 20260931
+  },
+  "stages": {
+    "TRAIN": [
+      "2012-01-02",
+      "2017-12-29"
+    ],
+    "VAL": [
+      "2018-01-01",
+      "2022-12-30"
+    ]
+  },
+  "dev_cutoff": "2022-12-30",
+  "primary_variant": "D2 (ATR_fast/ATR_slow of (H-L)/C[s-1]); D1 (std of log returns) is declared robustness, disclosure only",
+  "primary_outcome": "E_range = mean_{t+1..t+h}((H-L)/C[s-1]) / median_{t-251..t}((H-L)/C[s-1])",
+  "primary_family": {
+    "cells": "h in {5,20} x comparator in {normal, persistence}",
+    "size": 4,
+    "statistic": "mean over formation dates with >=1 compression event and a comparator cohort meeting its floor of [mean_C E - mean_X E]",
+    "test": "one-sided (H1: d-bar > 0) calendar-aware Newey-West, lag = h, Student-t n-1 df",
+    "multiplicity": "Holm over the 4 VAL cells at alpha 0.05; TRAIN descriptive, no decision"
+  },
+  "classification": {
+    "C4": "defect trigger (frozen-file mismatch, independent-verification disagreement, accounting failure)",
+    "C5": "no VAL-consistent cell (construct-scoped, non-confirmatory)",
+    "C6": "at least one VAL-consistent cell: positive but incomplete (construct-scoped, non-confirmatory; not a confirmation)",
+    "C7-C9": "unreachable: no HOLDOUT exists"
+  }
+}
