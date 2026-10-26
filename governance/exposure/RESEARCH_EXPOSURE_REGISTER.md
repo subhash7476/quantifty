@@ -412,3 +412,30 @@ none of them is a candidate hypothesis.
 **What this did NOT spend.** SEALED 2023-01-02 → 2026-10-05 (184 formations): never read. The runner refuses `--stage sealed` without a DEV
 PASS and refuses any 2023+ session in DEV. The earlier GEX work (Stage A index EOD test, Stage B fly) is index-level and is unaffected by
 this entry.
+
+## 13. Register — M4A-CE-1 (M4a volatility compression → range expansion) (appended 2026-10-26, **after** the read)
+
+**Authority:** operator request 2026-10-26 ("add the M4a register row"). **Recorded after the read, not before** (contrary to §8): the read
+ran 2026-09-30 and its frozen protocol carried its own prior-exposure disclosure (`docs/reports/research/M4A_COMPRESSION_EXPANSION_PROTOCOL.md`
+§3), but this register was not updated first, and the work stayed uncommitted until it was merged on 2026-10-26 (PR #57, `bae06c1`; freeze
+record, protocol JSON and result artifacts in PR #58, `c33babd`). Frozen protocol `M4A-CE-1` v1.0 (`m4a_compress_FREEZE.json`), first frozen
+2026-09-30 18:38:55 with no outcome computed. It was re-frozen at 18:51:20 for amendment A1, which widened the independent verifier's tolerance
+to admit one exact-tie percentile difference (1/252, D1 TRAIN). The A1 re-freeze followed the runs, which is why the record reads
+`outcomes_computed_before_freeze: true`. No engine, cohort, outcome or threshold parameter changed (research log L14–L17).
+
+| # | Surface | Window | Level | Hypothesis family | Consumer | Evidence |
+|---|---|---|---|---|---|---|
+| Q-9 | Equity EOD (adjusted OHLC; PIT top-200 turnover universe), read only through the hashed BKV-1 dev snapshot `data/research/breakout_volume/{panel,calendar,membership}_dev.parquet` (panel SHA-256 `46de7d4d…`) | TRAIN 2012-01-02 → 2017-12-29 and VAL 2018-01-01 → 2022-12-30 (snapshot ends 2022-12-30) | **signal** (non-confirmatory, GR-1.4; TRAIN descriptive, VAL a consistency check) | M4a — volatility compression (ATR10/ATR60 trailing-252 percentile ≤ 0.20, onset) → forward normalised range E_range at h = 5 / 20, each against the *normal* and the *persistence* comparator cohort formed on the same date | `scripts/m4a_compress/` (`run_stage.py`, `verify_independent.py`) at PR #57 / #58 | `docs/reports/research/M4A_COMPRESSION_EXPANSION_CHARACTERIZATION_REPORT.md`; `docs/reports/research/m4a_compress/` (cells, cohorts, by-year, accounting, verification); run outputs `data/research/m4a_compress/` (outside git) |
+
+**Outcome of the read:** all four VAL cells wrong-signed (d-bar h5 normal −0.112, h5 persistence −0.232, h20 normal −0.059, h20 persistence −0.087; Holm p = 1). All four TRAIN cells are
+also wrong-signed, and all 44 year-cells are negative. Compression is followed by *less* normalised range than either comparator, which is
+volatility persistence. Category C5, construct-scoped, non-confirmatory. M4a stays open.
+
+**What this spends.** The 2012-01-02 → 2022-12-30 equity EOD panel was already signal-spent for other families (Q-1…Q-3, Q-7, G-S1, MRLC
+E-3), and feature-read by the N200 HMM (Q-4). It is now also spent for the volatility compression → expansion family: the forward range of the top-200 names conditioned on a
+fast/slow range-ratio state. It can never again serve as a confirmatory window for that family (GR-1.3). That includes the
+level-controlled successor (`M4A_FINAL_MECHANISM_ADJUDICATION.md`), which keeps the same mechanism.
+
+**What this did NOT spend.** The 2023-01-02 → present equity EOD window: the package has no HOLDOUT stage, and nothing after 2022-12-30 is
+loadable from the snapshot. The level-controlled protocol (`docs/reports/research/M4A_LEVEL_CONTROLLED_PROTOCOL_v1.0.md`) has not been run.
+Any read for it needs its own row here **before** the read, on a surface not spent for this family.
