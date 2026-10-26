@@ -16,16 +16,38 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
+import duckdb  # noqa: E402
+
 from core.market.session_schedule import session_window  # noqa: E402
 
 CANDLES_1M_DIR = ROOT / "data" / "market_data" / "nse" / "candles" / "1m"
+UPSTOX_MASTER_DB = ROOT / "data" / "instruments" / "nse_fo_instruments.duckdb"
 
 
-def fo_equity_keys(con, on: date) -> tuple[dict[str, str], list[str]]:
+def _upstox_isins(master_db: Path, symbols: list[str]) -> dict[str, str]:
+    """{symbol: isin} for `symbols` from the latest Upstox master snapshot's EQ rows."""
+    if not symbols or not Path(master_db).exists():
+        return {}
+    con = duckdb.connect(str(master_db), read_only=True)
+    try:
+        return dict(con.execute("""
+            SELECT tradingsymbol, any_value(isin) FROM instruments
+            WHERE instrument_type = 'EQ' AND isin IS NOT NULL
+              AND snapshot_date = (SELECT MAX(snapshot_date) FROM instruments)
+              AND tradingsymbol IN (SELECT UNNEST(?::VARCHAR[]))
+            GROUP BY 1
+        """, [symbols]).fetchall())
+    finally:
+        con.close()
+
+
+def fo_equity_keys(con, on: date, master_db: Path = UPSTOX_MASTER_DB) -> tuple[dict[str, str], list[str]]:
     """({underlying: 'NSE_EQ|<isin>'}, underlyings with no EQ ISIN) for FUTSTK names trading on `on`.
 
     instrument_master carries each symbol's current ISIN; symbol_isin keeps pre-split
-    ISINs the 1m store no longer uses.
+    ISINs the 1m store no longer uses. instrument_master is refreshed only by
+    build_universe.py, so a renamed symbol (ICICIPRULI -> ICICILIFE, 2026-10-23) falls
+    back to the latest Upstox master snapshot, which the orchestrator refreshes daily.
     """
     rows = con.execute("""
         SELECT DISTINCT f.underlying, im.isin
@@ -33,8 +55,10 @@ def fo_equity_keys(con, on: date) -> tuple[dict[str, str], list[str]]:
         LEFT JOIN eq.instrument_master im ON im.symbol = f.underlying AND im.series = 'EQ'
         WHERE f.inst_type = 'FUTSTK' AND f.trade_date = ?
     """, [on]).fetchall()
-    keys = {u: f"NSE_EQ|{isin}" for u, isin in rows if isin}
-    return keys, sorted(u for u, isin in rows if not isin)
+    isins = {u: isin for u, isin in rows if isin}
+    isins.update(_upstox_isins(master_db, sorted(u for u, isin in rows if not isin)))
+    keys = {u: f"NSE_EQ|{isin}" for u, isin in isins.items()}
+    return keys, sorted({u for u, _ in rows} - set(keys))
 
 
 def load_continuous_closes(con, dates, candles_dir: Path = CANDLES_1M_DIR) -> None:
