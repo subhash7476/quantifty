@@ -25,6 +25,7 @@ def _record_runs(monkeypatch):
 
     monkeypatch.setattr(D, "_run", fake_run)
     monkeypatch.setattr(D, "_download_1m_candles", lambda full, lookback: True)
+    monkeypatch.setattr(D, "_mark_cas_synthetic", lambda since: True)
     monkeypatch.setattr(D, "_incremental_start", lambda db, table, lb: (date(2026, 9, 1), True))
     monkeypatch.setattr(D, "_warn_unresolved_calendar", lambda start: None)
     monkeypatch.setattr(D, "_max_index_date", lambda: date(2026, 9, 25))
