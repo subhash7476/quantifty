@@ -25,6 +25,7 @@ Pipeline:
   4. Corporate actions   → equity_bhavcopy.duckdb (adds adjusted view)
   5. Stock options       → data/market_data/stock_options_bhavcopy.duckdb
   6. 1m candles (Nifty200 + F&O stocks + Nifty/BankNifty/IndiaVIX/Sensex) → data/market_data/nse/candles/1m/{date}.duckdb (via fetch_upstox_historical.py)
+  6b. CAS marks          → rebuild data/cas/cas_category.duckdb, re-mark is_synthetic on the re-fetched sessions
   7. Build Nifty 50 DB   → data/signal_engine/carry/nifty50.duckdb
   8. Build continuous    → data/signal_engine/trend/continuous.duckdb
   9. Refresh strategies  → carry + ts_basis + ts_basis_daily signals
@@ -176,6 +177,40 @@ def _load_fo_equity_keys() -> list[str]:
     return sorted(keys.values())
 
 
+def _1m_start(full: bool, lookback: int) -> date:
+    """First session the 1m step re-fetches: the store head minus the lookback
+    (30 days on --full), or today minus it on an empty store."""
+    actual_max = _max_1m_date()
+    if actual_max is None:
+        start_date = date.today() - timedelta(days=30 if full else lookback)
+    else:
+        start_date = actual_max - timedelta(days=30 if full else lookback)
+    return min(start_date, date.today())
+
+
+def _mark_cas_synthetic(since: date) -> bool:
+    """Rebuild the CAS category table, then re-mark carry-forward bars from `since`.
+
+    The 1m fetcher upserts with is_synthetic = FALSE, so every session it
+    re-fetched has lost its marks (CAS_SYNTHETIC_MARKS_RESET_2026-10-26.md).
+    The category table is derived from futures_bhavcopy, which step 2 has just
+    advanced. The marker refuses a session with no Category I list and one left
+    with no marks, and snapshots each file before its first mark.
+    """
+    from scripts.cas import build_cas_category, mark_synthetic_bars
+
+    print(f"\n  [cas-mark] rebuild cas_category, mark sessions from {since}...")
+    try:
+        intervals = build_cas_category.build()
+        result = mark_synthetic_bars.run(apply=True, since=since)
+    except (RuntimeError, duckdb.Error) as exc:
+        print(f"  [cas-mark] FAILED: {exc}")
+        return False
+    print(f"  [cas-mark] OK — {intervals} category intervals; "
+          f"{result['bars_flagged']:,} bars newly flagged on {result['sessions']} sessions")
+    return True
+
+
 def _download_1m_candles(full: bool, lookback: int) -> bool:
     """Incrementally refresh 1m candles for Nifty200 + every F&O stock + indices via
     fetch_upstox_historical.py (Upstox V3, 1-minute).
@@ -199,20 +234,8 @@ def _download_1m_candles(full: bool, lookback: int) -> bool:
         return True
     fo_keys = _load_fo_equity_keys()
     instrument_keys = sorted(set(nifty_keys + fo_keys + ONE_MIN_INDICES))
-    actual_max = _max_1m_date()
-    if not full and actual_max is not None:
-        start_date = actual_max - timedelta(days=lookback)
-    elif full and actual_max is not None:
-        # --full on a deep store: re-walk last 30 days rather than today-30d
-        # to keep the window anchored at the store head.
-        start_date = actual_max - timedelta(days=30)
-    else:
-        # Empty store (bootstrap): seed from lookback window (or 30d on --full)
-        seed_days = 30 if full else lookback
-        start_date = date.today() - timedelta(days=seed_days)
+    start_date = _1m_start(full, lookback)
     end_date = date.today()
-    if start_date > end_date:
-        start_date = end_date
     # Upstox V3 caps 1-minute range at 29 days per call; the fetcher chunks
     # internally, but keep the outer window bounded — daily incremental is
     # 7–30 days; a --full still stays at 30 days by design.
@@ -349,7 +372,13 @@ def download_data(full: bool, lookback: int):
     # Skip only when --skip-1m is explicitly passed; this step needs a valid
     # Upstox token — failure is non-fatal for the rest of the pipeline.
     if "--skip-1m" not in sys.argv:
+        # Taken before the fetch, which advances the store head.
+        mark_since = _1m_start(full, lookback)
         if not _download_1m_candles(full, lookback):
+            all_ok = False
+        # 6b. Even after a failed fetch: a partial upsert has still reset the
+        # is_synthetic marks on the rows it wrote.
+        if not _mark_cas_synthetic(mark_since):
             all_ok = False
     else:
         print("\n  [1m-candles] SKIP (--skip-1m)")

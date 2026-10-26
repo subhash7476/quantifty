@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
 import duckdb
+import pytest
 
 import scripts.cas.mark_synthetic_bars as marker
 from scripts.cas.mark_synthetic_bars import mark_file
@@ -143,3 +144,54 @@ def test_since_limits_which_sessions_are_touched(tmp_path, monkeypatch):
     assert _synthetic_count(tmp_path / f"{late.isoformat()}.duckdb") == 1
     assert _synthetic_count(tmp_path / f"{early.isoformat()}.duckdb") == 0
     assert not (tmp_path / f"{early.isoformat()}.duckdb.pre_cas_mark").exists()
+
+
+# --- run(): post-condition and ticker mapping ------------------------------
+
+def test_run_raises_when_a_post_cas_session_is_left_unmarked(tmp_path, monkeypatch):
+    """mark_file() returns a delta, so 0 cannot tell 'already marked' from
+    'nothing matched'. run() asserts the absolute count instead."""
+    good, bad = date(2026, 8, 24), date(2026, 8, 25)
+    _store(tmp_path, monkeypatch, [good])
+    _make_file(tmp_path, bad, [  # no 15:14 anchor, so nothing can match
+        (SYM, datetime(2026, 8, 25, 15, 15), 1304.1, 1304.1, 1304.1, 1304.1, 0),
+    ])
+
+    with pytest.raises(RuntimeError, match="2026-08-25"):
+        marker.run(apply=True)
+
+    assert _synthetic_count(tmp_path / f"{good.isoformat()}.duckdb") == 1
+
+
+def _category_and_master(tmp_path, monkeypatch, category, master):
+    cat = duckdb.connect(str(tmp_path / "cat.duckdb"))
+    cat.execute("CREATE TABLE cas_category (symbol VARCHAR, effective_from DATE, effective_to DATE)")
+    cat.executemany("INSERT INTO cas_category VALUES (?, ?, ?)", category)
+    cat.close()
+    m = duckdb.connect(str(tmp_path / "master.duckdb"))
+    m.execute("CREATE TABLE instruments (tradingsymbol VARCHAR, isin VARCHAR)")
+    m.executemany("INSERT INTO instruments VALUES (?, ?)", master)
+    m.close()
+    monkeypatch.setattr(marker, "CATEGORY_DB", tmp_path / "cat.duckdb")
+    monkeypatch.setattr(marker, "MASTER_DB", tmp_path / "master.duckdb")
+
+
+def test_cat1_symbols_resolve_through_the_master(tmp_path, monkeypatch):
+    on = date(2026, 10, 23)
+    _category_and_master(tmp_path, monkeypatch,
+                         [("RELIANCE", on, on), ("ICICILIFE", on, on)],
+                         [("RELIANCE", "INE002A01018"), ("ICICILIFE", "INE726G01019")])
+
+    assert marker.cat1_isin_symbols(on) == {"NSE_EQ|INE002A01018", "NSE_EQ|INE726G01019"}
+
+
+def test_a_cat1_ticker_missing_from_the_master_is_an_error(tmp_path, monkeypatch):
+    """A rename the master has not caught up with (ICICIPRULI -> ICICILIFE,
+    2026-10-23) would otherwise leave that name's bars silently unmarked."""
+    on = date(2026, 10, 23)
+    _category_and_master(tmp_path, monkeypatch,
+                         [("RELIANCE", on, on), ("ICICILIFE", on, on)],
+                         [("RELIANCE", "INE002A01018")])
+
+    with pytest.raises(RuntimeError, match="ICICILIFE"):
+        marker.cat1_isin_symbols(on)

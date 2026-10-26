@@ -125,6 +125,13 @@ def cat1_isin_symbols(session: date) -> set:
         for ticker, isin in ticker_to_isin.items()
         if ticker.replace("-EQ", "") in tickers
     }
+    # A Cat-I ticker the master does not know (a rename it has not caught up
+    # with, say) would leave that name's bars unmarked without any error.
+    unmapped = tickers - {t.replace("-EQ", "") for t in ticker_to_isin}
+    if unmapped:
+        raise RuntimeError(
+            f"Cat-I tickers on {session} have no ISIN in {MASTER_DB.name}: "
+            f"{sorted(unmapped)}")
     return {f"{CAS_MARKABLE_PREFIX}{i}" for i in isins}
 
 
@@ -137,6 +144,7 @@ def run(apply: bool, since: date | None = None) -> dict:
     floor = CAS_EFFECTIVE if since is None else max(CAS_EFFECTIVE, since)
     total = 0
     touched = 0
+    unmarked = []
     for path in sorted(NATIVE_1M_DIR.glob("*.duckdb")):
         session = date.fromisoformat(path.stem)
         if session < floor:
@@ -156,8 +164,24 @@ def run(apply: bool, since: date | None = None) -> dict:
             if not snapshot.exists():
                 shutil.copy2(path, snapshot)
             total += mark_file(path, session, symbols)
+            # mark_file() returns a delta, which is 0 for an already-marked
+            # file and for one nothing matched alike. Every post-CAS session
+            # with an auction carries carry-forward bars, so assert the total.
+            if (session_window("cash_auction", session) is not None
+                    and _synthetic_count(path) == 0):
+                unmarked.append(session.isoformat())
         touched += 1
+    if unmarked:
+        raise RuntimeError(f"no carry-forward bars marked on {unmarked}")
     return {"sessions": touched, "bars_flagged": total}
+
+
+def _synthetic_count(path: Path) -> int:
+    con = duckdb.connect(str(path), read_only=True)
+    try:
+        return con.execute("SELECT count(*) FROM candles WHERE is_synthetic").fetchone()[0]
+    finally:
+        con.close()
 
 
 if __name__ == "__main__":
