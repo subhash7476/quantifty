@@ -1,7 +1,7 @@
 # CAS `is_synthetic` marks missing from 2026-09-04: root cause
 
 **Found:** 2026-10-26, while diagnosing the 10-23 DownloadAll failure (`DOWNLOAD_ALL_FAILURE_2026-10-23.md`).
-**Status:** cause confirmed read-only. Fix implemented on `fix/cas-nightly-synthetic-marks` after operator OK (2026-10-26: "go, fail loud, snapshots are fine"). Live 1m files have not been mutated by this investigation; the one-off remediation below is still to run.
+**Status:** **closed 2026-10-26.** Fix merged as PR #54 (`e53b0a8`, operator OK: "go, fail loud, snapshots are fine"), and `F:\Nifty` was fast-forwarded to it before the 22:00 run. The one-off remediation ran at 16:12 and every post-CAS session 08-03 → 10-23 now carries marks (see *Remediation result*). Open check: the 2026-10-26 22:00 log should show `[cas-mark] OK`, and 10-26 should carry marks.
 
 ## Symptom
 
@@ -61,7 +61,7 @@ Tests will point `NATIVE_1M_DIR`, `CATEGORY_DB`, `MASTER_DB`, `FUTURES_DB` and `
 
 The marker was run on scratch copies of the live 09-04, 09-15, 10-01 and 10-22 files, using the live `cas_category` and master read-only. It marked 2,753 / 2,926 / 2,968 / 2,779 bars, and the unmapped-ticker guard passed on every post-CAS session 08-03 → 10-23.
 
-## One-off remediation (after the fix is on `main` in `F:\Nifty`, run after 15:50)
+## One-off remediation (ran 2026-10-26 16:12, after the merge)
 
 ```bash
 python scripts/cas/mark_synthetic_bars.py --apply --since 2026-09-04
@@ -71,3 +71,12 @@ python scripts/cas/mark_synthetic_bars.py --apply --since 2026-09-04
 - Re-marking 10-23 is a no-op.
 - **Verify:** each session's synthetic count should land at 2,700–2,980, within the flat zero-volume auction-window count above.
 - If the remediation runs before the fix reaches `main`, the next nightly run resets the trailing 5 sessions. Re-run the command after the first fixed night.
+
+## Remediation result (2026-10-26 16:12)
+
+Run from `F:\Nifty` on `main` at `e53b0a8`, with no Python processes running:
+
+- **Totals:** `{'sessions': 33, 'bars_flagged': 91547}`. `run()`'s new zero-marks check passed on all 33 sessions, so none was left unmarked.
+- **Per session, 09-04 → 10-23:** 2,720–2,982 marked bars against 2,940–2,983 flat zero-volume auction-window bars. The gap is bars whose close differs from the 15:14 anchor, which the marker leaves alone by design. The same gap appears on the 08-03 → 09-03 sessions that were marked by hand earlier.
+- **10-23:** went from 2,769 to 2,782 marks. Its `.pre_cas_mark` snapshot was taken after the PR #53 backfill had already marked it, so it is **not** a pre-mark copy. The pre-mark baseline for 10-23 is the backfill's copy in `data/_baselines/`.
+- **Snapshots:** 57 `.pre_cas_mark` files now sit in the live 1m dir.
