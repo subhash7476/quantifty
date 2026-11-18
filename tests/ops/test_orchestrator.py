@@ -981,6 +981,51 @@ def test_token_wait_done_runs_on_interrupt():
     assert done == [False]
 
 
+def test_token_wait_alerts_every_interval_until_the_token_arrives():
+    waits = []
+    ticks = {"n": 0}
+
+    def fresh():
+        ticks["n"] += 1
+        return ticks["n"] > 1000
+
+    deps, _ = _deps(token_fresh=fresh, token_waiting=waits.append,
+                    sleep=lambda s: None)
+    assert orch.start_sequence(deps, token_timeout_s=10 ** 6) == "started"
+    assert waits == [600.0, 1200.0, 1800.0]
+
+
+def test_cmd_start_exits_nonzero_when_interrupted_before_the_stack_is_up(monkeypatch):
+    monkeypatch.setattr(orch.pidfile, "acquire_lock", lambda p: True)
+    monkeypatch.setattr(orch.pidfile, "release_lock", lambda *a, **k: None)
+    monkeypatch.setattr(orch, "_disable_quickedit", lambda: True)
+    monkeypatch.setattr(orch.Supervisor, "shutdown", lambda self: None)
+
+    def interrupted(*a, **k):
+        raise KeyboardInterrupt
+
+    deps, _ = _deps()
+    monkeypatch.setattr(orch, "_live_deps", lambda started: deps)
+    monkeypatch.setattr(orch, "start_sequence", interrupted)
+    assert orch._cmd_start(dry_run=False) == 1
+
+
+def test_cmd_start_exits_zero_when_interrupted_after_the_stack_is_up(monkeypatch):
+    monkeypatch.setattr(orch.pidfile, "acquire_lock", lambda p: True)
+    monkeypatch.setattr(orch.pidfile, "release_lock", lambda *a, **k: None)
+    monkeypatch.setattr(orch, "_disable_quickedit", lambda: True)
+    monkeypatch.setattr(orch.Supervisor, "shutdown", lambda self: None)
+    deps, _ = _deps()
+    monkeypatch.setattr(orch, "_live_deps", lambda started: deps)
+    monkeypatch.setattr(orch, "start_sequence", lambda d, **k: "started")
+
+    def interrupted(*a, **k):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(orch, "supervise_until_day_end", interrupted)
+    assert orch._cmd_start(dry_run=False) == 0
+
+
 def test_token_wait_done_not_called_when_token_already_fresh():
     done = []
     deps, calls = _deps(token_wait_done=done.append)

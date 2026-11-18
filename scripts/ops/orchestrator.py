@@ -194,6 +194,9 @@ class Deps:
     # Called once after a token wait with whether a fresh token arrived, on every
     # exit path, so the phone-approval tunnel never outlives the wait.
     token_wait_done: Callable[[bool], None] = lambda ok: None
+    # Called every TOKEN_ALERT_EVERY_S of an unanswered token wait with the seconds
+    # waited, so a missed approval reaches the operator instead of idling silently.
+    token_waiting: Callable[[float], None] = lambda waited_s: None
     # Browser login fallback. Opened at once when phone approval is unavailable,
     # else only after BROWSER_FALLBACK_S without a token: a login completed after
     # the phone approval issues a second token and revokes the approved one.
@@ -247,9 +250,13 @@ def start_sequence(deps: Deps, *, token_timeout_s: float = 600.0,
             if browser_opened:
                 deps.open_browser()
             waited = 0.0
+            next_alert = TOKEN_ALERT_EVERY_S
             while not deps.token_fresh():
                 if waited >= token_timeout_s:
                     return "timeout:token"
+                if waited >= next_alert:
+                    deps.token_waiting(waited)
+                    next_alert += TOKEN_ALERT_EVERY_S
                 if not browser_opened and waited >= BROWSER_FALLBACK_S:
                     deps.open_browser()
                     browser_opened = True
@@ -342,6 +349,7 @@ ORCH_LOCK = OPS_DIR / "orchestrator.pid"
 # phone; the market opens 09:15 and the feed gates park until then anyway.
 TOKEN_TIMEOUT_S = 3 * 3600
 BROWSER_FALLBACK_S = 10 * 60
+TOKEN_ALERT_EVERY_S = 10 * 60
 SESSION_FINALIZE_BUDGET_S = 90.0
 # The session's own 15:35 time exit plus its finalize budget, with margin.
 SESSION_DAY_END = dtime(15, 50)
@@ -693,6 +701,12 @@ def _live_deps(started: dict) -> Deps:
             from core.scheduler.eod_telegram import send_sync
             send_sync("Upstox token not received — orchestrator start abandoned.")
 
+    def _token_waiting(waited_s: float) -> None:
+        from core.scheduler.eod_telegram import send_sync
+        send_sync(f"Upstox token still not received after {int(waited_s // 60)} min — "
+                  "approve the request in the Upstox app, or complete the login at "
+                  "http://127.0.0.1:5000/ops/login/upstox. The trading stack is not running.")
+
     def _marks_warm() -> bool:
         ctx = preflight.build_context()
         return preflight.check_marks(ctx).ok
@@ -726,6 +740,7 @@ def _live_deps(started: dict) -> Deps:
         sleep=time.sleep, now=datetime.now,
         gate_status=_gate_status,
         token_wait_done=_token_wait_done,
+        token_waiting=_token_waiting,
     )
 
 
@@ -795,12 +810,16 @@ def _cmd_start(dry_run: bool, profile: str = "full") -> int:
     _logger.info("profile: %s", profile)
     _wire_supervisor(deps, sup)
     deps.sleep = _stop_aware(deps.sleep)
+    # An interrupt before the stack is up means the day never ran: exit non-zero so
+    # run_if_session alerts (2026-11-16: stopped at the token gate, exit 0, silent).
+    stack_up = False
     try:
         outcome = start_sequence(deps, token_timeout_s=TOKEN_TIMEOUT_S)
         print(f"start sequence: {outcome}")
         if outcome != "started":
             sup.shutdown()
             return 1
+        stack_up = True
         _logger.info("supervising until %s — Ctrl+C to stop sooner",
                      SESSION_DAY_END.strftime("%H:%M"))
         supervise_until_day_end(sup, deps.now().date())
@@ -812,7 +831,7 @@ def _cmd_start(dry_run: bool, profile: str = "full") -> int:
     except KeyboardInterrupt:
         print("\nshutting down...")
         sup.shutdown()
-        return 0
+        return 0 if stack_up else 1
     finally:
         pidfile.release_lock(ORCH_LOCK)
 
