@@ -74,6 +74,8 @@ SPECIAL_SESSIONS = {
     date(2023, 11, 12): _special((time(18, 15), time(19, 15))),
     date(2024, 11, 1): _special((time(18, 0), time(19, 0))),
     date(2025, 10, 21): _special((time(13, 45), time(14, 45))),
+    # 2026-11-08 (Sunday): bars 14:20..15:29, 70 per symbol, 236 symbols.
+    date(2026, 11, 8): _special((time(14, 20), time(15, 30))),
     # NSE special Saturdays, traded in two blocks of 45 and 60 minutes with a
     # 90-minute recess between them - the shape of a primary-site session
     # followed by a disaster-recovery-site session. Bars: 09:15..09:59 and

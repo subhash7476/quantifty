@@ -38,6 +38,7 @@ ADDITIONAL_SESSIONS: frozenset[date] = frozenset({
     date(2024, 5, 18),   # Sat - DR special session (split)
     date(2025, 2, 1),    # Sat - Union Budget session
     date(2026, 2, 1),    # Sun - Union Budget session (Nifty 1m not captured)
+    date(2026, 11, 8),   # Sun - Diwali Muhurat (14:20-15:30)
 })
 
 # Weekday market-wide closures that are not ordinary NSE_HOLIDAYS entries.

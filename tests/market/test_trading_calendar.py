@@ -89,7 +89,8 @@ def test_special_closures_are_not_sessions_and_not_ordinary_holidays(d):
 def test_required_members():
     assert ADDITIONAL_SESSIONS == {
         date(2023, 11, 12), date(2024, 1, 20), date(2024, 3, 2),
-        date(2024, 5, 18), date(2025, 2, 1), date(2026, 2, 1)}
+        date(2024, 5, 18), date(2025, 2, 1), date(2026, 2, 1),
+        date(2026, 11, 8)}
     assert SPECIAL_CLOSURES == {date(2024, 1, 22), date(2024, 5, 20), date(2024, 11, 20)}
 
 
